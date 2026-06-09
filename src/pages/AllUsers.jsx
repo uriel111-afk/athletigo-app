@@ -140,6 +140,12 @@ export default function AllUsers() {
   const [showAddMemberPicker, setShowAddMemberPicker] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState(null);
   const [addMemberSearch, setAddMemberSearch] = useState('');
+  // Multi-select buffer for the add-member picker. Reset every time
+  // the dialog opens so a stale selection from a previous session
+  // can't leak in. The Set holds trainee ids; the bottom CTA stays
+  // disabled while it's empty.
+  const [selectedAddIds, setSelectedAddIds] = useState(() => new Set());
+  const [addingBatch, setAddingBatch] = useState(false);
 
   // Service-type filter (multi-select). Values are the canonical
   // English keys returned by normalizeServiceType — 'personal' /
@@ -404,6 +410,12 @@ export default function AllUsers() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [statusMenuOpen]);
+
+  // Wipe the multi-select buffer whenever the add-member picker
+  // opens so each session starts clean.
+  useEffect(() => {
+    if (showAddMemberPicker) setSelectedAddIds(new Set());
+  }, [showAddMemberPicker]);
 
   // Build the canonical TrainingPlan row payload for one trainee. Kept
   // separate from the loop driver so the retry path can rebuild the
@@ -2435,25 +2447,81 @@ export default function AllUsers() {
               const phone = (t.phone || '').toLowerCase();
               return name.includes(search) || phone.includes(search);
             });
+          const toggleSelect = (id) => {
+            setSelectedAddIds((prev) => {
+              const next = new Set(prev);
+              if (next.has(id)) next.delete(id);
+              else next.add(id);
+              return next;
+            });
+          };
+          const selectedCount = selectedAddIds.size;
+          const submitDisabled = addingBatch || selectedCount === 0;
+
+          const handleAddSelected = async () => {
+            if (submitDisabled) return;
+            // Defense in depth: drop ids that snuck in between render
+            // and submit (already a member, or hidden). The picker
+            // already filters them out, but the membership list could
+            // shift via realtime while the buffer was being built.
+            const ids = Array.from(selectedAddIds).filter(
+              (id) => id && !currentMemberIds.has(id)
+            );
+            if (ids.length === 0) {
+              setShowAddMemberPicker(false);
+              setAddMemberSearch('');
+              setSelectedAddIds(new Set());
+              return;
+            }
+            const traineeById = new Map((allTrainees || []).map((t) => [t.id, t]));
+            const rows = ids.map((id) => {
+              const t = traineeById.get(id);
+              return {
+                group_id: selectedGroup.id,
+                trainee_id: id,
+                trainee_name: t?.full_name || '',
+              };
+            });
+            console.log(`[AddMembers] inserting ${rows.length} row(s) into training_group_members…`);
+            setAddingBatch(true);
+            try {
+              const { error } = await supabase
+                .from('training_group_members')
+                .insert(rows);
+              if (error) throw error;
+              console.log('[AddMembers] ✓ batch insert ok');
+              queryClient.invalidateQueries({ queryKey: ['group-members'] });
+              toast.success(`✅ נוספו ${rows.length} מתאמנים לקבוצה`);
+              setSelectedAddIds(new Set());
+              setAddMemberSearch('');
+              setShowAddMemberPicker(false);
+            } catch (err) {
+              console.error('[AddMembers] batch insert failed:', err);
+              alert(`לא הצלחנו להוסיף את המתאמנים.\n\n${err?.message || err}`);
+              // Keep the picker open so the coach can retry / adjust.
+            } finally {
+              setAddingBatch(false);
+            }
+          };
+
           return (
             <Dialog
               open={showAddMemberPicker}
               onOpenChange={(o) => {
-                // Block backdrop dismiss while a mutation is in-flight;
-                // otherwise allow only the X / cancel paths (which set
-                // the flag to false explicitly).
-                if (!o && !addGroupMemberMutation.isPending) {
+                // Block backdrop dismiss while a batch insert is
+                // in-flight; otherwise allow only the X / cancel
+                // paths (which set the flag to false explicitly).
+                if (!o && !addingBatch) {
                   setShowAddMemberPicker(false);
                   setAddMemberSearch('');
+                  setSelectedAddIds(new Set());
                 }
               }}
             >
               <DialogContent
                 className="max-w-md"
                 onInteractOutside={(e) => e.preventDefault()}
-                onEscapeKeyDown={(e) => {
-                  if (addGroupMemberMutation.isPending) e.preventDefault();
-                }}
+                onEscapeKeyDown={(e) => { if (addingBatch) e.preventDefault(); }}
               >
                 <DialogHeader>
                   <DialogTitle>הוסף חבר — {selectedGroup.name || 'קבוצה'}</DialogTitle>
@@ -2493,80 +2561,116 @@ export default function AllUsers() {
                         כל המתאמנים כבר בקבוצה
                       </div>
                     ) : (
-                      candidates.map((t) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          disabled={addGroupMemberMutation.isPending}
-                          onClick={() => {
-                            addGroupMemberMutation.mutate(
-                              {
-                                group_id: selectedGroup.id,
-                                trainee_id: t.id,
-                                trainee_name: t.full_name || '',
-                              },
-                              {
-                                onSuccess: () => {
-                                  setShowAddMemberPicker(false);
-                                  setAddMemberSearch('');
-                                },
-                              }
-                            );
-                          }}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 12,
-                            padding: '10px 12px',
-                            borderRadius: 10,
-                            background: 'white',
-                            border: '1px solid #F0E4D0',
-                            cursor: addGroupMemberMutation.isPending ? 'default' : 'pointer',
-                            textAlign: 'right',
-                            fontFamily: 'inherit',
-                          }}
-                        >
-                          <div style={{
-                            width: 32, height: 32, borderRadius: 999,
-                            background: '#FFF5EE', color: '#FF6F20',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 14, fontWeight: 800, flexShrink: 0,
-                          }}>
-                            {(t.full_name || '?').trim().charAt(0)}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
+                      candidates.map((t) => {
+                        const isSelected = selectedAddIds.has(t.id);
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            role="checkbox"
+                            aria-checked={isSelected}
+                            disabled={addingBatch}
+                            onClick={() => toggleSelect(t.id)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 12,
+                              padding: '10px 12px',
+                              borderRadius: 10,
+                              background: isSelected ? '#FFF0E4' : 'white',
+                              border: `1px solid ${isSelected ? '#FF6F20' : '#F0E4D0'}`,
+                              cursor: addingBatch ? 'default' : 'pointer',
+                              textAlign: 'right',
+                              fontFamily: 'inherit',
+                              transition: 'background 120ms, border-color 120ms',
+                            }}
+                          >
+                            {/* Checkbox — first flex child so it lands
+                                on the visual RIGHT in RTL. Tapping the
+                                row toggles too; the checkbox is just a
+                                reflective indicator (no separate click
+                                handler so we don't double-fire). */}
+                            <span
+                              aria-hidden
+                              style={{
+                                width: 22, height: 22,
+                                borderRadius: 6,
+                                border: `2px solid ${isSelected ? '#FF6F20' : '#C9B89A'}`,
+                                background: isSelected ? '#FF6F20' : '#FFFFFF',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: '#FFFFFF', fontSize: 14, fontWeight: 900,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {isSelected ? '✓' : ''}
+                            </span>
                             <div style={{
-                              fontSize: 14, fontWeight: 700, color: '#1a1a1a',
-                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                              width: 32, height: 32, borderRadius: 999,
+                              background: '#FFF5EE', color: '#FF6F20',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 14, fontWeight: 800, flexShrink: 0,
                             }}>
-                              {t.full_name || 'מתאמן'}
+                              {(t.full_name || '?').trim().charAt(0)}
                             </div>
-                            {t.phone && (
+                            <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{
-                                fontSize: 11, color: '#888', marginTop: 2,
+                                fontSize: 14, fontWeight: 700, color: '#1a1a1a',
                                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                               }}>
-                                {t.phone}
+                                {t.full_name || 'מתאמן'}
                               </div>
-                            )}
-                          </div>
-                          <span aria-hidden style={{ color: '#FF6F20', fontSize: 18, fontWeight: 800 }}>+</span>
-                        </button>
-                      ))
+                              {t.phone && (
+                                <div style={{
+                                  fontSize: 11, color: '#888', marginTop: 2,
+                                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                }}>
+                                  {t.phone}
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })
                     )}
                   </div>
+
+                  {/* Bottom action bar — primary "הוסף נבחרים" CTA on
+                      top, secondary "ביטול" below. The primary stays
+                      grey + disabled until at least one trainee is
+                      checked, then flips to brand orange with the
+                      count surfaced in the label. */}
+                  <button
+                    type="button"
+                    onClick={handleAddSelected}
+                    disabled={submitDisabled}
+                    style={{
+                      width: '100%',
+                      padding: '12px 0', borderRadius: 12,
+                      border: 'none',
+                      background: submitDisabled ? '#E8E0D8' : '#FF6F20',
+                      color: submitDisabled ? '#888' : '#FFFFFF',
+                      fontSize: 14, fontWeight: 700,
+                      cursor: submitDisabled ? 'default' : 'pointer',
+                      marginTop: 4,
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {addingBatch
+                      ? 'מוסיף…'
+                      : (selectedCount > 0 ? `הוסף נבחרים (${selectedCount})` : 'הוסף נבחרים')}
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
-                      if (addGroupMemberMutation.isPending) return;
+                      if (addingBatch) return;
                       setShowAddMemberPicker(false);
                       setAddMemberSearch('');
+                      setSelectedAddIds(new Set());
                     }}
                     style={{
                       width: '100%',
                       padding: '11px 0', borderRadius: 12,
                       border: '1px solid #F0E4D0', background: 'white',
                       fontSize: 13, fontWeight: 700, color: '#666',
-                      cursor: addGroupMemberMutation.isPending ? 'default' : 'pointer',
-                      marginTop: 4,
+                      cursor: addingBatch ? 'default' : 'pointer',
                       fontFamily: 'inherit',
                     }}
                   >
