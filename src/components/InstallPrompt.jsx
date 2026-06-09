@@ -65,13 +65,13 @@ export default function InstallPrompt() {
           pure white in case the source ever drifts off true white. */}
       <div style={{
         position: 'relative', display: 'inline-block', flexShrink: 0,
-        width: 44, height: 44,
+        width: 64, height: 64,
       }}>
         <img
           src="/logo-r-transparent.png"
           alt=""
           style={{
-            width: 44, height: 44,
+            width: 64, height: 64,
             objectFit: 'contain',
             filter: 'brightness(0) invert(1)',
             display: 'block',
