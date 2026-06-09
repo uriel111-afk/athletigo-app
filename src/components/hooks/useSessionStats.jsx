@@ -27,20 +27,14 @@ export function useSessionStats() {
     gcTime: CACHE_CONFIG.GC_TIME
   });
 
-  // Global Data Scrubbing / Cleanup Logic
+  // Minimal data validity check — a row without a date+time can't be
+  // placed on any list, so it's the one thing we drop. Past pending
+  // sessions ("ghosts") used to be auto-hidden here, but per the
+  // coach's principle nothing disappears from the UI unless it's
+  // explicitly deleted; if the coach planned a session that never got
+  // a final status, it stays visible until they act on it.
   const cleanSessions = sessions.filter(s => {
     if (!s.date || !s.time) return false;
-    
-    // Orphan Check: If session is in the past (before today) AND status is 'pending' -> It's an orphan
-    // We treat them as invalid for counters to prevent "ghost" numbers
-    const sessionDate = new Date(s.date);
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    sessionDate.setHours(0,0,0,0);
-
-    if (sessionDate < today && ['ממתין לאישור', 'ממתין'].includes(s.status)) {
-       return false; // Filter out past pending sessions (ghosts)
-    }
     return true;
   });
 
