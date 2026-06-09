@@ -1,8 +1,20 @@
-// Group sessions into time buckets for the coach's redesigned
-// Sessions page. Buckets are ordered top-to-bottom in the UI:
-// today → tomorrow → thisWeek → future → past. Past stays
-// collapsed by default in the page; this helper just sorts into
-// the right slot. Each bucket sorts ascending by date+time.
+// Group sessions into time buckets for the coach's Sessions page.
+// Returns an ORDERED array of bucket objects: [{ key, label, sessions }, ...].
+// Buckets read top-to-bottom in the UI as:
+//   • planned   — today and onward (next sessions surface first)
+//   • thisWeek  — last 7 days (past)
+//   • thisMonth — last 8 to 30 days (past)
+//   • per-calendar-month — every older month, newest first, labelled
+//                          "מאי 2025" / "אפריל 2025" etc.
+// Empty buckets are dropped so the UI never renders a header with
+// no rows under it. The coach's principle is that no session
+// should ever vanish from the UI unless explicitly deleted, so
+// there is no date cap and no rollup beyond month granularity.
+
+const HEBREW_MONTHS = [
+  'ינואר', 'פברואר', 'מרץ',   'אפריל',  'מאי',     'יוני',
+  'יולי',  'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר',
+];
 
 const startOfDay = (d) => {
   const x = new Date(d);
@@ -17,46 +29,76 @@ const compareSessions = (a, b) => {
   return String(a.time || '').localeCompare(String(b.time || ''));
 };
 
+// 'YYYY-MM' (1-indexed month) — sorts chronologically as plain strings.
+const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+const monthLabel = (key) => {
+  const m = key.match(/^(\d{4})-(\d{2})$/);
+  if (!m) return key;
+  const year = m[1];
+  const monthIdx = parseInt(m[2], 10) - 1;
+  return `${HEBREW_MONTHS[monthIdx]} ${year}`;
+};
+
 export function groupSessionsByTime(sessions, now = new Date()) {
   const today = startOfDay(now);
-  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
-  const dayAfterWeek = new Date(today); dayAfterWeek.setDate(dayAfterWeek.getDate() + 8);
+  const sevenDaysAgo  = new Date(today); sevenDaysAgo.setDate(today.getDate() - 7);
+  const thirtyDaysAgo = new Date(today); thirtyDaysAgo.setDate(today.getDate() - 30);
 
-  const buckets = { today: [], tomorrow: [], thisWeek: [], future: [], past: [] };
+  const planned = [];
+  const thisWeek = [];
+  const thisMonth = [];
+  const byMonth = new Map(); // monthKey → []
 
   for (const s of sessions || []) {
-    if (!s?.date) {
-      buckets.future.push(s);
-      continue;
-    }
+    if (!s?.date) { planned.push(s); continue; }
     const sDate = startOfDay(s.date);
-    if (Number.isNaN(sDate.getTime())) {
-      buckets.future.push(s);
-      continue;
+    if (Number.isNaN(sDate.getTime())) { planned.push(s); continue; }
+
+    if (sDate >= today) {
+      planned.push(s);
+    } else if (sDate >= sevenDaysAgo) {
+      thisWeek.push(s);
+    } else if (sDate >= thirtyDaysAgo) {
+      thisMonth.push(s);
+    } else {
+      const k = monthKey(sDate);
+      if (!byMonth.has(k)) byMonth.set(k, []);
+      byMonth.get(k).push(s);
     }
-    if (sDate < today) buckets.past.push(s);
-    else if (sDate.getTime() === today.getTime()) buckets.today.push(s);
-    else if (sDate.getTime() === tomorrow.getTime()) buckets.tomorrow.push(s);
-    else if (sDate < dayAfterWeek) buckets.thisWeek.push(s);
-    else buckets.future.push(s);
   }
 
-  buckets.today.sort(compareSessions);
-  buckets.tomorrow.sort(compareSessions);
-  buckets.thisWeek.sort(compareSessions);
-  buckets.future.sort(compareSessions);
-  // Past sorts newest-first (most-recent at top of expanded list).
-  buckets.past.sort((a, b) => compareSessions(b, a));
+  // Planned: ascending so the next upcoming session reads first.
+  planned.sort(compareSessions);
+  // Past buckets: newest-first within each bucket.
+  thisWeek.sort((a, b) => compareSessions(b, a));
+  thisMonth.sort((a, b) => compareSessions(b, a));
+  for (const list of byMonth.values()) list.sort((a, b) => compareSessions(b, a));
 
-  return buckets;
+  // Month keys: newest month first.
+  const monthKeysSorted = Array.from(byMonth.keys()).sort().reverse();
+
+  const ordered = [
+    { key: 'planned',   label: 'מפגשים מתוכננים', sessions: planned   },
+    { key: 'thisWeek',  label: 'השבוע',           sessions: thisWeek  },
+    { key: 'thisMonth', label: 'החודש',           sessions: thisMonth },
+    ...monthKeysSorted.map(k => ({
+      key: k,
+      label: monthLabel(k),
+      sessions: byMonth.get(k),
+    })),
+  ];
+
+  return ordered.filter(g => g.sessions.length > 0);
 }
 
+// Kept for any caller that imports it. The new groupSessionsByTime
+// bakes labels into the returned bucket objects, so Sessions.jsx no
+// longer needs this map directly.
 export const BUCKET_LABELS = {
-  today:    'היום',
-  tomorrow: 'מחר',
-  thisWeek: 'השבוע',
-  future:   'בעתיד',
-  past:     'עברו',
+  planned:   'מפגשים מתוכננים',
+  thisWeek:  'השבוע',
+  thisMonth: 'החודש',
 };
 
 export const STATUS_BADGES = {

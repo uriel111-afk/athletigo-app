@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { isToday, isFuture, isTomorrow, parseISO, subMonths, format } from "date-fns";
+import { isToday, isFuture, isTomorrow, parseISO } from "date-fns";
 
 import { QUERY_KEYS, CACHE_CONFIG } from "@/components/utils/queryKeys";
 
@@ -9,12 +9,13 @@ export function useSessionStats() {
     queryKey: QUERY_KEYS.SESSIONS,
     queryFn: async () => {
       try {
-        // Optimization: Fetch sessions from 3 months ago to future
-        // This prevents loading years of history while keeping recent context
-        const startDate = format(subMonths(new Date(), 3), 'yyyy-MM-dd');
-        return await base44.entities.Session.filter({
-          date: { $gte: startDate }
-        }, '-date', 1000);
+        // No date cap — the coach's principle is that no session
+        // should ever disappear from the UI unless the coach explicitly
+        // deletes it. Sessions.jsx groups the full history into time
+        // buckets (planned / this-week / this-month / per-month) so
+        // older months don't dominate the view without being lost.
+        // Limit raised to 5000 to accommodate years of accumulated rows.
+        return await base44.entities.Session.filter({}, '-date', 5000);
       } catch (error) {
         console.error("[useSessionStats] Error loading sessions:", error);
         return [];

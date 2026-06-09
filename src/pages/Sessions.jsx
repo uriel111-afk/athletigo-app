@@ -40,7 +40,7 @@ import PaymentOverrideDialog from "@/components/sessions/PaymentOverrideDialog";
 import FastAttendanceDialog from "@/components/groups/FastAttendanceDialog";
 import { requiresPayment } from "@/lib/sessionHelpers";
 import { createPageUrl } from "@/utils";
-import { groupSessionsByTime, BUCKET_LABELS, statusMatchesFilter } from "@/lib/sessionGrouping";
+import { groupSessionsByTime, statusMatchesFilter } from "@/lib/sessionGrouping";
 
 export default function Sessions() {
   const [showSessionDialog, setShowSessionDialog] = useState(false);
@@ -88,7 +88,6 @@ export default function Sessions() {
 
   // Past bucket starts collapsed — the coach asks for it open via a
   // toggle inside the grouped layout.
-  const [showPast, setShowPast] = useState(false);
 
   // Local status-chip filter for the grouped layout. Distinct from
   // the existing filterStatus (which drives the 4-section's stat
@@ -1687,13 +1686,13 @@ export default function Sessions() {
               fall back. Both pull from `sessions` (Hook) so they
               stay in sync after CRUD. */}
           {activeView === 'sessions' && !isLoading && sessionsLayout === 'grouped' && (() => {
+            // groupSessionsByTime returns an ordered array of
+            // { key, label, sessions } — planned first, then thisWeek,
+            // thisMonth, then per-calendar-month going backward. Empty
+            // buckets are dropped by the helper, so we just iterate.
             const groups = groupSessionsByTime(groupedFilteredSessions);
-            const visibleBuckets = ['today', 'tomorrow', 'thisWeek', 'future'];
-            const totalVisible = visibleBuckets.reduce((n, k) => n + groups[k].length, 0);
             return (
               <div dir="rtl" style={{ paddingBottom: 80 }}>
-                {/* Status filter chips moved to the unified filter bar (Row D) above. */}
-
                 {/* Toggle back to classic if needed */}
                 <div style={{ textAlign: 'left', marginBottom: 12 }}>
                   <button
@@ -1706,7 +1705,7 @@ export default function Sessions() {
                   >תצוגה קלאסית →</button>
                 </div>
 
-                {totalVisible === 0 && groups.past.length === 0 && (
+                {groups.length === 0 && (
                   <div style={{
                     textAlign: 'center', padding: 60, color: 'var(--ag-text-soft)',
                     background: 'white', borderRadius: 14, border: '1px solid var(--ag-border)',
@@ -1716,60 +1715,21 @@ export default function Sessions() {
                   </div>
                 )}
 
-                {visibleBuckets.map(bucketKey => {
-                  const list = groups[bucketKey];
-                  if (!list.length) return null;
-                  return (
-                    <div key={bucketKey} style={{ marginBottom: 18 }}>
-                      <div style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        marginBottom: 8,
-                      }}>
-                        <h3 style={{
-                          margin: 0,
-                          fontSize: 18, fontWeight: 700,
-                          color: 'var(--ag-text)',
-                          fontFamily: "'Bebas Neue', sans-serif",
-                          letterSpacing: 0.3,
-                        }}>{BUCKET_LABELS[bucketKey]}</h3>
-                        <span style={{
-                          fontSize: 12, fontWeight: 600, color: 'var(--ag-accent)',
-                          background: '#FFF5EE', padding: '2px 10px', borderRadius: 999,
-                        }}>{list.length}</span>
-                      </div>
-                      {list.map(s => (
-                        <NewSessionCard
-                          key={s.id}
-                          session={s}
-                          trainee={traineeMap[s.trainee_id]}
-                          onClick={openSessionInTraineeProfile}
-                          onStatusChange={handleSessionStatusChange}
-                        />
-                      ))}
-                    </div>
-                  );
-                })}
-
-                {/* Past — collapsed by default */}
-                {groups.past.length > 0 && (
-                  <div style={{ marginTop: 24 }}>
-                    <button
-                      type="button"
-                      onClick={() => setShowPast(p => !p)}
-                      style={{
-                        width: '100%', padding: 12, borderRadius: 12,
-                        border: '1px dashed var(--ag-border)',
-                        background: 'transparent', color: 'var(--ag-text-soft)',
-                        fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                        marginBottom: 10,
-                        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-                      }}
-                    >
-                      {showPast
-                        ? `▲ הסתר מפגשים שעברו (${groups.past.length})`
-                        : `▼ הצג מפגשים שעברו (${groups.past.length})`}
-                    </button>
-                    {showPast && groups.past.map(s => (
+                {groups.map((group, idx) => (
+                  <div key={group.key}>
+                    {/* Static section header per spec: small, muted,
+                        marginTop above the first card of each group.
+                        No collapse — every session stays visible. */}
+                    <h3 style={{
+                      margin: 0,
+                      marginTop: idx === 0 ? 0 : 16,
+                      marginBottom: 8,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: '#6B7280',
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                    }}>{group.label}</h3>
+                    {group.sessions.map(s => (
                       <NewSessionCard
                         key={s.id}
                         session={s}
@@ -1779,7 +1739,7 @@ export default function Sessions() {
                       />
                     ))}
                   </div>
-                )}
+                ))}
               </div>
             );
           })()}
