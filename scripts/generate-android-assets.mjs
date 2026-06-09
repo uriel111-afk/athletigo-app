@@ -59,8 +59,11 @@ async function logoOnCanvas(canvasSize, logoSize, outPath) {
     .toFile(outPath);
 }
 
-await logoOnCanvas(1024, 640, path.join(out, 'icon-only.png'));
-await logoOnCanvas(1024, 640, path.join(out, 'icon-foreground.png'));
+// Logo enlarged 25% (640 → 800) on 1024 canvas so the launcher icon
+// reads bigger on the home screen. 800/1024 = 78%, still inside
+// Material Design's 80% safe-zone.
+await logoOnCanvas(1024, 800, path.join(out, 'icon-only.png'));
+await logoOnCanvas(1024, 800, path.join(out, 'icon-foreground.png'));
 
 await sharp({
   create: {
@@ -71,8 +74,9 @@ await sharp({
   },
 }).png().toFile(path.join(out, 'icon-background.png'));
 
-await logoOnCanvas(2732, 900, path.join(out, 'splash.png'));
-await logoOnCanvas(2732, 900, path.join(out, 'splash-dark.png'));
+// Splash logo also +25% (900 → 1125) to match.
+await logoOnCanvas(2732, 1125, path.join(out, 'splash.png'));
+await logoOnCanvas(2732, 1125, path.join(out, 'splash-dark.png'));
 
 console.log('Brand color:', BRAND_CREAM_HEX);
 console.log('Assets generated:', fs.readdirSync(out).join(', '));
