@@ -17,6 +17,7 @@ import Login from './pages/Login';
 import CoachHub from './pages/CoachHub';
 import LifeOSDashboard from './pages/lifeos/LifeOSDashboard';
 import LifeOSExpenses from './pages/lifeos/Expenses';
+import LifeOSExpenseFormPage from './pages/lifeos/ExpenseFormPage';
 import LifeOSExpenseDetail from './pages/lifeos/ExpenseDetail';
 import LifeOSIncome from './pages/lifeos/Income';
 import LifeOSRecurring from './pages/lifeos/RecurringPayments';
@@ -477,6 +478,9 @@ const AuthenticatedApp = () => {
       <Route path="/hub"                 element={<PageRouteGuard pageKey="CoachHub"><CoachHub /></PageRouteGuard>} />
       <Route path="/lifeos"              element={<PageRouteGuard pageKey="LifeOS"><LifeOSDashboard /></PageRouteGuard>} />
       <Route path="/lifeos/expenses"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSExpenses /></PageRouteGuard>} />
+      {/* /new MUST be listed before /:id so React Router doesn't treat */}
+      {/* "new" as an expense uuid and try to fetch a row for it. */}
+      <Route path="/lifeos/expenses/new" element={<PageRouteGuard pageKey="LifeOS"><LifeOSExpenseFormPage /></PageRouteGuard>} />
       <Route path="/lifeos/expenses/:id" element={<PageRouteGuard pageKey="LifeOS"><LifeOSExpenseDetail /></PageRouteGuard>} />
       <Route path="/lifeos/income"       element={<PageRouteGuard pageKey="LifeOS"><LifeOSIncome /></PageRouteGuard>} />
       <Route path="/lifeos/recurring"    element={<PageRouteGuard pageKey="LifeOS"><LifeOSRecurring /></PageRouteGuard>} />

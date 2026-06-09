@@ -219,7 +219,10 @@ export default function Expenses() {
   const nextMonth = () => { const d = new Date(cursor); d.setMonth(d.getMonth() + 1); setCursor(d); };
   const isCurrentMonth = sameMonth(cursor, new Date());
 
-  const openNew = () => { setEditingExpense(null); setShowForm(true); };
+  // New expenses now live on a dedicated route — the Dialog version
+  // closed itself when iOS handed focus back from the camera intent.
+  // Edit mode still uses the in-place ExpenseForm Dialog below.
+  const openNew = () => { navigate('/lifeos/expenses/new'); };
   const openEdit = (e, row) => { e.stopPropagation(); setEditingExpense(row); setShowForm(true); };
   const handleDelete = async (e, id) => {
     e.stopPropagation();
