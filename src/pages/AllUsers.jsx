@@ -16,7 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import { normalizeStatus, isActivePackage } from "@/lib/enums";
-import { isFormerClient } from "@/lib/clientStatusHelpers";
+import { isFormerClient, isArchivedClient, isHiddenFromSelection } from "@/lib/clientStatusHelpers";
 import useMultiSelect from "../hooks/useMultiSelect";
 import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
 import { calculateAge as calcAge, formatBirthWithAge, daysUntilBirthday } from "@/lib/dateHelpers";
@@ -760,7 +760,7 @@ export default function AllUsers() {
   // the most recent client_services.package_type, so a trainee whose
   // onboarding was skipped/legacy still lands in the right chip.
   const formerTrainees = useMemo(
-    () => (allTrainees || []).filter((t) => isFormerClient(t)),
+    () => (allTrainees || []).filter((t) => isFormerClient(t) && !isArchivedClient(t)),
     [allTrainees]
   );
 
@@ -857,6 +857,10 @@ export default function AllUsers() {
     const isFormerTab = filterType === 'former';
     const filtered = allTrainees.filter(t => {
       const former = isFormerClient(t);
+      // Archived users are hidden from EVERY tab — including the
+      // "לשעבר" tab. The only way to surface them is via the raw
+      // allTrainees / a future "archived" admin view.
+      if (isArchivedClient(t)) return false;
       // The 'לשעבר' tab is the ONLY place former trainees surface.
       // Every other tab (all / active / inactive) drops them
       // unconditionally — independent of the legacy showFormer toggle.
@@ -2424,7 +2428,7 @@ export default function AllUsers() {
           );
           const search = (addMemberSearch || '').trim().toLowerCase();
           const candidates = (allTrainees || [])
-            .filter((t) => t && t.id && !currentMemberIds.has(t.id) && !isFormerClient(t))
+            .filter((t) => t && t.id && !currentMemberIds.has(t.id) && !isHiddenFromSelection(t))
             .filter((t) => {
               if (!search) return true;
               const name = (t.full_name || '').toLowerCase();
@@ -2752,7 +2756,7 @@ export default function AllUsers() {
           isOpen={showCreateGroupFull}
           onClose={() => setShowCreateGroupFull(false)}
           currentUser={currentUser}
-          trainees={(allTrainees || []).filter((t) => !isFormerClient(t))}
+          trainees={(allTrainees || []).filter((t) => !isHiddenFromSelection(t))}
         />
 
         {/* Whole-group dialogs — same components Sessions.jsx /
@@ -2770,7 +2774,7 @@ export default function AllUsers() {
             isOpen={!!planFormGroup}
             onClose={() => setPlanFormGroup(null)}
             onSubmit={handlePlanFormSubmit}
-            trainees={(allTrainees || []).filter((t) => !isFormerClient(t))}
+            trainees={(allTrainees || []).filter((t) => !isHiddenFromSelection(t))}
             initialSelectedTraineeIds={
               groupMembers
                 .filter((m) => m.group_id === planFormGroup.id)

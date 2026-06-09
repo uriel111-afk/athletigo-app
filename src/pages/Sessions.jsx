@@ -1,6 +1,6 @@
 import React, { useState, useContext, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
-import { isFormerClient } from "@/lib/clientStatusHelpers";
+import { isHiddenFromSelection } from "@/lib/clientStatusHelpers";
 import { supabase } from "@/lib/supabaseClient";
 import { createNotification } from "@/lib/notify";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -151,7 +151,7 @@ export default function Sessions() {
   // to a session / participant list. Full `trainees` list remains
   // available for lookups by id.
   const selectableTrainees = useMemo(
-    () => (trainees || []).filter((t) => !isFormerClient(t)),
+    () => (trainees || []).filter((t) => !isHiddenFromSelection(t)),
     [trainees]
   );
 

@@ -67,6 +67,26 @@ export const isFormerClient = (user) => {
   return FORMER_STATUSES.has(s) || FORMER_STATUSES.has(s.toLowerCase());
 };
 
+// True when a trainee's client_status is the hidden "archived" bucket.
+// Distinct from 'former' — former trainees still surface inside the
+// "לשעבר" tab; archived ones are hidden from EVERY tab and from every
+// selection list. Used by the "הסרת משתמש" soft-delete flow on
+// TraineeProfile and the matching filters in AllUsers / useClientStats.
+export const ARCHIVED_STATUSES = new Set(['archived']);
+export const isArchivedClient = (user) => {
+  const raw = user && user.client_status;
+  if (raw == null) return false;
+  const s = String(raw).trim();
+  if (!s) return false;
+  return ARCHIVED_STATUSES.has(s) || ARCHIVED_STATUSES.has(s.toLowerCase());
+};
+
+// Convenience: a trainee is selectable in pickers / multi-selects iff
+// they are neither former nor archived. Callers should use this
+// instead of inlining the two checks separately.
+export const isHiddenFromSelection = (user) =>
+  isFormerClient(user) || isArchivedClient(user);
+
 // Lightweight write — no side effects beyond the column update +
 // updated_at touch. Use this from surfaces that only care about
 // the label flipping (UnifiedClientCard, AllUsers row picker).

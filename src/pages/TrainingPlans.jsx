@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import { isFormerClient } from "@/lib/clientStatusHelpers";
+import { isHiddenFromSelection } from "@/lib/clientStatusHelpers";
 import { formatTime } from "@/lib/formatTime";
 import { supabase } from "@/lib/supabaseClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -162,7 +162,7 @@ export default function TrainingPlans() {
   // Hide client_status='former' trainees from the plan / series
   // pickers below. Full `trainees` stays for name-by-id lookups.
   const selectableTrainees = useMemo(
-    () => (trainees || []).filter((t) => !isFormerClient(t)),
+    () => (trainees || []).filter((t) => !isHiddenFromSelection(t)),
     [trainees]
   );
 

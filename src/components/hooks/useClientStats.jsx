@@ -24,10 +24,14 @@ export function useClientStats() {
 
   // Trainees that count for the main list / dashboards / counters.
   // Excludes archived statuses so former trainees stop polluting
-  // metrics + dropdowns the moment client_status flips.
+  // metrics + dropdowns the moment client_status flips. 'archived'
+  // is the hidden bucket from the "הסרת משתמש" flow — never surfaces
+  // anywhere except in raw allTrainees.
   const visibleTrainees = useMemo(
     () => allTrainees.filter(t =>
-      t.client_status !== 'former' && t.client_status !== 'suspended'
+      t.client_status !== 'former'
+      && t.client_status !== 'suspended'
+      && t.client_status !== 'archived'
     ),
     [allTrainees]
   );

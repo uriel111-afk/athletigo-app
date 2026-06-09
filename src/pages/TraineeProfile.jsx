@@ -43,7 +43,7 @@ import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { DraftBanner } from "@/components/DraftBanner";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
-import { isFormerClient } from "@/lib/clientStatusHelpers";
+import { isHiddenFromSelection } from "@/lib/clientStatusHelpers";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1316,6 +1316,7 @@ function PersonalTab({
   onChangeStatus,
   onApplyStatusChange,
   onArchive,
+  onRemoveUser,
 }) {
   const queryClient = useQueryClient();
   const initials = (user?.full_name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('') || 'U';
@@ -1681,6 +1682,48 @@ function PersonalTab({
           )}
         </div>
       </div>
+
+      {/* ── Danger Zone — coach-only, separated below account
+            management. The single entry-point that opens the
+            two-option remove-user dialog (archive + permanent delete).
+            Visual: white card, red hairline, red text — deliberately
+            non-blending so it never looks like a normal action. */}
+      {isCoach && userIdParam && (
+        <div
+          style={{
+            ...cardStyle,
+            border: '1px solid #FCA5A5',
+            background: '#FFFFFF',
+          }}
+          dir="rtl"
+        >
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#B91C1C', marginBottom: 6 }}>
+            אזור מסוכן
+          </div>
+          <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12, lineHeight: 1.5 }}>
+            ניתן להעביר את המשתמש לארכיון (הסתרה מלאה, ניתן לשחזור),
+            או למחוק את המשתמש וכל הנתונים שלו לצמיתות.
+          </div>
+          <button
+            type="button"
+            onClick={onRemoveUser}
+            style={{
+              width: '100%',
+              padding: '12px 14px',
+              borderRadius: 12,
+              background: '#FFFFFF',
+              color: '#dc2626',
+              border: '1px solid #dc2626',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+            }}
+          >
+            הסרת משתמש
+          </button>
+        </div>
+      )}
     </>
   );
 }
@@ -1836,6 +1879,13 @@ export default function TraineeProfile() {
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Remove-user (archive or hard delete) dialog state. The dialog has
+  // two stages: 'choose' shows both options; 'confirmDelete' is the
+  // second-step "really delete forever?" prompt that gates the
+  // destructive call. Closing the dialog always resets to 'choose'.
+  const [showRemoveUser, setShowRemoveUser] = useState(false);
+  const [removeStage, setRemoveStage] = useState('choose');
+  const [removingUser, setRemovingUser] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   // Coach-only: reset trainee password via Edge Function
   const [showResetPw, setShowResetPw] = useState(false);
@@ -3789,7 +3839,7 @@ export default function TraineeProfile() {
             isOpen={showPlanDialog}
             onClose={() => setShowPlanDialog(false)}
             onSubmit={async (data) => { await createPlanForTraineeMutation.mutateAsync(data); }}
-            trainees={(allTrainees || []).filter((t) => !isFormerClient(t))}
+            trainees={(allTrainees || []).filter((t) => !isHiddenFromSelection(t))}
             isLoading={createPlanForTraineeMutation.isPending}
             initialSelectedTraineeIds={
               effectiveUser?.id ? [effectiveUser.id]
@@ -4029,6 +4079,7 @@ export default function TraineeProfile() {
                   onChangeStatus={() => setStatusMenuOpen(true)}
                   onApplyStatusChange={(newStatus) => handleStatusChange(newStatus)}
                   onArchive={() => setShowDeleteConfirm(true)}
+                  onRemoveUser={() => { setRemoveStage('choose'); setShowRemoveUser(true); }}
                 />
               </TabsContent>
 
@@ -5769,7 +5820,7 @@ export default function TraineeProfile() {
           isOpen={showPlanDialog}
           onClose={() => setShowPlanDialog(false)}
           onSubmit={async (data) => { await createPlanForTraineeMutation.mutateAsync(data); }}
-          trainees={(allTrainees || []).filter((t) => !isFormerClient(t))}
+          trainees={(allTrainees || []).filter((t) => !isHiddenFromSelection(t))}
           isLoading={createPlanForTraineeMutation.isPending}
           initialSelectedTraineeIds={
             effectiveUser?.id ? [effectiveUser.id]
@@ -6015,6 +6066,216 @@ export default function TraineeProfile() {
                 </Button>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── הסרת משתמש — Danger Zone dialog ─────────────────────
+              Two-stage flow inside ONE dialog:
+                stage 'choose'        — pick archive or permanent delete
+                stage 'confirmDelete' — final irreversible-delete confirm
+              Dialog Rules: closes ONLY via X / explicit button. The
+              second-stage hard delete walks every child table FIRST,
+              alerts + aborts on the first RLS / FK error so we never
+              leave a half-deleted user. */}
+        <Dialog
+          open={showRemoveUser}
+          onOpenChange={(open) => {
+            if (removingUser) return; // never close mid-delete
+            if (!open) {
+              setShowRemoveUser(false);
+              setRemoveStage('choose');
+            }
+          }}
+        >
+          <DialogContent
+            className="max-w-md"
+            onInteractOutside={(e) => e.preventDefault()}
+            onEscapeKeyDown={(e) => { if (removingUser) e.preventDefault(); }}
+          >
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <Trash2 className="w-5 h-5" />הסרת משתמש
+              </DialogTitle>
+            </DialogHeader>
+
+            {removeStage === 'choose' && (
+              <div className="space-y-4" dir="rtl">
+                <p className="text-sm text-gray-700 text-right">
+                  בחר פעולה עבור <strong>{user?.full_name}</strong>:
+                </p>
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-right text-xs text-gray-700 space-y-2">
+                  <div>
+                    <span className="font-bold">העבר לארכיון</span> — המשתמש
+                    יוסתר מכל הטאבים ומכל רשימות הבחירה. הנתונים נשמרים
+                    וניתן לשחזר בעתיד דרך עדכון סטטוס.
+                  </div>
+                  <div>
+                    <span className="font-bold">מחק לצמיתות</span> — המשתמש
+                    וכל הנתונים הקשורים אליו (מפגשים, חבילות, מדידות,
+                    מסמכים) יימחקו ללא אפשרות שחזור. מתאים למשתמשים שנוספו
+                    בטעות.
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    onClick={async () => {
+                      const tid = userIdParam;
+                      if (!tid) return;
+                      setRemovingUser(true);
+                      try {
+                        const { error } = await supabase
+                          .from('users')
+                          .update({ client_status: 'archived', updated_at: new Date().toISOString() })
+                          .eq('id', tid);
+                        if (error) throw error;
+                        try {
+                          await supabase
+                            .from('client_services')
+                            .update({ status: 'frozen' })
+                            .eq('trainee_id', tid)
+                            .eq('status', 'active');
+                        } catch (e) {
+                          console.warn('[ArchiveUser] freeze packages failed:', e?.message);
+                        }
+                        toast.success(`${user.full_name} הועבר לארכיון`);
+                        setShowRemoveUser(false);
+                        setRemoveStage('choose');
+                        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRAINEES });
+                        queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                        queryClient.invalidateQueries({ queryKey: ['user-profile', tid] });
+                        invalidateDashboard(queryClient);
+                        navigate('/');
+                      } catch (err) {
+                        console.error('[ArchiveUser]', err);
+                        toast.error('לא הצלחנו להעביר לארכיון. נסה שוב.');
+                      } finally {
+                        setRemovingUser(false);
+                      }
+                    }}
+                    disabled={removingUser}
+                    className="flex-1 rounded-xl bg-gray-700 hover:bg-gray-800 text-white font-bold"
+                  >
+                    {removingUser ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />מעביר...</> : 'העבר לארכיון'}
+                  </Button>
+                  <Button
+                    onClick={() => setRemoveStage('confirmDelete')}
+                    disabled={removingUser}
+                    className="flex-1 rounded-xl font-bold text-white"
+                    style={{ background: '#dc2626' }}
+                  >
+                    מחק לצמיתות
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {removeStage === 'confirmDelete' && (
+              <div className="space-y-4" dir="rtl">
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-right text-sm text-red-800">
+                  פעולה זו בלתי הפיכה. למחוק את המשתמש וכל הנתונים שלו?
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setRemoveStage('choose')}
+                    disabled={removingUser}
+                    className="flex-1 rounded-xl"
+                  >
+                    חזרה
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      const tid = userIdParam;
+                      if (!tid) return;
+                      setRemovingUser(true);
+                      // Walks every known child table that points to a
+                      // trainee/user. Order matters: rows with the deepest
+                      // FK chain go first so foreign-key constraints can't
+                      // block the next layer. The final `users` delete
+                      // only runs after every prior step succeeded.
+                      const steps = [
+                        ['exercise_set_logs',        (q) => q.eq('trainee_id', tid)],
+                        ['exercise_executions',      (q) => q.eq('trainee_id', tid)],
+                        ['section_executions',       (q) => q.eq('trainee_id', tid)],
+                        ['workout_executions',       (q) => q.eq('trainee_id', tid)],
+                        ['attendance_log',           (q) => q.eq('trainee_id', tid)],
+                        ['session_participants',     (q) => q.eq('trainee_id', tid)],
+                        ['sessions',                 (q) => q.eq('trainee_id', tid)],
+                        ['client_services',          (q) => q.eq('trainee_id', tid)],
+                        ['training_group_members',   (q) => q.eq('trainee_id', tid)],
+                        ['training_plan_assignments',(q) => q.eq('trainee_id', tid)],
+                        ['measurements',             (q) => q.eq('trainee_id', tid)],
+                        ['baselines',                (q) => q.eq('trainee_id', tid)],
+                        ['results_log',              (q) => q.eq('trainee_id', tid)],
+                        ['goals',                    (q) => q.eq('trainee_id', tid)],
+                        ['goal_progress',            (q) => q.eq('trainee_id', tid)],
+                        ['health_declarations',      (q) => q.eq('trainee_id', tid)],
+                        ['documents',                (q) => q.eq('trainee_id', tid)],
+                        ['signed_documents',         (q) => q.eq('trainee_id', tid)],
+                        ['trainee_permissions',      (q) => q.eq('trainee_id', tid)],
+                        ['lifeos_files',             (q) => q.eq('entity_type', 'trainee').eq('entity_id', tid)],
+                        ['notifications',            (q) => q.eq('trainee_id', tid)],
+                        ['notifications',            (q) => q.eq('user_id', tid)],
+                      ];
+                      try {
+                        for (const [table, scope] of steps) {
+                          try {
+                            console.log(`[HardDelete] deleting from ${table}…`);
+                            const { error } = await scope(supabase.from(table).delete());
+                            if (error) {
+                              // 42P01 = relation does not exist — skip
+                              // tables that aren't in this DB without
+                              // aborting the chain.
+                              const code = error?.code || '';
+                              const msg  = error?.message || '';
+                              if (code === '42P01' || /does not exist|not found/i.test(msg)) {
+                                console.warn(`[HardDelete] table ${table} missing, skipping.`);
+                                continue;
+                              }
+                              throw new Error(`${table}: ${msg || code || 'unknown'}`);
+                            }
+                            console.log(`[HardDelete] ✓ ${table}`);
+                          } catch (innerErr) {
+                            throw new Error(`(${table}) ${innerErr?.message || innerErr}`);
+                          }
+                        }
+                        // Final users row — anything still FK-pointing
+                        // at it will surface as an error here, which is
+                        // intentional: better a loud failure than a
+                        // silent partial cleanup.
+                        console.log('[HardDelete] deleting users row…');
+                        const { error: userErr } = await supabase.from('users').delete().eq('id', tid);
+                        if (userErr) throw new Error(`users: ${userErr.message || userErr.code || 'unknown'}`);
+                        console.log('[HardDelete] ✓ users');
+
+                        toast.success(`${user.full_name} נמחק לצמיתות`);
+                        setShowRemoveUser(false);
+                        setRemoveStage('choose');
+                        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.TRAINEES });
+                        queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+                        queryClient.invalidateQueries({ queryKey: ['user-profile', tid] });
+                        invalidateDashboard(queryClient);
+                        navigate('/');
+                      } catch (err) {
+                        console.error('[HardDelete] aborted:', err);
+                        // Halt at first failure — caller sees exactly
+                        // which table refused so they can fix RLS or
+                        // clean up manually. Do NOT continue to the
+                        // users row.
+                        alert(`המחיקה נכשלה ולא הושלמה.\n\n${err?.message || err}\n\nהמשתמש עדיין קיים בחלק מהטבלאות — פנה לתמיכה לפני שתנסה שוב.`);
+                      } finally {
+                        setRemovingUser(false);
+                      }
+                    }}
+                    disabled={removingUser}
+                    className="flex-1 rounded-xl font-bold text-white"
+                    style={{ background: '#dc2626' }}
+                  >
+                    {removingUser ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />מוחק...</> : 'כן, מחק הכל'}
+                  </Button>
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
 

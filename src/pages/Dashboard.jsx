@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo } from "react";
-import { isFormerClient } from "@/lib/clientStatusHelpers";
+import { isHiddenFromSelection } from "@/lib/clientStatusHelpers";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
 import {
@@ -199,7 +199,7 @@ export default function Dashboard() {
   // whose client_status is 'former'. allTrainees stays as the full
   // roster for lookups (e.g. finding a name by id).
   const selectableTrainees = useMemo(
-    () => (allTrainees || []).filter((t) => !isFormerClient(t)),
+    () => (allTrainees || []).filter((t) => !isHiddenFromSelection(t)),
     [allTrainees]
   );
 
