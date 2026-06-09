@@ -367,7 +367,7 @@ export default function Reports() {
     const fmt = (n) => `₪${Math.round(n).toLocaleString('he-IL')}`;
 
     const rowsHtml = (groups) => groups.length === 0
-      ? '<tr><td colspan="3" style="text-align:center;color:#888">אין נתונים</td></tr>'
+      ? '<tr><td colspan="3" style="text-align:center;color:var(--ag-text-soft)">אין נתונים</td></tr>'
       : groups.map(([label, v]) =>
           `<tr><td>${label}</td><td style="text-align:center">${v.count}</td><td style="text-align:left">${fmt(v.total)}</td></tr>`
         ).join('');
@@ -378,28 +378,28 @@ export default function Reports() {
 <meta charset="utf-8" />
 <title>דוח שנתי — AthletiGo — ${summaryYear}</title>
 <style>
-  body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background:#FFF9F0; color:#1a1a1a; margin:0; padding:32px; direction:rtl; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background:var(--ag-bg); color:var(--ag-text); margin:0; padding:32px; direction:rtl; }
   .wrap { max-width: 820px; margin: 0 auto; }
-  h1 { color:#FF6F20; margin:0 0 4px; font-size:28px; }
-  .sub { color:#888; margin-bottom:24px; font-size:14px; }
+  h1 { color:var(--ag-accent); margin:0 0 4px; font-size:28px; }
+  .sub { color:var(--ag-text-soft); margin-bottom:24px; font-size:14px; }
   .card { background:white; border-radius:14px; padding:20px; box-shadow:0 2px 6px rgba(0,0,0,0.06); margin-bottom:16px; }
-  h2 { margin:0 0 12px; font-size:18px; color:#1a1a1a; }
+  h2 { margin:0 0 12px; font-size:18px; color:var(--ag-text); }
   table { width:100%; border-collapse:collapse; font-size:14px; }
-  th, td { padding:8px 6px; border-bottom:0.5px solid #F0E4D0; text-align:right; }
-  th { color:#888; font-weight:600; font-size:12px; }
-  .total { font-weight:700; background:#FFF9F0; }
+  th, td { padding:8px 6px; border-bottom:0.5px solid var(--ag-border); text-align:right; }
+  th { color:var(--ag-text-soft); font-weight:600; font-size:12px; }
+  .total { font-weight:700; background:var(--ag-bg); }
   .summary-grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:8px; }
-  .summary-grid .item { background:#FFF9F0; border-radius:10px; padding:12px; }
-  .summary-grid .item .lbl { font-size:12px; color:#888; }
-  .summary-grid .item .val { font-size:20px; font-weight:700; color:#1a1a1a; margin-top:4px; }
-  .net { background:#FF6F20; color:white; border-radius:14px; padding:20px; text-align:center; margin-top:16px; }
+  .summary-grid .item { background:var(--ag-bg); border-radius:10px; padding:12px; }
+  .summary-grid .item .lbl { font-size:12px; color:var(--ag-text-soft); }
+  .summary-grid .item .val { font-size:20px; font-weight:700; color:var(--ag-text); margin-top:4px; }
+  .net { background:var(--ag-accent); color:white; border-radius:14px; padding:20px; text-align:center; margin-top:16px; }
   .net .lbl { font-size:13px; opacity:0.85; }
   .net .val { font-size:34px; font-weight:800; margin-top:6px; }
-  .est { font-size:10px; color:#888; }
+  .est { font-size:10px; color:var(--ag-text-soft); }
   .actions { text-align:center; margin-top:24px; }
-  .actions button { background:#FF6F20; color:white; border:none; border-radius:10px; padding:10px 24px; font-size:14px; font-weight:600; cursor:pointer; margin: 0 4px; }
-  .actions button.secondary { background:white; color:#1a1a1a; border:1px solid #F0E4D0; }
-  @media print { body { background:white; padding:16px; } .actions { display:none; } .card { box-shadow:none; border:1px solid #F0E4D0; } }
+  .actions button { background:var(--ag-accent); color:white; border:none; border-radius:10px; padding:10px 24px; font-size:14px; font-weight:600; cursor:pointer; margin: 0 4px; }
+  .actions button.secondary { background:white; color:var(--ag-text); border:1px solid var(--ag-border); }
+  @media print { body { background:white; padding:16px; } .actions { display:none; } .card { box-shadow:none; border:1px solid var(--ag-border); } }
 </style>
 </head>
 <body>
@@ -462,34 +462,34 @@ export default function Reports() {
   };
 
   // ─── Tiny helpers shared across sections ─────────────────────
-  const SectionCard = ({ id, icon, title, subtitle, valueRight, valueLabel, valueColor = '#1a1a1a', children }) => {
+  const SectionCard = ({ id, icon, title, subtitle, valueRight, valueLabel, valueColor = 'var(--ag-text)', children }) => {
     const open = openSection === id;
     return (
       <div style={{ margin: '0 12px 8px' }}>
         <div onClick={() => toggleSection(id)} style={{
           background: 'white', borderRadius: open ? '14px 14px 0 0' : 14,
           padding: 14, boxShadow: '0 2px 6px rgba(0,0,0,0.04)', cursor: 'pointer',
-          border: open ? '2px solid #FF6F20' : '0.5px solid transparent',
+          border: open ? '2px solid var(--ag-accent)' : '0.5px solid transparent',
           borderBottom: open ? 'none' : undefined,
           display: 'flex', alignItems: 'center', gap: 10,
         }}>
           <div style={{ fontSize: 24 }}>{icon}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a' }}>{title}</div>
-            {subtitle && <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{subtitle}</div>}
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ag-text)' }}>{title}</div>
+            {subtitle && <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginTop: 2 }}>{subtitle}</div>}
           </div>
           {valueRight !== undefined && (
             <div style={{ textAlign: 'left' }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: valueColor }}>{valueRight}</div>
-              {valueLabel && <div style={{ fontSize: 10, color: '#888' }}>{valueLabel}</div>}
+              {valueLabel && <div style={{ fontSize: 10, color: 'var(--ag-text-soft)' }}>{valueLabel}</div>}
             </div>
           )}
-          <div style={{ fontSize: 14, color: '#888', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</div>
+          <div style={{ fontSize: 14, color: 'var(--ag-text-soft)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</div>
         </div>
         {open && (
           <div style={{
             background: 'white', borderRadius: '0 0 14px 14px', padding: 14,
-            border: '2px solid #FF6F20', borderTop: 'none', textAlign: 'right',
+            border: '2px solid var(--ag-accent)', borderTop: 'none', textAlign: 'right',
           }}>
             {children}
           </div>
@@ -500,27 +500,27 @@ export default function Reports() {
 
   const Sublist = ({ title, items, onItemClick }) => (
     <div style={{
-      background: '#FFF9F0', borderRadius: 10, padding: 10,
+      background: 'var(--ag-bg)', borderRadius: 10, padding: 10,
       maxHeight: 280, overflowY: 'auto', marginTop: 8,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a' }}>{title} ({items.length})</span>
-        <span onClick={(e) => { e.stopPropagation(); setOpenSub(null); }} style={{ cursor: 'pointer', color: '#888', fontSize: 14 }}>✕</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ag-text)' }}>{title} ({items.length})</span>
+        <span onClick={(e) => { e.stopPropagation(); setOpenSub(null); }} style={{ cursor: 'pointer', color: 'var(--ag-text-soft)', fontSize: 14 }}>✕</span>
       </div>
       {items.length > 0 ? items.slice(0, 50).map((item, i) => (
         <div key={item.key || i}
           onClick={onItemClick ? (e) => { e.stopPropagation(); onItemClick(item); } : undefined}
           style={{
             display: 'flex', alignItems: 'center', gap: 7, padding: '6px 0',
-            borderBottom: i < Math.min(50, items.length) - 1 ? '0.5px solid #F0E4D0' : 'none',
+            borderBottom: i < Math.min(50, items.length) - 1 ? '0.5px solid var(--ag-border)' : 'none',
             fontSize: 12, cursor: onItemClick ? 'pointer' : 'default',
           }}>
           {item.icon && <span style={{ fontSize: 13 }}>{item.icon}</span>}
-          <span style={{ flex: 1, fontWeight: 500, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
-          {item.detail && <span style={{ color: '#888', fontSize: 11 }}>{item.detail}</span>}
-          {item.value && <span style={{ fontWeight: 600, color: '#FF6F20' }}>{item.value}</span>}
+          <span style={{ flex: 1, fontWeight: 500, color: 'var(--ag-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+          {item.detail && <span style={{ color: 'var(--ag-text-soft)', fontSize: 11 }}>{item.detail}</span>}
+          {item.value && <span style={{ fontWeight: 600, color: 'var(--ag-accent)' }}>{item.value}</span>}
         </div>
-      )) : <div style={{ textAlign: 'center', color: '#888', padding: 10, fontSize: 12 }}>אין נתונים</div>}
+      )) : <div style={{ textAlign: 'center', color: 'var(--ag-text-soft)', padding: 10, fontSize: 12 }}>אין נתונים</div>}
     </div>
   );
 
@@ -569,37 +569,37 @@ export default function Reports() {
 
     return (
       <SectionCard id="revenue" icon="💰" title="הכנסות" subtitle="סיכום כספי"
-        valueRight={`₪${totalRevenue.toLocaleString()}`} valueLabel="בתקופה" valueColor="#16a34a">
+        valueRight={`₪${totalRevenue.toLocaleString()}`} valueLabel="בתקופה" valueColor="var(--ag-success)">
         {/* Monthly comparison */}
         <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: 14 }}>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 11, color: '#888' }}>החודש</div>
-            <div style={{ fontSize: 18, fontWeight: 600, color: '#16a34a' }}>₪{thisRev.toLocaleString()}</div>
+            <div style={{ fontSize: 11, color: 'var(--ag-text-soft)' }}>החודש</div>
+            <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--ag-success)' }}>₪{thisRev.toLocaleString()}</div>
           </div>
           <div style={{ width: '0.5px', background: '#E5E5E5' }} />
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 11, color: '#888' }}>חודש קודם</div>
-            <div style={{ fontSize: 18, fontWeight: 600, color: '#888' }}>₪{lastRev.toLocaleString()}</div>
+            <div style={{ fontSize: 11, color: 'var(--ag-text-soft)' }}>חודש קודם</div>
+            <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--ag-text-soft)' }}>₪{lastRev.toLocaleString()}</div>
           </div>
           <div style={{ width: '0.5px', background: '#E5E5E5' }} />
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 11, color: '#888' }}>שינוי</div>
-            <div style={{ fontSize: 18, fontWeight: 600, color: change >= 0 ? '#16a34a' : '#dc2626' }}>{change >= 0 ? '+' : ''}{change}%</div>
+            <div style={{ fontSize: 11, color: 'var(--ag-text-soft)' }}>שינוי</div>
+            <div style={{ fontSize: 18, fontWeight: 600, color: change >= 0 ? 'var(--ag-success)' : 'var(--ag-error)' }}>{change >= 0 ? '+' : ''}{change}%</div>
           </div>
         </div>
 
         {/* Revenue chart */}
         {chartData.length > 0 && (
           <>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>הכנסות לאורך זמן</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ag-text)', marginBottom: 6 }}>הכנסות לאורך זמן</div>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 80, marginBottom: 14 }}>
               {chartData.map(([label, v]) => {
                 const h = (v / maxV) * 60;
                 return (
                   <div key={label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                    <div style={{ fontSize: 8, fontWeight: 600, color: '#1a1a1a' }}>₪{Math.round(v / 1000)}k</div>
-                    <div style={{ width: '100%', height: Math.max(h, 4), background: '#16a34a', borderRadius: '3px 3px 0 0' }} />
-                    <div style={{ fontSize: 8, color: '#888' }}>{label}</div>
+                    <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--ag-text)' }}>₪{Math.round(v / 1000)}k</div>
+                    <div style={{ width: '100%', height: Math.max(h, 4), background: 'var(--ag-success)', borderRadius: '3px 3px 0 0' }} />
+                    <div style={{ fontSize: 8, color: 'var(--ag-text-soft)' }}>{label}</div>
                   </div>
                 );
               })}
@@ -608,9 +608,9 @@ export default function Reports() {
         )}
 
         {/* Profitable clients */}
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', marginTop: 4, marginBottom: 6 }}>💎 לקוחות מובילים</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ag-text)', marginTop: 4, marginBottom: 6 }}>💎 לקוחות מובילים</div>
         {profitableClients.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#888', padding: 8, fontSize: 12 }}>אין הכנסות עדיין</div>
+          <div style={{ textAlign: 'center', color: 'var(--ag-text-soft)', padding: 8, fontSize: 12 }}>אין הכנסות עדיין</div>
         ) : profitableClients.map((c, i) => (
           <React.Fragment key={c.id}>
             <div onClick={(e) => { e.stopPropagation(); toggleSub('client_' + c.id); }} style={{
@@ -618,10 +618,10 @@ export default function Reports() {
               borderBottom: i < profitableClients.length - 1 ? '0.5px solid #F8F0E8' : 'none',
               fontSize: 13, cursor: 'pointer',
             }}>
-              <span style={{ width: 20, textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6F20' : '#888' }}>{i + 1}</span>
+              <span style={{ width: 20, textAlign: 'center', fontWeight: 700, color: i < 3 ? 'var(--ag-accent)' : 'var(--ag-text-soft)' }}>{i + 1}</span>
               <span style={{ flex: 1, fontWeight: 500 }}>{c.name}</span>
-              <span style={{ color: '#888', fontSize: 11 }}>{c.pkgCount} חבילות</span>
-              <span style={{ fontWeight: 700, color: '#16a34a' }}>₪{c.totalPaid.toLocaleString()}</span>
+              <span style={{ color: 'var(--ag-text-soft)', fontSize: 11 }}>{c.pkgCount} חבילות</span>
+              <span style={{ fontWeight: 700, color: 'var(--ag-success)' }}>₪{c.totalPaid.toLocaleString()}</span>
             </div>
             {openSub === 'client_' + c.id && (
               <Sublist title={c.name} items={c.pkgs.map(p => ({
@@ -632,19 +632,19 @@ export default function Reports() {
         ))}
 
         {/* Payment methods */}
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', marginTop: 14, marginBottom: 6 }}>💳 אמצעי תשלום</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ag-text)', marginTop: 14, marginBottom: 6 }}>💳 אמצעי תשלום</div>
         {paymentMethods.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#888', padding: 6, fontSize: 12 }}>אין נתונים</div>
+          <div style={{ textAlign: 'center', color: 'var(--ag-text-soft)', padding: 6, fontSize: 12 }}>אין נתונים</div>
         ) : paymentMethods.map(pm => (
           <div key={pm.method} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 12 }}>
             <span style={{ fontWeight: 500 }}>{pm.method}</span>
-            <span style={{ color: '#888' }}>{pm.count} · ₪{pm.total.toLocaleString()}</span>
+            <span style={{ color: 'var(--ag-text-soft)' }}>{pm.count} · ₪{pm.total.toLocaleString()}</span>
           </div>
         ))}
 
         {/* Total all-time small footer */}
-        <div style={{ marginTop: 14, paddingTop: 10, borderTop: '0.5px solid #F0E4D0', fontSize: 11, color: '#888', textAlign: 'center' }}>
-          סה״כ לכל הזמנים: <b style={{ color: '#1a1a1a' }}>₪{allTimeRevenue.toLocaleString()}</b>
+        <div style={{ marginTop: 14, paddingTop: 10, borderTop: '0.5px solid var(--ag-border)', fontSize: 11, color: 'var(--ag-text-soft)', textAlign: 'center' }}>
+          סה״כ לכל הזמנים: <b style={{ color: 'var(--ag-text)' }}>₪{allTimeRevenue.toLocaleString()}</b>
         </div>
       </SectionCard>
     );
@@ -664,7 +664,7 @@ export default function Reports() {
 
     // Type breakdown
     const types = ['אישי', 'קבוצתי', 'אונליין'];
-    const typeColors = { 'אישי': '#FF6F20', 'קבוצתי': '#7F47B5', 'אונליין': '#3B82F6' };
+    const typeColors = { 'אישי': 'var(--ag-accent)', 'קבוצתי': 'var(--ag-purple)', 'אונליין': 'var(--ag-blue)' };
     const total = filtered.length || 1;
     const typeData = types.map(t => {
       const list = filtered.filter(s => (s.session_type || '').trim() === t);
@@ -687,33 +687,33 @@ export default function Reports() {
 
     return (
       <SectionCard id="sessions" icon="📅" title="מפגשים" subtitle="פעילות אימונים"
-        valueRight={`${completed.length}/${filtered.length}`} valueLabel="הושלמו" valueColor="#FF6F20">
+        valueRight={`${completed.length}/${filtered.length}`} valueLabel="הושלמו" valueColor="var(--ag-accent)">
         {/* 4 mini KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, marginBottom: 14 }}>
           {[
-            { v: filtered.length, l: 'סה״כ', c: '#1a1a1a' },
-            { v: completed.length, l: 'הושלמו', c: '#16a34a' },
-            { v: pending.length, l: 'ממתינים', c: '#EAB308' },
-            { v: cancelled.length, l: 'בוטלו', c: '#dc2626' },
+            { v: filtered.length, l: 'סה״כ', c: 'var(--ag-text)' },
+            { v: completed.length, l: 'הושלמו', c: 'var(--ag-success)' },
+            { v: pending.length, l: 'ממתינים', c: 'var(--ag-warning)' },
+            { v: cancelled.length, l: 'בוטלו', c: 'var(--ag-error)' },
           ].map((k, i) => (
-            <div key={i} style={{ background: '#FFF9F0', borderRadius: 10, padding: 8, textAlign: 'center' }}>
+            <div key={i} style={{ background: 'var(--ag-bg)', borderRadius: 10, padding: 8, textAlign: 'center' }}>
               <div style={{ fontSize: 18, fontWeight: 600, color: k.c }}>{k.v}</div>
-              <div style={{ fontSize: 10, color: '#888', fontWeight: 600, marginTop: 2 }}>{k.l}</div>
+              <div style={{ fontSize: 10, color: 'var(--ag-text-soft)', fontWeight: 600, marginTop: 2 }}>{k.l}</div>
             </div>
           ))}
         </div>
 
         {/* Attendance circle */}
-        <div onClick={(e) => { e.stopPropagation(); toggleSub('att'); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', marginBottom: 14, padding: 8, borderRadius: 10, background: '#FFF9F0', cursor: 'pointer' }}>
+        <div onClick={(e) => { e.stopPropagation(); toggleSub('att'); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', marginBottom: 14, padding: 8, borderRadius: 10, background: 'var(--ag-bg)', cursor: 'pointer' }}>
           <svg width="70" height="70" viewBox="0 0 90 90">
-            <circle cx="45" cy="45" r="36" fill="none" stroke="#F0E4D0" strokeWidth="6" />
-            <circle cx="45" cy="45" r="36" fill="none" stroke="#FF6F20" strokeWidth="6"
+            <circle cx="45" cy="45" r="36" fill="none" stroke="var(--ag-border)" strokeWidth="6" />
+            <circle cx="45" cy="45" r="36" fill="none" stroke="var(--ag-accent)" strokeWidth="6"
               strokeDasharray={`${dash} 226`} transform="rotate(-90 45 45)" strokeLinecap="round" />
-            <text x="45" y="45" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="600" fill="#1a1a1a">{rate}%</text>
+            <text x="45" y="45" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="600" fill="var(--ag-text)">{rate}%</text>
           </svg>
-          <div style={{ textAlign: 'right', fontSize: 12, color: '#888', lineHeight: 1.7 }}>
-            <div>הושלמו: <b style={{ color: '#16a34a' }}>{completed.length}</b></div>
-            <div>בוטלו: <b style={{ color: '#dc2626' }}>{cancelled.length}</b></div>
+          <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--ag-text-soft)', lineHeight: 1.7 }}>
+            <div>הושלמו: <b style={{ color: 'var(--ag-success)' }}>{completed.length}</b></div>
+            <div>בוטלו: <b style={{ color: 'var(--ag-error)' }}>{cancelled.length}</b></div>
             <div>אחוז נוכחות</div>
           </div>
         </div>
@@ -730,15 +730,15 @@ export default function Reports() {
         {/* Sessions chart */}
         {chartData.length > 0 && (
           <>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>📊 לאורך זמן</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ag-text)', marginBottom: 6 }}>📊 לאורך זמן</div>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 80, marginBottom: 14 }}>
               {chartData.map(([label, count]) => {
                 const h = (count / maxV) * 60;
                 return (
                   <div key={label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                    <div style={{ fontSize: 9, fontWeight: 600, color: '#1a1a1a' }}>{count}</div>
-                    <div style={{ width: '100%', height: Math.max(h, 4), background: '#FF6F20', borderRadius: '3px 3px 0 0' }} />
-                    <div style={{ fontSize: 8, color: '#888' }}>{label}</div>
+                    <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--ag-text)' }}>{count}</div>
+                    <div style={{ width: '100%', height: Math.max(h, 4), background: 'var(--ag-accent)', borderRadius: '3px 3px 0 0' }} />
+                    <div style={{ fontSize: 8, color: 'var(--ag-text-soft)' }}>{label}</div>
                   </div>
                 );
               })}
@@ -749,16 +749,16 @@ export default function Reports() {
         {/* Top trainees */}
         {topTrainees.length > 0 && (
           <>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>🏆 מתאמנים מובילים</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ag-text)', marginBottom: 6 }}>🏆 מתאמנים מובילים</div>
             {topTrainees.map((t, i) => (
               <div key={t.id} onClick={(e) => { e.stopPropagation(); goToTrainee(t.id); }} style={{
                 display: 'flex', alignItems: 'center', gap: 7, padding: '5px 0',
                 borderBottom: i < topTrainees.length - 1 ? '0.5px solid #F8F0E8' : 'none',
                 fontSize: 13, cursor: 'pointer',
               }}>
-                <span style={{ width: 20, textAlign: 'center', fontWeight: 700, color: i < 3 ? '#FF6F20' : '#888' }}>{i + 1}</span>
+                <span style={{ width: 20, textAlign: 'center', fontWeight: 700, color: i < 3 ? 'var(--ag-accent)' : 'var(--ag-text-soft)' }}>{i + 1}</span>
                 <span style={{ flex: 1, fontWeight: 500 }}>{t.name || 'מתאמן'}</span>
-                <span style={{ color: '#FF6F20', fontWeight: 600 }}>{t.count}</span>
+                <span style={{ color: 'var(--ag-accent)', fontWeight: 600 }}>{t.count}</span>
               </div>
             ))}
           </>
@@ -767,14 +767,14 @@ export default function Reports() {
         {/* Type breakdown */}
         {typeData.length > 0 && (
           <>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', marginTop: 14, marginBottom: 6 }}>📋 לפי סוג</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ag-text)', marginTop: 14, marginBottom: 6 }}>📋 לפי סוג</div>
             {typeData.map(t => (
               <div key={t.type} style={{ marginBottom: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
                   <span style={{ fontWeight: 500 }}>{t.type}</span>
-                  <span style={{ color: '#888' }}>{t.count} ({t.percent}%)</span>
+                  <span style={{ color: 'var(--ag-text-soft)' }}>{t.count} ({t.percent}%)</span>
                 </div>
-                <div style={{ height: 5, background: '#F0E4D0', borderRadius: 3 }}>
+                <div style={{ height: 5, background: 'var(--ag-border)', borderRadius: 3 }}>
                   <div style={{ height: '100%', width: `${t.percent}%`, background: t.color, borderRadius: 3 }} />
                 </div>
               </div>
@@ -783,9 +783,9 @@ export default function Reports() {
         )}
 
         {/* Recent sessions */}
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', marginTop: 14, marginBottom: 6 }}>🕐 מפגשים אחרונים</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ag-text)', marginTop: 14, marginBottom: 6 }}>🕐 מפגשים אחרונים</div>
         {recent.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#888', padding: 8, fontSize: 12 }}>אין נתונים</div>
+          <div style={{ textAlign: 'center', color: 'var(--ag-text-soft)', padding: 8, fontSize: 12 }}>אין נתונים</div>
         ) : recent.map(s => (
           <div key={s.id} onClick={(e) => { e.stopPropagation(); goToTrainee(s.trainee?.id || s.trainee_id); }} style={{
             display: 'flex', alignItems: 'center', gap: 7, padding: '5px 0',
@@ -793,8 +793,8 @@ export default function Reports() {
           }}>
             <span>{statusIcon(s.status)}</span>
             <span style={{ flex: 1, fontWeight: 500 }}>{nameOf(s)}</span>
-            <span style={{ color: '#888', fontSize: 11 }}>{fmtDate(s.date)}</span>
-            <span style={{ color: '#888', fontSize: 11 }}>{statusLabel(s.status)}</span>
+            <span style={{ color: 'var(--ag-text-soft)', fontSize: 11 }}>{fmtDate(s.date)}</span>
+            <span style={{ color: 'var(--ag-text-soft)', fontSize: 11 }}>{statusLabel(s.status)}</span>
           </div>
         ))}
       </SectionCard>
@@ -868,26 +868,26 @@ export default function Reports() {
 
     return (
       <SectionCard id="packages" icon="🎫" title="חבילות" subtitle={`${active} פעילות`}
-        valueRight={packages.length} valueLabel="סה״כ" valueColor="#FF6F20">
+        valueRight={packages.length} valueLabel="סה״כ" valueColor="var(--ag-accent)">
         {/* Status counts */}
         <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: 14 }}>
-          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 600, color: '#16a34a' }}>{active}</div><div style={{ fontSize: 10, color: '#888' }}>פעילות</div></div>
-          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 600, color: '#EAB308' }}>{expiring}</div><div style={{ fontSize: 10, color: '#888' }}>מסתיימות</div></div>
-          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 600, color: '#dc2626' }}>{expired}</div><div style={{ fontSize: 10, color: '#888' }}>הסתיימו</div></div>
-          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 600, color: '#888' }}>{completedPkgs}</div><div style={{ fontSize: 10, color: '#888' }}>סיימו</div></div>
+          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 600, color: 'var(--ag-success)' }}>{active}</div><div style={{ fontSize: 10, color: 'var(--ag-text-soft)' }}>פעילות</div></div>
+          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 600, color: 'var(--ag-warning)' }}>{expiring}</div><div style={{ fontSize: 10, color: 'var(--ag-text-soft)' }}>מסתיימות</div></div>
+          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 600, color: 'var(--ag-error)' }}>{expired}</div><div style={{ fontSize: 10, color: 'var(--ag-text-soft)' }}>הסתיימו</div></div>
+          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 600, color: 'var(--ag-text-soft)' }}>{completedPkgs}</div><div style={{ fontSize: 10, color: 'var(--ag-text-soft)' }}>סיימו</div></div>
         </div>
 
         {/* Utilization */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', marginBottom: 14, padding: 8, borderRadius: 10, background: '#FFF9F0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', marginBottom: 14, padding: 8, borderRadius: 10, background: 'var(--ag-bg)' }}>
           <svg width="70" height="70" viewBox="0 0 90 90">
-            <circle cx="45" cy="45" r="36" fill="none" stroke="#F0E4D0" strokeWidth="6" />
-            <circle cx="45" cy="45" r="36" fill="none" stroke="#FF6F20" strokeWidth="6"
+            <circle cx="45" cy="45" r="36" fill="none" stroke="var(--ag-border)" strokeWidth="6" />
+            <circle cx="45" cy="45" r="36" fill="none" stroke="var(--ag-accent)" strokeWidth="6"
               strokeDasharray={`${dash} 226`} transform="rotate(-90 45 45)" strokeLinecap="round" />
-            <text x="45" y="45" textAnchor="middle" dominantBaseline="middle" fontSize="16" fontWeight="600" fill="#1a1a1a">{utilizationPct}%</text>
+            <text x="45" y="45" textAnchor="middle" dominantBaseline="middle" fontSize="16" fontWeight="600" fill="var(--ag-text)">{utilizationPct}%</text>
           </svg>
-          <div style={{ textAlign: 'right', fontSize: 12, color: '#888', lineHeight: 1.7 }}>
-            <div>נוצלו: <b style={{ color: '#16a34a' }}>{usedSessionsAll}</b></div>
-            <div>סה״כ: <b style={{ color: '#1a1a1a' }}>{totalSessionsAll}</b></div>
+          <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--ag-text-soft)', lineHeight: 1.7 }}>
+            <div>נוצלו: <b style={{ color: 'var(--ag-success)' }}>{usedSessionsAll}</b></div>
+            <div>סה״כ: <b style={{ color: 'var(--ag-text)' }}>{totalSessionsAll}</b></div>
             <div>ניצול חבילות</div>
           </div>
         </div>
@@ -897,16 +897,16 @@ export default function Reports() {
           {filtersList.map(f => (
             <div key={f.id} onClick={(e) => { e.stopPropagation(); setPkgFilter(f.id); }} style={{
               padding: '4px 10px', borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-              background: pkgFilter === f.id ? '#FF6F20' : 'white',
-              color: pkgFilter === f.id ? 'white' : '#888',
-              border: pkgFilter === f.id ? 'none' : '0.5px solid #F0E4D0',
+              background: pkgFilter === f.id ? 'var(--ag-accent)' : 'white',
+              color: pkgFilter === f.id ? 'white' : 'var(--ag-text-soft)',
+              border: pkgFilter === f.id ? 'none' : '0.5px solid var(--ag-border)',
             }}>{f.label}</div>
           ))}
         </div>
 
         {/* Package list — tap opens PackageDetailsDialog */}
         {visiblePkgs.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#888', padding: 12, fontSize: 12 }}>אין חבילות בקטגוריה זו</div>
+          <div style={{ textAlign: 'center', color: 'var(--ag-text-soft)', padding: 12, fontSize: 12 }}>אין חבילות בקטגוריה זו</div>
         ) : visiblePkgs.slice(0, 50).map(p => {
           const b = bucketOf(p);
           const remaining = remainingOf(p);
@@ -918,12 +918,12 @@ export default function Reports() {
             }}>
               <span>{emoji}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameOf(p)}</div>
-                <div style={{ fontSize: 11, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.package_name || p.service_type || 'חבילה'}</div>
+                <div style={{ fontWeight: 600, color: 'var(--ag-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameOf(p)}</div>
+                <div style={{ fontSize: 11, color: 'var(--ag-text-soft)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.package_name || p.service_type || 'חבילה'}</div>
               </div>
               <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: remaining === 0 ? '#dc2626' : remaining === 1 ? '#EAB308' : '#16a34a' }}>{remaining}/{p.total_sessions || 0}</div>
-                <div style={{ fontSize: 10, color: '#888' }}>₪{Number(p.final_price) || 0}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: remaining === 0 ? 'var(--ag-error)' : remaining === 1 ? 'var(--ag-warning)' : 'var(--ag-success)' }}>{remaining}/{p.total_sessions || 0}</div>
+                <div style={{ fontSize: 10, color: 'var(--ag-text-soft)' }}>₪{Number(p.final_price) || 0}</div>
               </div>
             </div>
           );
@@ -954,13 +954,13 @@ export default function Reports() {
 
     return (
       <SectionCard id="trainees" icon="👥" title="מתאמנים" subtitle={`${activeT} פעילים`}
-        valueRight={trainees.length} valueLabel="סה״כ" valueColor="#7F47B5">
+        valueRight={trainees.length} valueLabel="סה״כ" valueColor="var(--ag-purple)">
         <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: 12 }}>
-          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 600, color: '#16a34a' }}>{activeT}</div><div style={{ fontSize: 10, color: '#888' }}>עם חבילה</div></div>
-          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 600, color: '#dc2626' }}>{trainees.length - activeT}</div><div style={{ fontSize: 10, color: '#888' }}>ללא חבילה</div></div>
+          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 600, color: 'var(--ag-success)' }}>{activeT}</div><div style={{ fontSize: 10, color: 'var(--ag-text-soft)' }}>עם חבילה</div></div>
+          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 600, color: 'var(--ag-error)' }}>{trainees.length - activeT}</div><div style={{ fontSize: 10, color: 'var(--ag-text-soft)' }}>ללא חבילה</div></div>
         </div>
         {stats.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#888', padding: 12, fontSize: 12 }}>אין מתאמנים</div>
+          <div style={{ textAlign: 'center', color: 'var(--ag-text-soft)', padding: 12, fontSize: 12 }}>אין מתאמנים</div>
         ) : stats.map(t => (
           <div key={t.id} onClick={(e) => { e.stopPropagation(); goToTrainee(t.id); }} style={{
             display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0',
@@ -970,11 +970,11 @@ export default function Reports() {
               {t.activePkg ? '🟢' : '⚪'}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</div>
-              <div style={{ fontSize: 11, color: '#888' }}>{t.sessionCount} מפגשים</div>
+              <div style={{ fontWeight: 600, color: 'var(--ag-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</div>
+              <div style={{ fontSize: 11, color: 'var(--ag-text-soft)' }}>{t.sessionCount} מפגשים</div>
             </div>
             <div style={{ textAlign: 'left' }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#16a34a' }}>₪{t.totalPaid.toLocaleString()}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ag-success)' }}>₪{t.totalPaid.toLocaleString()}</div>
             </div>
           </div>
         ))}
@@ -986,8 +986,8 @@ export default function Reports() {
   const renderLeads = () => {
     if (!leads.length) {
       return (
-        <SectionCard id="leads" icon="🎯" title="לידים והמרות" subtitle="אין נתונים על לידים" valueRight={0} valueColor="#888">
-          <div style={{ textAlign: 'center', color: '#888', padding: 12, fontSize: 12 }}>טרם נוספו לידים למערכת</div>
+        <SectionCard id="leads" icon="🎯" title="לידים והמרות" subtitle="אין נתונים על לידים" valueRight={0} valueColor="var(--ag-text-soft)">
+          <div style={{ textAlign: 'center', color: 'var(--ag-text-soft)', padding: 12, fontSize: 12 }}>טרם נוספו לידים למערכת</div>
         </SectionCard>
       );
     }
@@ -1005,28 +1005,28 @@ export default function Reports() {
 
     return (
       <SectionCard id="leads" icon="🎯" title="לידים והמרות" subtitle={`${conversionRate}% המרה`}
-        valueRight={`${newLeads}/${filteredLeads.length}`} valueLabel="חדשים" valueColor="#7F47B5">
+        valueRight={`${newLeads}/${filteredLeads.length}`} valueLabel="חדשים" valueColor="var(--ag-purple)">
         {/* Status breakdown */}
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', marginBottom: 6 }}>סטטוסים</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ag-text)', marginBottom: 6 }}>סטטוסים</div>
         {statusCounts.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#888', padding: 6, fontSize: 12 }}>אין לידים בתקופה זו</div>
+          <div style={{ textAlign: 'center', color: 'var(--ag-text-soft)', padding: 6, fontSize: 12 }}>אין לידים בתקופה זו</div>
         ) : statusCounts.map(([status, count]) => {
           const pct = Math.round(count / filteredLeads.length * 100);
           return (
             <div key={status} style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
                 <span style={{ fontWeight: 500 }}>{status}</span>
-                <span style={{ color: '#888' }}>{count} ({pct}%)</span>
+                <span style={{ color: 'var(--ag-text-soft)' }}>{count} ({pct}%)</span>
               </div>
-              <div style={{ height: 5, background: '#F0E4D0', borderRadius: 3 }}>
-                <div style={{ height: '100%', width: `${pct}%`, background: '#7F47B5', borderRadius: 3 }} />
+              <div style={{ height: 5, background: 'var(--ag-border)', borderRadius: 3 }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: 'var(--ag-purple)', borderRadius: 3 }} />
               </div>
             </div>
           );
         })}
 
         {/* Recent leads */}
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', marginTop: 14, marginBottom: 6 }}>לידים אחרונים</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ag-text)', marginTop: 14, marginBottom: 6 }}>לידים אחרונים</div>
         {filteredLeads.slice(0, 10).map(l => (
           <div key={l.id} onClick={(e) => { e.stopPropagation(); navigate(createPageUrl('Leads')); }} style={{
             display: 'flex', alignItems: 'center', gap: 7, padding: '6px 0',
@@ -1035,9 +1035,9 @@ export default function Reports() {
             <span style={{ fontSize: 13 }}>🎯</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.full_name || 'ללא שם'}</div>
-              <div style={{ fontSize: 11, color: '#888' }}>{l.source || 'לא צוין'} · {fmtDate(l.created_at)}</div>
+              <div style={{ fontSize: 11, color: 'var(--ag-text-soft)' }}>{l.source || 'לא צוין'} · {fmtDate(l.created_at)}</div>
             </div>
-            <span style={{ fontSize: 11, color: '#888', padding: '2px 6px', borderRadius: 8, background: '#F0E4D0' }}>{l.status || 'חדש'}</span>
+            <span style={{ fontSize: 11, color: 'var(--ag-text-soft)', padding: '2px 6px', borderRadius: 8, background: 'var(--ag-border)' }}>{l.status || 'חדש'}</span>
           </div>
         ))}
       </SectionCard>
@@ -1047,13 +1047,13 @@ export default function Reports() {
   // ─── Render ──────────────────────────────────────────────────
   return (
     <ProtectedCoachPage>
-      <div style={{ minHeight: '100vh', background: '#FFF9F0', paddingBottom: 100, direction: 'rtl' }}>
+      <div style={{ minHeight: '100vh', background: 'var(--ag-bg)', paddingBottom: 100, direction: 'rtl' }}>
         <style>{`@keyframes _rep_spin { to { transform: rotate(360deg); } }`}</style>
 
         <div className="max-w-2xl mx-auto">
           <div style={{ padding: 16, textAlign: 'right' }}>
-            <div style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a' }}>📊 דוחות ונתונים</div>
-            <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>סקירה מאוחדת של הפעילות שלך</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--ag-text)' }}>📊 דוחות ונתונים</div>
+            <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginTop: 4 }}>סקירה מאוחדת של הפעילות שלך</div>
           </div>
 
           {/* Time filter */}
@@ -1062,9 +1062,9 @@ export default function Reports() {
               <div key={t.id} onClick={() => setTimeFilter(t.id)} style={{
                 padding: '5px 12px', borderRadius: 16, fontSize: 11, fontWeight: 600,
                 cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-                background: timeFilter === t.id ? '#1a1a1a' : 'white',
-                color: timeFilter === t.id ? 'white' : '#888',
-                border: timeFilter === t.id ? 'none' : '0.5px solid #F0E4D0',
+                background: timeFilter === t.id ? 'var(--ag-text)' : 'white',
+                color: timeFilter === t.id ? 'white' : 'var(--ag-text-soft)',
+                border: timeFilter === t.id ? 'none' : '0.5px solid var(--ag-border)',
               }}>{t.label}</div>
             ))}
           </div>
@@ -1084,13 +1084,13 @@ export default function Reports() {
                   { id: 'year', label: 'כל השנה' },
                   ...MONTHS_HE.map((m, i) => ({ id: i, label: m })),
                 ];
-                const Card = ({ label, value, color = '#1a1a1a', est = false }) => (
+                const Card = ({ label, value, color = 'var(--ag-text)', est = false }) => (
                   <div style={{
                     background: 'white', borderRadius: 14, padding: 12,
                     boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
                     textAlign: 'right',
                   }}>
-                    <div style={{ fontSize: 11, color: '#888', fontWeight: 600 }}>{label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--ag-text-soft)', fontWeight: 600 }}>{label}</div>
                     <div style={{ fontSize: 20, fontWeight: 700, color, marginTop: 4 }}>{value}</div>
                     {est && <div style={{ fontSize: 10, color: '#b8821f', marginTop: 2 }}>הערכה</div>}
                   </div>
@@ -1103,13 +1103,13 @@ export default function Reports() {
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                         <div>
-                          <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a' }}>💸 כמה נשאר לי</div>
-                          <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{periodLabel} · עוסק פטור</div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ag-text)' }}>💸 כמה נשאר לי</div>
+                          <div style={{ fontSize: 11, color: 'var(--ag-text-soft)', marginTop: 2 }}>{periodLabel} · עוסק פטור</div>
                         </div>
                         <button
                           onClick={openAnnualReport}
                           style={{
-                            background: '#FF6F20', color: 'white', border: 'none',
+                            background: 'var(--ag-accent)', color: 'white', border: 'none',
                             borderRadius: 10, padding: '8px 14px', fontSize: 12,
                             fontWeight: 700, cursor: 'pointer',
                           }}>
@@ -1125,9 +1125,9 @@ export default function Reports() {
                             <div key={String(c.id)} onClick={() => setSummaryMonth(c.id)} style={{
                               padding: '5px 12px', borderRadius: 16, fontSize: 11, fontWeight: 600,
                               cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-                              background: active ? '#FF6F20' : '#FFF9F0',
-                              color: active ? 'white' : '#888',
-                              border: active ? 'none' : '0.5px solid #F0E4D0',
+                              background: active ? 'var(--ag-accent)' : 'var(--ag-bg)',
+                              color: active ? 'white' : 'var(--ag-text-soft)',
+                              border: active ? 'none' : '0.5px solid var(--ag-border)',
                             }}>{c.label}</div>
                           );
                         })}
@@ -1135,24 +1135,24 @@ export default function Reports() {
 
                       {/* 5 number cards */}
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-                        <Card label="סך הכנסות"        value={fmt(fin.periodIncome)}   color="#16a34a" />
-                        <Card label="סך הוצאות"        value={fmt(fin.periodExpenses)} color="#dc2626" />
-                        <Card label="רווח"             value={fmt(fin.periodProfit)}   color="#1a1a1a" />
-                        <Card label="ביטוח לאומי"      value={fmt(fin.periodBituach)}  color="#7F47B5" est />
+                        <Card label="סך הכנסות"        value={fmt(fin.periodIncome)}   color="var(--ag-success)" />
+                        <Card label="סך הוצאות"        value={fmt(fin.periodExpenses)} color="var(--ag-error)" />
+                        <Card label="רווח"             value={fmt(fin.periodProfit)}   color="var(--ag-text)" />
+                        <Card label="ביטוח לאומי"      value={fmt(fin.periodBituach)}  color="var(--ag-purple)" est />
                         <div style={{ gridColumn: '1 / -1' }}>
-                          <Card label="מס הכנסה" value={fmt(fin.periodIncomeTax)} color="#7F47B5" est />
+                          <Card label="מס הכנסה" value={fmt(fin.periodIncomeTax)} color="var(--ag-purple)" est />
                         </div>
                       </div>
 
                       {/* The bottom line */}
                       <div style={{
-                        background: '#FFF0E4', borderRadius: 14, padding: 16,
-                        textAlign: 'center', border: '2px solid #FF6F20',
+                        background: 'var(--ag-accent-bg)', borderRadius: 14, padding: 16,
+                        textAlign: 'center', border: '2px solid var(--ag-accent)',
                       }}>
                         <div style={{ fontSize: 12, color: '#993C1D', fontWeight: 600 }}>
                           נשאר לי ביד <span style={{ fontSize: 10, color: '#b8821f' }}>(הערכה)</span>
                         </div>
-                        <div style={{ fontSize: 30, fontWeight: 800, color: '#FF6F20', marginTop: 4 }}>
+                        <div style={{ fontSize: 30, fontWeight: 800, color: 'var(--ag-accent)', marginTop: 4 }}>
                           {fmt(fin.netInHand)}
                         </div>
                       </div>
@@ -1163,7 +1163,7 @@ export default function Reports() {
 
               {/* A. Revenue hero — always visible */}
               <div style={{
-                background: '#FF6F20', borderRadius: 16,
+                background: 'var(--ag-accent)', borderRadius: 16,
                 padding: 16, margin: '0 12px 10px',
                 textAlign: 'center',
               }}>
@@ -1182,20 +1182,20 @@ export default function Reports() {
                 return (
                   <div style={{ display: 'flex', gap: 6, padding: '0 12px 10px' }}>
                     <div style={kpiCard}>
-                      <div style={{ fontSize: 22, fontWeight: 700, color: '#FF6F20' }}>{filtered.length}</div>
-                      <div style={{ fontSize: 10, color: '#888', fontWeight: 600 }}>מפגשים</div>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--ag-accent)' }}>{filtered.length}</div>
+                      <div style={{ fontSize: 10, color: 'var(--ag-text-soft)', fontWeight: 600 }}>מפגשים</div>
                     </div>
                     <div style={kpiCard}>
-                      <div style={{ fontSize: 22, fontWeight: 700, color: '#16a34a' }}>{completed.length}</div>
-                      <div style={{ fontSize: 10, color: '#888', fontWeight: 600 }}>הושלמו</div>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--ag-success)' }}>{completed.length}</div>
+                      <div style={{ fontSize: 10, color: 'var(--ag-text-soft)', fontWeight: 600 }}>הושלמו</div>
                     </div>
                     <div style={kpiCard}>
-                      <div style={{ fontSize: 22, fontWeight: 700, color: '#7F47B5' }}>{activePkgs.length}</div>
-                      <div style={{ fontSize: 10, color: '#888', fontWeight: 600 }}>חבילות</div>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--ag-purple)' }}>{activePkgs.length}</div>
+                      <div style={{ fontSize: 10, color: 'var(--ag-text-soft)', fontWeight: 600 }}>חבילות</div>
                     </div>
                     <div style={kpiCard}>
-                      <div style={{ fontSize: 22, fontWeight: 700, color: '#3B82F6' }}>{activeTraineeIds.length}</div>
-                      <div style={{ fontSize: 10, color: '#888', fontWeight: 600 }}>פעילים</div>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--ag-blue)' }}>{activeTraineeIds.length}</div>
+                      <div style={{ fontSize: 10, color: 'var(--ag-text-soft)', fontWeight: 600 }}>פעילים</div>
                     </div>
                   </div>
                 );
@@ -1211,8 +1211,8 @@ export default function Reports() {
                   display: 'grid',
                   gridTemplateColumns: '1fr 60px 50px 70px 60px',
                   gap: 4, padding: '6px 0',
-                  borderBottom: '1.5px solid #F0E4D0',
-                  fontSize: 10, fontWeight: 600, color: '#888',
+                  borderBottom: '1.5px solid var(--ag-border)',
+                  fontSize: 10, fontWeight: 600, color: 'var(--ag-text-soft)',
                 }}>
                   <span>שם</span>
                   <span style={{ textAlign: 'center' }}>חבילות</span>
@@ -1221,7 +1221,7 @@ export default function Reports() {
                   <span style={{ textAlign: 'center' }}>שולם</span>
                 </div>
                 {trainees.length === 0 ? (
-                  <div style={{ textAlign: 'center', color: '#888', padding: 12, fontSize: 12 }}>אין מתאמנים</div>
+                  <div style={{ textAlign: 'center', color: 'var(--ag-text-soft)', padding: 12, fontSize: 12 }}>אין מתאמנים</div>
                 ) : trainees.map(t => {
                   const tPkgs = packages.filter(p => p.trainee_id === t.id);
                   const tSessions = filtered.filter(s => traineeIdsFromSession(s).includes(t.id));
@@ -1240,14 +1240,14 @@ export default function Reports() {
                     }}>
                       <div style={{ fontWeight: 500, minWidth: 0 }}>
                         <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.full_name || 'מתאמן'}</div>
-                        <div style={{ fontSize: 10, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: 10, color: 'var(--ag-text-soft)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {tActivePkgs.length > 0 ? (tActivePkgs[0].package_name || tActivePkgs[0].service_type || 'חבילה') : 'אין חבילה'}
                         </div>
                       </div>
                       <div style={{ textAlign: 'center', fontSize: 12 }}>{tPkgs.length}</div>
-                      <div style={{ textAlign: 'center', fontSize: 12, color: '#16a34a' }}>{tCompleted.length}</div>
-                      <div style={{ textAlign: 'center', fontSize: 12, color: tRemaining <= 1 ? '#dc2626' : '#1a1a1a', fontWeight: tRemaining <= 1 ? 700 : 400 }}>{tRemaining}</div>
-                      <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: '#FF6F20' }}>₪{tPaid.toLocaleString()}</div>
+                      <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--ag-success)' }}>{tCompleted.length}</div>
+                      <div style={{ textAlign: 'center', fontSize: 12, color: tRemaining <= 1 ? 'var(--ag-error)' : 'var(--ag-text)', fontWeight: tRemaining <= 1 ? 700 : 400 }}>{tRemaining}</div>
+                      <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'var(--ag-accent)' }}>₪{tPaid.toLocaleString()}</div>
                     </div>
                   );
                 })}
@@ -1262,7 +1262,7 @@ export default function Reports() {
                 {(() => {
                   const activePkgs = packages.filter(isHotPackage);
                   if (activePkgs.length === 0) {
-                    return <div style={{ textAlign: 'center', color: '#888', padding: 12, fontSize: 12 }}>אין חבילות פעילות</div>;
+                    return <div style={{ textAlign: 'center', color: 'var(--ag-text-soft)', padding: 12, fontSize: 12 }}>אין חבילות פעילות</div>;
                   }
                   return activePkgs.map(p => {
                     const remaining = remainingOf(p);
@@ -1272,13 +1272,13 @@ export default function Reports() {
                         padding: '8px 0', borderBottom: '0.5px solid #F8F0E8',
                         fontSize: 13, cursor: 'pointer',
                       }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: remaining <= 1 ? '#dc2626' : '#16a34a', flexShrink: 0 }} />
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: remaining <= 1 ? 'var(--ag-error)' : 'var(--ag-success)', flexShrink: 0 }} />
                         <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           <span style={{ fontWeight: 500 }}>{nameOf(p)}</span>
-                          <span style={{ color: '#888', marginRight: 6 }}>{p.package_name || p.service_type || 'חבילה'}</span>
+                          <span style={{ color: 'var(--ag-text-soft)', marginRight: 6 }}>{p.package_name || p.service_type || 'חבילה'}</span>
                         </div>
-                        <div style={{ fontWeight: 600, color: remaining <= 1 ? '#dc2626' : '#FF6F20' }}>{remaining}/{p.total_sessions || 0}</div>
-                        <div style={{ fontSize: 11, color: '#888' }}>₪{Number(p.final_price) || 0}</div>
+                        <div style={{ fontWeight: 600, color: remaining <= 1 ? 'var(--ag-error)' : 'var(--ag-accent)' }}>{remaining}/{p.total_sessions || 0}</div>
+                        <div style={{ fontSize: 11, color: 'var(--ag-text-soft)' }}>₪{Number(p.final_price) || 0}</div>
                       </div>
                     );
                   });
@@ -1292,7 +1292,7 @@ export default function Reports() {
               }}>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>📅 מפגשים אחרונים</div>
                 {filtered.length === 0 ? (
-                  <div style={{ textAlign: 'center', color: '#888', padding: 12, fontSize: 12 }}>אין מפגשים בתקופה זו</div>
+                  <div style={{ textAlign: 'center', color: 'var(--ag-text-soft)', padding: 12, fontSize: 12 }}>אין מפגשים בתקופה זו</div>
                 ) : filtered.slice(0, 15).map(s => {
                   const n = normalizeStatus(s.status);
                   const ok = n === 'completed' || n === 'present';
@@ -1305,12 +1305,12 @@ export default function Reports() {
                     }}>
                       <span style={{ fontSize: 14 }}>{statusIcon(s.status)}</span>
                       <span style={{ flex: 1, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameOf(s)}</span>
-                      <span style={{ color: '#888', fontSize: 12 }}>{fmtDate(s.date)}</span>
+                      <span style={{ color: 'var(--ag-text-soft)', fontSize: 12 }}>{fmtDate(s.date)}</span>
                       <span style={{
                         padding: '2px 8px', borderRadius: 8,
                         fontSize: 10, fontWeight: 600,
-                        background: ok ? '#E8F5E9' : cancel ? '#FEE2E2' : '#FFF0E4',
-                        color: ok ? '#16a34a' : cancel ? '#dc2626' : '#FF6F20',
+                        background: ok ? '#E8F5E9' : cancel ? '#FEE2E2' : 'var(--ag-accent-bg)',
+                        color: ok ? 'var(--ag-success)' : cancel ? 'var(--ag-error)' : 'var(--ag-accent)',
                       }}>{statusLabel(s.status)}</span>
                     </div>
                   );
@@ -1332,7 +1332,7 @@ export default function Reports() {
                     m.set(k, prev);
                   }
                   const pm = Array.from(m.values()).sort((a, b) => b.total - a.total);
-                  if (pm.length === 0) return <div style={{ textAlign: 'center', color: '#888', padding: 8, fontSize: 12 }}>אין נתונים</div>;
+                  if (pm.length === 0) return <div style={{ textAlign: 'center', color: 'var(--ag-text-soft)', padding: 8, fontSize: 12 }}>אין נתונים</div>;
                   return pm.map(x => (
                     <div key={x.method} style={{
                       display: 'flex', justifyContent: 'space-between',
@@ -1340,7 +1340,7 @@ export default function Reports() {
                       borderBottom: '0.5px solid #F8F0E8',
                     }}>
                       <span>{x.method}</span>
-                      <span style={{ color: '#888' }}>{x.count} × ₪{x.total.toLocaleString()}</span>
+                      <span style={{ color: 'var(--ag-text-soft)' }}>{x.count} × ₪{x.total.toLocaleString()}</span>
                     </div>
                   ));
                 })()}

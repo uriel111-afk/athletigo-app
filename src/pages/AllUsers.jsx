@@ -969,21 +969,21 @@ export default function AllUsers() {
               fontSize: 34,
               fontWeight: 700,
               lineHeight: 1.05,
-              color: '#1a1a1a',
+              color: 'var(--ag-text)',
               letterSpacing: '-0.5px',
               margin: 0,
               fontFamily: 'Rubik, sans-serif',
             }}>
               מתאמנים
             </h1>
-            <div style={{ fontSize: 14, color: '#888', marginTop: 6 }}>
+            <div style={{ fontSize: 14, color: 'var(--ag-text-soft)', marginTop: 6 }}>
               {visibleTrainees.length} מתאמנים • {counts.active} פעילים
             </div>
           </div>
           <div style={{
             width: 60, height: 60,
             borderRadius: 18,
-            background: '#FF6F20',
+            background: 'var(--ag-accent)',
             color: '#fff',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '5px 5px 12px rgba(200,120,60,0.35), -5px -5px 12px rgba(255,255,255,0.7)',
@@ -1002,7 +1002,7 @@ export default function AllUsers() {
             onClick={() => setIsAddTraineeOpen(true)}
             style={{
               flex: 1,
-              background: '#FF6F20',
+              background: 'var(--ag-accent)',
               color: '#fff',
               border: 'none',
               borderRadius: 12,
@@ -1114,7 +1114,7 @@ export default function AllUsers() {
             gap: 8,
             boxShadow: cardShadow,
           }}>
-            <Search size={18} color="#888" />
+            <Search size={18} color="var(--ag-text-soft)" />
             <input
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
@@ -1151,8 +1151,8 @@ export default function AllUsers() {
               style={{
                 width: 34, height: 34,
                 borderRadius: 9,
-                background: '#FBF3EA',
-                color: '#FF6F20',
+                background: 'var(--ag-bg)',
+                color: 'var(--ag-accent)',
                 border: 'none',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 boxShadow: insetShadow,
@@ -1183,8 +1183,8 @@ export default function AllUsers() {
                       if (f.id !== 'former') setFormerCategory('all');
                     }}
                     style={{
-                      background: active ? '#FF6F20' : 'transparent',
-                      color: active ? '#fff' : '#888',
+                      background: active ? 'var(--ag-accent)' : 'transparent',
+                      color: active ? '#fff' : 'var(--ag-text-soft)',
                       border: 'none',
                       borderRadius: 9,
                       padding: active ? '7px 12px' : '7px 10px',
@@ -1231,9 +1231,9 @@ export default function AllUsers() {
                     type="button"
                     onClick={() => setFormerCategory(c.key)}
                     style={{
-                      background: isActive ? '#FF6F20' : '#fff',
-                      color: isActive ? '#fff' : '#888',
-                      border: isActive ? 'none' : '1px solid #E8E0D8',
+                      background: isActive ? 'var(--ag-accent)' : '#fff',
+                      color: isActive ? '#fff' : 'var(--ag-text-soft)',
+                      border: isActive ? 'none' : '1px solid var(--ag-chip-border)',
                       borderRadius: 9,
                       padding: '7px 12px',
                       fontSize: 13,
@@ -1279,9 +1279,9 @@ export default function AllUsers() {
                 style={{
                   padding: '10px 14px',
                   borderRadius: 10,
-                  border: '1px solid #F0E4D0',
+                  border: '1px solid var(--ag-border)',
                   background: sortMode === 'recent' ? '#fff' : '#FFF3E5',
-                  color: '#1a1a1a',
+                  color: 'var(--ag-text)',
                   fontSize: 13, fontWeight: 600,
                   cursor: 'pointer', whiteSpace: 'nowrap',
                   fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
@@ -1297,7 +1297,7 @@ export default function AllUsers() {
                 style={{
                   padding: '10px 14px',
                   borderRadius: 10,
-                  border: showFormer ? '1px solid #FCA5A5' : '1px solid #F0E4D0',
+                  border: showFormer ? '1px solid #FCA5A5' : '1px solid var(--ag-border)',
                   background: showFormer ? '#FEE2E2' : '#fff',
                   color: showFormer ? '#B91C1C' : '#666',
                   fontSize: 13, fontWeight: 600, cursor: 'pointer',
@@ -1313,9 +1313,9 @@ export default function AllUsers() {
                 style={{
                   padding: '10px 14px',
                   borderRadius: 10,
-                  border: '1px solid #F0E4D0',
+                  border: '1px solid var(--ag-border)',
                   background: sel.isSelecting ? '#FFF5EE' : '#fff',
-                  color: sel.isSelecting ? '#FF6F20' : '#666',
+                  color: sel.isSelecting ? 'var(--ag-accent)' : '#666',
                   fontSize: 13, fontWeight: 600, cursor: 'pointer',
                   fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                 }}
@@ -1339,7 +1339,7 @@ export default function AllUsers() {
         ) : filteredTrainees.length === 0 ? (
           <div style={{
             textAlign: 'center', padding: '40px 20px',
-            color: '#888',
+            color: 'var(--ag-text-soft)',
           }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>👥</div>
             <div style={{ fontSize: 14 }}>
@@ -1395,12 +1395,12 @@ export default function AllUsers() {
                 border: isBdayToday
                   ? '2px solid #EF9F27'
                   : sel.isSelecting && sel.isSelected(t.id)
-                    ? '1.5px solid #FF6F20'
+                    ? '1.5px solid var(--ag-accent)'
                     : isExpiring
-                      ? '1.5px solid #EAB308'
+                      ? '1.5px solid var(--ag-warning)'
                       : pkg
-                        ? '1.5px solid #FF6F20'
-                        : '0.5px solid #F0E4D0',
+                        ? '1.5px solid var(--ag-accent)'
+                        : '0.5px solid var(--ag-border)',
               }}
             >
               {/* Birthday pill — absolutely positioned overlay so the
@@ -1451,9 +1451,9 @@ export default function AllUsers() {
                 )}
                 <div style={{
                   width: 44, height: 44, borderRadius: 14,
-                  background: '#FFF0E4',
+                  background: 'var(--ag-accent-bg)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 20, fontWeight: 600, color: '#FF6F20',
+                  fontSize: 20, fontWeight: 600, color: 'var(--ag-accent)',
                   flexShrink: 0,
                 }}>{initial}</div>
 
@@ -1476,7 +1476,7 @@ export default function AllUsers() {
                     {(() => {
                       const cur = STATUS_BADGES[t.client_status];
                       const buttonBg = cur?.bg || '#F5F5F5';
-                      const buttonFg = cur?.fg || '#888';
+                      const buttonFg = cur?.fg || 'var(--ag-text-soft)';
                       const buttonBorder = cur?.border || '#E5E7EB';
                       const buttonLabel = cur?.label || t.client_status || 'לא מוגדר';
                       const menuOpen = statusMenuOpen === t.id;
@@ -1508,7 +1508,7 @@ export default function AllUsers() {
                               style={{
                                 position: 'absolute', top: '100%', right: 0, marginTop: 4,
                                 background: 'white', borderRadius: 12,
-                                border: '1px solid #F0E4D0',
+                                border: '1px solid var(--ag-border)',
                                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
                                 zIndex: 100, overflow: 'hidden',
                                 minWidth: 140, direction: 'rtl',
@@ -1529,11 +1529,11 @@ export default function AllUsers() {
                                       width: '100%', padding: '10px 14px',
                                       border: 'none',
                                       background: selected ? '#FFF5EE' : 'white',
-                                      color: selected ? '#FF6F20' : '#1A1A1A',
+                                      color: selected ? 'var(--ag-accent)' : 'var(--ag-text)',
                                       fontSize: 13, cursor: 'pointer',
                                       textAlign: 'right',
                                       borderBottom: idx < STATUS_OPTIONS.length - 1
-                                        ? '1px solid #F0E4D0' : 'none',
+                                        ? '1px solid var(--ag-border)' : 'none',
                                       display: 'flex',
                                       justifyContent: 'space-between',
                                       alignItems: 'center', gap: 8,
@@ -1566,7 +1566,7 @@ export default function AllUsers() {
                     const birth = formatBirthWithAge(t);
                     return (
                       <div style={{
-                        fontSize: 11, color: '#888', marginTop: 1,
+                        fontSize: 11, color: 'var(--ag-text-soft)', marginTop: 1,
                         display: 'flex', flexWrap: 'wrap', gap: 6,
                       }}>
                         {contact && <span>{contact}</span>}
@@ -1581,7 +1581,7 @@ export default function AllUsers() {
                   padding: '3px 10px', borderRadius: 8,
                   fontSize: 10, fontWeight: 600, flexShrink: 0,
                   background: pkg ? (isExpiring ? '#FFF9E6' : '#E8F5E9') : '#F3F4F6',
-                  color: pkg ? (isExpiring ? '#EAB308' : '#16a34a') : '#888',
+                  color: pkg ? (isExpiring ? 'var(--ag-warning)' : 'var(--ag-success)') : 'var(--ag-text-soft)',
                 }}>
                   {inactive ? 'לא פעיל' : (isExpiring ? 'נגמר בקרוב' : 'פעיל')}
                 </div>
@@ -1592,56 +1592,56 @@ export default function AllUsers() {
                 {/* Sessions: used/total — same as packages tab */}
                 <div style={{
                   flex: 1, display: 'flex', alignItems: 'center', gap: 4,
-                  background: '#FFF9F0',
+                  background: 'var(--ag-bg)',
                   borderRadius: 8, padding: '6px 8px',
                 }}>
                   <span style={{ fontSize: 12 }}>🎫</span>
                   <div style={{ minWidth: 0 }}>
                     <div style={{
                       fontSize: 13, fontWeight: 600,
-                      color: pkg && remaining <= 2 ? '#dc2626' : '#1a1a1a',
+                      color: pkg && remaining <= 2 ? 'var(--ag-error)' : 'var(--ag-text)',
                     }}>
                       {pkg ? `${usedInPkg}/${totalInPkg}` : '—'}
                     </div>
-                    <div style={{ fontSize: 8, color: '#888' }}>בוצעו</div>
+                    <div style={{ fontSize: 8, color: 'var(--ag-text-soft)' }}>בוצעו</div>
                   </div>
                 </div>
 
                 {/* Next upcoming session */}
                 <div style={{
                   flex: 1, display: 'flex', alignItems: 'center', gap: 4,
-                  background: '#FFF9F0',
+                  background: 'var(--ag-bg)',
                   borderRadius: 8, padding: '6px 8px',
                 }}>
                   <span style={{ fontSize: 12 }}>📅</span>
                   <div style={{ minWidth: 0 }}>
                     <div style={{
-                      fontSize: 13, fontWeight: 600, color: '#1a1a1a',
+                      fontSize: 13, fontWeight: 600, color: 'var(--ag-text)',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>
                       {nextSession ? formatSmartDate(nextSession.date) : '—'}
                     </div>
-                    <div style={{ fontSize: 8, color: '#888' }}>הבא</div>
+                    <div style={{ fontSize: 8, color: 'var(--ag-text-soft)' }}>הבא</div>
                   </div>
                 </div>
 
                 {/* Birthday — full DD/MM/YYYY + current age in years */}
                 <div style={{
                   flex: 1, display: 'flex', alignItems: 'center', gap: 4,
-                  background: '#FFF9F0',
+                  background: 'var(--ag-bg)',
                   borderRadius: 8, padding: '6px 8px',
                 }}>
                   <span style={{ fontSize: 12 }}>🎂</span>
                   <div style={{ minWidth: 0 }}>
                     <div style={{
-                      fontSize: 12, fontWeight: 600, color: '#1a1a1a',
+                      fontSize: 12, fontWeight: 600, color: 'var(--ag-text)',
                       // Allow wrap on narrow screens so a long
                       // "15/03/1990 (36)" doesn't get cropped.
                       wordBreak: 'break-word',
                     }}>
                       {formatBirthWithAge(t) || '—'}
                     </div>
-                    <div style={{ fontSize: 8, color: '#888' }}>יום הולדת</div>
+                    <div style={{ fontSize: 8, color: 'var(--ag-text-soft)' }}>יום הולדת</div>
                   </div>
                 </div>
               </div>
@@ -1658,10 +1658,10 @@ export default function AllUsers() {
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               marginBottom: 12,
             }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ag-text)' }}>
                 👥 הקבוצות שלי
               </div>
-              <div style={{ fontSize: 12, color: '#888' }}>
+              <div style={{ fontSize: 12, color: 'var(--ag-text-soft)' }}>
                 {trainingGroups.length} {trainingGroups.length === 1 ? 'קבוצה' : 'קבוצות'}
               </div>
             </div>
@@ -1677,7 +1677,7 @@ export default function AllUsers() {
                 width: '100%',
                 padding: '12px 0',
                 borderRadius: 12, border: 'none',
-                background: '#FF6F20', color: 'white',
+                background: 'var(--ag-accent)', color: 'white',
                 fontSize: 14, fontWeight: 700,
                 cursor: 'pointer',
                 marginBottom: 12,
@@ -1691,13 +1691,13 @@ export default function AllUsers() {
               <div style={{
                 padding: '40px 20px', textAlign: 'center',
                 background: 'white', borderRadius: 14,
-                border: '1px dashed #F0E4D0', color: '#888',
+                border: '1px dashed var(--ag-border)', color: 'var(--ag-text-soft)',
               }}>
                 <div style={{ fontSize: 32, marginBottom: 8 }}>👥</div>
-                <div style={{ fontSize: 13, marginBottom: 4, color: '#1a1a1a', fontWeight: 600 }}>
+                <div style={{ fontSize: 13, marginBottom: 4, color: 'var(--ag-text)', fontWeight: 600 }}>
                   עדיין אין קבוצות
                 </div>
-                <div style={{ fontSize: 12, color: '#888' }}>
+                <div style={{ fontSize: 12, color: 'var(--ag-text-soft)' }}>
                   לחץ "+ קבוצה חדשה" למעלה כדי ליצור את הקבוצה הראשונה
                 </div>
               </div>
@@ -1711,7 +1711,7 @@ export default function AllUsers() {
                   const meta = [];
                   if (group.location_name) meta.push(`📍 ${group.location_name}`);
                   if (group.session_time)  meta.push(`🕐 ${group.session_time}`);
-                  const avatarColor = group.color || '#FF6F20';
+                  const avatarColor = group.color || 'var(--ag-accent)';
                   const avatarIcon = group.icon || null;
                   return (
                     <div
@@ -1721,7 +1721,7 @@ export default function AllUsers() {
                         display: 'flex', alignItems: 'center', gap: 12,
                         padding: '14px 16px', borderRadius: 14,
                         background: 'white',
-                        border: '1px solid #F0E4D0',
+                        border: '1px solid var(--ag-border)',
                         cursor: 'pointer',
                         boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
                       }}
@@ -1738,12 +1738,12 @@ export default function AllUsers() {
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{
-                          fontSize: 14, fontWeight: 700, color: '#1a1a1a',
+                          fontSize: 14, fontWeight: 700, color: 'var(--ag-text)',
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         }}>
                           {group.name || 'קבוצה ללא שם'}
                         </div>
-                        <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                        <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginTop: 2 }}>
                           {memberCount} {memberCount === 1 ? 'חבר' : 'חברים'}
                           {group.description ? ` · ${group.description}` : ''}
                         </div>
@@ -1797,7 +1797,7 @@ export default function AllUsers() {
               {/* Header band: back button + group title */}
               <div style={{
                 background: 'white', borderRadius: 14,
-                border: '1px solid #F0E4D0', padding: '12px 14px',
+                border: '1px solid var(--ag-border)', padding: '12px 14px',
                 marginBottom: 12,
               }}>
                 <div style={{
@@ -1809,8 +1809,8 @@ export default function AllUsers() {
                     onClick={() => { setSelectedGroup(null); setView('groups'); }}
                     style={{
                       width: 36, height: 36, borderRadius: 10,
-                      border: '1px solid #F0E4D0', background: 'white',
-                      color: '#FF6F20', fontSize: 18, fontWeight: 700,
+                      border: '1px solid var(--ag-border)', background: 'white',
+                      color: 'var(--ag-accent)', fontSize: 18, fontWeight: 700,
                       cursor: 'pointer', flexShrink: 0,
                     }}
                     aria-label="חזרה לרשימת הקבוצות"
@@ -1819,12 +1819,12 @@ export default function AllUsers() {
                   </button>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
-                      fontSize: 16, fontWeight: 800, color: '#1a1a1a',
+                      fontSize: 16, fontWeight: 800, color: 'var(--ag-text)',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>
                       {selectedGroup.name || 'קבוצה ללא שם'}
                     </div>
-                    <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
+                    <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginTop: 2 }}>
                       {members.length} {members.length === 1 ? 'חבר' : 'חברים'}
                       {selectedGroup.description ? ` · ${selectedGroup.description}` : ''}
                     </div>
@@ -1865,8 +1865,8 @@ export default function AllUsers() {
                     style={{
                       flex: 1,
                       padding: '12px 8px', borderRadius: 12,
-                      border: '1px solid #FF6F20',
-                      background: 'white', color: '#FF6F20',
+                      border: '1px solid var(--ag-accent)',
+                      background: 'white', color: 'var(--ag-accent)',
                       fontSize: 13, fontWeight: 700, cursor: 'pointer',
                       fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                     }}
@@ -1895,7 +1895,7 @@ export default function AllUsers() {
                       style={{
                         flex: 1,
                         padding: '12px 8px', borderRadius: 12, border: 'none',
-                        background: '#FF6F20', color: 'white',
+                        background: 'var(--ag-accent)', color: 'white',
                         fontSize: 13, fontWeight: 700, cursor: 'pointer',
                         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                       }}
@@ -1913,7 +1913,7 @@ export default function AllUsers() {
                 <div style={{
                   padding: '32px 20px', textAlign: 'center',
                   background: 'white', borderRadius: 14,
-                  border: '1px dashed #F0E4D0', color: '#888',
+                  border: '1px dashed var(--ag-border)', color: 'var(--ag-text-soft)',
                   fontSize: 13,
                 }}>
                   אין חברים בקבוצה
@@ -1985,7 +1985,7 @@ export default function AllUsers() {
                         display: 'flex', alignItems: 'center', gap: 12,
                         padding: '12px 14px', borderRadius: 12,
                         background: 'white',
-                        border: '1px solid #F0E4D0',
+                        border: '1px solid var(--ag-border)',
                         cursor: 'pointer',
                       }}
                     >
@@ -2003,7 +2003,7 @@ export default function AllUsers() {
                         display: 'flex', flexDirection: 'column', gap: 2,
                       }}>
                         <div style={{
-                          fontSize: 14, fontWeight: 600, color: '#1a1a1a',
+                          fontSize: 14, fontWeight: 600, color: 'var(--ag-text)',
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         }}>
                           {m.trainee_name || 'מתאמן'}
@@ -2102,10 +2102,10 @@ export default function AllUsers() {
                 fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
               }}
             >
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, textAlign: 'center', color: '#1a1a1a' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, textAlign: 'center', color: 'var(--ag-text)' }}>
                 הקם קבוצה חדשה
               </div>
-              <div style={{ fontSize: 12, color: '#888', marginBottom: 16, textAlign: 'center' }}>
+              <div style={{ fontSize: 12, color: 'var(--ag-text-soft)', marginBottom: 16, textAlign: 'center' }}>
                 {sel.selectedCount} מתאמנים יתווספו כחברים
               </div>
 
@@ -2121,7 +2121,7 @@ export default function AllUsers() {
                 style={{
                   width: '100%', padding: '10px 12px',
                   borderRadius: 10,
-                  border: '1.5px solid #F0E4D0',
+                  border: '1.5px solid var(--ag-border)',
                   fontSize: 14, direction: 'rtl',
                   background: creatingGroup ? '#F5F5F5' : 'white', outline: 'none',
                   boxSizing: 'border-box', marginBottom: 12,
@@ -2142,7 +2142,7 @@ export default function AllUsers() {
                 style={{
                   width: '100%', padding: '10px 12px',
                   borderRadius: 10,
-                  border: '1.5px solid #F0E4D0',
+                  border: '1.5px solid var(--ag-border)',
                   fontSize: 13, direction: 'rtl',
                   background: creatingGroup ? '#F5F5F5' : 'white', outline: 'none',
                   boxSizing: 'border-box', marginBottom: 16,
@@ -2157,7 +2157,7 @@ export default function AllUsers() {
                   disabled={creatingGroup}
                   style={{
                     flex: 1, padding: '11px 0', borderRadius: 12,
-                    border: '1px solid #F0E4D0', background: 'white',
+                    border: '1px solid var(--ag-border)', background: 'white',
                     fontSize: 13, fontWeight: 700, color: '#666',
                     cursor: creatingGroup ? 'default' : 'pointer',
                     fontFamily: 'inherit',
@@ -2171,7 +2171,7 @@ export default function AllUsers() {
                   disabled={creatingGroup || !groupForm.name.trim()}
                   style={{
                     flex: 1, padding: '11px 0', borderRadius: 12, border: 'none',
-                    background: (creatingGroup || !groupForm.name.trim()) ? '#D1D5DB' : '#FF6F20',
+                    background: (creatingGroup || !groupForm.name.trim()) ? '#D1D5DB' : 'var(--ag-accent)',
                     color: 'white',
                     fontSize: 13, fontWeight: 800,
                     cursor: (creatingGroup || !groupForm.name.trim()) ? 'default' : 'pointer',
@@ -2231,7 +2231,7 @@ export default function AllUsers() {
                     }}
                     style={{
                       width: '100%', padding: 12, borderRadius: 12,
-                      border: '1px solid #F0E4D0', background: 'white',
+                      border: '1px solid var(--ag-border)', background: 'white',
                       fontSize: 14, cursor: 'pointer', marginBottom: 6,
                       display: 'flex', alignItems: 'center', gap: 8,
                       justifyContent: 'center',
@@ -2320,7 +2320,7 @@ export default function AllUsers() {
                   {(selectedMember.trainee_name || '?').trim().charAt(0)}
                 </div>
                 <div style={{
-                  fontSize: 16, fontWeight: 800, color: '#1a1a1a',
+                  fontSize: 16, fontWeight: 800, color: 'var(--ag-text)',
                   flex: 1, minWidth: 0,
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
@@ -2391,8 +2391,8 @@ export default function AllUsers() {
                     background: a.danger ? '#FEF2F2' : (a.primary ? '#FFF5EE' : 'white'),
                     border: a.danger
                       ? '1px solid #FCA5A5'
-                      : (a.primary ? '1px solid #FF6F20' : '1px solid #F0E4D0'),
-                    color: a.danger ? '#B91C1C' : (a.primary ? '#FF6F20' : '#1a1a1a'),
+                      : (a.primary ? '1px solid var(--ag-accent)' : '1px solid var(--ag-border)'),
+                    color: a.danger ? '#B91C1C' : (a.primary ? 'var(--ag-accent)' : 'var(--ag-text)'),
                     fontSize: 14, fontWeight: 700,
                     cursor: 'pointer',
                     fontFamily: 'inherit',
@@ -2412,7 +2412,7 @@ export default function AllUsers() {
                 style={{
                   width: '100%',
                   padding: '11px 0', borderRadius: 12,
-                  border: '1px solid #F0E4D0', background: 'white',
+                  border: '1px solid var(--ag-border)', background: 'white',
                   fontSize: 13, fontWeight: 700, color: '#666',
                   cursor: 'pointer', marginTop: 6,
                   fontFamily: 'inherit',
@@ -2535,7 +2535,7 @@ export default function AllUsers() {
                     style={{
                       width: '100%',
                       padding: '10px 12px',
-                      border: '1px solid #F0E4D0',
+                      border: '1px solid var(--ag-border)',
                       borderRadius: 10,
                       fontSize: 14,
                       outline: 'none',
@@ -2552,11 +2552,11 @@ export default function AllUsers() {
                       <div style={{
                         padding: '24px 16px',
                         textAlign: 'center',
-                        color: '#888',
+                        color: 'var(--ag-text-soft)',
                         fontSize: 13,
                         background: '#FAFAFA',
                         borderRadius: 10,
-                        border: '1px dashed #F0E4D0',
+                        border: '1px dashed var(--ag-border)',
                       }}>
                         כל המתאמנים כבר בקבוצה
                       </div>
@@ -2575,8 +2575,8 @@ export default function AllUsers() {
                               display: 'flex', alignItems: 'center', gap: 12,
                               padding: '10px 12px',
                               borderRadius: 10,
-                              background: isSelected ? '#FFF0E4' : 'white',
-                              border: `1px solid ${isSelected ? '#FF6F20' : '#F0E4D0'}`,
+                              background: isSelected ? 'var(--ag-accent-bg)' : 'white',
+                              border: `1px solid ${isSelected ? 'var(--ag-accent)' : 'var(--ag-border)'}`,
                               cursor: addingBatch ? 'default' : 'pointer',
                               textAlign: 'right',
                               fontFamily: 'inherit',
@@ -2593,8 +2593,8 @@ export default function AllUsers() {
                               style={{
                                 width: 22, height: 22,
                                 borderRadius: 6,
-                                border: `2px solid ${isSelected ? '#FF6F20' : '#C9B89A'}`,
-                                background: isSelected ? '#FF6F20' : '#FFFFFF',
+                                border: `2px solid ${isSelected ? 'var(--ag-accent)' : '#C9B89A'}`,
+                                background: isSelected ? 'var(--ag-accent)' : '#FFFFFF',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 color: '#FFFFFF', fontSize: 14, fontWeight: 900,
                                 flexShrink: 0,
@@ -2604,7 +2604,7 @@ export default function AllUsers() {
                             </span>
                             <div style={{
                               width: 32, height: 32, borderRadius: 999,
-                              background: '#FFF5EE', color: '#FF6F20',
+                              background: '#FFF5EE', color: 'var(--ag-accent)',
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
                               fontSize: 14, fontWeight: 800, flexShrink: 0,
                             }}>
@@ -2612,14 +2612,14 @@ export default function AllUsers() {
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{
-                                fontSize: 14, fontWeight: 700, color: '#1a1a1a',
+                                fontSize: 14, fontWeight: 700, color: 'var(--ag-text)',
                                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                               }}>
                                 {t.full_name || 'מתאמן'}
                               </div>
                               {t.phone && (
                                 <div style={{
-                                  fontSize: 11, color: '#888', marginTop: 2,
+                                  fontSize: 11, color: 'var(--ag-text-soft)', marginTop: 2,
                                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                                 }}>
                                   {t.phone}
@@ -2645,8 +2645,8 @@ export default function AllUsers() {
                       width: '100%',
                       padding: '12px 0', borderRadius: 12,
                       border: 'none',
-                      background: submitDisabled ? '#E8E0D8' : '#FF6F20',
-                      color: submitDisabled ? '#888' : '#FFFFFF',
+                      background: submitDisabled ? 'var(--ag-chip-border)' : 'var(--ag-accent)',
+                      color: submitDisabled ? 'var(--ag-text-soft)' : '#FFFFFF',
                       fontSize: 14, fontWeight: 700,
                       cursor: submitDisabled ? 'default' : 'pointer',
                       marginTop: 4,
@@ -2668,7 +2668,7 @@ export default function AllUsers() {
                     style={{
                       width: '100%',
                       padding: '11px 0', borderRadius: 12,
-                      border: '1px solid #F0E4D0', background: 'white',
+                      border: '1px solid var(--ag-border)', background: 'white',
                       fontSize: 13, fontWeight: 700, color: '#666',
                       cursor: addingBatch ? 'default' : 'pointer',
                       fontFamily: 'inherit',
@@ -2708,8 +2708,8 @@ export default function AllUsers() {
               <div dir="rtl" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{
                   padding: '12px 14px', borderRadius: 12,
-                  background: '#FAFAFA', border: '1px solid #F0E4D0',
-                  fontSize: 14, color: '#1a1a1a', fontWeight: 600,
+                  background: '#FAFAFA', border: '1px solid var(--ag-border)',
+                  fontSize: 14, color: 'var(--ag-text)', fontWeight: 600,
                   textAlign: 'right',
                 }}>
                   {memberToRemove.trainee_name || 'מתאמן'}
@@ -2725,7 +2725,7 @@ export default function AllUsers() {
                     style={{
                       flex: 1,
                       padding: '11px 0', borderRadius: 12,
-                      border: '1px solid #F0E4D0', background: 'white',
+                      border: '1px solid var(--ag-border)', background: 'white',
                       fontSize: 13, fontWeight: 700, color: '#666',
                       cursor: removeGroupMemberMutation.isPending ? 'default' : 'pointer',
                       fontFamily: 'inherit',
@@ -2821,7 +2821,7 @@ export default function AllUsers() {
               </DialogTitle>
             </DialogHeader>
             <div dir="rtl" style={{ fontFamily: "'Rubik', system-ui, -apple-system, sans-serif" }}>
-              <div style={{ fontSize: 14, color: '#1a1a1a', lineHeight: 1.55, marginTop: 6 }}>
+              <div style={{ fontSize: 14, color: 'var(--ag-text)', lineHeight: 1.55, marginTop: 6 }}>
                 למחוק את הקבוצה <b>"{groupToDelete?.name || 'ללא שם'}"</b>?
               </div>
               <div style={{ fontSize: 12, color: '#666', marginTop: 6, lineHeight: 1.5 }}>

@@ -971,7 +971,7 @@ export default function Sessions() {
     const getSessionTypeBadgeStyle = (type) => {
       switch (type) {
         case 'אישי':
-          return { bg: '#FF6F20', gradient: 'linear-gradient(135deg, #FF6F20 0%, #FF8F50 100%)', color: 'white', icon: '🧍‍♂️', label: 'אישי' };
+          return { bg: 'var(--ag-accent)', gradient: 'linear-gradient(135deg, var(--ag-accent) 0%, #FF8F50 100%)', color: 'white', icon: '🧍‍♂️', label: 'אישי' };
         case 'קבוצתי':
           return { bg: '#2196F3', gradient: 'linear-gradient(135deg, #2196F3 0%, #42A5F5 100%)', color: 'white', icon: '👥', label: 'קבוצתי' };
         case 'אונליין':
@@ -986,7 +986,7 @@ export default function Sessions() {
         case 'ממתין לאישור':
           return { bg: '#9E9E9E', text: 'white', label: '⏳ ממתין', icon: '⏳' };
         case 'מאושר':
-          return { bg: '#FF6F20', text: 'white', label: '🟧 מאושר', icon: '🟧' };
+          return { bg: 'var(--ag-accent)', text: 'white', label: '🟧 מאושר', icon: '🟧' };
         case 'התקיים':
           return { bg: '#4CAF50', text: 'white', label: '✅ התקיים', icon: '✅' };
         case 'לא הגיע':
@@ -1013,8 +1013,8 @@ export default function Sessions() {
         style={{
           backgroundColor: '#FFFFFF',
           border: isSelectedRow
-            ? '3px solid #FF6F20'
-            : priority ? '3px solid #FF6F20' : '2px solid #E0E0E0',
+            ? '3px solid var(--ag-accent)'
+            : priority ? '3px solid var(--ag-accent)' : '2px solid #E0E0E0',
           boxShadow: priority ? '0 8px 24px rgba(255, 111, 32, 0.25)' : isExpanded ? '0 6px 16px rgba(0,0,0,0.12)' : '0 3px 10px rgba(0,0,0,0.06)'
         }}>
 
@@ -1082,8 +1082,8 @@ export default function Sessions() {
             {format(new Date(session.date), 'EEEE, dd בMMMM', { locale: he })}
           </h3>
           <div className="flex items-center gap-2">
-            <Clock className="w-5 h-5" style={{ color: '#FF6F20' }} />
-            <span className="text-xl font-black" style={{ color: '#FF6F20' }}>
+            <Clock className="w-5 h-5" style={{ color: 'var(--ag-accent)' }} />
+            <span className="text-xl font-black" style={{ color: 'var(--ag-accent)' }}>
               {session.time}
             </span>
             <span className="text-sm font-medium" style={{ color: '#7D7D7D' }}>
@@ -1092,7 +1092,7 @@ export default function Sessions() {
             <button
               onClick={(e) => { e.stopPropagation(); setSessionToEdit(session); }}
               className="ml-auto p-2 rounded-lg transition-all hover:bg-orange-50"
-              style={{ color: '#FF6F20', flexShrink: 0 }}>
+              style={{ color: 'var(--ag-accent)', flexShrink: 0 }}>
               <Edit2 className="w-4 h-4" />
             </button>
           </div>
@@ -1169,7 +1169,7 @@ export default function Sessions() {
                         }}
                         size="sm"
                         className="rounded-lg px-2 py-1 text-xs font-bold text-white"
-                        style={{ backgroundColor: '#FF6F20' }}>
+                        style={{ backgroundColor: 'var(--ag-accent)' }}>
 
                                 הגיע
                               </Button>
@@ -1184,10 +1184,10 @@ export default function Sessions() {
 
               {/* Coach Private Notes - Only for Coach */}
               {session.coach_notes &&
-          <div className="mb-4 p-4 rounded-xl" style={{ backgroundColor: '#FFF8F3', border: '2px solid #FF6F20' }}>
+          <div className="mb-4 p-4 rounded-xl" style={{ backgroundColor: '#FFF8F3', border: '2px solid var(--ag-accent)' }}>
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-lg">🔒</span>
-                    <p className="text-sm font-black" style={{ color: '#FF6F20' }}>
+                    <p className="text-sm font-black" style={{ color: 'var(--ag-accent)' }}>
                       הערות למאמן בלבד
                     </p>
                   </div>
@@ -1206,7 +1206,7 @@ export default function Sessions() {
                       handleAddParticipantsToSession(session);
                     }}
                     className="rounded-xl py-3 font-bold text-white text-xs px-1"
-                    style={{ backgroundColor: '#FF6F20' }}>
+                    style={{ backgroundColor: 'var(--ag-accent)' }}>
                     <UserPlus className="w-3.5 h-3.5 ml-1" />
                     הוסף
                   </Button>
@@ -1335,7 +1335,7 @@ export default function Sessions() {
                 fontSize: 'clamp(30px, 8vw, 34px)',
                 fontWeight: 700,
                 lineHeight: 1.05,
-                color: '#1a1a1a',
+                color: 'var(--ag-text)',
                 letterSpacing: '-0.5px',
                 whiteSpace: 'nowrap',
                 margin: 0,
@@ -1343,14 +1343,14 @@ export default function Sessions() {
               }}>
                 מפגשים ואימונים
               </h1>
-              <div style={{ fontSize: 14, color: '#888', marginTop: 8 }}>
+              <div style={{ fontSize: 14, color: 'var(--ag-text-soft)', marginTop: 8 }}>
                 לוח זמנים מלא ומסודר
               </div>
             </div>
             <div style={{
               width: 60, height: 60,
               borderRadius: 18,
-              background: '#FF6F20',
+              background: 'var(--ag-accent)',
               color: '#fff',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '5px 5px 12px rgba(200,120,60,0.35), -5px -5px 12px rgba(255,255,255,0.7)',
@@ -1369,7 +1369,7 @@ export default function Sessions() {
                 disabled={coachLoading || !coach}
                 style={{
                   flex: 1,
-                  background: (coachLoading || !coach) ? '#cccccc' : '#FF6F20',
+                  background: (coachLoading || !coach) ? '#cccccc' : 'var(--ag-accent)',
                   color: '#fff', border: 'none', borderRadius: 12,
                   padding: '13px 0', fontSize: 15, fontWeight: 500,
                   cursor: (coachLoading || !coach) ? 'not-allowed' : 'pointer',
@@ -1434,19 +1434,19 @@ export default function Sessions() {
                       padding: '12px 4px',
                       textAlign: 'center',
                       boxShadow: cardShadow,
-                      border: active ? '1px solid #FF6F20' : '1px solid transparent',
+                      border: active ? '1px solid var(--ag-accent)' : '1px solid transparent',
                       cursor: 'pointer',
                       fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                     }}
                   >
                     <div style={{
                       fontSize: 20, fontWeight: 500,
-                      color: tab.accent ? '#16a34a' : '#1a1a1a',
+                      color: tab.accent ? 'var(--ag-success)' : 'var(--ag-text)',
                       lineHeight: 1.1,
                     }}>
                       {tab.count || 0}
                     </div>
-                    <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: 'var(--ag-text-soft)', marginTop: 2 }}>
                       {tab.label}
                     </div>
                   </button>
@@ -1474,8 +1474,8 @@ export default function Sessions() {
                   style={{
                     width: 34, height: 34,
                     borderRadius: 9,
-                    background: '#FBF3EA',
-                    color: '#FF6F20',
+                    background: 'var(--ag-bg)',
+                    color: 'var(--ag-accent)',
                     border: 'none',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     boxShadow: insetShadow,
@@ -1504,8 +1504,8 @@ export default function Sessions() {
                         type="button"
                         onClick={() => setGroupedStatusFilter(f.id)}
                         style={{
-                          background: active ? '#FF6F20' : 'transparent',
-                          color: active ? '#fff' : '#888',
+                          background: active ? 'var(--ag-accent)' : 'transparent',
+                          color: active ? '#fff' : 'var(--ag-text-soft)',
                           border: 'none',
                           borderRadius: 9,
                           padding: active ? '7px 12px' : '7px 10px',
@@ -1575,9 +1575,9 @@ export default function Sessions() {
                       style={{
                         flex: 1, padding: '10px 8px',
                         borderRadius: 10,
-                        border: '1px solid #F0E4D0',
+                        border: '1px solid var(--ag-border)',
                         background: sessionSel.isSelecting ? '#FFF5EE' : '#fff',
-                        color: sessionSel.isSelecting ? '#FF6F20' : '#1a1a1a',
+                        color: sessionSel.isSelecting ? 'var(--ag-accent)' : 'var(--ag-text)',
                         fontSize: 13, fontWeight: 600, cursor: 'pointer',
                         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
                       }}
@@ -1616,7 +1616,7 @@ export default function Sessions() {
                             </div>
                             <div className="flex gap-1">
                               <Button size="icon" variant="ghost" className="w-9 h-9 text-blue-500" onClick={() => { setSelectedGroup(group); setShowGroupMembersDialog(true); }}><UserPlus className="w-4 h-4" /></Button>
-                              <Button size="icon" variant="ghost" className="w-9 h-9 text-[#FF6F20]" onClick={() => { setEditingGroup(group); setGroupForm({ name: group.name, description: group.description || '' }); setShowGroupDialog(true); }}><Edit2 className="w-4 h-4" /></Button>
+                              <Button size="icon" variant="ghost" className="w-9 h-9 text-[var(--ag-accent)]" onClick={() => { setEditingGroup(group); setGroupForm({ name: group.name, description: group.description || '' }); setShowGroupDialog(true); }}><Edit2 className="w-4 h-4" /></Button>
                               <Button size="icon" variant="ghost" className="w-9 h-9 text-red-500" onClick={() => { if (window.confirm(`למחוק את קבוצה "${group.name}"?`)) deleteGroupMutation.mutate(group.id); }}><Trash2 className="w-4 h-4" /></Button>
                             </div>
                           </div>
@@ -1700,7 +1700,7 @@ export default function Sessions() {
                     type="button"
                     onClick={() => setSessionsLayout('classic')}
                     style={{
-                      background: 'none', border: 'none', color: '#888',
+                      background: 'none', border: 'none', color: 'var(--ag-text-soft)',
                       fontSize: 12, cursor: 'pointer', padding: '4px 6px',
                     }}
                   >תצוגה קלאסית →</button>
@@ -1708,8 +1708,8 @@ export default function Sessions() {
 
                 {totalVisible === 0 && groups.past.length === 0 && (
                   <div style={{
-                    textAlign: 'center', padding: 60, color: '#888',
-                    background: 'white', borderRadius: 14, border: '1px solid #F0E4D0',
+                    textAlign: 'center', padding: 60, color: 'var(--ag-text-soft)',
+                    background: 'white', borderRadius: 14, border: '1px solid var(--ag-border)',
                   }}>
                     <div style={{ fontSize: 40, marginBottom: 8 }}>📅</div>
                     <div style={{ fontSize: 15 }}>אין מפגשים תחת הסינון הזה</div>
@@ -1728,12 +1728,12 @@ export default function Sessions() {
                         <h3 style={{
                           margin: 0,
                           fontSize: 18, fontWeight: 700,
-                          color: '#1A1A1A',
+                          color: 'var(--ag-text)',
                           fontFamily: "'Bebas Neue', sans-serif",
                           letterSpacing: 0.3,
                         }}>{BUCKET_LABELS[bucketKey]}</h3>
                         <span style={{
-                          fontSize: 12, fontWeight: 600, color: '#FF6F20',
+                          fontSize: 12, fontWeight: 600, color: 'var(--ag-accent)',
                           background: '#FFF5EE', padding: '2px 10px', borderRadius: 999,
                         }}>{list.length}</span>
                       </div>
@@ -1758,8 +1758,8 @@ export default function Sessions() {
                       onClick={() => setShowPast(p => !p)}
                       style={{
                         width: '100%', padding: 12, borderRadius: 12,
-                        border: '1px dashed #F0E4D0',
-                        background: 'transparent', color: '#888',
+                        border: '1px dashed var(--ag-border)',
+                        background: 'transparent', color: 'var(--ag-text-soft)',
                         fontSize: 13, fontWeight: 600, cursor: 'pointer',
                         marginBottom: 10,
                         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
@@ -1792,7 +1792,7 @@ export default function Sessions() {
                   type="button"
                   onClick={() => setSessionsLayout('grouped')}
                   style={{
-                    background: 'none', border: 'none', color: '#888',
+                    background: 'none', border: 'none', color: 'var(--ag-text-soft)',
                     fontSize: 12, cursor: 'pointer', padding: '4px 6px',
                   }}
                 >תצוגה מקובצת →</button>
@@ -1803,14 +1803,14 @@ export default function Sessions() {
                   <div className="mb-5">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="text-3xl">🔥</div>
-                      <h2 className="text-3xl font-black" style={{ color: '#FF6F20', fontFamily: 'Rubik, sans-serif' }}>
+                      <h2 className="text-3xl font-black" style={{ color: 'var(--ag-accent)', fontFamily: 'Rubik, sans-serif' }}>
                         היום
                       </h2>
-                      <span className="px-4 py-1.5 rounded-full font-black text-sm" style={{ backgroundColor: '#FFF8F3', color: '#FF6F20' }}>
+                      <span className="px-4 py-1.5 rounded-full font-black text-sm" style={{ backgroundColor: '#FFF8F3', color: 'var(--ag-accent)' }}>
                         {todaySessions.length}
                       </span>
                     </div>
-                    <div className="w-16 h-1 rounded-full" style={{ background: 'linear-gradient(90deg, #FF6F20 0%, #FF8F50 100%)' }} />
+                    <div className="w-16 h-1 rounded-full" style={{ background: 'linear-gradient(90deg, var(--ag-accent) 0%, #FF8F50 100%)' }} />
                   </div>
                   <div className={view === 'grid' ? 'grid grid-cols-2 gap-3' : 'space-y-5'}>
                     {todaySessions.map((session) =>
@@ -1900,7 +1900,7 @@ export default function Sessions() {
               {filteredSessions.length === 0 &&
             <div className="text-center py-16 p-10 rounded-2xl relative overflow-hidden" style={{ backgroundColor: '#FFFFFF', border: '2px solid #E0E0E0' }}>
                   <div className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-5"
-              style={{ background: 'radial-gradient(circle, #FF6F20 0%, transparent 70%)', transform: 'translate(30%, -30%)' }} />
+              style={{ background: 'radial-gradient(circle, var(--ag-accent) 0%, transparent 70%)', transform: 'translate(30%, -30%)' }} />
                   
                   <div className="relative">
                     <div className="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center"
@@ -1924,7 +1924,7 @@ export default function Sessions() {
                     setShowSessionDialog(true);
                   }}
                   className="rounded-2xl px-8 py-5 font-black text-white shadow-xl hover:shadow-2xl transition-all text-lg"
-                  style={{ backgroundColor: '#FF6F20' }}>
+                  style={{ backgroundColor: 'var(--ag-accent)' }}>
 
                         <Plus className="w-6 h-6 ml-2" />
                         קבע מפגש
@@ -2149,9 +2149,9 @@ export default function Sessions() {
                   <div style={{ maxHeight: '40vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
                     {(markingGroupAttendance.participants || []).map((p, idx) => {
                       const statusConfig = [
-                        { key: 'הגיע', color: '#16a34a', bg: '#dcfce7' },
-                        { key: 'איחר', color: '#eab308', bg: '#fef9c3' },
-                        { key: 'לא הגיע', color: '#dc2626', bg: '#fee2e2' },
+                        { key: 'הגיע', color: 'var(--ag-success)', bg: '#dcfce7' },
+                        { key: 'איחר', color: 'var(--ag-warning)', bg: '#fef9c3' },
+                        { key: 'לא הגיע', color: 'var(--ag-error)', bg: '#fee2e2' },
                         { key: 'ביטל', color: '#6b7280', bg: '#f3f4f6' },
                       ];
                       return (
@@ -2194,7 +2194,7 @@ export default function Sessions() {
 
                   {/* Bulk actions */}
                   <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-gray-100">
-                    <Button onClick={() => markGroupAttendanceMutation.mutate({ session: markingGroupAttendance, status: 'הגיע' })} disabled={markGroupAttendanceMutation.isPending} className="font-bold text-white rounded-lg min-h-[36px] text-[10px] px-1" style={{ backgroundColor: '#16a34a' }}>
+                    <Button onClick={() => markGroupAttendanceMutation.mutate({ session: markingGroupAttendance, status: 'הגיע' })} disabled={markGroupAttendanceMutation.isPending} className="font-bold text-white rounded-lg min-h-[36px] text-[10px] px-1" style={{ backgroundColor: 'var(--ag-success)' }}>
                       כולם הגיעו
                     </Button>
                     <Button onClick={() => markGroupAttendanceMutation.mutate({ session: markingGroupAttendance, status: 'לא הגיע' })} disabled={markGroupAttendanceMutation.isPending} variant="outline" className="font-bold rounded-lg min-h-[36px] text-[10px] px-1 border-red-200 text-red-500">
@@ -2243,10 +2243,10 @@ export default function Sessions() {
                     const hoursUntil = (sessionTime - new Date()) / 3600000;
                     if (hoursUntil > 0 && hoursUntil < 24) {
                       return (
-                        <div className="p-4 rounded-xl flex items-start gap-3" style={{ backgroundColor: '#FFF3E0', border: '2px solid #FF6F20' }}>
-                          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#FF6F20' }} />
+                        <div className="p-4 rounded-xl flex items-start gap-3" style={{ backgroundColor: '#FFF3E0', border: '2px solid var(--ag-accent)' }}>
+                          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--ag-accent)' }} />
                           <div>
-                            <p className="text-sm font-black" style={{ color: '#FF6F20' }}>אזהרה: פחות מ-24 שעות עד האימון!</p>
+                            <p className="text-sm font-black" style={{ color: 'var(--ag-accent)' }}>אזהרה: פחות מ-24 שעות עד האימון!</p>
                             <p className="text-xs mt-1" style={{ color: '#000000' }}>
                               המפגש מתוכנן בעוד {Math.round(hoursUntil)} שעות. ביטול ברגע האחרון עלול לפגוע במתאמן.
                             </p>

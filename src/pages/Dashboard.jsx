@@ -42,9 +42,9 @@ import { Input } from "@/components/ui/input";
 // ── Design ────────────────────────────────────────────────────────────
 const SectionHeader = ({ title }) => (
   <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
-    <div className="flex-1 h-[1.5px] rounded-full" style={{ backgroundColor: "#FF6F20" }} />
-    <span className="whitespace-nowrap" style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a' }}>{title}</span>
-    <div className="flex-1 h-[1.5px] rounded-full" style={{ backgroundColor: "#FF6F20" }} />
+    <div className="flex-1 h-[1.5px] rounded-full" style={{ backgroundColor: "var(--ag-accent)" }} />
+    <span className="whitespace-nowrap" style={{ fontSize: 14, fontWeight: 600, color: 'var(--ag-text)' }}>{title}</span>
+    <div className="flex-1 h-[1.5px] rounded-full" style={{ backgroundColor: "var(--ag-accent)" }} />
   </div>
 );
 
@@ -422,16 +422,16 @@ export default function Dashboard() {
           }}>
             {[
               // The + is a text character (not an emoji) so it stays orange.
-              { line1: 'הוסף', line2: 'מתאמן', emoji: '+',  iconSize: 34, iconWeight: 300, iconColor: '#FF6F20',
+              { line1: 'הוסף', line2: 'מתאמן', emoji: '+',  iconSize: 34, iconWeight: 300, iconColor: 'var(--ag-accent)',
                 onClick: () => setIsAddTraineeOpen(true),
                 pos: { top: 0, left: '50%', marginLeft: -60 } },
-              { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 28, iconColor: '#7F47B5',
+              { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 28, iconColor: 'var(--ag-purple)',
                 onClick: () => setIsLeadDialogOpen(true),
                 pos: { top: 86, right: 18 } },
-              { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 28, iconColor: '#EAB308',
+              { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 28, iconColor: 'var(--ag-warning)',
                 onClick: () => setIsPlanDialogOpen(true),
                 pos: { top: 86, left: 18 } },
-              { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 28, iconColor: '#3B82F6',
+              { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 28, iconColor: 'var(--ag-blue)',
                 onClick: () => setIsSessionDialogOpen(true),
                 pos: { top: 172, left: '50%', marginLeft: -60 } },
             ].map((btn) => (
@@ -557,7 +557,7 @@ export default function Dashboard() {
                         <div style={{
                           width: '48px', height: '48px',
                           borderRadius: '50%',
-                          background: '#FF6F20',
+                          background: 'var(--ag-accent)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontSize: '20px', fontWeight: '900', color: 'white'
                         }}>
@@ -566,7 +566,7 @@ export default function Dashboard() {
 
                         {/* Name */}
                         <div style={{
-                          fontSize: '13px', fontWeight: '700', color: '#1a1a1a',
+                          fontSize: '13px', fontWeight: '700', color: 'var(--ag-text)',
                           textAlign: 'center',
                           overflow: 'hidden', textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap', width: '100%'
@@ -587,14 +587,14 @@ export default function Dashboard() {
                               <div style={{
                                 height: '100%',
                                 width: `${total > 0 ? (used / total) * 100 : 0}%`,
-                                background: remaining <= 1 ? '#ef4444' : '#FF6F20',
+                                background: remaining <= 1 ? '#ef4444' : 'var(--ag-accent)',
                                 borderRadius: '2px'
                               }}/>
                             </div>
                           </div>
                         ) : (
                           <div style={{
-                            fontSize: '10px', color: '#FF6F20',
+                            fontSize: '10px', color: 'var(--ag-accent)',
                             fontWeight: '600', textAlign: 'center'
                           }}>
                             אין חבילה
@@ -617,14 +617,14 @@ export default function Dashboard() {
               keep the cards filling the row. */}
           <div style={{ padding: '0 2px 2px', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-              <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
+              <div style={{ height: 1, background: 'var(--ag-accent)', flex: 1 }} />
               <span style={{
                 fontSize: 14, fontWeight: 700, color: 'var(--ag-text-primary)',
                 fontFamily: "'Bebas Neue', sans-serif",
               }}>
                 גישה מהירה
               </span>
-              <div style={{ height: 1, background: '#FF6F20', flex: 1 }} />
+              <div style={{ height: 1, background: 'var(--ag-accent)', flex: 1 }} />
             </div>
             {(() => {
               const pendingReminders = reminders.filter(r => !r.is_read).length;
@@ -633,24 +633,24 @@ export default function Dashboard() {
               // already in the natural visual order; the dir="rtl" on
               // the page container handles the right-to-left flow.
               const row1 = [
-                { label: "שעונים",   Icon: Timer,      color: '#888',
+                { label: "שעונים",   Icon: Timer,      color: 'var(--ag-text-soft)',
                   action: () => navigate(createPageUrl("Clocks")) },
-                { label: "שיא",       Icon: Trophy,     color: '#EAB308',
+                { label: "שיא",       Icon: Trophy,     color: 'var(--ag-warning)',
                   action: () => handleActionClick("result") },
-                { label: "יעד",       Icon: Target,     color: '#dc2626',
+                { label: "יעד",       Icon: Target,     color: 'var(--ag-error)',
                   action: () => handleActionClick("goal") },
-                { label: "בייסליין",  Icon: Zap,        color: '#FF6F20',
+                { label: "בייסליין",  Icon: Zap,        color: 'var(--ag-accent)',
                   action: () => handleActionClick("baseline") },
               ];
               const row2 = [
-                { label: "התראות",    Icon: Bell,       color: '#EAB308',
+                { label: "התראות",    Icon: Bell,       color: 'var(--ag-warning)',
                   action: () => navigate(createPageUrl("Notifications")) },
-                { label: "תזכורות",   Icon: AlarmClock, color: '#dc2626',
+                { label: "תזכורות",   Icon: AlarmClock, color: 'var(--ag-error)',
                   action: () => setShowReminders(true),
                   badge: pendingReminders > 0 ? pendingReminders : null },
-                { label: "מדידה",     Icon: Ruler,      color: '#3B82F6',
+                { label: "מדידה",     Icon: Ruler,      color: 'var(--ag-blue)',
                   action: () => handleActionClick("measurement") },
-                { label: "חבילה",     Icon: Ticket,     color: '#888',
+                { label: "חבילה",     Icon: Ticket,     color: 'var(--ag-text-soft)',
                   action: () => handleActionClick("package") },
               ];
               const renderCard = (q) => {
@@ -694,7 +694,7 @@ export default function Dashboard() {
                       <div style={{
                         position: 'absolute', top: 6, left: 6,
                         width: 18, height: 18, borderRadius: '50%',
-                        background: '#FF6F20', color: 'white',
+                        background: 'var(--ag-accent)', color: 'white',
                         fontSize: 10, fontWeight: 700,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}>{q.badge}</div>
