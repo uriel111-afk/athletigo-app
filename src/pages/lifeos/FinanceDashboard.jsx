@@ -37,6 +37,43 @@ const buildMonthWindow = (n) => {
   return out;
 };
 
+// Maps a stream name (as the user named it in the dashboard) to the
+// income.source enum values that count toward it. For streams whose
+// name matches a key here, actual_ytd and monthly_actual are derived
+// live from the income table — any value stored in JSONB for those
+// two fields is ignored. Unmapped streams (a name not in this map)
+// fall back to whatever's in JSONB.
+const STREAM_SOURCE_MAP = {
+  'Coaching': ['training', 'online_coaching'],
+  'Courses':  ['course', 'workshop'],
+  'Products': ['product_sale'],
+};
+
+// Pure helper — given the raw JSONB streams + a YTD slice of income
+// rows, returns the streams with actual_ytd / monthly_actual computed
+// for any stream that's mapped in STREAM_SOURCE_MAP.
+const deriveStreams = (rawStreams, ytdRows) => {
+  const now = new Date();
+  const currMonth = now.getMonth();
+  const currYear = now.getFullYear();
+  return (rawStreams || []).map(s => {
+    const sources = STREAM_SOURCE_MAP[s.name];
+    if (!sources) return s;
+    const matching = (ytdRows || []).filter(r => sources.includes(r.source));
+    const actual_ytd = matching.reduce(
+      (sum, r) => sum + (Number(r.amount) || 0), 0
+    );
+    const monthly_actual = matching
+      .filter(r => {
+        if (!r.date) return false;
+        const d = new Date(r.date);
+        return d.getMonth() === currMonth && d.getFullYear() === currYear;
+      })
+      .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+    return { ...s, actual_ytd, monthly_actual };
+  });
+};
+
 export default function FinanceDashboard() {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
@@ -59,14 +96,22 @@ export default function FinanceDashboard() {
       const from = window[0].from;
       const to = window[window.length - 1].to;
 
-      const [streamsRes, summaryRes, expRows, incRows] = await Promise.all([
+      // YTD income — separate fetch because the 6-month chart window
+      // doesn't always align with a calendar year (Jan still needs the
+      // prior-year months for the chart but only the current-year rows
+      // for actual_ytd).
+      const yearStart = `${new Date().getFullYear()}-01-01`;
+      const today = new Date().toISOString().slice(0, 10);
+
+      const [streamsRes, summaryRes, expRows, incRows, ytdIncome] = await Promise.all([
         getIncomeStreams(userId),
         getMonthlySummary(userId, new Date()),
         listExpenses(userId, { from, to }),
         listIncome(userId, { from, to }),
+        listIncome(userId, { from: yearStart, to: today }),
       ]);
 
-      setStreams(streamsRes || []);
+      setStreams(deriveStreams(streamsRes, ytdIncome));
       setSummary(summaryRes || { income: 0, expenses: 0, net: 0 });
 
       const buckets = Object.fromEntries(
@@ -109,12 +154,15 @@ export default function FinanceDashboard() {
     ? Math.min(100, (totalAnnualActual / totalAnnualTarget) * 100)
     : 0;
 
+  // After every mutation: reload so deriveStreams runs against the
+  // fresh JSONB. setStreams direct from the mutation result would skip
+  // derivation and briefly show stale actual_ytd for mapped streams.
   const handleAdd = async ({ name, target_annual }) => {
     try {
-      const next = await addIncomeStream(userId, { name, target_annual });
-      setStreams(next);
+      await addIncomeStream(userId, { name, target_annual });
       setOpenForm(null);
       toast.success('Stream נוסף');
+      load();
     } catch (err) {
       toast.error('שגיאה: ' + (err?.message || ''));
     }
@@ -122,10 +170,10 @@ export default function FinanceDashboard() {
 
   const handleUpdate = async (streamName, patch) => {
     try {
-      const next = await updateIncomeStream(userId, streamName, patch);
-      setStreams(next);
+      await updateIncomeStream(userId, streamName, patch);
       setOpenForm(null);
       toast.success('עודכן');
+      load();
     } catch (err) {
       toast.error('שגיאה: ' + (err?.message || ''));
     }
@@ -134,9 +182,9 @@ export default function FinanceDashboard() {
   const handleDelete = async (streamName) => {
     if (!confirm(`למחוק את "${streamName}"?`)) return;
     try {
-      const next = await deleteIncomeStream(userId, streamName);
-      setStreams(next);
+      await deleteIncomeStream(userId, streamName);
       toast.success('נמחק');
+      load();
     } catch (err) {
       toast.error('שגיאה: ' + (err?.message || ''));
     }
