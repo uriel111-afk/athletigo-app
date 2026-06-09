@@ -42,12 +42,14 @@ export default function InstallPrompt() {
       position: 'fixed', bottom: 80, left: 16, right: 16,
       background: '#1a1a1a', borderRadius: 16,
       // Asymmetric logical padding under direction:'rtl':
-      //   Start (right side, where the logo sits) — 32 px, comfortably
-      //     past the 16-px corner curve so the ® has room to hang.
+      //   Start (right side, where the logo sits) — 40 px, comfortably
+      //     past the 16-px corner curve so the full triangle AND its
+      //     ® (which hangs 8 px past the wrapper) both have room to
+      //     show without riding the rounded corner.
       //   End (left side, where the ✕ sits) — 8 px so the close button
       //     hugs the edge and frees inner width for the title.
       paddingBlock: 14,
-      paddingInlineStart: 32,
+      paddingInlineStart: 40,
       paddingInlineEnd: 8,
       display: 'flex', alignItems: 'center', gap: 10,
       zIndex: 9999, direction: 'rtl',
@@ -98,7 +100,13 @@ export default function InstallPrompt() {
           zIndex: 2,
         }}>{'®︎'}</span>
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
+      {/* marginInlineStart under direction:'rtl' adds margin on the
+          PHYSICAL RIGHT side of the text block — i.e. between the text
+          and the logo. It widens the logo→text gap by 4 px so the title
+          starts slightly further from the logo (visually shifts left
+          toward the orange button) while flex:1 still lets it stretch
+          to absorb the freed inner width. */}
+      <div style={{ flex: 1, minWidth: 0, marginInlineStart: 4 }}>
         <div style={{
           fontSize: 14, fontWeight: 600, color: 'white',
           whiteSpace: 'nowrap',
