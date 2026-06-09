@@ -68,7 +68,7 @@ export default function InstallPrompt() {
         width: 64, height: 64,
       }}>
         <img
-          src="/logo-r-transparent.png"
+          src="/logo-r-transparent.png?v=2"
           alt=""
           style={{
             width: 64, height: 64,
