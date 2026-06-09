@@ -1,5 +1,6 @@
-import React, { useState, useContext, useEffect } from "react";
+import React, { useState, useContext, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
+import { isFormerClient } from "@/lib/clientStatusHelpers";
 import { supabase } from "@/lib/supabaseClient";
 import { createNotification } from "@/lib/notify";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -144,6 +145,15 @@ export default function Sessions() {
     staleTime: 30000,
     retry: 2
   });
+
+  // Trainees offered in pickers — former trainees are intentionally
+  // hidden so the coach can't accidentally re-add a graduated client
+  // to a session / participant list. Full `trainees` list remains
+  // available for lookups by id.
+  const selectableTrainees = useMemo(
+    () => (trainees || []).filter((t) => !isFormerClient(t)),
+    [trainees]
+  );
 
   const { data: coach, isLoading: coachLoading } = useQuery({
     queryKey: ['current-coach'],
@@ -2210,7 +2220,7 @@ export default function Sessions() {
               setAddingParticipantsTo(null);
             }}
             onSubmit={handleSessionSubmit}
-            trainees={trainees}
+            trainees={selectableTrainees}
             editingSession={editingSession}
             isLoading={createSessionMutation.isPending || updateSessionMutation.isPending} />
 

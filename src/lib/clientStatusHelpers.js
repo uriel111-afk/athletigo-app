@@ -54,6 +54,19 @@ export const STATUS_CONFIG = {
 // separate "send to onboarding" action with explicit confirmation.
 export const SELECTABLE_STATUSES = ['casual', 'active', 'suspended', 'former'];
 
+// True when a trainee's client_status maps to the "former" bucket.
+// The DB stores 'former' (English) by convention, but legacy rows may
+// hold the Hebrew label 'לשעבר' — both collapse to true here. Trim
+// guards against an accidental trailing space in stored values.
+export const FORMER_STATUSES = new Set(['former', 'לשעבר']);
+export const isFormerClient = (user) => {
+  const raw = user && user.client_status;
+  if (raw == null) return false;
+  const s = String(raw).trim();
+  if (!s) return false;
+  return FORMER_STATUSES.has(s) || FORMER_STATUSES.has(s.toLowerCase());
+};
+
 // Lightweight write — no side effects beyond the column update +
 // updated_at touch. Use this from surfaces that only care about
 // the label flipping (UnifiedClientCard, AllUsers row picker).

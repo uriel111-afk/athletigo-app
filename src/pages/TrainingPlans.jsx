@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
+import { isFormerClient } from "@/lib/clientStatusHelpers";
 import { formatTime } from "@/lib/formatTime";
 import { supabase } from "@/lib/supabaseClient";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -157,6 +158,13 @@ export default function TrainingPlans() {
     initialData: [],
     refetchInterval: 30000
   });
+
+  // Hide client_status='former' trainees from the plan / series
+  // pickers below. Full `trainees` stays for name-by-id lookups.
+  const selectableTrainees = useMemo(
+    () => (trainees || []).filter((t) => !isFormerClient(t)),
+    [trainees]
+  );
 
   const { plans, isLoading: plansLoading } = useProgramStats();
 
@@ -831,7 +839,7 @@ export default function TrainingPlans() {
               createPlanMutation.mutate(data);
             }
           }}
-          trainees={trainees}
+          trainees={selectableTrainees}
           editingPlan={editingPlan ? {
             ...editingPlan,
             goal_focus: Array.isArray(editingPlan.goal_focus) ? editingPlan.goal_focus : (editingPlan.goal_focus ? editingPlan.goal_focus.split(', ').filter(Boolean) : [])
@@ -975,7 +983,7 @@ export default function TrainingPlans() {
                 }
             }}
             initialData={editingSeries}
-            trainees={trainees}
+            trainees={selectableTrainees}
             isLoading={createSeriesMutation.isPending || updateSeriesMutation.isPending}
         />
 

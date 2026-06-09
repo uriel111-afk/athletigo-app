@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
+import { isFormerClient } from "@/lib/clientStatusHelpers";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -53,6 +54,13 @@ export default function ActivePlans() {
     },
     initialData: [],
   });
+
+  // Trainees that show up in PlanFormDialog's "who to assign to"
+  // picker — drops anyone whose client_status is 'former'.
+  const selectableTrainees = useMemo(
+    () => (trainees || []).filter((t) => !isFormerClient(t)),
+    [trainees]
+  );
 
   // ── Unique trainees from plans ──────────────────────────────────────
   const traineeOptions = [...new Map(
@@ -380,7 +388,7 @@ export default function ActivePlans() {
             setEditingPlan(null);
           }}
           onSubmit={handleSubmit}
-          trainees={trainees}
+          trainees={selectableTrainees}
           editingPlan={
             editingPlan
               ? {

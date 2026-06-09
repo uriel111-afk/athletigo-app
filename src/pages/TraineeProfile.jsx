@@ -43,6 +43,7 @@ import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { DraftBanner } from "@/components/DraftBanner";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
+import { isFormerClient } from "@/lib/clientStatusHelpers";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -3788,7 +3789,7 @@ export default function TraineeProfile() {
             isOpen={showPlanDialog}
             onClose={() => setShowPlanDialog(false)}
             onSubmit={async (data) => { await createPlanForTraineeMutation.mutateAsync(data); }}
-            trainees={allTrainees}
+            trainees={(allTrainees || []).filter((t) => !isFormerClient(t))}
             isLoading={createPlanForTraineeMutation.isPending}
             initialSelectedTraineeIds={
               effectiveUser?.id ? [effectiveUser.id]
@@ -5768,7 +5769,7 @@ export default function TraineeProfile() {
           isOpen={showPlanDialog}
           onClose={() => setShowPlanDialog(false)}
           onSubmit={async (data) => { await createPlanForTraineeMutation.mutateAsync(data); }}
-          trainees={allTrainees}
+          trainees={(allTrainees || []).filter((t) => !isFormerClient(t))}
           isLoading={createPlanForTraineeMutation.isPending}
           initialSelectedTraineeIds={
             effectiveUser?.id ? [effectiveUser.id]

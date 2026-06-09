@@ -16,6 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import { normalizeStatus, isActivePackage } from "@/lib/enums";
+import { isFormerClient } from "@/lib/clientStatusHelpers";
 import useMultiSelect from "../hooks/useMultiSelect";
 import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
 import { calculateAge as calcAge, formatBirthWithAge, daysUntilBirthday } from "@/lib/dateHelpers";
@@ -147,6 +148,10 @@ export default function AllUsers() {
   // their derived tags overlaps with the active set (OR within the
   // service axis; ANDed against the existing status + search filters).
   const [serviceFilter, setServiceFilter] = useState(() => new Set());
+  // Category chip selection for the "לשעבר" tab — 'all' | 'personal' |
+  // 'online' | 'group' | 'other'. Resets to 'all' when the coach
+  // leaves the former tab so a stale chip doesn't bite next time.
+  const [formerCategory, setFormerCategory] = useState('all');
   const toggleServiceFilter = (tag) => {
     setServiceFilter((prev) => {
       const next = new Set(prev);
@@ -748,6 +753,81 @@ export default function AllUsers() {
     return map;
   }, [allServices]);
 
+  // ── Former trainees + service-category derivation ──────────────
+  // The "לשעבר" tab surfaces archived trainees (client_status flipped
+  // to 'former') and lets the coach slice them by the service they
+  // used to take. Category falls back from users.onboarding_track to
+  // the most recent client_services.package_type, so a trainee whose
+  // onboarding was skipped/legacy still lands in the right chip.
+  const formerTrainees = useMemo(
+    () => (allTrainees || []).filter((t) => isFormerClient(t)),
+    [allTrainees]
+  );
+
+  // Pre-index packages per trainee, newest first, for the package_type
+  // fallback. One pass, no N+1. `allServices` already lives on this
+  // page from useClientStats() — reusing it instead of issuing a new
+  // query keeps the hot path single-fetch.
+  const packagesByTraineeId = useMemo(() => {
+    const map = new Map();
+    for (const s of allServices || []) {
+      if (!s || !s.trainee_id) continue;
+      if (!map.has(s.trainee_id)) map.set(s.trainee_id, []);
+      map.get(s.trainee_id).push(s);
+    }
+    for (const arr of map.values()) {
+      arr.sort((a, b) => {
+        const ta = new Date(a?.created_at || a?.start_date || 0).getTime() || 0;
+        const tb = new Date(b?.created_at || b?.start_date || 0).getTime() || 0;
+        return tb - ta;
+      });
+    }
+    return map;
+  }, [allServices]);
+
+  // Onboarding-track keys come from onboardingTracks.js
+  //   personal / online / group → matching category
+  //   workshop / course         → 'other'
+  // Everything else falls through to the package_type fallback.
+  const trackToCategory = (track) => {
+    const v = (track == null ? '' : String(track)).trim().toLowerCase();
+    if (v === 'personal') return 'personal';
+    if (v === 'online') return 'online';
+    if (v === 'group') return 'group';
+    if (v === 'workshop' || v === 'course') return 'other';
+    return null;
+  };
+  const packageTypeToCategory = (pt) => {
+    const v = (pt == null ? '' : String(pt)).trim().toLowerCase();
+    if (v === 'personal' || v.includes('אישי')) return 'personal';
+    if (v === 'online' || v.includes('אונליין')) return 'online';
+    if (v === 'group' || v.includes('קבוצתי')) return 'group';
+    return null;
+  };
+  const getServiceCategory = (trainee) => {
+    if (!trainee) return 'other';
+    const fromTrack = trackToCategory(trainee.onboarding_track);
+    if (fromTrack) return fromTrack;
+    const pkgs = packagesByTraineeId.get(trainee.id) || [];
+    for (const p of pkgs) {
+      const cat = packageTypeToCategory(p.package_type) || packageTypeToCategory(p.service_type);
+      if (cat) return cat;
+    }
+    return 'other';
+  };
+
+  // Counts per category for the chip labels. Single pass over the
+  // former list; "all" is just formerTrainees.length.
+  const formerCategoryCounts = useMemo(() => {
+    const c = { all: formerTrainees.length, personal: 0, online: 0, group: 0, other: 0 };
+    for (const t of formerTrainees) {
+      const cat = getServiceCategory(t);
+      c[cat] = (c[cat] || 0) + 1;
+    }
+    return c;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formerTrainees, packagesByTraineeId]);
+
   // ── Counts for filter chips ─────────────────────────────────────
   // Counts run on `visibleTrainees` (excludes former + suspended)
   // so the chip numbers always match what the user actually sees
@@ -762,21 +842,32 @@ export default function AllUsers() {
       else if (rem > 0) active++;
       else inactive++;
     }
-    return { all: visibleTrainees.length, active, expiring, inactive };
+    return {
+      all: visibleTrainees.length,
+      active, expiring, inactive,
+      former: formerTrainees.length,
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleTrainees, allServices]);
+  }, [visibleTrainees, allServices, formerTrainees]);
 
   // ── Filter + sort logic ─────────────────────────────────────────
   const filteredTrainees = useMemo(() => {
     const q = searchTerm.toLowerCase();
     const hasServiceFilter = serviceFilter.size > 0;
+    const isFormerTab = filterType === 'former';
     const filtered = allTrainees.filter(t => {
-      // Archive gate — 'former' AND 'suspended' trainees are hidden
-      // unless the coach explicitly flips the toggle. Skips before
-      // the package logic so an archived trainee with a stale
-      // package doesn't surface.
-      const isArchived = t.client_status === 'former' || t.client_status === 'suspended';
-      if (isArchived && !showFormer) return false;
+      const former = isFormerClient(t);
+      // The 'לשעבר' tab is the ONLY place former trainees surface.
+      // Every other tab (all / active / inactive) drops them
+      // unconditionally — independent of the legacy showFormer toggle.
+      if (isFormerTab) {
+        if (!former) return false;
+      } else {
+        if (former) return false;
+        // suspended keeps its current behaviour: hidden unless the
+        // "× הצג לשעבר" toggle is on, since suspended isn't a tab.
+        if (t.client_status === 'suspended' && !showFormer) return false;
+      }
       if (q) {
         const hit = (t.full_name || '').toLowerCase().includes(q)
           || (t.email || '').toLowerCase().includes(q)
@@ -785,12 +876,18 @@ export default function AllUsers() {
       }
       // Service-type filter ANDs against status + search; OR within
       // the service axis (a trainee with any matching tag passes).
-      if (hasServiceFilter) {
+      // The former tab uses its own dedicated chip filter below
+      // instead — skip this axis there to avoid double-filtering.
+      if (hasServiceFilter && !isFormerTab) {
         const tags = tagsByTraineeId.get(t.id);
         if (!tags) return false;
         let anyMatch = false;
         for (const sel of serviceFilter) { if (tags.has(sel)) { anyMatch = true; break; } }
         if (!anyMatch) return false;
+      }
+      if (isFormerTab) {
+        if (formerCategory === 'all') return true;
+        return getServiceCategory(t) === formerCategory;
       }
       if (filterType === 'all') return true;
       const pkg = getActivePackage(t.id);
@@ -816,7 +913,8 @@ export default function AllUsers() {
     }
     return filtered;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allTrainees, allServices, searchTerm, filterType, sortMode, showFormer, serviceFilter, tagsByTraineeId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allTrainees, allServices, searchTerm, filterType, sortMode, showFormer, serviceFilter, tagsByTraineeId, formerCategory, packagesByTraineeId]);
 
   // Page-level loading gate — render the unified loader instead of a
   // partial shell with empty filter chips and a "loading…" stub list.
@@ -1057,13 +1155,17 @@ export default function AllUsers() {
                 { id: 'all',      label: 'הכל',       count: counts.all },
                 { id: 'active',   label: 'פעילים',    count: counts.active },
                 { id: 'inactive', label: 'לא פעילים',  count: counts.inactive },
+                { id: 'former',   label: 'לשעבר',     count: counts.former },
               ].map((f) => {
                 const active = filterType === f.id;
                 return (
                   <button
                     key={f.id}
                     type="button"
-                    onClick={() => setFilterType(f.id)}
+                    onClick={() => {
+                      setFilterType(f.id);
+                      if (f.id !== 'former') setFormerCategory('all');
+                    }}
                     style={{
                       background: active ? '#FF6F20' : 'transparent',
                       color: active ? '#fff' : '#888',
@@ -1083,6 +1185,55 @@ export default function AllUsers() {
               })}
             </div>
           </div>
+
+          {/* Former-tab category chips — only render inside the
+              "לשעבר" tab. Slices the former list by service category,
+              with counts on each chip. Mirrors the existing app chip
+              style: selected = orange + white text, unselected =
+              white card with a hairline border. */}
+          {filterType === 'former' && (
+            <div style={{
+              marginTop: 8,
+              display: 'flex',
+              gap: 6,
+              overflowX: 'auto',
+              flexWrap: 'nowrap',
+              paddingBottom: 2,
+            }}>
+              {[
+                { key: 'all',      label: 'הכל' },
+                { key: 'personal', label: 'אישי' },
+                { key: 'online',   label: 'אונליין' },
+                { key: 'group',    label: 'קבוצתי' },
+                { key: 'other',    label: 'אחר' },
+              ].map((c) => {
+                const isActive = formerCategory === c.key;
+                const count = formerCategoryCounts[c.key] ?? 0;
+                return (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => setFormerCategory(c.key)}
+                    style={{
+                      background: isActive ? '#FF6F20' : '#fff',
+                      color: isActive ? '#fff' : '#888',
+                      border: isActive ? 'none' : '1px solid #E8E0D8',
+                      borderRadius: 9,
+                      padding: '7px 12px',
+                      fontSize: 13,
+                      fontWeight: isActive ? 600 : 500,
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {c.label} ({count})
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {showMoreFilters && (
             <div style={{
@@ -2273,7 +2424,7 @@ export default function AllUsers() {
           );
           const search = (addMemberSearch || '').trim().toLowerCase();
           const candidates = (allTrainees || [])
-            .filter((t) => t && t.id && !currentMemberIds.has(t.id))
+            .filter((t) => t && t.id && !currentMemberIds.has(t.id) && !isFormerClient(t))
             .filter((t) => {
               if (!search) return true;
               const name = (t.full_name || '').toLowerCase();
@@ -2601,7 +2752,7 @@ export default function AllUsers() {
           isOpen={showCreateGroupFull}
           onClose={() => setShowCreateGroupFull(false)}
           currentUser={currentUser}
-          trainees={allTrainees || []}
+          trainees={(allTrainees || []).filter((t) => !isFormerClient(t))}
         />
 
         {/* Whole-group dialogs — same components Sessions.jsx /
@@ -2619,7 +2770,7 @@ export default function AllUsers() {
             isOpen={!!planFormGroup}
             onClose={() => setPlanFormGroup(null)}
             onSubmit={handlePlanFormSubmit}
-            trainees={allTrainees || []}
+            trainees={(allTrainees || []).filter((t) => !isFormerClient(t))}
             initialSelectedTraineeIds={
               groupMembers
                 .filter((m) => m.group_id === planFormGroup.id)

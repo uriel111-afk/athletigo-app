@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useContext, useCallback } from "react";
+import React, { useState, useEffect, useContext, useCallback, useMemo } from "react";
+import { isFormerClient } from "@/lib/clientStatusHelpers";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
 import {
@@ -193,6 +194,14 @@ export default function Dashboard() {
     staleTime: 1000 * 30,
     refetchOnMount: 'always',
   });
+
+  // Trainees that show up in selection lists / pickers — drops anyone
+  // whose client_status is 'former'. allTrainees stays as the full
+  // roster for lookups (e.g. finding a name by id).
+  const selectableTrainees = useMemo(
+    () => (allTrainees || []).filter((t) => !isFormerClient(t)),
+    [allTrainees]
+  );
 
   // Force-refetch all dashboard data after any mutation
   const refreshAll = () => {
@@ -743,10 +752,10 @@ export default function Dashboard() {
             status: data.status === 'הושלם' ? 'הושלם' : 'ממתין לאישור',
           });
         }}
-        trainees={allTrainees} isLoading={createSessionMutation.isPending} />
+        trainees={selectableTrainees} isLoading={createSessionMutation.isPending} />
       <PlanFormDialog isOpen={isPlanDialogOpen} onClose={() => setIsPlanDialogOpen(false)}
         onSubmit={async (data) => { await createPlanMutation.mutateAsync(data); }}
-        trainees={allTrainees} isLoading={createPlanMutation.isPending} />
+        trainees={selectableTrainees} isLoading={createPlanMutation.isPending} />
 
       {/* Action Picker removed — שיא/יעד/בייסליין are separate buttons now */}
       <Dialog open={false} onOpenChange={() => {}}>
@@ -765,7 +774,7 @@ export default function Dashboard() {
               onChange={(e) => setTraineeSearch(e.target.value)} className="pr-9 h-10 rounded-xl" />
           </div>
           <div className="space-y-2">
-            {allTrainees.filter((t) => t.full_name?.includes(traineeSearch)).map((trainee) => (
+            {selectableTrainees.filter((t) => t.full_name?.includes(traineeSearch)).map((trainee) => (
               <div key={trainee.id} onClick={() => handleTraineeSelect(trainee)}
                 className="p-3 rounded-xl border border-gray-100 hover:bg-gray-50 cursor-pointer flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600">
@@ -774,7 +783,7 @@ export default function Dashboard() {
                 <span className="font-medium text-sm text-gray-800">{trainee.full_name}</span>
               </div>
             ))}
-            {allTrainees.length === 0 && <p className="text-center text-gray-400 text-sm py-4">אין מתאמנים</p>}
+            {selectableTrainees.length === 0 && <p className="text-center text-gray-400 text-sm py-4">אין מתאמנים</p>}
           </div>
         </DialogContent>
       </Dialog>
@@ -813,7 +822,7 @@ export default function Dashboard() {
         isOpen={showChallengeBank}
         onClose={() => setShowChallengeBank(false)}
         coach={coach}
-        trainees={allTrainees}
+        trainees={selectableTrainees}
       />
       {duePopup && (
         <NotificationPopup
