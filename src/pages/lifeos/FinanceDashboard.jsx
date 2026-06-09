@@ -256,7 +256,7 @@ export default function FinanceDashboard() {
           <div style={{ padding: 24, textAlign: 'center' }}>
             <div style={{ fontSize: 30, marginBottom: 6 }}>📊</div>
             <div style={{ fontSize: 13, color: LIFEOS_COLORS.textSecondary, marginBottom: 12 }}>
-              אין עדיין זרמי הכנסה
+              אין streams עדיין. לחץ על + להוסיף
             </div>
           </div>
         ) : (
