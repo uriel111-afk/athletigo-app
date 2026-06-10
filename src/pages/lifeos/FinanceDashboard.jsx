@@ -1,4 +1,5 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Pencil, Check, X, RefreshCw } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
@@ -58,6 +59,7 @@ async function fetchGoals(userId) {
 export default function FinanceDashboard() {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
+  const navigate = useNavigate();
 
   const [annualTarget,   setAnnualTarget]   = useState(0);
   const [monthlyTarget,  setMonthlyTarget]  = useState(0);
@@ -159,6 +161,23 @@ export default function FinanceDashboard() {
       </button>
     }>
       <div style={{ padding: '0 14px' }}>
+        {/* ─── Goals management link ─────────────────────────── */}
+        <button
+          onClick={() => navigate('/lifeos/goals')}
+          style={{
+            width: '100%', padding: '10px 14px', borderRadius: 12,
+            border: `1px solid ${LIFEOS_COLORS.border}`,
+            backgroundColor: '#FFFFFF',
+            color: LIFEOS_COLORS.textPrimary,
+            fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 12,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            fontFamily: 'inherit',
+          }}
+        >
+          <span>🎯 ניהול יעדים (קטגוריות + מוצרים)</span>
+          <span style={{ color: LIFEOS_COLORS.textSecondary }}>‹</span>
+        </button>
+
         {/* ─── Annual goal ──────────────────────────────────── */}
         <GoalCard
           title="יעד שנתי"

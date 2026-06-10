@@ -25,6 +25,7 @@ import LifeOSInstallments from './pages/lifeos/Installments';
 import LifeOSDocuments from './pages/lifeos/DocumentVault';
 import LifeOSCashFlow from './pages/lifeos/CashFlow';
 import LifeOSFinanceDashboard from './pages/lifeos/FinanceDashboard';
+import LifeOSGoalsManagement from './pages/lifeos/GoalsManagement';
 import LifeOSBusinessPlan from './pages/lifeos/BusinessPlan';
 import LifeOSTasks from './pages/lifeos/Tasks';
 import LifeOSLeads from './pages/lifeos/Leads';
@@ -489,6 +490,7 @@ const AuthenticatedApp = () => {
       <Route path="/lifeos/documents"    element={<PageRouteGuard pageKey="LifeOS"><LifeOSDocuments /></PageRouteGuard>} />
       <Route path="/lifeos/cashflow"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSCashFlow /></PageRouteGuard>} />
       <Route path="/lifeos/finance-dashboard" element={<PageRouteGuard pageKey="LifeOS"><LifeOSFinanceDashboard /></PageRouteGuard>} />
+      <Route path="/lifeos/goals"             element={<PageRouteGuard pageKey="LifeOS"><LifeOSGoalsManagement /></PageRouteGuard>} />
       <Route path="/lifeos/plan"         element={<PageRouteGuard pageKey="LifeOS"><LifeOSBusinessPlan /></PageRouteGuard>} />
       <Route path="/lifeos/tasks"        element={<PageRouteGuard pageKey="LifeOS"><LifeOSTasks /></PageRouteGuard>} />
       <Route path="/lifeos/leads"        element={<PageRouteGuard pageKey="LifeOS"><LifeOSLeads /></PageRouteGuard>} />
