@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pencil, Check, X, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { RefreshCw, Plus } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts';
@@ -13,7 +13,7 @@ import { LIFEOS_COLORS, LIFEOS_CARD } from '@/lib/lifeos/lifeos-constants';
 import {
   getMonthlySummary, listExpenses, listIncome,
 } from '@/lib/lifeos/lifeos-api';
-import { getGoalsHierarchy, updateGoalsHierarchy } from '@/lib/lifeos/goals-api';
+import { getGoalsHierarchy } from '@/lib/lifeos/goals-api';
 
 const fmt = (n) => Math.round(Number(n) || 0).toLocaleString('he-IL');
 const pct = (n) => `${(Number(n) || 0).toFixed(1)}%`;
@@ -37,24 +37,42 @@ const buildMonthWindow = (n) => {
   return out;
 };
 
-// Annual category name → income.source values that count toward it.
-// Categories whose name matches a key here get a live progress bar
-// driven by the income table; other categories (custom names) still
-// render with a 0% progress until the user maps them manually.
+// Maps a display category name to the income.source enum values that
+// belong to it. Drives both the per-category total and the per-product
+// drill-down below.
 const CATEGORY_SOURCE_MAP = {
   'Coaching': ['training', 'online_coaching'],
   'Courses':  ['course', 'workshop'],
   'Products': ['product_sale'],
 };
+const CATEGORY_ORDER  = ['Coaching', 'Courses', 'Products'];
+const CATEGORY_EMOJI  = { Coaching: '🏋️', Courses: '📚', Products: '🛍️' };
 
-// Compute actual_ytd per category and per product from the YTD income
-// rows. Returns a copy of `categories` with `actual` added to each
-// category and each product. Product matching is by exact (lowercase,
-// trimmed) string equality on income.product — users who name their
-// product the same as the income row's product value get progress.
+// Group a slice of income rows by display category, then by product
+// name (trimmed, case-insensitive key but the original name is shown).
+// Returns { [category]: { total, products: [{ name, total }] } }.
+const computeIncomeBreakdown = (rows) => {
+  const out = {};
+  for (const [category, sources] of Object.entries(CATEGORY_SOURCE_MAP)) {
+    const matching = (rows || []).filter(r => sources.includes(r.source));
+    const total = matching.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const byKey = new Map();
+    for (const r of matching) {
+      const raw = (r.product || '').trim() || 'אחר';
+      const key = raw.toLowerCase();
+      const prev = byKey.get(key) || { name: raw, total: 0 };
+      prev.total += Number(r.amount) || 0;
+      byKey.set(key, prev);
+    }
+    out[category] = {
+      total,
+      products: Array.from(byKey.values()).sort((a, b) => b.total - a.total),
+    };
+  }
+  return out;
+};
+
 // ─── Health rules ──────────────────────────────────────────────
-// Plain rules, pulled out so the thresholds live in one place. Levels
-// drive both the emoji and the badge color (green / yellow / red).
 const monthlyHealth = (progressPct) => {
   if (progressPct >= 80) return { level: 'green',  message: 'בטוח - עדיף מהיעד' };
   if (progressPct >= 50) return { level: 'yellow', message: 'אזהרה - צריך להאיץ' };
@@ -68,13 +86,10 @@ const expenseHealth = (ratioPct) => {
 };
 
 // ─── Smart recommendations ─────────────────────────────────────
-// Pure function — takes a snapshot of the dashboard state and returns
-// up to 3 user-facing suggestion strings ranked by urgency. Caller is
-// responsible for rendering.
 const buildRecommendations = ({
   monthlyProgress, expenseRatio,
   monthlyTarget, actualThisMonth,
-  ytdIncome, categories,
+  ytdIncome, breakdown,
 }) => {
   const out = [];
 
@@ -96,18 +111,12 @@ const buildRecommendations = ({
     out.push({ emoji: '💡', text: 'הוסף 1-2 לקוחות בחודש הבא' });
   }
 
-  // Categories that are lagging — surfaced one at a time, sorted by
-  // the lowest progress first so the most urgent shows.
-  const lagging = (categories || [])
-    .map(c => {
-      const t = Number(c.target) || 0;
-      const a = Number(c.actual) || 0;
-      return { name: c.name, progress: t > 0 ? (a / t) * 100 : 0, hasTarget: t > 0 };
-    })
-    .filter(c => c.hasTarget && c.progress < 30)
-    .sort((a, b) => a.progress - b.progress);
-  for (const c of lagging) {
-    out.push({ emoji: '🎯', text: `קטגוריית ${c.name} בהשראה - תעדוד אותה` });
+  // Category surfaced when it has zero income this month.
+  for (const cat of CATEGORY_ORDER) {
+    const data = breakdown?.[cat];
+    if (data && data.total === 0) {
+      out.push({ emoji: '🎯', text: `אין הכנסות החודש ב-${cat} — הוסף הכנסה` });
+    }
   }
 
   if (out.length === 0) {
@@ -117,46 +126,17 @@ const buildRecommendations = ({
   return out.slice(0, 3);
 };
 
-const computeCategoryActuals = (categories, ytdRows) => {
-  return (categories || []).map(c => {
-    const sources = CATEGORY_SOURCE_MAP[(c.name || '').trim()];
-    const actual = sources
-      ? (ytdRows || [])
-          .filter(r => sources.includes(r.source))
-          .reduce((s, r) => s + (Number(r.amount) || 0), 0)
-      : 0;
-    const products = (c.products || []).map(p => {
-      const pname = (p.name || '').trim().toLowerCase();
-      const pActual = pname
-        ? (ytdRows || [])
-            .filter(r => (r.product || '').trim().toLowerCase() === pname)
-            .reduce((s, r) => s + (Number(r.amount) || 0), 0)
-        : 0;
-      return { ...p, actual: pActual };
-    });
-    return { ...c, actual, products };
-  });
-};
-
 export default function FinanceDashboard() {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
   const navigate = useNavigate();
 
-  const [annualTarget, setAnnualTarget] = useState(0);
-  const [categories,   setCategories]   = useState([]); // with computed actuals
-  const [ytdIncome,    setYtdIncome]    = useState(0);
-  const [monthSummary, setMonthSummary] = useState({ income: 0, expenses: 0, net: 0 });
-  const [chart,        setChart]        = useState([]);
-  const [loaded,       setLoaded]       = useState(false);
-
-  // Annual edit only — monthly is derived (annual / 12).
-  const [editing, setEditing] = useState(false);
-  const [draft,   setDraft]   = useState('');
-
-  // categoryId → bool. Categories collapse by default; clicking the
-  // header toggles to reveal the per-product breakdown.
-  const [expandedCategories, setExpandedCategories] = useState({});
+  const [monthlyTarget, setMonthlyTarget] = useState(0); // derived from goals_hierarchy.annual_target / 12
+  const [ytdIncome,     setYtdIncome]     = useState(0);
+  const [monthSummary,  setMonthSummary]  = useState({ income: 0, expenses: 0, net: 0 });
+  const [breakdown,     setBreakdown]     = useState({});
+  const [chart,         setChart]         = useState([]);
+  const [loaded,        setLoaded]        = useState(false);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -177,10 +157,15 @@ export default function FinanceDashboard() {
         listIncome(userId, { from, to }),
       ]);
 
-      setAnnualTarget(Number(hierarchy?.annual_target) || 0);
-      setCategories(computeCategoryActuals(hierarchy?.categories, ytdRows || []));
+      // monthly target is derived; not displayed on this page anymore
+      // but still drives the health/recs thresholds. To change it,
+      // the coach edits annual_target on /lifeos/goals.
+      const annual = Number(hierarchy?.annual_target) || 0;
+      setMonthlyTarget(annual / 12);
+
       setYtdIncome((ytdRows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0));
       setMonthSummary(summary || { income: 0, expenses: 0, net: 0 });
+      setBreakdown(computeIncomeBreakdown(summary?.incomeRows || []));
 
       const buckets = Object.fromEntries(
         window.map(w => [w.key, { label: w.label, income: 0, expenses: 0 }])
@@ -210,36 +195,6 @@ export default function FinanceDashboard() {
 
   useEffect(() => { load(); }, [load]);
 
-  const startEdit = () => {
-    setEditing(true);
-    setDraft(String(annualTarget));
-  };
-  const cancelEdit = () => {
-    setEditing(false);
-    setDraft('');
-  };
-  const saveAnnual = async () => {
-    const value = Number(draft) || 0;
-    try {
-      // Read-modify-write the hierarchy so we never blow away the
-      // user's categories + products. /lifeos/goals would re-read the
-      // same column and see the updated annual_target.
-      const current = await getGoalsHierarchy(userId);
-      await updateGoalsHierarchy(userId, { ...current, annual_target: value });
-      setAnnualTarget(value);
-      setEditing(false);
-      setDraft('');
-      toast.success('נשמר');
-    } catch (err) {
-      toast.error('שגיאה: ' + (err?.message || ''));
-    }
-  };
-
-  const monthlyTarget   = annualTarget / 12;
-  const annualProgress  = annualTarget > 0 ? Math.min(100, (ytdIncome / annualTarget) * 100) : 0;
-
-  // Health + recommendations — uncapped, since the rules want the
-  // true ratio (e.g. expense_ratio can exceed 100% in a losing month).
   const actualThisMonth = monthSummary.income;
   const monthlyProgress = monthlyTarget > 0
     ? (actualThisMonth / monthlyTarget) * 100
@@ -251,12 +206,10 @@ export default function FinanceDashboard() {
   const expenseHealthBadge = expenseHealth(expenseRatio);
   const recommendations = buildRecommendations({
     monthlyProgress, expenseRatio, monthlyTarget, actualThisMonth,
-    ytdIncome, categories,
+    ytdIncome, breakdown,
   });
 
-  const toggleCategory = (id) => {
-    setExpandedCategories(prev => ({ ...prev, [id]: !prev[id] }));
-  };
+  const goAddIncome = () => navigate('/lifeos/income');
 
   return (
     <LifeOSLayout title="דשבורד פיננסי" onQuickSaved={load} rightSlot={
@@ -267,65 +220,22 @@ export default function FinanceDashboard() {
       <div style={{ padding: '0 14px' }}>
         <FinanceTabBar />
 
-        {/* ─── Goals management link ─────────────────────────── */}
-        <button
-          onClick={() => navigate('/lifeos/goals')}
-          style={{
-            width: '100%', padding: '10px 14px', borderRadius: 12,
-            border: `1px solid ${LIFEOS_COLORS.border}`,
-            backgroundColor: '#FFFFFF',
-            color: LIFEOS_COLORS.textPrimary,
-            fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 12,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            fontFamily: 'inherit',
-          }}
-        >
-          <span>🎯 ניהול יעדים (קטגוריות + מוצרים)</span>
-          <span style={{ color: LIFEOS_COLORS.textSecondary }}>‹</span>
-        </button>
-
-        {/* ─── Annual goal (with monthly equivalent inline) ───── */}
-        <GoalCard
-          title="יעד שנתי"
-          subtitle={annualTarget > 0 ? `שווה ערך ל-${fmt(monthlyTarget)}₪/חודש` : null}
-          target={annualTarget}
-          actual={ytdIncome}
-          progress={annualProgress}
-          isEditing={editing}
-          draft={draft}
-          onDraftChange={setDraft}
-          onStartEdit={startEdit}
-          onSave={saveAnnual}
-          onCancel={cancelEdit}
-        />
-
-        {/* ─── Categories breakdown ─────────────────────────── */}
+        {/* ─── Income breakdown (THIS MONTH) ────────────────── */}
         <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
-          <div style={{ ...sectionTitleStyle, marginBottom: 10 }}>קטגוריות</div>
+          <div style={{ ...sectionTitleStyle, marginBottom: 10 }}>
+            הכנסות החודש
+          </div>
           {!loaded ? (
             <div style={loadingStyle}>טוען...</div>
-          ) : categories.length === 0 ? (
-            <div style={{ padding: 18, textAlign: 'center', color: LIFEOS_COLORS.textSecondary, fontSize: 12 }}>
-              אין קטגוריות עדיין.
-              <button
-                onClick={() => navigate('/lifeos/goals')}
-                style={{
-                  background: 'none', border: 'none', color: LIFEOS_COLORS.primary,
-                  fontWeight: 700, cursor: 'pointer', padding: 0, marginRight: 4,
-                  fontFamily: 'inherit', fontSize: 12,
-                }}
-              >
-                לחץ להוספה
-              </button>
-            </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {categories.map(c => (
-                <CategoryRow
-                  key={c.id}
-                  category={c}
-                  isExpanded={!!expandedCategories[c.id]}
-                  onToggle={() => toggleCategory(c.id)}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {CATEGORY_ORDER.map(cat => (
+                <CategoryBreakdown
+                  key={cat}
+                  name={cat}
+                  emoji={CATEGORY_EMOJI[cat]}
+                  data={breakdown[cat] || { total: 0, products: [] }}
+                  onAdd={goAddIncome}
                 />
               ))}
             </div>
@@ -420,203 +330,66 @@ export default function FinanceDashboard() {
   );
 }
 
-// ─── GoalCard ──────────────────────────────────────────────────
-function GoalCard({
-  title, subtitle, target, actual, progress,
-  isEditing, draft, onDraftChange,
-  onStartEdit, onSave, onCancel,
-}) {
-  const reached = progress >= 100;
-
-  return (
-    <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <div style={sectionTitleStyle}>{title}</div>
-        {!isEditing && (
-          <button onClick={onStartEdit} aria-label="ערוך" style={iconBtnStyle}>
-            <Pencil size={14} />
-          </button>
-        )}
-      </div>
-      {subtitle && !isEditing && (
-        <div style={{
-          fontSize: 11, color: LIFEOS_COLORS.textSecondary,
-          marginBottom: 8, fontWeight: 600,
-        }}>
-          {subtitle}
-        </div>
-      )}
-
-      {isEditing ? (
-        <div style={{
-          display: 'flex', gap: 8, alignItems: 'center',
-          padding: 10, borderRadius: 10,
-          backgroundColor: LIFEOS_COLORS.primaryLight,
-          border: `1px dashed ${LIFEOS_COLORS.primary}`,
-          marginBottom: 10,
-        }}>
-          <span style={{ fontSize: 13, color: LIFEOS_COLORS.textSecondary }}>₪</span>
-          <input
-            type="number"
-            inputMode="decimal"
-            value={draft}
-            onChange={(e) => onDraftChange(e.target.value)}
-            placeholder="0"
-            style={{ ...inputStyle, flex: 1 }}
-            autoFocus
-          />
-          <button onClick={onSave} aria-label="שמור" style={{ ...iconBtnStyle, color: LIFEOS_COLORS.success }}>
-            <Check size={16} />
-          </button>
-          <button onClick={onCancel} aria-label="בטל" style={{ ...iconBtnStyle, color: LIFEOS_COLORS.error }}>
-            <X size={16} />
-          </button>
-        </div>
-      ) : (
-        <div style={{
-          fontSize: 22, fontWeight: 800, color: LIFEOS_COLORS.textPrimary,
-          marginBottom: 10, textAlign: 'left', direction: 'ltr',
-        }}>
-          {fmt(target)}<span style={{ fontSize: 14, color: LIFEOS_COLORS.textSecondary }}>₪</span>
-        </div>
-      )}
-
-      {/* Progress bar */}
-      <div style={{
-        width: '100%', height: 10, borderRadius: 999,
-        backgroundColor: '#F3EEE2',
-        overflow: 'hidden',
-        marginBottom: 6,
-      }}>
-        <div style={{
-          width: `${progress}%`, height: '100%',
-          backgroundColor: reached ? LIFEOS_COLORS.success : LIFEOS_COLORS.primary,
-          transition: 'width 0.3s ease',
-        }} />
-      </div>
-      <div style={{
-        display: 'flex', justifyContent: 'space-between',
-        fontSize: 12, color: LIFEOS_COLORS.textSecondary,
-      }}>
-        <span>{fmt(actual)} / {fmt(target)}₪</span>
-        <span style={{ color: reached ? LIFEOS_COLORS.success : LIFEOS_COLORS.textSecondary, fontWeight: 700 }}>
-          {pct(progress)}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// ─── CategoryRow ───────────────────────────────────────────────
-// Compact card with a header row (name + actual/target + chevron)
-// and an expandable body listing products with their own progress.
-function CategoryRow({ category, isExpanded, onToggle }) {
-  const actual = Number(category.actual)  || 0;
-  const target = Number(category.target)  || 0;
-  const progress = target > 0 ? Math.min(100, (actual / target) * 100) : 0;
-  const reached = progress >= 100;
-
+// ─── CategoryBreakdown ────────────────────────────────────────
+function CategoryBreakdown({ name, emoji, data, onAdd }) {
   return (
     <div style={{
       border: `1px solid ${LIFEOS_COLORS.border}`,
       borderRadius: 10,
-      overflow: 'hidden',
+      padding: '10px 12px',
       backgroundColor: '#FFFFFF',
     }}>
-      <button
-        onClick={onToggle}
-        aria-label={isExpanded ? 'סגור' : 'פתח'}
-        style={{
-          width: '100%', textAlign: 'right',
-          padding: 10, background: 'transparent', border: 'none',
-          cursor: 'pointer', fontFamily: 'inherit',
-        }}
-      >
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          marginBottom: 6, gap: 8,
-        }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: LIFEOS_COLORS.textPrimary, flex: 1, minWidth: 0,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {category.name || '(ללא שם)'}
-          </div>
-          <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, whiteSpace: 'nowrap' }}>
-            {fmt(actual)} / {fmt(target)}₪
-          </div>
-          <span style={{ color: LIFEOS_COLORS.textSecondary, display: 'flex', alignItems: 'center' }}>
-            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: data.products.length > 0 ? 8 : 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 16, lineHeight: 1 }}>{emoji}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: LIFEOS_COLORS.textPrimary }}>
+            {name}
           </span>
         </div>
-        <div style={{
-          width: '100%', height: 6, borderRadius: 999,
-          backgroundColor: '#F3EEE2', overflow: 'hidden',
-        }}>
-          <div style={{
-            width: `${progress}%`, height: '100%',
-            backgroundColor: reached ? LIFEOS_COLORS.success : LIFEOS_COLORS.primary,
-            transition: 'width 0.3s ease',
-          }} />
+        <div style={{ fontSize: 15, fontWeight: 800, color: LIFEOS_COLORS.textPrimary, direction: 'ltr' }}>
+          ₪{fmt(data.total)}
         </div>
-        <div style={{
-          textAlign: 'left', direction: 'ltr',
-          fontSize: 10, marginTop: 3,
-          color: reached ? LIFEOS_COLORS.success : LIFEOS_COLORS.textSecondary,
-          fontWeight: 700,
-        }}>
-          {pct(progress)}
-        </div>
-      </button>
+      </div>
 
-      {isExpanded && (
-        <div style={{
-          padding: '8px 10px 10px',
-          borderTop: `1px solid ${LIFEOS_COLORS.border}`,
-          backgroundColor: '#FBF6EC',
-        }}>
-          {(category.products || []).length === 0 ? (
-            <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, textAlign: 'center', padding: 6 }}>
-              אין מוצרים בקטגוריה זו
+      {data.products.length === 0 ? (
+        <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, padding: '4px 0' }}>
+          אין הכנסות החודש
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 6 }}>
+          {data.products.map((p, i) => (
+            <div key={`${p.name}-${i}`} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              fontSize: 12, color: LIFEOS_COLORS.textSecondary,
+            }}>
+              <span>{p.name}</span>
+              <span style={{ direction: 'ltr', color: LIFEOS_COLORS.textPrimary, fontWeight: 600 }}>
+                ₪{fmt(p.total)}
+              </span>
             </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {category.products.map(p => <ProductRow key={p.id} product={p} />)}
-            </div>
-          )}
+          ))}
         </div>
       )}
-    </div>
-  );
-}
 
-function ProductRow({ product }) {
-  const actual = Number(product.actual) || 0;
-  const target = Number(product.target) || 0;
-  const progress = target > 0 ? Math.min(100, (actual / target) * 100) : 0;
-  const reached = progress >= 100;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ fontSize: 12, color: LIFEOS_COLORS.textPrimary, flex: 1, minWidth: 0,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
-          {product.name || '(ללא שם)'}
-        </div>
-        <div style={{ fontSize: 10, color: LIFEOS_COLORS.textSecondary, whiteSpace: 'nowrap' }}>
-          {fmt(actual)} / {fmt(target)}₪
-        </div>
-      </div>
-      <div style={{
-        width: '100%', height: 4, borderRadius: 999,
-        backgroundColor: '#F3EEE2', overflow: 'hidden',
-      }}>
-        <div style={{
-          width: `${progress}%`, height: '100%',
-          backgroundColor: reached ? LIFEOS_COLORS.success : LIFEOS_COLORS.primary,
-          transition: 'width 0.3s ease',
-        }} />
-      </div>
+      <button
+        onClick={onAdd}
+        style={{
+          width: '100%', marginTop: 6,
+          padding: '6px 10px', borderRadius: 8,
+          border: `1px dashed ${LIFEOS_COLORS.primary}`,
+          backgroundColor: LIFEOS_COLORS.primaryLight,
+          color: LIFEOS_COLORS.primary,
+          fontSize: 11, fontWeight: 700,
+          cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+          fontFamily: 'inherit',
+        }}
+      >
+        <Plus size={12} /> הוסף הכנסה
+      </button>
     </div>
   );
 }
@@ -629,11 +402,7 @@ function HealthRow({ label, value, level, message }) {
     red:    LIFEOS_COLORS.error,
   };
   const emojiMap = { green: '🟢', yellow: '🟡', red: '🔴' };
-  const tintMap = {
-    green:  '#ECFDF5',
-    yellow: '#FEF9E7',
-    red:    '#FEF2F2',
-  };
+  const tintMap = { green: '#ECFDF5', yellow: '#FEF9E7', red: '#FEF2F2' };
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 10,
@@ -686,19 +455,6 @@ const iconBtnStyle = {
   background: 'transparent', cursor: 'pointer',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   color: LIFEOS_COLORS.textSecondary,
-};
-
-const inputStyle = {
-  padding: '8px 10px',
-  borderRadius: 8,
-  border: `1px solid ${LIFEOS_COLORS.border}`,
-  backgroundColor: '#FFFFFF',
-  fontSize: 14,
-  color: LIFEOS_COLORS.textPrimary,
-  fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-  outline: 'none',
-  boxSizing: 'border-box',
-  width: '100%',
 };
 
 const loadingStyle = {
