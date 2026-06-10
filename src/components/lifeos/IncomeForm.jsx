@@ -43,12 +43,16 @@ export default function IncomeForm({ isOpen, onClose, userId, onSaved, income = 
 
   const set = (patch) => setForm(prev => ({ ...prev, ...patch }));
 
-  // When a product is picked, auto-fill amount with its default price
-  // if amount is still empty.
-  const handleProductChange = (key) => {
-    const prod = ATHLETIGO_PRODUCTS.find(p => p.key === key);
+  // Free-text product name. If what the user typed matches a known
+  // ATHLETIGO_PRODUCTS label (case-insensitive, trimmed) and amount
+  // is still empty, prefill with that product's default price.
+  const handleProductChange = (text) => {
+    const trimmed = String(text || '').trim();
+    const prod = ATHLETIGO_PRODUCTS.find(
+      p => p.label.toLowerCase() === trimmed.toLowerCase()
+    );
     set({
-      product: key,
+      product: text,
       amount: form.amount || (prod?.price ? String(prod.price) : ''),
     });
   };
@@ -153,21 +157,28 @@ export default function IncomeForm({ isOpen, onClose, userId, onSaved, income = 
             </div>
           </div>
 
-          {/* Product select */}
+          {/* Product name — free text. The datalist offers the
+              known ATHLETIGO products as quick-pick suggestions but
+              the user can type any name; what they type is what
+              gets saved to income.product. */}
           <div>
-            <label style={labelStyle}>מוצר</label>
-            <select
+            <label style={labelStyle}>שם המוצר / השירות</label>
+            <input
+              type="text"
+              list="income-form-product-suggestions"
               value={form.product}
               onChange={(e) => handleProductChange(e.target.value)}
+              placeholder="למשל: Personal Training, Dream Machine, סדנה..."
               style={inputStyle}
-            >
-              <option value="">— בחר מוצר —</option>
+              autoComplete="off"
+            />
+            <datalist id="income-form-product-suggestions">
               {ATHLETIGO_PRODUCTS.map(p => (
-                <option key={p.key} value={p.key}>
-                  {p.label} {p.price ? `(₪${p.price})` : ''}
+                <option key={p.key} value={p.label}>
+                  {p.price ? `₪${p.price}` : ''}
                 </option>
               ))}
-            </select>
+            </datalist>
           </div>
 
           {/* Client name + date row */}
