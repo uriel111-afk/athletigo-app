@@ -1,13 +1,12 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pencil, Check, X, RefreshCw } from 'lucide-react';
+import { Pencil, Check, X, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts';
 import { toast } from 'sonner';
 
 import { AuthContext } from '@/lib/AuthContext';
-import { supabase } from '@/lib/supabaseClient';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import { LIFEOS_COLORS, LIFEOS_CARD } from '@/lib/lifeos/lifeos-constants';
 import {
@@ -37,41 +36,61 @@ const buildMonthWindow = (n) => {
   return out;
 };
 
-// monthly_target lives on users (flat column); annual_target lives
-// inside the users.goals_hierarchy JSONB so /lifeos/goals (the
-// hierarchy editor) and this page share the same source of truth.
-// Both fall back to 0 if their underlying column doesn't exist yet.
-async function fetchGoals(userId) {
-  const [userRes, hierarchy] = await Promise.all([
-    supabase
-      .from('users')
-      .select('monthly_target')
-      .eq('id', userId)
-      .maybeSingle(),
-    getGoalsHierarchy(userId),
-  ]);
-  if (userRes.error && userRes.error.code !== '42703') throw userRes.error;
-  return {
-    annual_target:  Number(hierarchy?.annual_target)     || 0,
-    monthly_target: Number(userRes.data?.monthly_target) || 0,
-  };
-}
+// Annual category name → income.source values that count toward it.
+// Categories whose name matches a key here get a live progress bar
+// driven by the income table; other categories (custom names) still
+// render with a 0% progress until the user maps them manually.
+const CATEGORY_SOURCE_MAP = {
+  'Coaching': ['training', 'online_coaching'],
+  'Courses':  ['course', 'workshop'],
+  'Products': ['product_sale'],
+};
+
+// Compute actual_ytd per category and per product from the YTD income
+// rows. Returns a copy of `categories` with `actual` added to each
+// category and each product. Product matching is by exact (lowercase,
+// trimmed) string equality on income.product — users who name their
+// product the same as the income row's product value get progress.
+const computeCategoryActuals = (categories, ytdRows) => {
+  return (categories || []).map(c => {
+    const sources = CATEGORY_SOURCE_MAP[(c.name || '').trim()];
+    const actual = sources
+      ? (ytdRows || [])
+          .filter(r => sources.includes(r.source))
+          .reduce((s, r) => s + (Number(r.amount) || 0), 0)
+      : 0;
+    const products = (c.products || []).map(p => {
+      const pname = (p.name || '').trim().toLowerCase();
+      const pActual = pname
+        ? (ytdRows || [])
+            .filter(r => (r.product || '').trim().toLowerCase() === pname)
+            .reduce((s, r) => s + (Number(r.amount) || 0), 0)
+        : 0;
+      return { ...p, actual: pActual };
+    });
+    return { ...c, actual, products };
+  });
+};
 
 export default function FinanceDashboard() {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
   const navigate = useNavigate();
 
-  const [annualTarget,   setAnnualTarget]   = useState(0);
-  const [monthlyTarget,  setMonthlyTarget]  = useState(0);
-  const [ytdIncome,      setYtdIncome]      = useState(0);
-  const [monthSummary,   setMonthSummary]   = useState({ income: 0, expenses: 0, net: 0 });
-  const [chart,          setChart]          = useState([]);
-  const [loaded,         setLoaded]         = useState(false);
+  const [annualTarget, setAnnualTarget] = useState(0);
+  const [categories,   setCategories]   = useState([]); // with computed actuals
+  const [ytdIncome,    setYtdIncome]    = useState(0);
+  const [monthSummary, setMonthSummary] = useState({ income: 0, expenses: 0, net: 0 });
+  const [chart,        setChart]        = useState([]);
+  const [loaded,       setLoaded]       = useState(false);
 
-  // 'annual' | 'monthly' | null. Only one goal edits at a time.
-  const [editing, setEditing] = useState(null);
+  // Annual edit only — monthly is derived (annual / 12).
+  const [editing, setEditing] = useState(false);
   const [draft,   setDraft]   = useState('');
+
+  // categoryId → bool. Categories collapse by default; clicking the
+  // header toggles to reveal the per-product breakdown.
+  const [expandedCategories, setExpandedCategories] = useState({});
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -84,16 +103,16 @@ export default function FinanceDashboard() {
       const yearStart = `${new Date().getFullYear()}-01-01`;
       const today = new Date().toISOString().slice(0, 10);
 
-      const [goals, summary, ytdRows, expRows, incRows] = await Promise.all([
-        fetchGoals(userId),
+      const [hierarchy, summary, ytdRows, expRows, incRows] = await Promise.all([
+        getGoalsHierarchy(userId),
         getMonthlySummary(userId, new Date()),
         listIncome(userId, { from: yearStart, to: today }),
         listExpenses(userId, { from, to }),
         listIncome(userId, { from, to }),
       ]);
 
-      setAnnualTarget(goals.annual_target);
-      setMonthlyTarget(goals.monthly_target);
+      setAnnualTarget(Number(hierarchy?.annual_target) || 0);
+      setCategories(computeCategoryActuals(hierarchy?.categories, ytdRows || []));
       setYtdIncome((ytdRows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0));
       setMonthSummary(summary || { income: 0, expenses: 0, net: 0 });
 
@@ -125,33 +144,24 @@ export default function FinanceDashboard() {
 
   useEffect(() => { load(); }, [load]);
 
-  const startEdit = (which) => {
-    setEditing(which);
-    setDraft(String(which === 'annual' ? annualTarget : monthlyTarget));
+  const startEdit = () => {
+    setEditing(true);
+    setDraft(String(annualTarget));
   };
   const cancelEdit = () => {
-    setEditing(null);
+    setEditing(false);
     setDraft('');
   };
-  const saveGoal = async (which) => {
+  const saveAnnual = async () => {
     const value = Number(draft) || 0;
     try {
-      if (which === 'annual') {
-        // Read-modify-write the hierarchy so we never blow away the
-        // user's categories + products. /lifeos/goals would re-read
-        // the same column and see the updated annual_target.
-        const current = await getGoalsHierarchy(userId);
-        await updateGoalsHierarchy(userId, { ...current, annual_target: value });
-        setAnnualTarget(value);
-      } else {
-        const { error } = await supabase
-          .from('users')
-          .update({ monthly_target: value })
-          .eq('id', userId);
-        if (error) throw error;
-        setMonthlyTarget(value);
-      }
-      setEditing(null);
+      // Read-modify-write the hierarchy so we never blow away the
+      // user's categories + products. /lifeos/goals would re-read the
+      // same column and see the updated annual_target.
+      const current = await getGoalsHierarchy(userId);
+      await updateGoalsHierarchy(userId, { ...current, annual_target: value });
+      setAnnualTarget(value);
+      setEditing(false);
       setDraft('');
       toast.success('נשמר');
     } catch (err) {
@@ -159,8 +169,12 @@ export default function FinanceDashboard() {
     }
   };
 
-  const annualProgress  = annualTarget  > 0 ? Math.min(100, (ytdIncome             / annualTarget)  * 100) : 0;
-  const monthlyProgress = monthlyTarget > 0 ? Math.min(100, (monthSummary.income   / monthlyTarget) * 100) : 0;
+  const monthlyTarget   = annualTarget / 12;
+  const annualProgress  = annualTarget > 0 ? Math.min(100, (ytdIncome / annualTarget) * 100) : 0;
+
+  const toggleCategory = (id) => {
+    setExpandedCategories(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   return (
     <LifeOSLayout title="דשבורד פיננסי" onQuickSaved={load} rightSlot={
@@ -186,33 +200,53 @@ export default function FinanceDashboard() {
           <span style={{ color: LIFEOS_COLORS.textSecondary }}>‹</span>
         </button>
 
-        {/* ─── Annual goal ──────────────────────────────────── */}
+        {/* ─── Annual goal (with monthly equivalent inline) ───── */}
         <GoalCard
           title="יעד שנתי"
+          subtitle={annualTarget > 0 ? `שווה ערך ל-${fmt(monthlyTarget)}₪/חודש` : null}
           target={annualTarget}
           actual={ytdIncome}
           progress={annualProgress}
-          isEditing={editing === 'annual'}
+          isEditing={editing}
           draft={draft}
           onDraftChange={setDraft}
-          onStartEdit={() => startEdit('annual')}
-          onSave={() => saveGoal('annual')}
+          onStartEdit={startEdit}
+          onSave={saveAnnual}
           onCancel={cancelEdit}
         />
 
-        {/* ─── Monthly goal ────────────────────────────────── */}
-        <GoalCard
-          title="יעד חודשי"
-          target={monthlyTarget}
-          actual={monthSummary.income}
-          progress={monthlyProgress}
-          isEditing={editing === 'monthly'}
-          draft={draft}
-          onDraftChange={setDraft}
-          onStartEdit={() => startEdit('monthly')}
-          onSave={() => saveGoal('monthly')}
-          onCancel={cancelEdit}
-        />
+        {/* ─── Categories breakdown ─────────────────────────── */}
+        <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
+          <div style={{ ...sectionTitleStyle, marginBottom: 10 }}>קטגוריות</div>
+          {!loaded ? (
+            <div style={loadingStyle}>טוען...</div>
+          ) : categories.length === 0 ? (
+            <div style={{ padding: 18, textAlign: 'center', color: LIFEOS_COLORS.textSecondary, fontSize: 12 }}>
+              אין קטגוריות עדיין.
+              <button
+                onClick={() => navigate('/lifeos/goals')}
+                style={{
+                  background: 'none', border: 'none', color: LIFEOS_COLORS.primary,
+                  fontWeight: 700, cursor: 'pointer', padding: 0, marginRight: 4,
+                  fontFamily: 'inherit', fontSize: 12,
+                }}
+              >
+                לחץ להוספה
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {categories.map(c => (
+                <CategoryRow
+                  key={c.id}
+                  category={c}
+                  isExpanded={!!expandedCategories[c.id]}
+                  onToggle={() => toggleCategory(c.id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* ─── Monthly summary (read-only) ──────────────────── */}
         <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
@@ -259,7 +293,7 @@ export default function FinanceDashboard() {
 
 // ─── GoalCard ──────────────────────────────────────────────────
 function GoalCard({
-  title, target, actual, progress,
+  title, subtitle, target, actual, progress,
   isEditing, draft, onDraftChange,
   onStartEdit, onSave, onCancel,
 }) {
@@ -267,7 +301,7 @@ function GoalCard({
 
   return (
     <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <div style={sectionTitleStyle}>{title}</div>
         {!isEditing && (
           <button onClick={onStartEdit} aria-label="ערוך" style={iconBtnStyle}>
@@ -275,6 +309,14 @@ function GoalCard({
           </button>
         )}
       </div>
+      {subtitle && !isEditing && (
+        <div style={{
+          fontSize: 11, color: LIFEOS_COLORS.textSecondary,
+          marginBottom: 8, fontWeight: 600,
+        }}>
+          {subtitle}
+        </div>
+      )}
 
       {isEditing ? (
         <div style={{
@@ -331,6 +373,120 @@ function GoalCard({
         <span style={{ color: reached ? LIFEOS_COLORS.success : LIFEOS_COLORS.textSecondary, fontWeight: 700 }}>
           {pct(progress)}
         </span>
+      </div>
+    </div>
+  );
+}
+
+// ─── CategoryRow ───────────────────────────────────────────────
+// Compact card with a header row (name + actual/target + chevron)
+// and an expandable body listing products with their own progress.
+function CategoryRow({ category, isExpanded, onToggle }) {
+  const actual = Number(category.actual)  || 0;
+  const target = Number(category.target)  || 0;
+  const progress = target > 0 ? Math.min(100, (actual / target) * 100) : 0;
+  const reached = progress >= 100;
+
+  return (
+    <div style={{
+      border: `1px solid ${LIFEOS_COLORS.border}`,
+      borderRadius: 10,
+      overflow: 'hidden',
+      backgroundColor: '#FFFFFF',
+    }}>
+      <button
+        onClick={onToggle}
+        aria-label={isExpanded ? 'סגור' : 'פתח'}
+        style={{
+          width: '100%', textAlign: 'right',
+          padding: 10, background: 'transparent', border: 'none',
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}
+      >
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          marginBottom: 6, gap: 8,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: LIFEOS_COLORS.textPrimary, flex: 1, minWidth: 0,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {category.name || '(ללא שם)'}
+          </div>
+          <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, whiteSpace: 'nowrap' }}>
+            {fmt(actual)} / {fmt(target)}₪
+          </div>
+          <span style={{ color: LIFEOS_COLORS.textSecondary, display: 'flex', alignItems: 'center' }}>
+            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </span>
+        </div>
+        <div style={{
+          width: '100%', height: 6, borderRadius: 999,
+          backgroundColor: '#F3EEE2', overflow: 'hidden',
+        }}>
+          <div style={{
+            width: `${progress}%`, height: '100%',
+            backgroundColor: reached ? LIFEOS_COLORS.success : LIFEOS_COLORS.primary,
+            transition: 'width 0.3s ease',
+          }} />
+        </div>
+        <div style={{
+          textAlign: 'left', direction: 'ltr',
+          fontSize: 10, marginTop: 3,
+          color: reached ? LIFEOS_COLORS.success : LIFEOS_COLORS.textSecondary,
+          fontWeight: 700,
+        }}>
+          {pct(progress)}
+        </div>
+      </button>
+
+      {isExpanded && (
+        <div style={{
+          padding: '8px 10px 10px',
+          borderTop: `1px solid ${LIFEOS_COLORS.border}`,
+          backgroundColor: '#FBF6EC',
+        }}>
+          {(category.products || []).length === 0 ? (
+            <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, textAlign: 'center', padding: 6 }}>
+              אין מוצרים בקטגוריה זו
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {category.products.map(p => <ProductRow key={p.id} product={p} />)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProductRow({ product }) {
+  const actual = Number(product.actual) || 0;
+  const target = Number(product.target) || 0;
+  const progress = target > 0 ? Math.min(100, (actual / target) * 100) : 0;
+  const reached = progress >= 100;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ fontSize: 12, color: LIFEOS_COLORS.textPrimary, flex: 1, minWidth: 0,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {product.name || '(ללא שם)'}
+        </div>
+        <div style={{ fontSize: 10, color: LIFEOS_COLORS.textSecondary, whiteSpace: 'nowrap' }}>
+          {fmt(actual)} / {fmt(target)}₪
+        </div>
+      </div>
+      <div style={{
+        width: '100%', height: 4, borderRadius: 999,
+        backgroundColor: '#F3EEE2', overflow: 'hidden',
+      }}>
+        <div style={{
+          width: `${progress}%`, height: '100%',
+          backgroundColor: reached ? LIFEOS_COLORS.success : LIFEOS_COLORS.primary,
+          transition: 'width 0.3s ease',
+        }} />
       </div>
     </div>
   );
