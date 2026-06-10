@@ -51,6 +51,71 @@ const CATEGORY_SOURCE_MAP = {
 // category and each product. Product matching is by exact (lowercase,
 // trimmed) string equality on income.product — users who name their
 // product the same as the income row's product value get progress.
+// ─── Health rules ──────────────────────────────────────────────
+// Plain rules, pulled out so the thresholds live in one place. Levels
+// drive both the emoji and the badge color (green / yellow / red).
+const monthlyHealth = (progressPct) => {
+  if (progressPct >= 80) return { level: 'green',  message: 'בטוח - עדיף מהיעד' };
+  if (progressPct >= 50) return { level: 'yellow', message: 'אזהרה - צריך להאיץ' };
+  return                       { level: 'red',    message: 'בסכנה - בחורים יום' };
+};
+
+const expenseHealth = (ratioPct) => {
+  if (ratioPct <= 40) return { level: 'green',  message: 'בטוח - חיסכון טוב' };
+  if (ratioPct <= 70) return { level: 'yellow', message: 'אזהרה - בקרוב סוף' };
+  return                     { level: 'red',    message: 'בעיה - צמצם הוצאות' };
+};
+
+// ─── Smart recommendations ─────────────────────────────────────
+// Pure function — takes a snapshot of the dashboard state and returns
+// up to 3 user-facing suggestion strings ranked by urgency. Caller is
+// responsible for rendering.
+const buildRecommendations = ({
+  monthlyProgress, expenseRatio,
+  monthlyTarget, actualThisMonth,
+  ytdIncome, categories,
+}) => {
+  const out = [];
+
+  if (monthlyProgress > 100) {
+    out.push({ emoji: '✓', text: 'כל הכבוד! עדיף מהיעד' });
+  } else if (monthlyProgress < 50 && monthlyTarget > 0) {
+    const remaining = Math.max(0, monthlyTarget - actualThisMonth);
+    out.push({
+      emoji: '⏰',
+      text: `צריך ${Math.round(remaining).toLocaleString('he-IL')}₪ עד סוף החודש להשג יעד`,
+    });
+  }
+
+  if (expenseRatio > 60) {
+    out.push({ emoji: '⚠️', text: 'הוצאות גבוהות - בדוק את העלויות' });
+  }
+
+  if (ytdIncome < 50000) {
+    out.push({ emoji: '💡', text: 'הוסף 1-2 לקוחות בחודש הבא' });
+  }
+
+  // Categories that are lagging — surfaced one at a time, sorted by
+  // the lowest progress first so the most urgent shows.
+  const lagging = (categories || [])
+    .map(c => {
+      const t = Number(c.target) || 0;
+      const a = Number(c.actual) || 0;
+      return { name: c.name, progress: t > 0 ? (a / t) * 100 : 0, hasTarget: t > 0 };
+    })
+    .filter(c => c.hasTarget && c.progress < 30)
+    .sort((a, b) => a.progress - b.progress);
+  for (const c of lagging) {
+    out.push({ emoji: '🎯', text: `קטגוריית ${c.name} בהשראה - תעדוד אותה` });
+  }
+
+  if (out.length === 0) {
+    out.push({ emoji: '✨', text: 'הכל בכיוון - המשך כך' });
+  }
+
+  return out.slice(0, 3);
+};
+
 const computeCategoryActuals = (categories, ytdRows) => {
   return (categories || []).map(c => {
     const sources = CATEGORY_SOURCE_MAP[(c.name || '').trim()];
@@ -172,6 +237,22 @@ export default function FinanceDashboard() {
   const monthlyTarget   = annualTarget / 12;
   const annualProgress  = annualTarget > 0 ? Math.min(100, (ytdIncome / annualTarget) * 100) : 0;
 
+  // Health + recommendations — uncapped, since the rules want the
+  // true ratio (e.g. expense_ratio can exceed 100% in a losing month).
+  const actualThisMonth = monthSummary.income;
+  const monthlyProgress = monthlyTarget > 0
+    ? (actualThisMonth / monthlyTarget) * 100
+    : 0;
+  const expenseRatio = monthSummary.income > 0
+    ? (monthSummary.expenses / monthSummary.income) * 100
+    : 0;
+  const monthlyHealthBadge = monthlyHealth(monthlyProgress);
+  const expenseHealthBadge = expenseHealth(expenseRatio);
+  const recommendations = buildRecommendations({
+    monthlyProgress, expenseRatio, monthlyTarget, actualThisMonth,
+    ytdIncome, categories,
+  });
+
   const toggleCategory = (id) => {
     setExpandedCategories(prev => ({ ...prev, [id]: !prev[id] }));
   };
@@ -247,6 +328,51 @@ export default function FinanceDashboard() {
             </div>
           )}
         </div>
+
+        {/* ─── Health status ────────────────────────────────── */}
+        {loaded && (
+          <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
+            <div style={{ ...sectionTitleStyle, marginBottom: 10 }}>בריאות פיננסית</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <HealthRow
+                label="עמידה ביעד החודשי"
+                value={pct(Math.min(monthlyProgress, 999))}
+                level={monthlyHealthBadge.level}
+                message={monthlyHealthBadge.message}
+              />
+              <HealthRow
+                label="יחס הוצאות / הכנסות"
+                value={pct(Math.min(expenseRatio, 999))}
+                level={expenseHealthBadge.level}
+                message={expenseHealthBadge.message}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ─── Smart recommendations ────────────────────────── */}
+        {loaded && recommendations.length > 0 && (
+          <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
+            <div style={{ ...sectionTitleStyle, marginBottom: 10 }}>המלצות</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {recommendations.map((r, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 8,
+                    padding: '8px 10px', borderRadius: 8,
+                    backgroundColor: LIFEOS_COLORS.primaryLight,
+                    fontSize: 12, color: LIFEOS_COLORS.textPrimary,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <span style={{ fontSize: 14, lineHeight: 1.4 }}>{r.emoji}</span>
+                  <span style={{ flex: 1 }}>{r.text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ─── Monthly summary (read-only) ──────────────────── */}
         <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
@@ -487,6 +613,41 @@ function ProductRow({ product }) {
           backgroundColor: reached ? LIFEOS_COLORS.success : LIFEOS_COLORS.primary,
           transition: 'width 0.3s ease',
         }} />
+      </div>
+    </div>
+  );
+}
+
+// ─── HealthRow ─────────────────────────────────────────────────
+function HealthRow({ label, value, level, message }) {
+  const colorMap = {
+    green:  LIFEOS_COLORS.success,
+    yellow: LIFEOS_COLORS.warning,
+    red:    LIFEOS_COLORS.error,
+  };
+  const emojiMap = { green: '🟢', yellow: '🟡', red: '🔴' };
+  const tintMap = {
+    green:  '#ECFDF5',
+    yellow: '#FEF9E7',
+    red:    '#FEF2F2',
+  };
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '8px 10px', borderRadius: 8,
+      backgroundColor: tintMap[level],
+    }}>
+      <span style={{ fontSize: 18, lineHeight: 1 }}>{emojiMap[level]}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: LIFEOS_COLORS.textPrimary }}>
+          {label}
+        </div>
+        <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, marginTop: 1 }}>
+          {message}
+        </div>
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 800, color: colorMap[level], whiteSpace: 'nowrap' }}>
+        {value}
       </div>
     </div>
   );
