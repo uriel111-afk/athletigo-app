@@ -12,9 +12,10 @@ const PRIMARY_TABS = [
 ];
 
 const MORE_ITEMS = [
+  { to: '/lifeos/finance-dashboard', emoji: '📊', label: 'פיננסי' },
   { to: '/lifeos/income',        emoji: '💰', label: 'הכנסות' },
   { to: '/lifeos/recurring',     emoji: '🔁', label: 'הוצאות קבועות' },
-  { to: '/lifeos/installments',  emoji: '📊', label: 'תשלומי פס' },
+  { to: '/lifeos/installments',  emoji: '💳', label: 'תשלומי פס' },
   { to: '/lifeos/cashflow',      emoji: '📈', label: 'תזרים מזומנים' },
   { to: '/lifeos/leads',         emoji: '👥', label: 'לידים' },
   { to: '/lifeos/content',       emoji: '🎬', label: 'לוח תוכן' },
