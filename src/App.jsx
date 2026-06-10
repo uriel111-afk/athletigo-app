@@ -26,6 +26,10 @@ import LifeOSDocuments from './pages/lifeos/DocumentVault';
 import LifeOSCashFlow from './pages/lifeos/CashFlow';
 import LifeOSFinanceDashboard from './pages/lifeos/FinanceDashboard';
 import LifeOSGoalsManagement from './pages/lifeos/GoalsManagement';
+import LifeOSRevenueDetail from './pages/lifeos/RevenueDetail';
+import LifeOSSalesDetail   from './pages/lifeos/SalesDetail';
+import LifeOSPostsDetail   from './pages/lifeos/PostsDetail';
+import LifeOSStreakDetail  from './pages/lifeos/StreakDetail';
 import LifeOSBusinessPlan from './pages/lifeos/BusinessPlan';
 import LifeOSTasks from './pages/lifeos/Tasks';
 import LifeOSLeads from './pages/lifeos/Leads';
@@ -491,6 +495,10 @@ const AuthenticatedApp = () => {
       <Route path="/lifeos/cashflow"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSCashFlow /></PageRouteGuard>} />
       <Route path="/lifeos/finance-dashboard" element={<PageRouteGuard pageKey="LifeOS"><LifeOSFinanceDashboard /></PageRouteGuard>} />
       <Route path="/lifeos/goals"             element={<PageRouteGuard pageKey="LifeOS"><LifeOSGoalsManagement /></PageRouteGuard>} />
+      <Route path="/lifeos/revenue-detail"    element={<PageRouteGuard pageKey="LifeOS"><LifeOSRevenueDetail /></PageRouteGuard>} />
+      <Route path="/lifeos/sales-detail"      element={<PageRouteGuard pageKey="LifeOS"><LifeOSSalesDetail   /></PageRouteGuard>} />
+      <Route path="/lifeos/posts-detail"      element={<PageRouteGuard pageKey="LifeOS"><LifeOSPostsDetail   /></PageRouteGuard>} />
+      <Route path="/lifeos/streak-detail"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSStreakDetail  /></PageRouteGuard>} />
       <Route path="/lifeos/plan"         element={<PageRouteGuard pageKey="LifeOS"><LifeOSBusinessPlan /></PageRouteGuard>} />
       <Route path="/lifeos/tasks"        element={<PageRouteGuard pageKey="LifeOS"><LifeOSTasks /></PageRouteGuard>} />
       <Route path="/lifeos/leads"        element={<PageRouteGuard pageKey="LifeOS"><LifeOSLeads /></PageRouteGuard>} />
