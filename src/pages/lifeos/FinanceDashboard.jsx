@@ -13,6 +13,7 @@ import { LIFEOS_COLORS, LIFEOS_CARD } from '@/lib/lifeos/lifeos-constants';
 import {
   getMonthlySummary, listExpenses, listIncome,
 } from '@/lib/lifeos/lifeos-api';
+import { getGoalsHierarchy, updateGoalsHierarchy } from '@/lib/lifeos/goals-api';
 
 const fmt = (n) => Math.round(Number(n) || 0).toLocaleString('he-IL');
 const pct = (n) => `${(Number(n) || 0).toFixed(1)}%`;
@@ -36,23 +37,23 @@ const buildMonthWindow = (n) => {
   return out;
 };
 
-// Reads {annual_target, monthly_target} off the user row. Returns
-// zeros if either column doesn't exist yet (42703) so the page can
-// still render before the migration runs — the save handler surfaces
-// the error in that case.
+// monthly_target lives on users (flat column); annual_target lives
+// inside the users.goals_hierarchy JSONB so /lifeos/goals (the
+// hierarchy editor) and this page share the same source of truth.
+// Both fall back to 0 if their underlying column doesn't exist yet.
 async function fetchGoals(userId) {
-  const { data, error } = await supabase
-    .from('users')
-    .select('annual_target, monthly_target')
-    .eq('id', userId)
-    .maybeSingle();
-  if (error) {
-    if (error.code === '42703') return { annual_target: 0, monthly_target: 0 };
-    throw error;
-  }
+  const [userRes, hierarchy] = await Promise.all([
+    supabase
+      .from('users')
+      .select('monthly_target')
+      .eq('id', userId)
+      .maybeSingle(),
+    getGoalsHierarchy(userId),
+  ]);
+  if (userRes.error && userRes.error.code !== '42703') throw userRes.error;
   return {
-    annual_target:  Number(data?.annual_target)  || 0,
-    monthly_target: Number(data?.monthly_target) || 0,
+    annual_target:  Number(hierarchy?.annual_target)     || 0,
+    monthly_target: Number(userRes.data?.monthly_target) || 0,
   };
 }
 
@@ -133,16 +134,23 @@ export default function FinanceDashboard() {
     setDraft('');
   };
   const saveGoal = async (which) => {
-    const field = which === 'annual' ? 'annual_target' : 'monthly_target';
     const value = Number(draft) || 0;
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({ [field]: value })
-        .eq('id', userId);
-      if (error) throw error;
-      if (which === 'annual') setAnnualTarget(value);
-      else                    setMonthlyTarget(value);
+      if (which === 'annual') {
+        // Read-modify-write the hierarchy so we never blow away the
+        // user's categories + products. /lifeos/goals would re-read
+        // the same column and see the updated annual_target.
+        const current = await getGoalsHierarchy(userId);
+        await updateGoalsHierarchy(userId, { ...current, annual_target: value });
+        setAnnualTarget(value);
+      } else {
+        const { error } = await supabase
+          .from('users')
+          .update({ monthly_target: value })
+          .eq('id', userId);
+        if (error) throw error;
+        setMonthlyTarget(value);
+      }
       setEditing(null);
       setDraft('');
       toast.success('נשמר');
