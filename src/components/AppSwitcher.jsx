@@ -32,7 +32,7 @@ export default function AppSwitcher() {
 
   const apps = [
     { key: 'pro',      label: 'מקצועי', to: '/dashboard',    Icon: Briefcase },
-    { key: 'finance',  label: 'פיננסי', to: '/lifeos/leads', Icon: Coins     },
+    { key: 'finance',  label: 'פיננסי', to: '/lifeos/finance-dashboard', Icon: Coins     },
     { key: 'growth',   label: 'צמיחה',  to: '/lifeos',       Icon: Sprout    },
     { key: 'personal', label: 'אישי',   to: '/personal',     Icon: User      },
   ];
