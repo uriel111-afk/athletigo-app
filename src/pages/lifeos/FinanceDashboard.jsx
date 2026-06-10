@@ -13,10 +13,8 @@ import { LIFEOS_COLORS, LIFEOS_CARD } from '@/lib/lifeos/lifeos-constants';
 import {
   getMonthlySummary, listExpenses, listIncome,
 } from '@/lib/lifeos/lifeos-api';
-import { getGoalsHierarchy } from '@/lib/lifeos/goals-api';
 
 const fmt = (n) => Math.round(Number(n) || 0).toLocaleString('he-IL');
-const pct = (n) => `${(Number(n) || 0).toFixed(1)}%`;
 
 const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 const monthLabel = (d) => d.toLocaleDateString('he-IL', { month: 'short', year: '2-digit' });
@@ -38,18 +36,20 @@ const buildMonthWindow = (n) => {
 };
 
 // Maps a display category name to the income.source enum values that
-// belong to it. Drives both the per-category total and the per-product
+// belong to it. Drives the per-category total and per-product
 // drill-down below.
 const CATEGORY_SOURCE_MAP = {
   'Coaching': ['training', 'online_coaching'],
   'Courses':  ['course', 'workshop'],
   'Products': ['product_sale'],
 };
-const CATEGORY_ORDER  = ['Coaching', 'Courses', 'Products'];
-const CATEGORY_EMOJI  = { Coaching: '🏋️', Courses: '📚', Products: '🛍️' };
+const CATEGORY_ORDER = ['Coaching', 'Courses', 'Products'];
+const CATEGORY_EMOJI = { Coaching: '🏋️', Courses: '📚', Products: '🛍️' };
 
 // Group a slice of income rows by display category, then by product
 // name (trimmed, case-insensitive key but the original name is shown).
+// Rows without a product land in an "אחר" bucket so their amount still
+// counts toward the category total — never a silent zero.
 // Returns { [category]: { total, products: [{ name, total }] } }.
 const computeIncomeBreakdown = (rows) => {
   const out = {};
@@ -72,71 +72,15 @@ const computeIncomeBreakdown = (rows) => {
   return out;
 };
 
-// ─── Health rules ──────────────────────────────────────────────
-const monthlyHealth = (progressPct) => {
-  if (progressPct >= 80) return { level: 'green',  message: 'בטוח - עדיף מהיעד' };
-  if (progressPct >= 50) return { level: 'yellow', message: 'אזהרה - צריך להאיץ' };
-  return                       { level: 'red',    message: 'בסכנה - בחורים יום' };
-};
-
-const expenseHealth = (ratioPct) => {
-  if (ratioPct <= 40) return { level: 'green',  message: 'בטוח - חיסכון טוב' };
-  if (ratioPct <= 70) return { level: 'yellow', message: 'אזהרה - בקרוב סוף' };
-  return                     { level: 'red',    message: 'בעיה - צמצם הוצאות' };
-};
-
-// ─── Smart recommendations ─────────────────────────────────────
-const buildRecommendations = ({
-  monthlyProgress, expenseRatio,
-  monthlyTarget, actualThisMonth,
-  ytdIncome, breakdown,
-}) => {
-  const out = [];
-
-  if (monthlyProgress > 100) {
-    out.push({ emoji: '✓', text: 'כל הכבוד! עדיף מהיעד' });
-  } else if (monthlyProgress < 50 && monthlyTarget > 0) {
-    const remaining = Math.max(0, monthlyTarget - actualThisMonth);
-    out.push({
-      emoji: '⏰',
-      text: `צריך ${Math.round(remaining).toLocaleString('he-IL')}₪ עד סוף החודש להשג יעד`,
-    });
-  }
-
-  if (expenseRatio > 60) {
-    out.push({ emoji: '⚠️', text: 'הוצאות גבוהות - בדוק את העלויות' });
-  }
-
-  if (ytdIncome < 50000) {
-    out.push({ emoji: '💡', text: 'הוסף 1-2 לקוחות בחודש הבא' });
-  }
-
-  // Category surfaced when it has zero income this month.
-  for (const cat of CATEGORY_ORDER) {
-    const data = breakdown?.[cat];
-    if (data && data.total === 0) {
-      out.push({ emoji: '🎯', text: `אין הכנסות החודש ב-${cat} — הוסף הכנסה` });
-    }
-  }
-
-  if (out.length === 0) {
-    out.push({ emoji: '✨', text: 'הכל בכיוון - המשך כך' });
-  }
-
-  return out.slice(0, 3);
-};
-
 export default function FinanceDashboard() {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
   const navigate = useNavigate();
 
-  const [monthlyTarget, setMonthlyTarget] = useState(0); // derived from goals_hierarchy.annual_target / 12
-  const [ytdIncome,     setYtdIncome]     = useState(0);
-  const [monthSummary,  setMonthSummary]  = useState({ income: 0, expenses: 0, net: 0 });
-  const [breakdown,     setBreakdown]     = useState({});
-  const [chart,         setChart]         = useState([]);
-  const [loaded,        setLoaded]        = useState(false);
+  const [monthSummary, setMonthSummary] = useState({ income: 0, expenses: 0, net: 0 });
+  const [breakdown,    setBreakdown]    = useState({});
+  const [chart,        setChart]        = useState([]);
+  const [loaded,       setLoaded]       = useState(false);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -146,24 +90,12 @@ export default function FinanceDashboard() {
       const from = window[0].from;
       const to = window[window.length - 1].to;
 
-      const yearStart = `${new Date().getFullYear()}-01-01`;
-      const today = new Date().toISOString().slice(0, 10);
-
-      const [hierarchy, summary, ytdRows, expRows, incRows] = await Promise.all([
-        getGoalsHierarchy(userId),
+      const [summary, expRows, incRows] = await Promise.all([
         getMonthlySummary(userId, new Date()),
-        listIncome(userId, { from: yearStart, to: today }),
         listExpenses(userId, { from, to }),
         listIncome(userId, { from, to }),
       ]);
 
-      // monthly target is derived; not displayed on this page anymore
-      // but still drives the health/recs thresholds. To change it,
-      // the coach edits annual_target on /lifeos/goals.
-      const annual = Number(hierarchy?.annual_target) || 0;
-      setMonthlyTarget(annual / 12);
-
-      setYtdIncome((ytdRows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0));
       setMonthSummary(summary || { income: 0, expenses: 0, net: 0 });
       setBreakdown(computeIncomeBreakdown(summary?.incomeRows || []));
 
@@ -194,20 +126,6 @@ export default function FinanceDashboard() {
   }, [userId]);
 
   useEffect(() => { load(); }, [load]);
-
-  const actualThisMonth = monthSummary.income;
-  const monthlyProgress = monthlyTarget > 0
-    ? (actualThisMonth / monthlyTarget) * 100
-    : 0;
-  const expenseRatio = monthSummary.income > 0
-    ? (monthSummary.expenses / monthSummary.income) * 100
-    : 0;
-  const monthlyHealthBadge = monthlyHealth(monthlyProgress);
-  const expenseHealthBadge = expenseHealth(expenseRatio);
-  const recommendations = buildRecommendations({
-    monthlyProgress, expenseRatio, monthlyTarget, actualThisMonth,
-    ytdIncome, breakdown,
-  });
 
   const goAddIncome = () => navigate('/lifeos/income');
 
@@ -241,51 +159,6 @@ export default function FinanceDashboard() {
             </div>
           )}
         </div>
-
-        {/* ─── Health status ────────────────────────────────── */}
-        {loaded && (
-          <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
-            <div style={{ ...sectionTitleStyle, marginBottom: 10 }}>בריאות פיננסית</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <HealthRow
-                label="עמידה ביעד החודשי"
-                value={pct(Math.min(monthlyProgress, 999))}
-                level={monthlyHealthBadge.level}
-                message={monthlyHealthBadge.message}
-              />
-              <HealthRow
-                label="יחס הוצאות / הכנסות"
-                value={pct(Math.min(expenseRatio, 999))}
-                level={expenseHealthBadge.level}
-                message={expenseHealthBadge.message}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* ─── Smart recommendations ────────────────────────── */}
-        {loaded && recommendations.length > 0 && (
-          <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
-            <div style={{ ...sectionTitleStyle, marginBottom: 10 }}>המלצות</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {recommendations.map((r, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 8,
-                    padding: '8px 10px', borderRadius: 8,
-                    backgroundColor: LIFEOS_COLORS.primaryLight,
-                    fontSize: 12, color: LIFEOS_COLORS.textPrimary,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  <span style={{ fontSize: 14, lineHeight: 1.4 }}>{r.emoji}</span>
-                  <span style={{ flex: 1 }}>{r.text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* ─── Monthly summary (read-only) ──────────────────── */}
         <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
@@ -390,37 +263,6 @@ function CategoryBreakdown({ name, emoji, data, onAdd }) {
       >
         <Plus size={12} /> הוסף הכנסה
       </button>
-    </div>
-  );
-}
-
-// ─── HealthRow ─────────────────────────────────────────────────
-function HealthRow({ label, value, level, message }) {
-  const colorMap = {
-    green:  LIFEOS_COLORS.success,
-    yellow: LIFEOS_COLORS.warning,
-    red:    LIFEOS_COLORS.error,
-  };
-  const emojiMap = { green: '🟢', yellow: '🟡', red: '🔴' };
-  const tintMap = { green: '#ECFDF5', yellow: '#FEF9E7', red: '#FEF2F2' };
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 10,
-      padding: '8px 10px', borderRadius: 8,
-      backgroundColor: tintMap[level],
-    }}>
-      <span style={{ fontSize: 18, lineHeight: 1 }}>{emojiMap[level]}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: LIFEOS_COLORS.textPrimary }}>
-          {label}
-        </div>
-        <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, marginTop: 1 }}>
-          {message}
-        </div>
-      </div>
-      <div style={{ fontSize: 14, fontWeight: 800, color: colorMap[level], whiteSpace: 'nowrap' }}>
-        {value}
-      </div>
     </div>
   );
 }
