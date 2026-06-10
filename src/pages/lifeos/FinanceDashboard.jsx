@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
+import FinanceTabBar from '@/components/lifeos/FinanceTabBar';
 import { LIFEOS_COLORS, LIFEOS_CARD } from '@/lib/lifeos/lifeos-constants';
 import {
   getMonthlySummary, listExpenses, listIncome,
@@ -264,6 +265,8 @@ export default function FinanceDashboard() {
       </button>
     }>
       <div style={{ padding: '0 14px' }}>
+        <FinanceTabBar />
+
         {/* ─── Goals management link ─────────────────────────── */}
         <button
           onClick={() => navigate('/lifeos/goals')}

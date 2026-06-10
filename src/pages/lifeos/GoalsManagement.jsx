@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
+import FinanceTabBar from '@/components/lifeos/FinanceTabBar';
 import { LIFEOS_COLORS, LIFEOS_CARD } from '@/lib/lifeos/lifeos-constants';
 import {
   getGoalsHierarchy, updateGoalsHierarchy, DEFAULT_HIERARCHY,
@@ -179,6 +180,8 @@ export default function GoalsManagement() {
       </button>
     }>
       <div style={{ padding: '0 14px 100px' }}>
+        <FinanceTabBar />
+
         {/* ─── Annual target ───────────────────────────────── */}
         <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
           <div style={sectionTitleStyle}>יעד שנתי כולל</div>
