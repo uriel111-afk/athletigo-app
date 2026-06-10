@@ -1,11 +1,13 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
-import { LogOut, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { LogOut, Loader2, ChevronLeft } from 'lucide-react';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import {
-  LIFEOS_COLORS, LIFEOS_CARD, YEARLY_GOAL,
+  LIFEOS_COLORS, LIFEOS_CARD,
 } from '@/lib/lifeos/lifeos-constants';
-import { getBusinessPlan, updateBusinessPlan, syncHistoricalData } from '@/lib/lifeos/lifeos-api';
+import { syncHistoricalData } from '@/lib/lifeos/lifeos-api';
+import { getGoalsHierarchy } from '@/lib/lifeos/goals-api';
 import { toast } from 'sonner';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
@@ -13,11 +15,12 @@ const fmt = (n) => Math.round(n).toLocaleString('he-IL');
 export default function LifeOSSettings() {
   const { user, logout } = useContext(AuthContext);
   const userId = user?.id;
+  const navigate = useNavigate();
 
-  const [plan, setPlan] = useState(null);
-  const [goalInput, setGoalInput] = useState(String(YEARLY_GOAL));
+  // annual_target now lives on users.goals_hierarchy. Read-only here;
+  // edits happen in /lifeos/goals so there's a single source of truth.
+  const [annualTarget, setAnnualTarget] = useState(0);
   const [loaded, setLoaded] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
 
@@ -44,9 +47,8 @@ export default function LifeOSSettings() {
   const load = useCallback(async () => {
     if (!userId) return;
     try {
-      const p = await getBusinessPlan(userId);
-      setPlan(p);
-      if (p?.annual_target) setGoalInput(String(p.annual_target));
+      const hierarchy = await getGoalsHierarchy(userId);
+      setAnnualTarget(Number(hierarchy?.annual_target) || 0);
     } catch (err) {
       console.error('[LifeOSSettings] load error:', err);
     } finally {
@@ -56,34 +58,11 @@ export default function LifeOSSettings() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleSaveGoal = async () => {
-    const amount = parseFloat(goalInput);
-    if (!amount || amount <= 0) { toast.error('הכנס יעד תקין'); return; }
-    if (!plan?.id) { toast.error('לא נמצאה תוכנית עסקית'); return; }
-
-    setSaving(true);
-    try {
-      const required = Math.round(amount / 12);
-      await updateBusinessPlan(plan.id, {
-        annual_target: amount,
-        required_monthly_revenue: required,
-      });
-      toast.success('היעד עודכן');
-      load();
-    } catch (err) {
-      console.error('[LifeOSSettings] save error:', err);
-      toast.error('שגיאה: ' + (err?.message || ''));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleLogout = () => {
     if (!confirm('להתנתק מהמערכת?')) return;
     logout?.();
   };
 
-  const goalChanged = plan && parseFloat(goalInput) !== Number(plan.annual_target);
   const firstName = (user?.full_name || '').split(' ')[0] || '';
 
   return (
@@ -113,7 +92,10 @@ export default function LifeOSSettings() {
         </div>
       </div>
 
-      {/* Annual target */}
+      {/* Annual target — display only. The single edit surface lives
+          at /lifeos/goals where the full Coaching/Courses/Products
+          hierarchy is laid out. Showing the figure here keeps it
+          glanceable from Settings without two sources of truth. */}
       <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: LIFEOS_COLORS.textSecondary, marginBottom: 10 }}>
           יעד שנתי
@@ -122,38 +104,35 @@ export default function LifeOSSettings() {
           <div style={{ fontSize: 13, color: LIFEOS_COLORS.textSecondary, padding: '8px 0' }}>טוען...</div>
         ) : (
           <>
-            <input
-              type="number"
-              inputMode="decimal"
-              value={goalInput}
-              onChange={(e) => setGoalInput(e.target.value)}
-              placeholder={fmt(YEARLY_GOAL)}
-              style={{
-                width: '100%', padding: '12px 14px', borderRadius: 10,
-                border: `1px solid ${LIFEOS_COLORS.border}`, backgroundColor: '#FFFFFF',
-                fontSize: 20, fontWeight: 800, color: LIFEOS_COLORS.textPrimary,
-                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-                outline: 'none', boxSizing: 'border-box', textAlign: 'center',
-              }}
-            />
+            <div style={{
+              padding: '14px 12px', borderRadius: 10,
+              backgroundColor: '#F7F3EC',
+              fontSize: 22, fontWeight: 800,
+              color: LIFEOS_COLORS.textPrimary,
+              textAlign: 'center',
+            }}>
+              {fmt(annualTarget)}₪
+            </div>
             <div style={{ fontSize: 12, color: LIFEOS_COLORS.textSecondary, marginTop: 8, textAlign: 'center' }}>
               נדרש חודשי: <strong style={{ color: LIFEOS_COLORS.primary }}>
-                {fmt(Math.round((parseFloat(goalInput) || 0) / 12))}₪
+                {fmt(Math.round(annualTarget / 12))}₪
               </strong>
             </div>
-            {goalChanged && (
-              <button
-                onClick={handleSaveGoal}
-                disabled={saving}
-                style={{
-                  width: '100%', marginTop: 10, padding: '10px 14px', borderRadius: 10, border: 'none',
-                  backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
-                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                }}
-              >
-                {saving ? <Loader2 className="w-5 h-5 animate-spin" style={{ margin: '0 auto' }} /> : 'שמור יעד חדש'}
-              </button>
-            )}
+            <button
+              onClick={() => navigate('/lifeos/goals')}
+              style={{
+                width: '100%', marginTop: 10,
+                padding: '10px 14px', borderRadius: 10,
+                border: `1px solid ${LIFEOS_COLORS.primary}`,
+                backgroundColor: '#FFFFFF',
+                color: LIFEOS_COLORS.primary,
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                fontFamily: 'inherit',
+              }}
+            >
+              ערוך יעדים <ChevronLeft size={14} />
+            </button>
           </>
         )}
       </div>

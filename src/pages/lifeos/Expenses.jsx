@@ -214,6 +214,10 @@ export default function Expenses() {
   }, [historyForRecurring]);
 
   const [dismissedRecurring, setDismissedRecurring] = useState(false);
+  // Insights / recurring suggestion / pie chart all live under one
+  // collapsible "נתונים נוספים" block so the primary list stays the
+  // focus. Default closed — open to dig.
+  const [secondaryOpen, setSecondaryOpen] = useState(false);
 
   const prevMonth = () => { const d = new Date(cursor); d.setMonth(d.getMonth() - 1); setCursor(d); };
   const nextMonth = () => { const d = new Date(cursor); d.setMonth(d.getMonth() + 1); setCursor(d); };
@@ -419,73 +423,99 @@ export default function Expenses() {
         </div>
       )}
 
-      {/* ─── SECONDARY CONTENT — analytics + recurring suggestion ─── */}
+      {/* ─── SECONDARY CONTENT — collapsible analytics block ─── */}
+      {/* Insights, recurring suggestion, and the per-category pie are
+          all dig-deeper material rather than at-a-glance facts — kept
+          under one toggle so the primary list isn't pushed off-screen. */}
+      <button
+        onClick={() => setSecondaryOpen(v => !v)}
+        style={{
+          width: '100%', marginTop: 14, marginBottom: 12,
+          padding: '12px 14px', borderRadius: 12,
+          border: `1px solid ${LIFEOS_COLORS.border}`,
+          backgroundColor: '#FFFFFF',
+          color: LIFEOS_COLORS.textPrimary,
+          fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          fontFamily: 'inherit',
+        }}
+        aria-expanded={secondaryOpen}
+      >
+        <span>📊 נתונים נוספים</span>
+        <span style={{ color: LIFEOS_COLORS.textSecondary }}>
+          {secondaryOpen ? '▴' : '▾'}
+        </span>
+      </button>
 
-      {/* Spending Insights */}
-      {insights && (
-        <div style={{ ...LIFEOS_CARD, marginTop: 14, marginBottom: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: LIFEOS_COLORS.textPrimary, marginBottom: 8 }}>
-            תובנות
-          </div>
-          <InsightRow emoji="🏆" text={`הקטגוריה הכי גדולה: ${EXPENSE_CATEGORY_BY_KEY[insights.topKey]?.label || insights.topKey} — ${fmt(insights.topValue)}₪`} />
-          {insights.delta !== null && (
-            <InsightRow
-              emoji={insights.delta > 0 ? '📈' : '📉'}
-              text={`${insights.delta > 0 ? 'עלייה' : 'ירידה'} של ${Math.abs(Math.round(insights.delta))}% לעומת חודש שעבר`}
-              color={insights.delta > 20 ? LIFEOS_COLORS.error : insights.delta < -10 ? LIFEOS_COLORS.success : LIFEOS_COLORS.textSecondary}
-            />
-          )}
-          {insights.savings20 > 0 && (
-            <InsightRow emoji="💡" text={`חסכון אפשרי: הורד ${EXPENSE_CATEGORY_BY_KEY[insights.topKey]?.label} ב-20% = ${fmt(insights.savings20)}₪/שנה`} />
-          )}
-        </div>
-      )}
-
-      {/* Recurring warning */}
-      {recurringSuggestion && !dismissedRecurring && (
-        <div style={{
-          ...LIFEOS_CARD, marginBottom: 12,
-          backgroundColor: '#FFF4E6', border: `1px solid ${LIFEOS_COLORS.primary}`,
-        }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: LIFEOS_COLORS.primary, marginBottom: 4 }}>
-            🔁 נראה שזו הוצאה קבועה
-          </div>
-          <div style={{ fontSize: 13, color: LIFEOS_COLORS.textPrimary, marginBottom: 8 }}>
-            {recurringSuggestion.desc} — {fmt(recurringSuggestion.amount)}₪ חוזר 3+ חודשים
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={promoteToRecurring} style={smallBtnPrimary}>
-              להוסיף לקבועות
-            </button>
-            <button onClick={() => setDismissedRecurring(true)} style={smallBtnSecondary}>
-              לא, תודה
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Pie chart */}
-      {pieData.length > 0 && (
-        <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: LIFEOS_COLORS.textPrimary, marginBottom: 8 }}>
-            פילוח לפי קטגוריה
-          </div>
-          <div style={{ width: '100%', height: 180 }}>
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie data={pieData} dataKey="value" nameKey="name"
-                     cx="50%" cy="50%" outerRadius={70} innerRadius={36}
-                     onClick={(slice) => setCategoryFilter(slice.key)}>
-                  {pieData.map((d, i) => <Cell key={i} fill={d.color} cursor="pointer" />)}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ borderRadius: 10, border: `1px solid ${LIFEOS_COLORS.border}`, fontSize: 12 }}
-                  formatter={(v) => `${fmt(v)}₪`}
+      {secondaryOpen && (
+        <>
+          {/* Spending Insights */}
+          {insights && (
+            <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: LIFEOS_COLORS.textPrimary, marginBottom: 8 }}>
+                תובנות
+              </div>
+              <InsightRow emoji="🏆" text={`הקטגוריה הכי גדולה: ${EXPENSE_CATEGORY_BY_KEY[insights.topKey]?.label || insights.topKey} — ${fmt(insights.topValue)}₪`} />
+              {insights.delta !== null && (
+                <InsightRow
+                  emoji={insights.delta > 0 ? '📈' : '📉'}
+                  text={`${insights.delta > 0 ? 'עלייה' : 'ירידה'} של ${Math.abs(Math.round(insights.delta))}% לעומת חודש שעבר`}
+                  color={insights.delta > 20 ? LIFEOS_COLORS.error : insights.delta < -10 ? LIFEOS_COLORS.success : LIFEOS_COLORS.textSecondary}
                 />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+              )}
+              {insights.savings20 > 0 && (
+                <InsightRow emoji="💡" text={`חסכון אפשרי: הורד ${EXPENSE_CATEGORY_BY_KEY[insights.topKey]?.label} ב-20% = ${fmt(insights.savings20)}₪/שנה`} />
+              )}
+            </div>
+          )}
+
+          {/* Recurring warning */}
+          {recurringSuggestion && !dismissedRecurring && (
+            <div style={{
+              ...LIFEOS_CARD, marginBottom: 12,
+              backgroundColor: '#FFF4E6', border: `1px solid ${LIFEOS_COLORS.primary}`,
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: LIFEOS_COLORS.primary, marginBottom: 4 }}>
+                🔁 נראה שזו הוצאה קבועה
+              </div>
+              <div style={{ fontSize: 13, color: LIFEOS_COLORS.textPrimary, marginBottom: 8 }}>
+                {recurringSuggestion.desc} — {fmt(recurringSuggestion.amount)}₪ חוזר 3+ חודשים
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={promoteToRecurring} style={smallBtnPrimary}>
+                  להוסיף לקבועות
+                </button>
+                <button onClick={() => setDismissedRecurring(true)} style={smallBtnSecondary}>
+                  לא, תודה
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Pie chart */}
+          {pieData.length > 0 && (
+            <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: LIFEOS_COLORS.textPrimary, marginBottom: 8 }}>
+                פילוח לפי קטגוריה
+              </div>
+              <div style={{ width: '100%', height: 180 }}>
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie data={pieData} dataKey="value" nameKey="name"
+                         cx="50%" cy="50%" outerRadius={70} innerRadius={36}
+                         onClick={(slice) => setCategoryFilter(slice.key)}>
+                      {pieData.map((d, i) => <Cell key={i} fill={d.color} cursor="pointer" />)}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ borderRadius: 10, border: `1px solid ${LIFEOS_COLORS.border}`, fontSize: 12 }}
+                      formatter={(v) => `${fmt(v)}₪`}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <ExpenseForm
