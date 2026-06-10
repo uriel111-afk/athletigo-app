@@ -18,6 +18,45 @@ const makeId = () => {
   return `id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 };
 
+// Fixed category list. Users can only edit per-category target +
+// per-product entries — not add/rename/delete categories themselves.
+// These names match the keys in FinanceDashboard.CATEGORY_SOURCE_MAP
+// so the income → progress matching stays in sync.
+const FIXED_CATEGORIES = [
+  { id: 'coaching', name: 'Coaching', defaultTarget: 50000 },
+  { id: 'courses',  name: 'Courses',  defaultTarget: 20000 },
+  { id: 'products', name: 'Products', defaultTarget: 30000 },
+];
+
+// Returns a hierarchy guaranteed to contain exactly the three fixed
+// categories (in fixed order). Existing matches are preserved by name
+// so any per-category target + products the user has already saved
+// carry over. Categories with custom names get dropped.
+const ensureFixedCategories = (hierarchy) => {
+  const existing = new Map(
+    (hierarchy?.categories || []).map(c => [c.name, c])
+  );
+  const annualTotal = FIXED_CATEGORIES.reduce((s, c) => s + c.defaultTarget, 0);
+  return {
+    // Keep the saved annual_target if present; otherwise seed the
+    // total of the default category targets (100k) so first-time users
+    // see a sensible top-level number.
+    annual_target: Number(hierarchy?.annual_target) > 0
+      ? Number(hierarchy.annual_target)
+      : annualTotal,
+    categories: FIXED_CATEGORIES.map(fc => {
+      const found = existing.get(fc.name);
+      if (found) return found;
+      return {
+        id: fc.id,
+        name: fc.name,
+        target: fc.defaultTarget,
+        products: [],
+      };
+    }),
+  };
+};
+
 export default function GoalsManagement() {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
@@ -36,8 +75,13 @@ export default function GoalsManagement() {
     setLoaded(false);
     try {
       const data = await getGoalsHierarchy(userId);
-      setHierarchy(data);
-      setSavedSnapshot(data);
+      // Seed defaults so the 3 fixed categories always show even if
+      // the DB row is empty. savedSnapshot mirrors this so the page
+      // doesn't show "unsaved changes" just because we filled in
+      // defaults — that flag is only for user edits.
+      const seeded = ensureFixedCategories(data);
+      setHierarchy(seeded);
+      setSavedSnapshot(seeded);
     } catch (err) {
       console.error('[GoalsManagement] load:', err);
       toast.error('שגיאה בטעינה: ' + (err?.message || ''));
@@ -58,27 +102,12 @@ export default function GoalsManagement() {
     setHierarchy(prev => ({ ...prev, annual_target: Number(value) || 0 }));
   };
 
-  const addCategory = () => {
-    const newCat = { id: makeId(), name: '', target: 0, products: [] };
-    setHierarchy(prev => ({
-      ...prev,
-      categories: [...(prev.categories || []), newCat],
-    }));
-    setExpanded(prev => ({ ...prev, [newCat.id]: true }));
-  };
-
   const patchCategory = (id, patch) => {
+    // name changes are intentionally ignored — categories are fixed.
+    const { name: _ignored, ...rest } = patch;
     setHierarchy(prev => ({
       ...prev,
-      categories: prev.categories.map(c => c.id === id ? { ...c, ...patch } : c),
-    }));
-  };
-
-  const removeCategory = (id) => {
-    if (!confirm('למחוק את הקטגוריה ואת כל המוצרים שלה?')) return;
-    setHierarchy(prev => ({
-      ...prev,
-      categories: prev.categories.filter(c => c.id !== id),
+      categories: prev.categories.map(c => c.id === id ? { ...c, ...rest } : c),
     }));
   };
 
@@ -204,27 +233,11 @@ export default function GoalsManagement() {
                 isExpanded={!!expanded[cat.id]}
                 onToggle={() => toggleExpanded(cat.id)}
                 onPatch={(patch) => patchCategory(cat.id, patch)}
-                onDelete={() => removeCategory(cat.id)}
                 onAddProduct={() => addProduct(cat.id)}
                 onPatchProduct={(prodId, patch) => patchProduct(cat.id, prodId, patch)}
                 onDeleteProduct={(prodId) => removeProduct(cat.id, prodId)}
               />
             ))}
-
-            <button
-              onClick={addCategory}
-              style={{
-                width: '100%', padding: '12px 14px', borderRadius: 12,
-                border: `1px dashed ${LIFEOS_COLORS.primary}`,
-                backgroundColor: LIFEOS_COLORS.primaryLight,
-                color: LIFEOS_COLORS.primary,
-                fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                fontFamily: 'inherit', marginBottom: 12,
-              }}
-            >
-              <Plus size={16} /> הוסף קטגוריה
-            </button>
           </>
         )}
       </div>
@@ -269,7 +282,7 @@ export default function GoalsManagement() {
 // ─── CategoryCard ──────────────────────────────────────────────
 function CategoryCard({
   category, isExpanded, onToggle,
-  onPatch, onDelete,
+  onPatch,
   onAddProduct, onPatchProduct, onDeleteProduct,
 }) {
   const productsTotal = (category.products || []).reduce(
@@ -279,18 +292,22 @@ function CategoryCard({
 
   return (
     <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
-      {/* Header — name + target inputs side by side, plus expand + delete */}
+      {/* Header — name (locked) + target input + expand. No delete:
+          categories are fixed at Coaching/Courses/Products and the
+          user can only tune their targets + manage products inside. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <button onClick={onToggle} aria-label="פתח/סגור" style={iconBtnStyle}>
           {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </button>
-        <input
-          type="text"
-          value={category.name}
-          onChange={(e) => onPatch({ name: e.target.value })}
-          placeholder="שם קטגוריה"
-          style={{ ...inputStyle, flex: 1.4, fontWeight: 700 }}
-        />
+        <div style={{
+          flex: 1.4,
+          padding: '8px 10px',
+          fontSize: 13, fontWeight: 700,
+          color: LIFEOS_COLORS.textPrimary,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {category.name}
+        </div>
         <input
           type="number"
           inputMode="decimal"
@@ -300,9 +317,6 @@ function CategoryCard({
           style={{ ...inputStyle, flex: 1, fontWeight: 700, textAlign: 'left', direction: 'ltr' }}
         />
         <span style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, paddingLeft: 2 }}>₪</span>
-        <button onClick={onDelete} aria-label="מחק קטגוריה" style={{ ...iconBtnStyle, color: LIFEOS_COLORS.error }}>
-          <Trash2 size={14} />
-        </button>
       </div>
 
       {/* Body — products list + add-product button + delta indicator */}
