@@ -57,6 +57,18 @@ export default function IncomeForm({ isOpen, onClose, userId, onSaved, income = 
     });
   };
 
+  // On save we want to persist the user-facing label, not a catalog
+  // key. Pure free text passes through; a legacy catalog key (e.g.
+  // 'personal_training' coming back from an old row in edit mode)
+  // gets upgraded to its label ('Personal Training') so the
+  // dashboard's per-product breakdown reads cleanly.
+  const resolveProductLabel = (text) => {
+    const trimmed = String(text || '').trim();
+    if (!trimmed) return null;
+    const byKey = ATHLETIGO_PRODUCTS.find(p => p.key === trimmed);
+    return byKey ? byKey.label : trimmed;
+  };
+
   const handleSave = async () => {
     const amount = parseFloat(form.amount);
     if (!amount || amount <= 0) {
@@ -71,7 +83,7 @@ export default function IncomeForm({ isOpen, onClose, userId, onSaved, income = 
     const payload = {
       amount,
       source: form.source,
-      product: form.product || null,
+      product: resolveProductLabel(form.product),
       client_name: form.client_name || null,
       description: form.description || null,
       date: form.date,
