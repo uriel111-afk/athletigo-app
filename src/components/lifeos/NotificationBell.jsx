@@ -118,6 +118,29 @@ export default function NotificationBell({ userId }) {
               >×</button>
             </div>
           ))}
+
+          {/* Footer — always present so the user can jump to the
+              full Notifications page (filters, history, more detail)
+              regardless of whether the dropdown shows real items or
+              the empty-state message. */}
+          <button
+            onClick={() => { setOpen(false); navigate('/notifications'); }}
+            style={{
+              width: '100%',
+              padding: 12,
+              textAlign: 'center',
+              border: 'none',
+              borderTop: `1px solid ${LIFEOS_COLORS.border}`,
+              background: '#FFFFFF',
+              fontSize: 13,
+              fontWeight: 700,
+              color: LIFEOS_COLORS.primary,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            תוארתה לכל →
+          </button>
         </div>
       )}
     </div>
