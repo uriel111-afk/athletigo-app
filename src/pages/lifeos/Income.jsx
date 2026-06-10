@@ -241,13 +241,18 @@ function IncomeRow({ row, isLast, onEdit, onDelete }) {
   const dateStr = new Date(row.date).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
 
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 10,
-      padding: '12px 14px',
-      borderBottom: isLast ? 'none' : `0.5px solid ${LIFEOS_COLORS.border}`,
-    }}>
+    <div
+      onClick={() => onEdit?.()}
+      role="button"
+      tabIndex={0}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '12px 14px',
+        borderBottom: isLast ? 'none' : `0.5px solid ${LIFEOS_COLORS.border}`,
+        cursor: 'pointer',
+      }}>
       <div style={{ fontSize: 22 }}>{emoji}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
