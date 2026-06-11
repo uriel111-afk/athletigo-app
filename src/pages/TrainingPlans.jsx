@@ -804,6 +804,16 @@ export default function TrainingPlans() {
                         expandedPlanId={expandedPlanId}
                         onToggle={(id) => setExpandedPlanId(prev => prev === id ? null : id)}
                         onEdit={(plan) => setSelectedPlan(plan)}
+                        onDuplicate={(plan) => handleDuplicatePlan(plan)}
+                        onShare={(plan) => {
+                          setSharingPlan(plan);
+                          setSelectedShareTrainees([]);
+                          setShowSharePlanDialog(true);
+                        }}
+                        onDelete={(plan) => {
+                          setDeletingPlan(plan);
+                          setShowDeleteDialog(true);
+                        }}
                       />
                   )}
               </div>
@@ -1129,7 +1139,7 @@ export default function TrainingPlans() {
 // Flat list of minimal cards. Click anywhere on the closed header to
 // expand and reveal sections + exercises. Click "ערוך תוכנית" to drop
 // into UnifiedPlanBuilder in-place (no separate route).
-function ExpandablePlansList({ plans, planContents, expandedPlanId, onToggle, onEdit, selecting, isSelected, onSelectToggle }) {
+function ExpandablePlansList({ plans, planContents, expandedPlanId, onToggle, onEdit, onDuplicate, onShare, onDelete, selecting, isSelected, onSelectToggle }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {plans.map(plan => (
@@ -1140,6 +1150,9 @@ function ExpandablePlansList({ plans, planContents, expandedPlanId, onToggle, on
           isExpanded={expandedPlanId === plan.id}
           onToggle={() => onToggle(plan.id)}
           onEdit={() => onEdit(plan)}
+          onDuplicate={onDuplicate ? () => onDuplicate(plan) : undefined}
+          onShare={onShare ? () => onShare(plan) : undefined}
+          onDelete={onDelete ? () => onDelete(plan) : undefined}
           selecting={selecting}
           selected={isSelected ? isSelected(plan.id) : false}
           onSelectToggle={onSelectToggle ? () => onSelectToggle(plan.id) : undefined}
@@ -1203,7 +1216,7 @@ function getSubExercises(ex) {
   return Array.isArray(raw) ? raw : [];
 }
 
-function PlanCard({ plan, contents, isExpanded, onToggle, onEdit, selecting, selected, onSelectToggle }) {
+function PlanCard({ plan, contents, isExpanded, onToggle, onEdit, onDuplicate, onShare, onDelete, selecting, selected, onSelectToggle }) {
   const sections = contents.sections || [];
   const exercises = contents.exercises || [];
   const totalExercises = exercises.length;
@@ -1404,16 +1417,69 @@ function PlanCard({ plan, contents, isExpanded, onToggle, onEdit, selecting, sel
             );
           })}
 
-          <button
-            onClick={(e) => { e.stopPropagation(); onEdit(); }}
-            style={{
-              width: '100%', padding: 14, borderRadius: 14, border: 'none',
-              background: '#FF6F20', color: 'white', fontSize: 15,
-              fontWeight: 600, cursor: 'pointer', marginTop: 14,
-            }}
-          >
-            ✏️ ערוך תוכנית
-          </button>
+          {/* Per-card action row — Edit / Duplicate / Share / Delete.
+              Edit stays brand-orange as the primary action; the other
+              three are neutral chips so they don't compete visually.
+              Each guards its own callback so a parent that doesn't
+              wire one of the three doesn't crash. */}
+          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onEdit && onEdit(); }}
+              title="עריכה"
+              aria-label="ערוך תוכנית"
+              style={{
+                flex: 1, padding: 12, borderRadius: 12, border: 'none',
+                background: '#FF6F20', color: 'white', fontSize: 16,
+                fontWeight: 600, cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}
+            >
+              ✏️
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDuplicate && onDuplicate(); }}
+              title="שיכפול"
+              aria-label="שכפל תוכנית"
+              style={{
+                flex: 1, padding: 12, borderRadius: 12,
+                border: '1px solid #E5E7EB', background: '#FFFFFF',
+                color: '#1F2937', fontSize: 16, fontWeight: 600, cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              📋
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onShare && onShare(); }}
+              title="שיתוף"
+              aria-label="שתף תוכנית"
+              style={{
+                flex: 1, padding: 12, borderRadius: 12,
+                border: '1px solid #E5E7EB', background: '#FFFFFF',
+                color: '#1F2937', fontSize: 16, fontWeight: 600, cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              👥
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDelete && onDelete(); }}
+              title="מחיקה"
+              aria-label="מחק תוכנית"
+              style={{
+                flex: 1, padding: 12, borderRadius: 12,
+                border: '1px solid #FECACA', background: '#FFFFFF',
+                color: '#B91C1C', fontSize: 16, fontWeight: 600, cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              🗑️
+            </button>
+          </div>
         </div>
       )}
     </div>
