@@ -115,11 +115,9 @@ export default function FinanceDashboard() {
           <GoalProgress current={annualIncome} target={annualTarget} />
         </div>
 
-        {/* ─── Monthly summary (read-only) ──────────────────── */}
-        {/* The income tile drills down to /lifeos/income for the
-            full breakdown (per-source, per-product). expenses + net
-            stay non-interactive because they don't have a dedicated
-            breakdown screen — clicking them would feel dead. */}
+        {/* ─── Monthly summary — every tile drills down ──────── */}
+        {/* Income → /lifeos/income, Expenses → /lifeos/expenses,
+            Profit → /reports (the unified coach financial report). */}
         <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
           <div style={sectionTitleStyle}>סיכום החודש</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
@@ -127,6 +125,7 @@ export default function FinanceDashboard() {
               label="הכנסות"
               value={fmt(monthSummary.income)}
               color={LIFEOS_COLORS.success}
+              icon="💰"
               onClick={() => navigate('/lifeos/income')}
               hint="לפירוט"
             />
@@ -134,11 +133,17 @@ export default function FinanceDashboard() {
               label="הוצאות"
               value={fmt(monthSummary.expenses)}
               color={LIFEOS_COLORS.error}
+              icon="📊"
+              onClick={() => navigate('/lifeos/expenses')}
+              hint="לפירוט"
             />
             <SummaryTile
               label="רווח"
               value={fmt(monthSummary.net)}
               color={monthSummary.net >= 0 ? LIFEOS_COLORS.success : LIFEOS_COLORS.error}
+              icon="📈"
+              onClick={() => navigate('/reports')}
+              hint="לדוח"
             />
           </div>
         </div>
@@ -172,7 +177,7 @@ export default function FinanceDashboard() {
   );
 }
 
-function SummaryTile({ label, value, color, onClick, hint }) {
+function SummaryTile({ label, value, color, icon, onClick, hint }) {
   const isClickable = !!onClick;
   return (
     <div
@@ -188,6 +193,11 @@ function SummaryTile({ label, value, color, onClick, hint }) {
         transition: 'transform 0.1s ease',
       }}
     >
+      {icon && (
+        <div style={{ fontSize: 18, lineHeight: 1, marginBottom: 4 }}>
+          {icon}
+        </div>
+      )}
       <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, marginBottom: 4 }}>
         {label}
       </div>
