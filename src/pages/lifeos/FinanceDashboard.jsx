@@ -14,7 +14,7 @@ import {
   LIFEOS_COLORS, LIFEOS_CARD, YEARLY_GOAL,
 } from '@/lib/lifeos/lifeos-constants';
 import {
-  getMonthlySummary, listExpenses, listIncome, getAnnualIncome,
+  listExpenses, listIncome, getAnnualIncome,
 } from '@/lib/lifeos/lifeos-api';
 import { getAnnualTarget } from '@/lib/lifeos/goals-api';
 
@@ -44,7 +44,6 @@ export default function FinanceDashboard() {
   const userId = user?.id;
   const navigate = useNavigate();
 
-  const [monthSummary, setMonthSummary] = useState({ income: 0, expenses: 0, net: 0 });
   const [chart,        setChart]        = useState([]);
   // Annual headline figures — kept in sync with LifeOSDashboard +
   // BusinessPlan via users.goals_hierarchy.annual_target. Defaults
@@ -61,15 +60,13 @@ export default function FinanceDashboard() {
       const from = window[0].from;
       const to = window[window.length - 1].to;
 
-      const [summary, expRows, incRows, target, annualSum] = await Promise.all([
-        getMonthlySummary(userId, new Date()),
+      const [expRows, incRows, target, annualSum] = await Promise.all([
         listExpenses(userId, { from, to }),
         listIncome(userId, { from, to }),
         getAnnualTarget(userId, YEARLY_GOAL).catch(() => YEARLY_GOAL),
         getAnnualIncome(userId).catch(() => 0),
       ]);
 
-      setMonthSummary(summary || { income: 0, expenses: 0, net: 0 });
       setAnnualTarget(target);
       setAnnualIncome(annualSum);
 
@@ -115,37 +112,29 @@ export default function FinanceDashboard() {
           <GoalProgress current={annualIncome} target={annualTarget} />
         </div>
 
-        {/* ─── Monthly summary — every tile drills down ──────── */}
-        {/* Income → /lifeos/income, Expenses → /lifeos/expenses,
-            Profit → /reports (the unified coach financial report). */}
-        <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
-          <div style={sectionTitleStyle}>סיכום החודש</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-            <SummaryTile
-              label="הכנסות"
-              value={fmt(monthSummary.income)}
-              color={LIFEOS_COLORS.success}
-              icon="💰"
-              onClick={() => navigate('/lifeos/income')}
-              hint="לפירוט"
-            />
-            <SummaryTile
-              label="הוצאות"
-              value={fmt(monthSummary.expenses)}
-              color={LIFEOS_COLORS.error}
-              icon="📊"
-              onClick={() => navigate('/lifeos/expenses')}
-              hint="לפירוט"
-            />
-            <SummaryTile
-              label="רווח"
-              value={fmt(monthSummary.net)}
-              color={monthSummary.net >= 0 ? LIFEOS_COLORS.success : LIFEOS_COLORS.error}
-              icon="📈"
-              onClick={() => navigate('/reports')}
-              hint="לדוח"
-            />
-          </div>
+        {/* ─── Nav tiles — each drills into its own page ─────── */}
+        {/* Tiles are pure navigation now (no inline amounts) — bigger
+            tap targets, clearer affordance. Numbers live on the
+            destination pages. */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+          <NavTile
+            icon="💰"
+            label="הכנסה"
+            hint="← לפירוט"
+            onClick={() => navigate('/lifeos/income')}
+          />
+          <NavTile
+            icon="📊"
+            label="הוצאות"
+            hint="← לפירוט"
+            onClick={() => navigate('/lifeos/expenses')}
+          />
+          <NavTile
+            icon="📈"
+            label="רווח"
+            hint="← לדוח"
+            onClick={() => navigate('/reports')}
+          />
         </div>
 
         {/* ─── CashFlow 6-month bar chart ───────────────────── */}
@@ -177,38 +166,27 @@ export default function FinanceDashboard() {
   );
 }
 
-function SummaryTile({ label, value, color, icon, onClick, hint }) {
-  const isClickable = !!onClick;
+function NavTile({ icon, label, hint, onClick }) {
   return (
     <div
       onClick={onClick}
-      role={isClickable ? 'button' : undefined}
-      tabIndex={isClickable ? 0 : undefined}
+      role="button"
+      tabIndex={0}
       style={{
-        padding: 10, borderRadius: 10,
-        backgroundColor: '#FFFFFF',
-        border: `1px solid ${isClickable ? LIFEOS_COLORS.primary : LIFEOS_COLORS.border}`,
+        ...LIFEOS_CARD,
+        padding: 16,
         textAlign: 'center',
-        cursor: isClickable ? 'pointer' : 'default',
-        transition: 'transform 0.1s ease',
+        cursor: 'pointer',
+        border: `2px solid ${LIFEOS_COLORS.border}`,
       }}
     >
-      {icon && (
-        <div style={{ fontSize: 18, lineHeight: 1, marginBottom: 4 }}>
-          {icon}
-        </div>
-      )}
-      <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, marginBottom: 4 }}>
+      <div style={{ fontSize: 18, marginBottom: 8 }}>{icon}</div>
+      <div style={{ fontSize: 17, fontWeight: 800, color: LIFEOS_COLORS.textPrimary, marginBottom: 6 }}>
         {label}
       </div>
-      <div style={{ fontSize: 17, fontWeight: 800, color }}>
-        {value}₪
+      <div style={{ fontSize: 13, color: LIFEOS_COLORS.textSecondary }}>
+        {hint}
       </div>
-      {hint && (
-        <div style={{ fontSize: 9, fontWeight: 700, color: LIFEOS_COLORS.primary, marginTop: 2 }}>
-          {hint} ←
-        </div>
-      )}
     </div>
   );
 }
