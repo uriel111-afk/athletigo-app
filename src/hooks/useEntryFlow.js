@@ -88,7 +88,6 @@ export function useEntryFlow(trainee) {
     if (!trainee?.id) return;
     if (trainee.client_status === 'onboarding') return; // wizard owns this user
     checkAndShowSessions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trainee?.id, trainee?.client_status]);
 
   const closeSessions = useCallback(() => {

@@ -315,7 +315,6 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // metadata, etc.). Logs once per plan id change.
   useEffect(() => {
     if (plan) {
-      // eslint-disable-next-line no-console
       console.log('[HEADER] full plan object:', JSON.stringify(plan, null, 2));
     }
   }, [plan?.id]);

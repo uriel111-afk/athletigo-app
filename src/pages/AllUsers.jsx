@@ -1362,7 +1362,6 @@ export default function AllUsers() {
 
           // Verify card numbers match the packages tab.
           if (typeof window !== 'undefined' && window.__DEBUG_TRAINEE_CARDS__) {
-            // eslint-disable-next-line no-console
             console.log('[TraineeCard]', t.full_name,
               'used:', usedInPkg, 'total:', totalInPkg,
               'remaining:', remaining,

@@ -519,7 +519,7 @@ export default function Onboarding() {
   // snap back to the first step so we never render a blank panel.
   useEffect(() => {
     if (STEPS.length && !STEPS.some(s => s.id === step)) setStep(STEPS[0].id);
-  }, [STEPS]); // eslint-disable-line
+  }, [STEPS]);
 
   if (bootstrapping || !user) return <PageLoader fullHeight />;
 

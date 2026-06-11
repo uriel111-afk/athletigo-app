@@ -128,7 +128,7 @@ export default function AgreementFlowDialog({
 }) {
   const queryClient = useQueryClient();
   const template = DOCUMENT_TEMPLATES[templateKey];
-  const initialData = useMemo(() => template ? buildInitial(template) : {}, [templateKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const initialData = useMemo(() => template ? buildInitial(template) : {}, [templateKey]);
 
   const {
     data: fieldValues, setData: setFieldValues,

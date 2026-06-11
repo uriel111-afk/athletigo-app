@@ -127,7 +127,6 @@ export default function GoalFormDialog({ isOpen, onClose, traineeId, traineeName
   // the form.
   useEffect(() => {
     if (isOpen) setStep(editingGoal || formData?.goal_preset ? 2 : 1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, editingGoal?.id]);
 
   const selectedPreset = GOAL_PRESETS.find((p) => p.type === formData?.goal_preset) || null;

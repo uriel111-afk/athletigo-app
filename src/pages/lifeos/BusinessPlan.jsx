@@ -461,7 +461,6 @@ function CoursesList({ courses, onAdvance }) {
 }
 
 // ─── Opportunities (legacy list — kept for backwards compat) ─────
-// eslint-disable-next-line no-unused-vars
 function OpportunitiesList({ items }) {
   if (!items?.length) return <EmptyCard text="אין הזדמנויות" />;
   return (

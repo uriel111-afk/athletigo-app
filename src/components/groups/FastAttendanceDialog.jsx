@@ -97,7 +97,7 @@ export default function FastAttendanceDialog({
     setLocation('סטודיו');
     setNotes('');
     setAttendance(Object.fromEntries(members.map((m) => [m.trainee_id, 'הגיע'])));
-  }, [group?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [group?.id]);
 
   const members = group
     ? (groupMembers || []).filter((m) => m.group_id === group.id)

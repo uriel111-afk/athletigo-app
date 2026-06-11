@@ -283,7 +283,6 @@ export default function Clocks() {
     else if (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch') {
       setActiveTab(clock.activeClock);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Minimize — NEVER stops intervals, navigates to role dashboard,
@@ -307,7 +306,6 @@ export default function Clocks() {
       const hasAny = !!clock?.activeClock || (activeTimers?.length || 0) > 0;
       if (hasAny) setIsMinimized(true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Update floating widget every tick (timer/stopwatch from ClockContext)

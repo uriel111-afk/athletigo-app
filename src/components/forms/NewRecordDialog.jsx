@@ -84,7 +84,6 @@ export default function NewRecordDialog({
     } else {
       setForm(initialForm);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isEdit, editData?.id]);
 
   if (!isOpen) return null;

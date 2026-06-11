@@ -78,7 +78,7 @@ export default function SignPendingAgreementDialog({ open, onClose, doc, isCoach
       trainee_name: doc.document_data?.trainee_name || '',
       signed_date: today,
     }),
-    [doc.document_type, mergedValues, doc.document_data?.trainee_name, today], // eslint-disable-line react-hooks/exhaustive-deps
+    [doc.document_type, mergedValues, doc.document_data?.trainee_name, today],
   );
 
   async function handleSign() {

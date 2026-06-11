@@ -2100,7 +2100,7 @@ export default function TraineeProfile() {
 
       // Health form is initialized via useFormDraft below — handled on dialog open
     }
-  }, [effectiveUserId, showEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [effectiveUserId, showEdit]);
 
   // Health declaration form — drafted + auto-saved while dialog is open
   const healthInitial = useMemo(() => {
@@ -2428,7 +2428,6 @@ export default function TraineeProfile() {
     if (requiredPerm && !traineePerms?.[requiredPerm]) {
       setActiveTab('personal');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCoach, traineePerms, activeTab]);
 
   // Broadcast a 'tab-changed' window event whenever activeTab flips.

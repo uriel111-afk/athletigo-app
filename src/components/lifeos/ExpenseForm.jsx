@@ -108,7 +108,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
     return () => {
       pushDebugLog('ExpenseForm', 'unmount');
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Reset form whenever the dialog opens — pre-fill if editing OR
   // restore from a sessionStorage draft if one exists (new-expense

@@ -81,7 +81,6 @@ export default function PopupNotificationManager() {
     return () => { cancelled = true; };
     // user.id is the only meaningful change driver — re-running on
     // every render would cause popup flicker.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, isCoach]);
 
   if (!loaded || queue.length === 0) return null;

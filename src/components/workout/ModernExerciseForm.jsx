@@ -408,7 +408,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     // next render (when sync-back fires for real) state holds the
     // hydrated values and the gate is open.
     queueMicrotask(() => { hydratedRef.current = true; });
-  }, [exercise?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [exercise?.id]);
 
   // ── Sync state → exercise.mode + tabata_data ──────────────────
   // Single batched onChange writes everything atomically. Diff-gated
@@ -481,7 +481,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     activeMethod, selectedSetFields, plannedSetsDraft, methodConfig,
     roundsDraft, stationsDraft, rotationExercises, clockSettings,
     subExercises,
-  ]); // eslint-disable-line react-hooks/exhaustive-deps
+  ]);
 
   // ── Handlers ─────────────────────────────────────────────────
   const handleMethodClick = (methodId) => {
@@ -740,7 +740,6 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
             onChange={(e) => {
               const val = e.target.value;
               if (val === '__custom__') {
-                // eslint-disable-next-line no-alert
                 const custom = window.prompt(`הוסף ${meta.label} מותאם:`);
                 if (custom && custom.trim()) {
                   const trimmed = custom.trim();

@@ -142,7 +142,6 @@ export default function PlanBuilder() {
       if (typeof d?.description === 'string') setDescription(d.description);
       if (Array.isArray(d?.selectedTrainees)) setSelectedTrainees(d.selectedTrainees);
     } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
