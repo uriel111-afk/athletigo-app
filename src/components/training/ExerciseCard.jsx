@@ -3023,6 +3023,36 @@ export default function ExerciseCard({
                           </span>
                         </div>
 
+                        {/* Per-sub-exercise param pills — shared shape with
+                            EXERCISE_LIST. innerRefs[drillIdx] is the same
+                            object the hero already reads reps/hold_seconds
+                            from, so the picked text params (body_position,
+                            grip, side, …) and numerics (weight_kg, rest)
+                            surface here without touching hero/fill logic. */}
+                        {(() => {
+                          const subParamItems = buildSubParamItems(ref);
+                          if (subParamItems.length === 0) return null;
+                          return (
+                            <div style={{
+                              display: 'flex', flexWrap: 'wrap', gap: 4,
+                              direction: 'rtl',
+                              marginBottom: 10,
+                            }}>
+                              {subParamItems.map((it) => (
+                                <span key={it.key} style={{
+                                  background: '#FFF0E4',
+                                  color: '#993C1D',
+                                  fontSize: 11,
+                                  fontWeight: 500,
+                                  padding: '2px 7px',
+                                  borderRadius: 6,
+                                  whiteSpace: 'nowrap',
+                                }}>{it.display}</span>
+                              ))}
+                            </div>
+                          );
+                        })()}
+
                         {/* Two-column: hero TARGET on right, fill boxes on left */}
                         <div style={{ display: 'flex', flexDirection: 'row', gap: 14, alignItems: 'stretch' }}>
                           {/* RIGHT — hero target + rounds count */}
