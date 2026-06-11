@@ -139,7 +139,7 @@ export default function BusinessPlan() {
       ) : (
         <>
           {tab === 'streams'       && <StreamsList streams={revenueStreams} />}
-          {tab === 'simulator'     && <RevenueSimulator />}
+          {tab === 'simulator'     && <RevenueSimulator monthlyRequired={monthlyRequired} />}
           {tab === 'courses'       && <CoursesList courses={courses} onAdvance={advanceCourseStatus} />}
           {tab === 'opportunities' && <OpportunityMatrix items={opportunities} onTake={takeOpportunity} />}
           {tab === 'milestones'    && <MilestonesList items={milestones} current={monthlyIncome} />}
@@ -230,7 +230,7 @@ function StreamsList({ streams }) {
 
 // ─── Revenue Simulator ───────────────────────────────────────────
 
-function RevenueSimulator() {
+function RevenueSimulator({ monthlyRequired }) {
   // Sliders: each dimension comes with a default that maps to the
   // realistic year-1 plan from GoalBreakdown.
   const [dm, setDm] = React.useState(10);
@@ -248,7 +248,9 @@ function RevenueSimulator() {
   const courseRev   = students * coursePrice;
   const ptRev       = pt * 200;
   const total       = dmRev + coachingRev + wsRev + courseRev + ptRev;
-  const goalPct     = Math.min(100, (total / MONTHLY_GOAL_REQUIRED) * 100);
+  const goalPct     = monthlyRequired > 0
+    ? Math.min(100, (total / monthlyRequired) * 100)
+    : 0;
 
   return (
     <div style={{ ...LIFEOS_CARD }}>
@@ -284,7 +286,7 @@ function RevenueSimulator() {
           }} />
         </div>
         <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, marginTop: 6, textAlign: 'left' }}>
-          {goalPct.toFixed(1)}% מ-{fmt(MONTHLY_GOAL_REQUIRED)}₪ נדרש לחודש
+          {goalPct.toFixed(1)}% מ-{fmt(monthlyRequired)}₪ נדרש לחודש
         </div>
       </div>
     </div>
