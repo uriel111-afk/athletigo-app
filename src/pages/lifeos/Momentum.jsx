@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabaseClient';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import Heatmap from '@/components/lifeos/Heatmap';
 import RecordsBoard from '@/components/lifeos/RecordsBoard';
-import { LIFEOS_COLORS, LIFEOS_CARD, YEARLY_GOAL } from '@/lib/lifeos/lifeos-constants';
+import { LIFEOS_COLORS, LIFEOS_CARD } from '@/lib/lifeos/lifeos-constants';
 import { calculateStreak } from '@/lib/lifeos/streak-calculator';
 
 const dayKey = (d) => new Date(d).toISOString().slice(0, 10);

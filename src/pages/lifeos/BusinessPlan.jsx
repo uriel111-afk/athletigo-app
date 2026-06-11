@@ -3,12 +3,13 @@ import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import {
   LIFEOS_COLORS, LIFEOS_CARD,
-  YEARLY_GOAL, MONTHLY_GOAL_REQUIRED,
+  YEARLY_GOAL,
   COURSE_STATUS,
 } from '@/lib/lifeos/lifeos-constants';
 import {
   getBusinessPlan, listCourses, getMonthlySummary, updateCourse, addTask,
 } from '@/lib/lifeos/lifeos-api';
+import { getAnnualTarget } from '@/lib/lifeos/goals-api';
 import { toast } from 'sonner';
 import ConfettiEffect from '@/components/lifeos/ConfettiEffect';
 
@@ -22,6 +23,9 @@ export default function BusinessPlan() {
   const [plan, setPlan] = useState(null);
   const [courses, setCourses] = useState([]);
   const [monthlyIncome, setMonthlyIncome] = useState(0);
+  // Real annual goal from users.goals_hierarchy. Falls back to
+  // YEARLY_GOAL so first-time users aren't staring at 0.
+  const [annualTarget, setAnnualTarget] = useState(YEARLY_GOAL);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState('streams'); // streams | simulator | courses | opportunities | milestones | risks
   const [confettiFire, setConfettiFire] = useState(false);
@@ -29,14 +33,16 @@ export default function BusinessPlan() {
   const load = useCallback(async () => {
     if (!userId) return;
     try {
-      const [p, c, ms] = await Promise.all([
+      const [p, c, ms, target] = await Promise.all([
         getBusinessPlan(userId).catch(() => null),
         listCourses(userId).catch(() => []),
         getMonthlySummary(userId).catch(() => ({ income: 0 })),
+        getAnnualTarget(userId, YEARLY_GOAL).catch(() => YEARLY_GOAL),
       ]);
       setPlan(p);
       setCourses(c || []);
       setMonthlyIncome(ms.income || 0);
+      setAnnualTarget(target);
     } catch (err) {
       console.error('[BusinessPlan] load error:', err);
       toast.error('שגיאה בטעינה');
@@ -52,7 +58,8 @@ export default function BusinessPlan() {
   const milestones = plan?.milestones || [];
   const risks = plan?.risks || [];
 
-  const gap = Math.max(0, MONTHLY_GOAL_REQUIRED - monthlyIncome);
+  const monthlyRequired = Math.round(annualTarget / 12);
+  const gap = Math.max(0, monthlyRequired - monthlyIncome);
 
   // Course Launch Tracker — advances to the next status. Confetti
   // fires when a course reaches "launched".
@@ -100,10 +107,10 @@ export default function BusinessPlan() {
           יעד שנתי
         </div>
         <div style={{ fontSize: 24, fontWeight: 800, color: LIFEOS_COLORS.textPrimary }}>
-          {fmt(YEARLY_GOAL)}₪
+          {fmt(annualTarget)}₪
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
-          <MiniStat label="חודשי נדרש" value={MONTHLY_GOAL_REQUIRED} color={LIFEOS_COLORS.primary} />
+          <MiniStat label="חודשי נדרש" value={monthlyRequired} color={LIFEOS_COLORS.primary} />
           <MiniStat label="חודשי בפועל" value={monthlyIncome}
                     color={monthlyIncome > 0 ? LIFEOS_COLORS.success : LIFEOS_COLORS.textSecondary} />
           <MiniStat label="פער" value={gap}

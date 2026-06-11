@@ -49,6 +49,16 @@ export async function getGoalsHierarchy(userId) {
   };
 }
 
+// Convenience read for callers that only need the headline annual
+// figure (LifeOSDashboard, BusinessPlan, GoalBreakdown — anywhere
+// the YEARLY_GOAL constant used to be hardcoded). Falls back to the
+// supplied default when the hierarchy is missing or carries 0, so a
+// brand-new user without a saved goal still sees a sensible target.
+export async function getAnnualTarget(userId, fallback = 0) {
+  const h = await getGoalsHierarchy(userId);
+  return Number(h?.annual_target) || fallback;
+}
+
 export async function updateGoalsHierarchy(userId, hierarchy) {
   if (!userId) throw new Error('userId required');
   if (!hierarchy || typeof hierarchy !== 'object') {

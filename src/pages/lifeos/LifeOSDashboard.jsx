@@ -21,6 +21,7 @@ import {
   markMentorMessageActedOn,
   listIncome,
 } from '@/lib/lifeos/lifeos-api';
+import { getAnnualTarget } from '@/lib/lifeos/goals-api';
 import { toast } from 'sonner';
 import { calculateStreak } from '@/lib/lifeos/streak-calculator';
 import { calculateWeeklyScore } from '@/lib/lifeos/score-calculator';
@@ -34,6 +35,10 @@ export default function LifeOSDashboard() {
   const userId = user?.id;
 
   const [annualIncome, setAnnualIncome] = useState(0);
+  // annual goal target, read from users.goals_hierarchy. Falls back to
+  // YEARLY_GOAL for users who never opened /lifeos/goals so the
+  // progress bar isn't meaningless.
+  const [annualTarget, setAnnualTarget] = useState(YEARLY_GOAL);
   const [summary, setSummary] = useState({ income: 0, expenses: 0, net: 0 });
   const [mentor, setMentor] = useState(null);
   const [recentWins, setRecentWins] = useState([]);
@@ -46,8 +51,9 @@ export default function LifeOSDashboard() {
   const loadAll = useCallback(async () => {
     if (!userId) return;
     try {
-      const [annual, monthSum, msg, recentIncomeRows, streak, score] = await Promise.all([
+      const [annual, target, monthSum, msg, recentIncomeRows, streak, score] = await Promise.all([
         getAnnualIncome(userId).catch(() => 0),
+        getAnnualTarget(userId, YEARLY_GOAL).catch(() => YEARLY_GOAL),
         getMonthlySummary(userId).catch(() => ({ income: 0, expenses: 0, net: 0 })),
         analyzeMentorInsight(userId).catch(() => null),
         listIncome(userId).then(r => r.slice(0, 5)).catch(() => []),
@@ -55,6 +61,7 @@ export default function LifeOSDashboard() {
         calculateWeeklyScore(userId).catch(() => ({ total: 0 })),
       ]);
       setAnnualIncome(annual);
+      setAnnualTarget(target);
       setSummary({ income: monthSum.income, expenses: monthSum.expenses, net: monthSum.net });
       setMentor(msg);
       setStreakDays(typeof streak === 'number' ? streak : (streak?.days || 0));
@@ -105,12 +112,12 @@ export default function LifeOSDashboard() {
 
       {/* Goal progress */}
       <div style={{ marginBottom: 14 }}>
-        <GoalProgress current={annualIncome} target={YEARLY_GOAL} />
+        <GoalProgress current={annualIncome} target={annualTarget} />
       </div>
 
       {/* Goal breakdown — yearly → daily + Year 1/2 simulation */}
       <div style={{ marginBottom: 14 }}>
-        <GoalBreakdown />
+        <GoalBreakdown target={annualTarget} />
       </div>
 
       {/* Streak + weekly score row */}

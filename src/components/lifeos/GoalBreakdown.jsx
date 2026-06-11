@@ -4,10 +4,6 @@ import { LIFEOS_COLORS, LIFEOS_CARD, YEARLY_GOAL } from '@/lib/lifeos/lifeos-con
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
 
-const monthly = Math.round(YEARLY_GOAL / 12);
-const weekly = Math.round(YEARLY_GOAL / 52);
-const daily  = Math.round(YEARLY_GOAL / 365);
-
 const YEAR_1_ROWS = [
   { label: 'Dream Machine × 10/חודש',           value: 11_990 },
   { label: 'Speed Rope × 20/חודש',               value: 4_400 },
@@ -27,9 +23,18 @@ const YEAR_2_ROWS = [
 ];
 const YEAR_2_TOTAL = YEAR_2_ROWS.reduce((s, r) => s + r.value, 0);
 
-export default function GoalBreakdown() {
+export default function GoalBreakdown({ target = YEARLY_GOAL }) {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
+
+  // Derive monthly/weekly/daily live so the figures track the
+  // user's actual annual_target rather than the static constant.
+  const monthly = Math.round(target / 12);
+  const weekly  = Math.round(target / 52);
+  const daily   = Math.round(target / 365);
+  const monthlyKLabel = monthly >= 1000
+    ? `${Math.round(monthly / 1000)}K`
+    : monthly.toLocaleString('he-IL');
 
   return (
     <div style={{ ...LIFEOS_CARD }}>
@@ -51,7 +56,7 @@ export default function GoalBreakdown() {
           color: LIFEOS_COLORS.textPrimary, fontSize: 12, fontWeight: 600, cursor: 'pointer',
         }}
       >
-        {expanded ? 'הסתר סימולציה' : 'איך מגיעים ל-833K/חודש? →'}
+        {expanded ? 'הסתר סימולציה' : `איך מגיעים ל-${monthlyKLabel}/חודש? →`}
       </button>
 
       {expanded && (
