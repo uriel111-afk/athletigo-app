@@ -2645,6 +2645,37 @@ export default function ExerciseCard({
                           </span>
                         </div>
 
+                        {/* Per-station param pills — shared shape with
+                            EXERCISE_LIST and SUPERSET/COMBO. The station
+                            object itself carries picked PARAM_CATALOG keys
+                            (weight_kg, rest_seconds, body_position, grip, …)
+                            written by the form's chip picker; per-station
+                            set_fields is absent so buildSubParamItems'
+                            fallback path surfaces every non-empty value. */}
+                        {(() => {
+                          const stationParamItems = buildSubParamItems(station);
+                          if (stationParamItems.length === 0) return null;
+                          return (
+                            <div style={{
+                              display: 'flex', flexWrap: 'wrap', gap: 4,
+                              direction: 'rtl',
+                              marginBottom: 10,
+                            }}>
+                              {stationParamItems.map((it) => (
+                                <span key={it.key} style={{
+                                  background: '#FFF0E4',
+                                  color: '#993C1D',
+                                  fontSize: 11,
+                                  fontWeight: 500,
+                                  padding: '2px 7px',
+                                  borderRadius: 6,
+                                  whiteSpace: 'nowrap',
+                                }}>{it.display}</span>
+                              ))}
+                            </div>
+                          );
+                        })()}
+
                         {/* Two-column: hero TARGET on right, fill boxes on left */}
                         <div style={{ display: 'flex', flexDirection: 'row', gap: 14, alignItems: 'stretch' }}>
                           {/* RIGHT — hero target + rounds count */}
