@@ -9,6 +9,7 @@ import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 import { useClock } from "@/contexts/ClockContext";
 import { useSmartBackHandler } from "@/hooks/useSmartBack";
 import { getMethodByMode } from '../../constants/trainingMethods';
+import { PARAM_CATALOG } from '../../constants/paramCatalog';
 import { parsePlannedSets, loadActualsForExercise, loadActualsByDrillForExercise, saveSetActual } from '../../lib/plannedSets';
 import { UNIT_COLORS } from '../../constants/unitColors';
 import { supabase } from '../../lib/supabaseClient';
@@ -1425,6 +1426,46 @@ export default function ExerciseCard({
   // just map. Order is the spec'd "timer params first, body params
   // after" sequence and is identical for both the pills and the
   // expanded list rows.
+  // EXERCISE_LIST sub-exercise renderer. Sub-exercises are written by
+  // ModernExerciseForm with PARAM_CATALOG ids as top-level keys
+  // (reps, weight_kg, hold_seconds, rest_seconds, body_position, …),
+  // which do NOT match the parent-column names buildParamItemsFor
+  // reads (weight, static_hold_time, rest_time, …). So sub pills go
+  // through this dedicated helper that looks values up by the same
+  // ids the form picker uses.
+  const buildSubParamItems = (sub) => {
+    if (!sub || typeof sub !== 'object') return [];
+
+    // Field order: prefer the coach's picked order (set_fields), fall
+    // back to "every catalog id that has a non-empty value" so legacy
+    // rows saved without set_fields still surface their params.
+    const picked = Array.isArray(sub.set_fields) ? sub.set_fields : null;
+    const hasVal = (v) => v != null && v !== '';
+    const fieldIds = (picked && picked.length > 0)
+      ? picked.filter((id) => PARAM_CATALOG[id] && hasVal(sub[id]))
+      : Object.keys(PARAM_CATALOG).filter((id) => hasVal(sub[id]));
+
+    const items = [];
+    for (const fieldId of fieldIds) {
+      const meta = PARAM_CATALOG[fieldId];
+      if (!meta) continue;
+      const raw = sub[fieldId];
+      if (!hasVal(raw)) continue;
+
+      const value = String(raw);
+      // Units mirror the parent buildParamItemsFor wording (full
+      // Hebrew word for seconds — never 'שנ' here, the catalog uses
+      // 'שניות' explicitly for hold_seconds).
+      let unit = null;
+      if (fieldId === 'weight_kg')   unit = 'ק"ג';
+      else if (fieldId === 'hold_seconds' || fieldId === 'rest_seconds') unit = 'שניות';
+
+      const display = [meta.label, value, unit].filter(Boolean).join(' ');
+      items.push({ key: fieldId, display });
+    }
+    return items;
+  };
+
   // Renamed from buildParamItems → buildParamItemsFor so we can call it
   // for any exercise-shaped object (parent or a sub-exercise inside a
   // list/tabata container). Defaults preserve the original behavior
@@ -4534,7 +4575,7 @@ export default function ExerciseCard({
                 </div>
               )}
               {drills.map((sub, di) => {
-                const subParamItems = buildParamItemsFor(sub, null);
+                const subParamItems = buildSubParamItems(sub);
                 return (
                   <div key={sub.id || `drill-${di}`} style={{
                     background: '#FFFFFF',
