@@ -67,7 +67,7 @@ export async function loadActualsForExercise(supabase, executionId, exerciseId, 
   if (!supabase || !executionId || !exerciseId) return {};
   const { data, error } = await supabase
     .from('exercise_set_logs')
-    .select('set_number, drill_index, reps_completed, time_completed, weight_used, completed')
+    .select('set_number, drill_index, reps_completed, time_completed, weight_used, rpe_actual, rest_seconds_actual, tempo_actual, completed')
     .eq('execution_id', executionId)
     .eq('exercise_id', exerciseId)
     .eq('drill_index', drillIndex);
@@ -78,6 +78,9 @@ export async function loadActualsForExercise(supabase, executionId, exerciseId, 
       reps: row.reps_completed,
       hold_seconds: row.time_completed,
       weight_kg: row.weight_used,
+      rpe: row.rpe_actual,
+      rest_seconds: row.rest_seconds_actual,
+      tempo: row.tempo_actual,
       completed: !!row.completed,
     };
   }
@@ -95,7 +98,7 @@ export async function loadActualsByDrillForExercise(supabase, executionId, exerc
   if (!supabase || !executionId || !exerciseId) return {};
   const { data, error } = await supabase
     .from('exercise_set_logs')
-    .select('set_number, drill_index, reps_completed, time_completed, weight_used, completed')
+    .select('set_number, drill_index, reps_completed, time_completed, weight_used, rpe_actual, rest_seconds_actual, tempo_actual, completed')
     .eq('execution_id', executionId)
     .eq('exercise_id', exerciseId);
   if (error || !Array.isArray(data)) return {};
@@ -107,6 +110,9 @@ export async function loadActualsByDrillForExercise(supabase, executionId, exerc
       reps: row.reps_completed,
       hold_seconds: row.time_completed,
       weight_kg: row.weight_used,
+      rpe: row.rpe_actual,
+      rest_seconds: row.rest_seconds_actual,
+      tempo: row.tempo_actual,
       completed: !!row.completed,
     };
   }

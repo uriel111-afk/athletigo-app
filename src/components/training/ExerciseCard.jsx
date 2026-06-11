@@ -92,8 +92,46 @@ function ProgressBar({ percent, color }) {
 // while the trainee types. Used by NONE/REPS, PYRAMID/DROP_SET/
 // DELORME, and REST_PAUSE active rows — never appears on completed
 // or pending items.
-function ActualInput({ target, value, unit, color = '#FF6F20', onChange }) {
+function ActualInput({ target, value, unit, color = '#FF6F20', onChange, type = 'number' }) {
   const stopProp = (e) => e.stopPropagation();
+
+  // Text mode — adaptive trainee fill for text-typed PARAM_CATALOG fields
+  // (tempo, body_position, grip, …). Single text input + optional unit
+  // chip; no +/− buttons, no quick-pick strip. onChange forwards the raw
+  // string (or null for empty). Layout matches the number mode so a row
+  // mixing text + number cells stays vertically aligned.
+  if (type === 'text') {
+    return (
+      <span
+        style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}
+        onClick={stopProp}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <input
+            type="text"
+            placeholder={target != null ? String(target) : ''}
+            value={value ?? ''}
+            onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
+            style={{
+              width: 96,
+              textAlign: 'center',
+              fontFamily: 'inherit',
+              fontWeight: 700,
+              fontSize: 16,
+              color: '#1a1a1a',
+              border: `1.5px solid ${color}`,
+              borderRadius: 10,
+              padding: '6px 8px',
+              background: '#FFFFFF',
+              outline: 'none',
+            }}
+          />
+          {unit && <span style={{ fontSize: 12, color: '#888' }}>{unit}</span>}
+        </span>
+      </span>
+    );
+  }
+
   // Base for +/− math: typed value wins, else the target, else 0.
   // Display + comparisons round to integers so chips/buttons always
   // land on whole numbers even when targets carry trailing zeros.
@@ -1168,11 +1206,24 @@ export default function ExerciseCard({
     // Empty inputs at save time → fall back to the planned target
     // ("tap once to accept the target" UX). Typed values override.
     const planned = parsePlannedSets(exercise)[pyramidActiveIdx] || {};
-    const payload = {
-      reps:         staged.reps         != null ? staged.reps         : (planned.reps         ?? null),
-      weight_kg:    staged.weight_kg    != null ? staged.weight_kg    : (planned.weight_kg    ?? null),
-      hold_seconds: staged.hold_seconds != null ? staged.hold_seconds : (planned.hold_seconds ?? null),
-    };
+    // Adaptive payload — forward every field the coach picked (setFields),
+    // preferring the trainee's staged value, falling back to the planned
+    // target. saveSetActual maps reps / hold_seconds / weight_kg into the
+    // original three log columns and rpe / rest_seconds / tempo into the
+    // 2026-06 columns; any other picked field is harmless (saveSetActual
+    // ignores unknown keys). Keep the historic "always include reps" so
+    // a tap-to-accept advance still marks reps_completed for the
+    // auto-PR / progress reads.
+    const fields = getSetFields(exercise);
+    const payload = {};
+    for (const f of fields) {
+      const v = (staged?.[f] != null && staged[f] !== '') ? staged[f] : planned?.[f];
+      if (v != null && v !== '') payload[f] = v;
+    }
+    if (!('reps' in payload)) {
+      const rp = staged?.reps != null ? staged.reps : (planned?.reps ?? null);
+      payload.reps = rp;
+    }
     setPyramidSaving(true);
     // drillIndex=0 — pyramid/drop_set/delorme/rest_pause are single-
     // exercise methods, every row lives on drill 0.
@@ -3287,6 +3338,15 @@ export default function ExerciseCard({
                 return <EmptyMethodPlaceholder headline="טרם הוגדרו מיני-סטים" />;
               }
 
+              // Adaptive fill cells — driven by the coach's picked
+              // set_fields. Identical convention to the PLANNED_SETS
+              // trainee branch below; sets / rounds are excluded because
+              // they describe the WHOLE exercise, not a per-set actual.
+              const setFields = getSetFields(exercise);
+              const fillFields = setFields.filter(
+                (f) => PARAM_CATALOG[f] && f !== 'sets' && f !== 'rounds',
+              );
+
               const activeIdx = pyramidActiveIdx;
               const completedCount = plannedSets.reduce(
                 (n, _, i) => n + (pyramidActuals[i + 1]?.completed ? 1 : 0),
@@ -3417,28 +3477,25 @@ export default function ExerciseCard({
                               {label}
                             </span>
                             {active ? (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                                <ActualInput
-                                  target={set.reps}
-                                  value={pyramidActuals[i + 1]?.reps}
-                                  color="#7F1D1D"
-                                  onChange={(n) => setPyramidActuals((prev) => ({
-                                    ...prev,
-                                    [i + 1]: { ...(prev[i + 1] || {}), reps: n },
-                                  }))}
-                                />
-                                {set.weight_kg != null && (
-                                  <ActualInput
-                                    target={set.weight_kg}
-                                    value={pyramidActuals[i + 1]?.weight_kg}
-                                    unit='ק"ג'
-                                    color="#7F1D1D"
-                                    onChange={(n) => setPyramidActuals((prev) => ({
-                                      ...prev,
-                                      [i + 1]: { ...(prev[i + 1] || {}), weight_kg: n },
-                                    }))}
-                                  />
-                                )}
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                {fillFields.map((fieldId) => {
+                                  const meta = PARAM_CATALOG[fieldId];
+                                  const fallbackColor = '#7F1D1D';
+                                  return (
+                                    <ActualInput
+                                      key={fieldId}
+                                      target={set[fieldId]}
+                                      value={pyramidActuals[i + 1]?.[fieldId]}
+                                      unit={UNIT_COLOR_BY_FIELD[fieldId]?.label ?? null}
+                                      color={fallbackColor}
+                                      type={meta.type === 'text' ? 'text' : 'number'}
+                                      onChange={(v) => setPyramidActuals((prev) => ({
+                                        ...prev,
+                                        [i + 1]: { ...(prev[i + 1] || {}), [fieldId]: v },
+                                      }))}
+                                    />
+                                  );
+                                })}
                               </span>
                             ) : (
                               <span style={{ ...T.setValue, color: valueColor }}>
@@ -3622,6 +3679,12 @@ export default function ExerciseCard({
               const setFields = getSetFields(exercise);
               const numericFields = setFields.filter((f) => NUMERIC_FIELDS.has(f) && UNIT_COLOR_BY_FIELD[f]);
               const textFields = setFields.filter((f) => !NUMERIC_FIELDS.has(f) && UNIT_COLOR_BY_FIELD[f]);
+              // Adaptive fill cells — same convention as REST_PAUSE above.
+              // sets / rounds describe the WHOLE exercise, not a per-set
+              // actual, so they're excluded from the trainee fill row.
+              const fillFields = setFields.filter(
+                (f) => PARAM_CATALOG[f] && f !== 'sets' && f !== 'rounds',
+              );
 
               const minusBtnStyle = {
                 width: 26, height: 26,
@@ -3785,26 +3848,23 @@ export default function ExerciseCard({
                               {label}
                             </span>
                             {active ? (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                                <ActualInput
-                                  target={set.reps}
-                                  value={pyramidActuals[i + 1]?.reps}
-                                  onChange={(n) => setPyramidActuals((prev) => ({
-                                    ...prev,
-                                    [i + 1]: { ...(prev[i + 1] || {}), reps: n },
-                                  }))}
-                                />
-                                {set.weight_kg != null && (
-                                  <ActualInput
-                                    target={set.weight_kg}
-                                    value={pyramidActuals[i + 1]?.weight_kg}
-                                    unit='ק"ג'
-                                    onChange={(n) => setPyramidActuals((prev) => ({
-                                      ...prev,
-                                      [i + 1]: { ...(prev[i + 1] || {}), weight_kg: n },
-                                    }))}
-                                  />
-                                )}
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                {fillFields.map((fieldId) => {
+                                  const meta = PARAM_CATALOG[fieldId];
+                                  return (
+                                    <ActualInput
+                                      key={fieldId}
+                                      target={set[fieldId]}
+                                      value={pyramidActuals[i + 1]?.[fieldId]}
+                                      unit={UNIT_COLOR_BY_FIELD[fieldId]?.label ?? null}
+                                      type={meta.type === 'text' ? 'text' : 'number'}
+                                      onChange={(v) => setPyramidActuals((prev) => ({
+                                        ...prev,
+                                        [i + 1]: { ...(prev[i + 1] || {}), [fieldId]: v },
+                                      }))}
+                                    />
+                                  );
+                                })}
                               </span>
                             ) : (
                               <span style={{ ...T.setValue, color: valueColor }}>{String(targetReps)}</span>
