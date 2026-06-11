@@ -18,6 +18,7 @@ import { useWindowSize } from '@/hooks/useWindowSize';
 import ChartCard from '@/components/charts/ChartCard';
 import StepMilestones from '@/components/charts/StepMilestones';
 import TimeRangeSelector from '@/components/charts/TimeRangeSelector';
+import ExerciseNumericTrendGraph from '@/components/charts/ExerciseNumericTrendGraph';
 import { aggregateRecords } from '@/lib/chartDataHelpers';
 
 const O = '#FF6F20';
@@ -241,6 +242,87 @@ function RecordsSummaryChart({ records, selectedExercise, onSelectExercise }) {
 // shows its own progression chart with PB-emphasised dots, an
 // optional ReferenceLine for the linked goal target, and the full
 // records list. Adds + edits live in NewRecordDialog.
+// Execution-driven trends section — pulls every exercise_set_logs row
+// owned by THIS trainee (across all plans) and renders the shared
+// ExerciseNumericTrendGraph beneath the records chart. Independent of
+// the personal_records / goals stores so it can't affect anything the
+// records section reads or writes. The graph is fed via the same prop
+// contract WorkoutFolderDetail uses ({ rows, exerciseById }), so the
+// shared component stays generic.
+function ExecutionTrendsSection({ traineeId }) {
+  const { data: traineeLogRows = [] } = useQuery({
+    queryKey: ['trainee-set-logs', traineeId],
+    enabled: !!traineeId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('exercise_set_logs')
+        .select(`
+          execution_id, exercise_id, drill_index, set_number,
+          reps_completed, time_completed, weight_used,
+          workout_executions!inner(executed_at, plan_id, trainee_id)
+        `)
+        .eq('workout_executions.trainee_id', traineeId);
+      if (error) {
+        console.warn('[ExecutionTrendsSection] set-logs query failed:', error.message);
+        return [];
+      }
+      return data || [];
+    },
+  });
+
+  // Distinct exercise ids referenced by this trainee's logs — drives a
+  // second query that resolves names + tabata_data for the chart's
+  // nested-inner label resolver. Keyed on a sorted joined string so a
+  // re-fetch is only triggered when the SET of exercise ids actually
+  // changes (not on every row addition).
+  const exIds = useMemo(() => {
+    const set = new Set();
+    for (const r of traineeLogRows) {
+      if (r?.exercise_id) set.add(r.exercise_id);
+    }
+    return [...set].sort();
+  }, [traineeLogRows]);
+  const exIdsKey = exIds.join(',');
+
+  const { data: exerciseRows = [] } = useQuery({
+    queryKey: ['exercise-name-lookup', exIdsKey],
+    enabled: exIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('exercises')
+        .select('id, exercise_name, name, tabata_data')
+        .in('id', exIds);
+      if (error) {
+        console.warn('[ExecutionTrendsSection] exercise lookup failed:', error.message);
+        return [];
+      }
+      return data || [];
+    },
+  });
+
+  const exerciseById = useMemo(() => {
+    const m = {};
+    for (const e of exerciseRows) {
+      if (e?.id) m[e.id] = e;
+    }
+    return m;
+  }, [exerciseRows]);
+
+  if (!traineeId) return null;
+
+  return (
+    <section style={{ marginTop: 24 }}>
+      <ExerciseNumericTrendGraph
+        rows={traineeLogRows}
+        exerciseById={exerciseById}
+        title="מגמת אימונים"
+        subtitle="נתונים מאמת מהאימונים שלך — מתעדכן כשמשלימים סט"
+        emptyText="עדיין אין נתוני ביצוע — מלא סטים באימון כדי לראות מגמה"
+      />
+    </section>
+  );
+}
+
 export default function ProgressTab({ traineeId }) {
   const { user: currentUser } = useContext(AuthContext);
   const isCoach =
@@ -890,6 +972,15 @@ export default function ProgressTab({ traineeId }) {
         </div>
         </div>
       )}
+
+      {/* Execution-driven trend chart — sits BELOW the records master
+          chart so the records-focused user still lands on familiar
+          UI, and the new execution view is additive. Reads from
+          exercise_set_logs (real training data), independent of
+          personal_records. Duplicate-and-compare runs naturally appear
+          as separate points because the per-execution grouping inside
+          the shared chart keys on execution_id. */}
+      <ExecutionTrendsSection traineeId={traineeId} />
 
       {/* Per-day folder view — sits between the master chart and
           the per-exercise folders. Mirrors the chip filter so a
