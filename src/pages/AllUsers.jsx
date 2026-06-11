@@ -837,7 +837,6 @@ export default function AllUsers() {
       c[cat] = (c[cat] || 0) + 1;
     }
     return c;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formerTrainees, packagesByTraineeId]);
 
   // ── Counts for filter chips ─────────────────────────────────────
@@ -859,7 +858,6 @@ export default function AllUsers() {
       active, expiring, inactive,
       former: formerTrainees.length,
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleTrainees, allServices, formerTrainees]);
 
   // ── Filter + sort logic ─────────────────────────────────────────
@@ -928,8 +926,6 @@ export default function AllUsers() {
       );
     }
     return filtered;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allTrainees, allServices, searchTerm, filterType, sortMode, showFormer, serviceFilter, tagsByTraineeId, formerCategory, packagesByTraineeId]);
 
   // Page-level loading gate — render the unified loader instead of a

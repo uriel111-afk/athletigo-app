@@ -351,7 +351,6 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       lastBeepRef.current = -1;
       rafRef.current = requestAnimationFrame(tick);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ─── Core engine ───
@@ -622,7 +621,6 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     return total;
     // Deps reference the actual cfg fields (cfg.rb, NOT cfg.set_rest —
     // that field doesn't exist; nextPhase reads cfg.rb for set rests).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfg.prep, cfg.work, cfg.rest, cfg.rb, cfg.rounds, cfg.sets]);
 
   // Mirror to ref so tick() / handleStart can log the value without
