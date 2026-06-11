@@ -9,10 +9,14 @@ import { toast } from 'sonner';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import FinanceTabBar from '@/components/lifeos/FinanceTabBar';
-import { LIFEOS_COLORS, LIFEOS_CARD } from '@/lib/lifeos/lifeos-constants';
+import GoalProgress from '@/components/lifeos/GoalProgress';
 import {
-  getMonthlySummary, listExpenses, listIncome,
+  LIFEOS_COLORS, LIFEOS_CARD, YEARLY_GOAL,
+} from '@/lib/lifeos/lifeos-constants';
+import {
+  getMonthlySummary, listExpenses, listIncome, getAnnualIncome,
 } from '@/lib/lifeos/lifeos-api';
+import { getAnnualTarget } from '@/lib/lifeos/goals-api';
 
 const fmt = (n) => Math.round(Number(n) || 0).toLocaleString('he-IL');
 
@@ -42,6 +46,11 @@ export default function FinanceDashboard() {
 
   const [monthSummary, setMonthSummary] = useState({ income: 0, expenses: 0, net: 0 });
   const [chart,        setChart]        = useState([]);
+  // Annual headline figures — kept in sync with LifeOSDashboard +
+  // BusinessPlan via users.goals_hierarchy.annual_target. Defaults
+  // to YEARLY_GOAL so a brand-new user still sees a progress bar.
+  const [annualTarget, setAnnualTarget] = useState(YEARLY_GOAL);
+  const [annualIncome, setAnnualIncome] = useState(0);
   const [loaded,       setLoaded]       = useState(false);
 
   const load = useCallback(async () => {
@@ -52,13 +61,17 @@ export default function FinanceDashboard() {
       const from = window[0].from;
       const to = window[window.length - 1].to;
 
-      const [summary, expRows, incRows] = await Promise.all([
+      const [summary, expRows, incRows, target, annualSum] = await Promise.all([
         getMonthlySummary(userId, new Date()),
         listExpenses(userId, { from, to }),
         listIncome(userId, { from, to }),
+        getAnnualTarget(userId, YEARLY_GOAL).catch(() => YEARLY_GOAL),
+        getAnnualIncome(userId).catch(() => 0),
       ]);
 
       setMonthSummary(summary || { income: 0, expenses: 0, net: 0 });
+      setAnnualTarget(target);
+      setAnnualIncome(annualSum);
 
       const buckets = Object.fromEntries(
         window.map(w => [w.key, { label: w.label, income: 0, expenses: 0 }])
@@ -96,6 +109,11 @@ export default function FinanceDashboard() {
     }>
       <div style={{ padding: '0 14px' }}>
         <FinanceTabBar />
+
+        {/* ─── Annual goal progress ─────────────────────────── */}
+        <div style={{ marginBottom: 20 }}>
+          <GoalProgress current={annualIncome} target={annualTarget} />
+        </div>
 
         {/* ─── Monthly summary (read-only) ──────────────────── */}
         {/* The income tile drills down to /lifeos/income for the

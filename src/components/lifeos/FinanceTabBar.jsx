@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { BarChart3, Target, FileText, Bell } from 'lucide-react';
+import { BarChart3, Target, Bell } from 'lucide-react';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 
 // Pill-style mini tab bar for jumping between the four "finance-area"
@@ -13,7 +13,6 @@ import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 const TABS = [
   { to: '/lifeos/finance-dashboard', label: 'דשבורד', Icon: BarChart3 },
   { to: '/lifeos/goals',             label: 'יעדים',  Icon: Target },
-  { to: '/reports',                  label: 'דוחות',  Icon: FileText },
   { to: '/notifications',            label: 'התראות', Icon: Bell },
 ];
 
