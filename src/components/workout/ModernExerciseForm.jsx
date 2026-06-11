@@ -6,7 +6,7 @@ import {
   Clock, Weight, Activity, PersonStanding, Hand, Dumbbell,
   ArrowBigUp, ArrowLeftRight, List, ListChecks,
   Footprints, Maximize2, Hash, RefreshCw,
-  Square, ArrowLeft,
+  Square, ArrowLeft, Copy,
 } from "lucide-react";
 import { searchExercises } from "@/data/exercises";
 import { supabase } from "@/lib/supabaseClient";
@@ -63,6 +63,25 @@ const MODE_TO_METHOD_ID = (() => {
   // editor — same data shape (sub_exercises) so no migration needed.
   return map;
 })();
+
+// Pure helper — duplicates the item at `idx` in `arr`, inserts the
+// copy immediately after it, and optionally re-sequences a 1-based
+// index field on every row (used by stations / rounds whose render
+// surfaces their position). `deepArrayFields` lists keys whose array
+// values must be cloned separately so the duplicate doesn't share
+// references with the source (e.g. EXERCISE_LIST sub.set_fields, where
+// the per-sub picker mutates the array in place).
+function duplicateAtIndex(arr, idx, { indexField = null, deepArrayFields = [] } = {}) {
+  if (!Array.isArray(arr) || idx < 0 || idx >= arr.length) return arr;
+  const src = arr[idx];
+  const clone = { ...src };
+  for (const f of deepArrayFields) {
+    if (Array.isArray(clone[f])) clone[f] = [...clone[f]];
+  }
+  const inserted = [...arr.slice(0, idx + 1), clone, ...arr.slice(idx + 1)];
+  if (indexField) return inserted.map((x, i) => ({ ...x, [indexField]: i + 1 }));
+  return inserted;
+}
 
 // Smart-defaults injection point. Kept as a constant so future methods
 // can opt back in by listing their seeds here; for now every method
@@ -503,6 +522,26 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       )
     );
   };
+  // Round-level duplicate — clones the whole round (with all its inner
+  // exercises) and re-sequences round_index so the badges remain 1,2,3…
+  // The inner exercises also get a shallow copy each so editing the
+  // duplicate's inputs doesn't alias the original round's data.
+  const duplicateRound = (idx) => {
+    if (readOnly) return;
+    setRoundsDraft((prev) => {
+      const out = duplicateAtIndex(prev, idx, { indexField: 'round_index' });
+      return out.map((r, i) => i === idx + 1
+        ? { ...r, exercises: (r.exercises || []).map((e) => ({ ...e })) }
+        : r);
+    });
+  };
+  // Inner-exercise duplicate — clones a single exercise WITHIN a round.
+  // round.exercises has no per-item index field so no re-sequencing.
+  const duplicateRoundExercise = (roundIdx, exIdx) => {
+    if (readOnly) return;
+    setRoundsDraft((prev) => prev.map((r, i) =>
+      i === roundIdx ? { ...r, exercises: duplicateAtIndex(r.exercises || [], exIdx) } : r));
+  };
 
   // ── CIRCUIT helpers ─────────────────────────────────────────
   const addStation = () => {
@@ -524,6 +563,11 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       prev.map((s, i) => (i === idx ? { ...s, [key]: val } : s))
     );
   };
+  // Re-sequence station_index so badge numbers stay 1,2,3…
+  const duplicateStation = (idx) => {
+    if (readOnly) return;
+    setStationsDraft((prev) => duplicateAtIndex(prev, idx, { indexField: 'station_index' }));
+  };
 
   // ── TABATA helpers ──────────────────────────────────────────
   const addRotationExercise = () => {
@@ -537,6 +581,11 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   const updateRotationExerciseName = (idx, name) => {
     if (readOnly) return;
     setRotationExercises((prev) => prev.map((e, i) => (i === idx ? { ...e, name } : e)));
+  };
+  // No index field on rotation entries — pure array-order duplicate.
+  const duplicateRotation = (idx) => {
+    if (readOnly) return;
+    setRotationExercises((prev) => duplicateAtIndex(prev, idx));
   };
   const updateClockSetting = (key, val) => {
     if (readOnly) return;
@@ -557,6 +606,13 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     setSubExercises((prev) =>
       prev.map((ex, i) => (i === idx ? { ...ex, [field]: value } : ex))
     );
+  };
+  // Each sub carries its own set_fields array — deep-copy that one
+  // field so the per-sub picker on the duplicate doesn't mutate the
+  // source's picked-field list.
+  const duplicateSubExercise = (idx) => {
+    if (readOnly) return;
+    setSubExercises((prev) => duplicateAtIndex(prev, idx, { deepArrayFields: ['set_fields'] }));
   };
 
   // EXERCISE_LIST per-exercise param picker — each sub-exercise
@@ -1442,10 +1498,28 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                       </span>
                       <button
                         type="button"
+                        onClick={() => duplicateRound(ri)}
+                        aria-label={isCombo ? 'שכפל חזרה' : 'שכפל סט סופר'}
+                        title="שכפל"
+                        style={{
+                          marginInlineStart: 'auto',
+                          width: 28,
+                          height: 28,
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#9CA3AF',
+                          cursor: readOnly ? 'default' : 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0,
+                        }}
+                      ><Copy size={15} /></button>
+                      <button
+                        type="button"
                         onClick={() => removeRound(ri)}
                         aria-label={isCombo ? 'הסר חזרה' : 'הסר סט סופר'}
                         style={{
-                          marginInlineStart: 'auto',
                           width: 28,
                           height: 28,
                           background: 'transparent',
@@ -1512,6 +1586,24 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                                   outline: 'none',
                                 }}
                               />
+                              <button
+                                type="button"
+                                onClick={() => duplicateRoundExercise(ri, ei)}
+                                aria-label="שכפל תרגיל"
+                                title="שכפל"
+                                style={{
+                                  width: 24,
+                                  height: 24,
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#9CA3AF',
+                                  cursor: readOnly ? 'default' : 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  padding: 0,
+                                }}
+                              ><Copy size={13} /></button>
                               <button
                                 type="button"
                                 onClick={() => removeRoundExercise(ri, ei)}
@@ -1664,6 +1756,24 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                           outline: 'none',
                         }}
                       />
+                      <button
+                        type="button"
+                        onClick={() => duplicateSubExercise(ei)}
+                        aria-label="שכפל תרגיל"
+                        title="שכפל"
+                        style={{
+                          width: 28,
+                          height: 28,
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#9CA3AF',
+                          cursor: readOnly ? 'default' : 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0,
+                        }}
+                      ><Copy size={15} /></button>
                       <button
                         type="button"
                         onClick={() => removeSubExercise(ei)}
@@ -1912,10 +2022,28 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                       </span>
                       <button
                         type="button"
+                        onClick={() => duplicateStation(si)}
+                        aria-label="שכפל תחנה"
+                        title="שכפל"
+                        style={{
+                          marginInlineStart: 'auto',
+                          width: 24,
+                          height: 24,
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#9CA3AF',
+                          cursor: readOnly ? 'default' : 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0,
+                        }}
+                      ><Copy size={13} /></button>
+                      <button
+                        type="button"
                         onClick={() => removeStation(si)}
                         aria-label="הסר תחנה"
                         style={{
-                          marginInlineStart: 'auto',
                           width: 24,
                           height: 24,
                           background: 'transparent',
@@ -2107,6 +2235,24 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                       outline: 'none',
                     }}
                   />
+                  <button
+                    type="button"
+                    onClick={() => duplicateRotation(ei)}
+                    aria-label="שכפל תרגיל"
+                    title="שכפל"
+                    style={{
+                      width: 24,
+                      height: 24,
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#9CA3AF',
+                      cursor: readOnly ? 'default' : 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                    }}
+                  ><Copy size={13} /></button>
                   <button
                     type="button"
                     onClick={() => removeRotationExercise(ei)}
