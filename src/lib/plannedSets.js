@@ -119,7 +119,13 @@ export async function loadActualsByDrillForExercise(supabase, executionId, exerc
 // DB unique index added by the 2026-06 migration — resolves cleanly
 // regardless of whether the caller cares about drill_index. setIndex
 // is 1-based; payload uses the pyramid-shaped keys (reps / hold_seconds
-// / weight_kg) and is mapped onto the matching log columns.
+// / weight_kg / rpe / rest_seconds / tempo) and is mapped onto the
+// matching log columns. The original three (reps/hold_seconds/weight_kg)
+// are always emitted (default null, preserving the pre-2026-06 behaviour
+// where partial saves clear earlier values). The newer three are added
+// to the upsert ONLY when the caller passed a non-empty value — so a
+// later partial save that doesn't include them won't wipe what was
+// already stored for the same (execution, exercise, drill, set) key.
 export async function saveSetActual(supabase, executionId, exerciseId, drillIndex, setIndex, payload) {
   if (!supabase || !executionId || !exerciseId) return { error: 'missing ids' };
   const row = {
@@ -132,6 +138,10 @@ export async function saveSetActual(supabase, executionId, exerciseId, drillInde
     weight_used: payload?.weight_kg ?? null,
     completed: true,
   };
+  const hasVal = (v) => v != null && v !== '';
+  if (hasVal(payload?.rpe))          row.rpe_actual          = payload.rpe;
+  if (hasVal(payload?.rest_seconds)) row.rest_seconds_actual = payload.rest_seconds;
+  if (hasVal(payload?.tempo))        row.tempo_actual        = payload.tempo;
   const { error } = await supabase
     .from('exercise_set_logs')
     .upsert(row, { onConflict: 'execution_id,exercise_id,drill_index,set_number' });
