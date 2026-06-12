@@ -10,7 +10,9 @@ const ActiveTimerContext = createContext(null);
 export const ActiveTimerProvider = ({ children }) => {
   const [liveTimerClock, setLiveTimerClock] = useState(null);
   const [liveTimerTabata, setLiveTimerTabata] = useState(null);
+  const [liveTimerDynamic, setLiveTimerDynamic] = useState(null);
   const [showTabata, setShowTabata] = useState(false);
+  const [showDynamic, setShowDynamic] = useState(false);
   // TimerFooterBar only renders when a timer is active AND the user
   // explicitly minimized it (tap of the minimize button or nav-away).
   const [isMinimized, setIsMinimized] = useState(false);
@@ -23,28 +25,31 @@ export const ActiveTimerProvider = ({ children }) => {
   const [pendingTabataCfg, setPendingTabataCfg] = useState(null);
 
   // Legacy single-slot getter — prefer tabata since it has richer info.
-  const liveTimer = liveTimerTabata || liveTimerClock;
+  const liveTimer = liveTimerTabata || liveTimerDynamic || liveTimerClock;
 
   // Legacy setter routes by type. Function updaters are applied to the
-  // slot that currently holds a value (tabata preferred).
+  // slot that currently holds a value (tabata > dynamic > clock).
   const setLiveTimer = useCallback((next) => {
     if (next === null) {
       setLiveTimerClock(null);
       setLiveTimerTabata(null);
+      setLiveTimerDynamic(null);
       return;
     }
     if (typeof next === 'function') {
       if (liveTimerTabata) setLiveTimerTabata(next);
+      else if (liveTimerDynamic) setLiveTimerDynamic(next);
       else setLiveTimerClock(next);
       return;
     }
     if (next?.type === 'tabata') setLiveTimerTabata(next);
+    else if (next?.type === 'dynamicIntervals') setLiveTimerDynamic(next);
     else setLiveTimerClock(next);
-  }, [liveTimerTabata]);
+  }, [liveTimerTabata, liveTimerDynamic]);
 
   const activeTimers = useMemo(
-    () => [liveTimerClock, liveTimerTabata].filter(Boolean),
-    [liveTimerClock, liveTimerTabata]
+    () => [liveTimerClock, liveTimerTabata, liveTimerDynamic].filter(Boolean),
+    [liveTimerClock, liveTimerTabata, liveTimerDynamic]
   );
 
   const value = {
@@ -54,9 +59,13 @@ export const ActiveTimerProvider = ({ children }) => {
     setLiveTimerClock,
     liveTimerTabata,
     setLiveTimerTabata,
+    liveTimerDynamic,
+    setLiveTimerDynamic,
     activeTimers,
     showTabata,
     setShowTabata,
+    showDynamic,
+    setShowDynamic,
     isMinimized,
     setIsMinimized,
     pendingTabataCfg,

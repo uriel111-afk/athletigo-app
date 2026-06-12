@@ -52,6 +52,7 @@ import { ActiveTimerProvider, useActiveTimer } from './contexts/ActiveTimerConte
 import { useRealtimeSync } from './hooks/useRealtimeSync';
 import TraineeHome from './pages/TraineeHome';
 import TabataTimer from './components/TabataTimer';
+import DynamicIntervalsTimer from './components/DynamicIntervalsTimer';
 import LastSessionAlert from './components/LastSessionAlert';
 import BirthdayBlessingPopup from './components/BirthdayBlessingPopup';
 import InstallPrompt from './components/InstallPrompt';
@@ -118,6 +119,54 @@ function GlobalTabata() {
         flexDirection: 'column', background: '#FF6F20'
       }}>
       <TabataTimer
+        onMinimize={handleMinimize}
+        setLiveTimer={setLiveTimer}
+      />
+    </div>
+  );
+}
+
+// Global DynamicIntervals — always mounted, mirrors GlobalTabata so
+// the dynamic timer's overlay can be opened/closed from any page.
+function GlobalDynamicIntervals() {
+  const { showDynamic, setShowDynamic, setLiveTimer, setIsMinimized } = useActiveTimer();
+  const navigate = useNavigate();
+  let user = null;
+  try { const auth = useAuth(); user = auth?.user; } catch (e) {}
+  const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
+
+  const handleMinimize = useCallback(() => {
+    navigate(isCoach ? '/dashboard' : '/trainee-home', { replace: true });
+  }, [isCoach, navigate]);
+
+  useEffect(() => {
+    if (!showDynamic) return;
+    setIsMinimized(false);
+  }, [showDynamic, setIsMinimized]);
+
+  const stopTimerEvents = (e) => {
+    e.stopPropagation();
+    if (typeof e.nativeEvent?.stopImmediatePropagation === 'function') {
+      e.nativeEvent.stopImmediatePropagation();
+    }
+  };
+
+  return (
+    <div
+      data-timer-bar="true"
+      onClick={stopTimerEvents}
+      onPointerDown={stopTimerEvents}
+      onPointerUp={stopTimerEvents}
+      onMouseDown={stopTimerEvents}
+      onMouseUp={stopTimerEvents}
+      onTouchStart={stopTimerEvents}
+      onTouchEnd={stopTimerEvents}
+      style={{
+        display: showDynamic ? 'flex' : 'none',
+        position: 'fixed', inset: 0, zIndex: 10000,
+        flexDirection: 'column', background: '#FFF9F0'
+      }}>
+      <DynamicIntervalsTimer
         onMinimize={handleMinimize}
         setLiveTimer={setLiveTimer}
       />
@@ -542,6 +591,7 @@ function App() {
             <AuthProvider>
               <NavigationTracker />
               <GlobalTabata />
+              <GlobalDynamicIntervals />
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="*" element={<AuthenticatedApp />} />

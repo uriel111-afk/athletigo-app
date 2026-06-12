@@ -11,7 +11,7 @@ import { useClock } from '@/contexts/ClockContext';
 const WORK_PHASE_TOKENS = ['עבודה', 'work', 'WORK', 'ריצה'];
 const PREP_PHASE_TOKENS = ['הכנה', 'prepare', 'prep', 'PREP'];
 
-const TYPES_WITH_ROUNDS = new Set(['tabata', 'emom']);
+const TYPES_WITH_ROUNDS = new Set(['tabata', 'emom', 'dynamicIntervals']);
 
 const BAR_HEIGHT = 74;
 
@@ -260,8 +260,8 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
 export default function TimerFooterBar() {
   const {
     activeTimers,
-    setLiveTimerClock, setLiveTimerTabata,
-    setShowTabata,
+    setLiveTimerClock, setLiveTimerTabata, setLiveTimerDynamic,
+    setShowTabata, setShowDynamic,
     isMinimized, setIsMinimized,
   } = useActiveTimer();
   const clock = useClock();
@@ -300,6 +300,8 @@ export default function TimerFooterBar() {
   const handleToggle = (timer) => {
     if (timer.type === 'tabata') {
       window.dispatchEvent(new CustomEvent('tabata-pause-resume'));
+    } else if (timer.type === 'dynamicIntervals') {
+      window.dispatchEvent(new CustomEvent('dyn-pause-resume'));
     } else {
       if (clock?.isRunning) clock.pause?.();
       else clock.resume?.();
@@ -311,6 +313,8 @@ export default function TimerFooterBar() {
     setIsMinimized(false);
     if (timer.type === 'tabata') {
       setShowTabata(true);
+    } else if (timer.type === 'dynamicIntervals') {
+      setShowDynamic && setShowDynamic(true);
     } else {
       navigate('/clocks', { state: { openTimer: timer.type } });
     }
@@ -320,6 +324,9 @@ export default function TimerFooterBar() {
     if (timer.type === 'tabata') {
       window.dispatchEvent(new CustomEvent('tabata-reset'));
       setLiveTimerTabata(null);
+    } else if (timer.type === 'dynamicIntervals') {
+      window.dispatchEvent(new CustomEvent('dyn-reset'));
+      setLiveTimerDynamic && setLiveTimerDynamic(null);
     } else {
       clock.stop?.();
       setLiveTimerClock(null);
@@ -331,6 +338,8 @@ export default function TimerFooterBar() {
       window.dispatchEvent(new CustomEvent('tabata-prev-round'));
     } else if (timer.type === 'emom') {
       window.dispatchEvent(new CustomEvent('emom-prev-round'));
+    } else if (timer.type === 'dynamicIntervals') {
+      window.dispatchEvent(new CustomEvent('dyn-prev-round'));
     }
   };
   const handleNextRound = (timer) => {
@@ -338,6 +347,8 @@ export default function TimerFooterBar() {
       window.dispatchEvent(new CustomEvent('tabata-next-round'));
     } else if (timer.type === 'emom') {
       window.dispatchEvent(new CustomEvent('emom-next-round'));
+    } else if (timer.type === 'dynamicIntervals') {
+      window.dispatchEvent(new CustomEvent('dyn-next-round'));
     }
   };
 

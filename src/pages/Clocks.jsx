@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag } from "lucide-react";
+import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag, ListOrdered } from "lucide-react";
 import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 import { AuthContext } from "@/lib/AuthContext";
@@ -245,6 +245,7 @@ function TimerView({ onMinimize }) {
 /* ═══ CLOCKS PAGE ═══ */
 const MODES = [
   { id: 'tabata', label: 'טבטה', icon: Zap },
+  { id: 'dynamic', label: 'אינטרוולים', icon: ListOrdered },
   { id: 'timer', label: 'טיימר', icon: Timer },
   { id: 'stopwatch', label: 'סטופר', icon: Clock },
 ];
@@ -258,11 +259,11 @@ export default function Clocks() {
   //   3. fallback 'tabata'
   const [activeTab, setActiveTab] = useState(() => {
     const fromNav = location.state?.openTimer;
-    if (fromNav === 'tabata' || fromNav === 'timer' || fromNav === 'stopwatch') return fromNav;
+    if (fromNav === 'tabata' || fromNav === 'timer' || fromNav === 'stopwatch' || fromNav === 'dynamic') return fromNav;
     return 'tabata';
   });
   const clock = useClock();
-  const { setLiveTimer, setShowTabata, setIsMinimized, activeTimers, showTabata } = useActiveTimer();
+  const { setLiveTimer, setShowTabata, setShowDynamic, setIsMinimized, activeTimers, showTabata } = useActiveTimer();
   const { user } = React.useContext(AuthContext);
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
@@ -275,7 +276,7 @@ export default function Clocks() {
   useEffect(() => {
     if (location.state?.openTimer) {
       const t = location.state.openTimer;
-      if (t === 'tabata' || t === 'timer' || t === 'stopwatch') setActiveTab(t);
+      if (t === 'tabata' || t === 'timer' || t === 'stopwatch' || t === 'dynamic') setActiveTab(t);
       try { window.history.replaceState({}, ''); } catch {}
     }
     // Fallback: if clock is currently running but no nav state,
@@ -395,6 +396,14 @@ export default function Clocks() {
         <div style={{ display: activeTab === 'tabata' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0, background: '#FF6F20', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
           <div style={{ fontSize: '60px' }}>⏱</div>
           <button onPointerDown={() => setShowTabata(true)} style={{ background: 'white', color: '#FF6F20', border: 'none', borderRadius: '12px', padding: '16px 40px', fontSize: '22px', fontWeight: '900', cursor: 'pointer', touchAction: 'manipulation' }}>▶ טבטה</button>
+        </div>
+        <div style={{ display: activeTab === 'dynamic' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0, background: '#FFF9F0', alignItems: 'center', justifyContent: 'center', gap: '16px', padding: '24px' }}>
+          <div style={{ fontSize: '60px' }}>🔥</div>
+          <div style={{ fontSize: '22px', fontWeight: 900, color: '#1a1a1a', textAlign: 'center' }}>אינטרוולים דינאמיים</div>
+          <div style={{ fontSize: '14px', fontWeight: 600, color: '#888', textAlign: 'center', maxWidth: 320 }}>
+            כל סט מקבל זמן עבודה ומנוחה משלו
+          </div>
+          <button onPointerDown={() => setShowDynamic && setShowDynamic(true)} style={{ background: '#FF6F20', color: 'white', border: 'none', borderRadius: '12px', padding: '16px 40px', fontSize: '22px', fontWeight: '900', cursor: 'pointer', touchAction: 'manipulation', boxShadow: '0 4px 14px rgba(255,111,32,0.3)' }}>▶ אינטרוולים</button>
         </div>
         <div style={{ display: activeTab === 'timer' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <TimerView onMinimize={minimizeTimer} />
