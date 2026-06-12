@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import { Fragment, useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import {
   unlock as unlockAudio,
   playBeep, playVictory,
@@ -487,77 +487,161 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
           </button>
         </div>
 
-        <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* WORKOUT STRUCTURE BAR — timeline of phases in proportional widths.
+            Lives between the prep row and the sets list. Re-renders on
+            every cfg edit because it reads `sets` and `prep` directly. */}
+        <div style={{
+          width: '100%', maxWidth: 420,
+          background: '#FFFFFF', borderRadius: 12,
+          padding: '10px 12px', marginBottom: 8,
+          border: '1px solid #F0E4D0',
+          boxSizing: 'border-box',
+        }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            marginBottom: 6,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#B08968' }}>
+              מבנה האימון · {twMin}:{String(twSec).padStart(2, '0')}
+            </div>
+          </div>
+          {/* Bar — RTL flex row, first segment (prep, then set 1 work) sits at the right edge */}
+          <div style={{
+            display: 'flex', gap: 2,
+            height: 26, borderRadius: 7, overflow: 'hidden',
+            background: '#F5F0E4',
+          }}>
+            {prep > 0 && (
+              <div style={{ flex: Math.max(1, prep), background: '#EAB308' }} />
+            )}
+            {sets.map((s, i) => (
+              <Fragment key={i}>
+                <div style={{ flex: Math.max(1, +s.work || 0), background: '#FF6F20' }} />
+                {i < sets.length - 1 && (
+                  <div style={{ flex: Math.max(1, +s.rest || 0), background: '#FFD9BF' }} />
+                )}
+              </Fragment>
+            ))}
+          </div>
+          {/* Legend */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            marginTop: 8, fontSize: 11, color: '#666',
+          }}>
+            {prep > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ width: 9, height: 9, borderRadius: 2, background: '#EAB308' }} />
+                <span>הכנה</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 9, height: 9, borderRadius: 2, background: '#FF6F20' }} />
+              <span>עבודה</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ width: 9, height: 9, borderRadius: 2, background: '#FFD9BF' }} />
+              <span>מנוחה</span>
+            </div>
+          </div>
+        </div>
+
+        {/* SETS LIST — one compact row per set */}
+        <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column' }}>
           {sets.map((s, i) => (
             <div key={i} style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '10px 12px', background: '#FFFFFF', borderRadius: 14,
-              border: '1px solid rgba(255,111,32,0.15)',
-              boxShadow: '0 2px 6px rgba(255,111,32,0.05)',
-              gap: 8,
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px 10px',
+              background: '#FFFFFF', borderRadius: 12,
+              marginBottom: 8,
+              border: '1px solid #F0E4D0',
             }}>
+              {/* Number badge — first DOM child = rightmost in RTL */}
               <div style={{
-                minWidth: 38, height: 38, borderRadius: 10,
-                background: '#FF6F20', color: '#FFF',
+                width: 26, height: 26, borderRadius: 8,
+                background: '#FF6F20', color: '#FFFFFF',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontFamily: "'Barlow Condensed', sans-serif",
-                fontSize: 22, fontWeight: 800,
+                fontSize: 16, fontWeight: 800,
+                flexShrink: 0,
               }}>{i + 1}</div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 6 }}>
-                {/* WORK row */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#FF6F20' }}>🔥 עבודה</span>
-                  <button onClick={() => openPicker('work', i, s.work)} style={timeChip} aria-label="ערוך זמן עבודה">
-                    <span style={timeChipText}>{fmtTime(s.work)}</span>
-                  </button>
-                </div>
-                {/* REST row */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#888' }}>💤 מנוחה</span>
-                  <button onClick={() => openPicker('rest', i, s.rest)} style={timeChip} aria-label="ערוך זמן מנוחה">
-                    <span style={timeChipText}>{fmtTime(s.rest)}</span>
-                  </button>
-                </div>
-              </div>
+              {/* WORK cell */}
+              <button
+                onClick={() => openPicker('work', i, s.work)}
+                aria-label="ערוך זמן עבודה"
+                style={{
+                  flex: 1,
+                  background: '#FFF0E4',
+                  borderRadius: 8,
+                  border: 'none',
+                  padding: '6px 8px',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', touchAction: 'manipulation',
+                  lineHeight: 1.1,
+                }}
+              >
+                <span style={{ fontSize: 10, color: '#B08968', fontWeight: 600 }}>עבודה</span>
+                <span style={{
+                  fontSize: 17, fontWeight: 500, color: '#FF6F20',
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontVariantNumeric: 'tabular-nums',
+                  marginTop: 2,
+                }}>{fmtTime(s.work)}</span>
+              </button>
 
+              {/* REST cell */}
+              <button
+                onClick={() => openPicker('rest', i, s.rest)}
+                aria-label="ערוך זמן מנוחה"
+                style={{
+                  flex: 1,
+                  background: '#F4F8FF',
+                  borderRadius: 8,
+                  border: 'none',
+                  padding: '6px 8px',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', touchAction: 'manipulation',
+                  lineHeight: 1.1,
+                }}
+              >
+                <span style={{ fontSize: 10, color: '#185FA5', fontWeight: 600 }}>מנוחה</span>
+                <span style={{
+                  fontSize: 17, fontWeight: 500, color: '#378ADD',
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontVariantNumeric: 'tabular-nums',
+                  marginTop: 2,
+                }}>{fmtTime(s.rest)}</span>
+              </button>
+
+              {/* Delete — small icon, last DOM child = leftmost in RTL */}
               <button
                 onClick={() => removeSet(i)}
                 disabled={sets.length <= 1}
-                style={{
-                  width: 32, height: 32, borderRadius: 8,
-                  background: sets.length <= 1 ? '#F5F5F5' : '#FFEDED',
-                  color: sets.length <= 1 ? '#CCC' : '#DC2626',
-                  border: 'none',
-                  fontSize: 18, fontWeight: 800,
-                  cursor: sets.length <= 1 ? 'not-allowed' : 'pointer',
-                  flexShrink: 0,
-                }}
                 aria-label="מחק סט"
+                style={{
+                  width: 24, height: 24,
+                  background: 'transparent',
+                  color: sets.length <= 1 ? '#CCC' : '#dc2626',
+                  border: 'none',
+                  fontSize: 16, fontWeight: 700,
+                  cursor: sets.length <= 1 ? 'not-allowed' : 'pointer',
+                  padding: 0,
+                  flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  touchAction: 'manipulation',
+                }}
               >✕</button>
             </div>
           ))}
         </div>
 
         <button onClick={addSet} style={{
-          marginTop: 10, width: '100%', maxWidth: 420,
+          marginTop: 2, width: '100%', maxWidth: 420,
           padding: '12px', fontSize: 16, fontWeight: 800,
           background: '#FFFFFF', color: '#FF6F20',
           border: '2px dashed #FF6F20', borderRadius: 12,
           cursor: 'pointer',
         }}>+ הוסף סט</button>
-
-        <div style={{
-          textAlign: 'center', padding: 12,
-          background: 'white', borderRadius: 14,
-          marginTop: 10, width: '100%', maxWidth: 420,
-          border: '0.5px solid #F0E4D0',
-        }}>
-          <div style={{ fontSize: 12, color: '#888', fontWeight: 500, marginBottom: 4 }}>זמן כולל</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: '#FF6F20', fontFamily: "'Barlow Condensed', sans-serif" }}>
-            {twMin}:{String(twSec).padStart(2, '0')}
-          </div>
-        </div>
 
         <button onClick={handleStart} style={{
           marginTop: 10, marginBottom: 16,
