@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 
 // Bottom-banner install nudge shown on the Login screen. Two surfaces:
@@ -17,6 +18,12 @@ const DISMISSED_KEY = 'install_dismissed_at';
 const NAG_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
 
 export default function InstallPrompt() {
+  // Never render inside a Capacitor native shell — there's no PWA
+  // install flow there, and the banner would just cover real chrome.
+  // Guard placed above every other hook/early-return so nothing surfaces
+  // on Android/iOS native builds.
+  if (Capacitor.isNativePlatform()) return null;
+
   const { canInstall, isSafari, promptInstall } = useInstallPrompt();
   const [dismissed, setDismissed] = useState(() => {
     try {

@@ -450,7 +450,7 @@ export default function Layout({ children, currentPageName }) {
         </aside>
 
         <main className="flex-1 flex flex-col overflow-hidden" style={{ minHeight: 0 }}>
-          <header className="md:hidden safe-area-top" style={{ padding: '8px 14px',
+          <header className="md:hidden safe-area-top" style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)', paddingRight: 14, paddingBottom: 8, paddingLeft: 14,
             position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
             display: isClocks ? 'none' : undefined,
             backgroundColor: '#FFFFFF',

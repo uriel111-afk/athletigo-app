@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Download, X } from 'lucide-react';
 import { useIsPWA } from '@/hooks/useIsPWA';
 import { useInstallPrompt } from '@/hooks/useInstallPrompt';
@@ -16,6 +17,11 @@ import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 const SESSION_KEY = 'installPromptDismissed';
 
 export default function MiniInstallButton() {
+  // Never render inside a Capacitor native shell — the floating pill
+  // sits at top-left and would cover the header inside the APK. Guard
+  // placed above every hook so nothing surfaces on Android/iOS native.
+  if (Capacitor.isNativePlatform()) return null;
+
   const isPWA = useIsPWA();
   const { canInstall, isSafari, promptInstall } = useInstallPrompt();
   const [dismissed, setDismissed] = useState(() => {
