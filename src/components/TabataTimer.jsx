@@ -12,6 +12,16 @@ import RoundJumpPicker from '@/components/RoundJumpPicker';
 import { useActiveTimer } from '@/contexts/ActiveTimerContext';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
+import { ChevronRight } from 'lucide-react';
+
+const backBtnStyle = {
+  position: 'absolute', top: 16, left: 16, zIndex: 5,
+  width: 44, height: 44, borderRadius: 12,
+  background: '#FFFFFF', border: '1px solid #F0E4D0',
+  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  cursor: 'pointer',
+};
 
 // ─── Constants ───
 const O = '#FF6F20';
@@ -627,6 +637,33 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // calling the loop a second time.
   useEffect(() => { totalExerciseSecondsRef.current = totalExerciseSeconds; }, [totalExerciseSeconds]);
 
+  // Back to clock-selection screen. If a clock is currently running
+  // (screen === 'running' AND not paused), capture a snapshot into the
+  // mini-bar slot first so the timer keeps running visibly. Always
+  // hide the overlay and navigate to /clocks.
+  // Declared as a hoisted function declaration so the settings/done
+  // early-return JSX (which is rendered above the running-view JSX
+  // and references handleClockBack) doesn't hit a TDZ error.
+  function handleClockBack(e) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    if (screen === 'running' && !paused) {
+      const snapshot = {
+        type: 'tabata',
+        display: String(display),
+        phase: PHASE_LABEL[phaseRef.current.type] || '',
+        info: `סבב ${phase.round}/${cfg.rounds} · סט ${phase.set}/${cfg.sets}`,
+        paused: false,
+      };
+      if (setLiveTimerTabata) setLiveTimerTabata(snapshot);
+      else if (setLiveTimer) setLiveTimer(snapshot);
+      if (setIsMinimized) setIsMinimized(true);
+    }
+    if (setShowTabata) setShowTabata(false);
+    Promise.resolve().then(() => {
+      navigate('/clocks', { replace: true });
+    });
+  }
+
   // ─── Settings Screen ───
   if (screen === 'settings') {
     const fields = [
@@ -638,7 +675,16 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       { k: 'rb',     l: 'מנוחה בין סטים',   icon: '⏸', u: 'שנ׳', mn: 0,  mx: 900, options: SECONDS_OPTIONS },
     ];
     return (
-      <div style={{ background: '#FFF9F0', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 12, direction: 'rtl', overflow: 'hidden' }}>
+      <div style={{ background: '#FFF9F0', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 12, direction: 'rtl', overflow: 'hidden', position: 'relative' }}>
+        <button
+          onClick={handleClockBack}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          aria-label="חזרה"
+          style={backBtnStyle}
+        >
+          <ChevronRight size={24} color="#1a1a1a" />
+        </button>
         <div style={{ fontSize: 24, fontWeight: 900, color: '#FF6F20', marginBottom: 4 }}>⏱ טבטה</div>
         <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 10 }}>הגדר את האימון שלך</div>
 
@@ -731,7 +777,16 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // ─── Done Screen ───
   if (screen === 'done') {
     return (
-      <div style={{ background: O, minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, direction: 'rtl', color: W }}>
+      <div style={{ background: O, minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, direction: 'rtl', color: W, position: 'relative' }}>
+        <button
+          onClick={handleClockBack}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          aria-label="חזרה"
+          style={backBtnStyle}
+        >
+          <ChevronRight size={24} color="#1a1a1a" />
+        </button>
         <div style={{ fontSize: 72, marginBottom: 12 }}>🎉</div>
         <div style={{ fontSize: 48, fontWeight: 900, marginBottom: 8 }}>סיימת!</div>
         <div style={{ fontSize: 24, opacity: 0.8 }}>{cfg.rounds} סבבים × {cfg.sets} סטים</div>
@@ -944,7 +999,16 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     : { bg: '#FFFFFF', fg: '#1A1A1A', border: '1px solid #F0E4D0' };
 
   return (
-    <div style={{ background: bg, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', direction: 'rtl', color: textPrimary, overflow: 'hidden', transition: 'background 0.3s ease, color 0.3s ease' }}>
+    <div style={{ background: bg, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', direction: 'rtl', color: textPrimary, overflow: 'hidden', transition: 'background 0.3s ease, color 0.3s ease', position: 'relative' }}>
+      <button
+        onClick={handleClockBack}
+        onPointerDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        aria-label="חזרה"
+        style={backBtnStyle}
+      >
+        <ChevronRight size={24} color="#1a1a1a" />
+      </button>
 
       {/* ─── TOP SECTION (3 rows) ──────────────────────────────────
           Top-only redesign per spec. Logic, sounds, the central

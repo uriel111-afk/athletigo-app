@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag, ListOrdered } from "lucide-react";
+import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag, ListOrdered, ChevronRight } from "lucide-react";
 import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 import { AuthContext } from "@/lib/AuthContext";
@@ -62,12 +62,41 @@ const SOUND_TRIPLE_BELL = playVictory;
 
 /* ═══ STOPWATCH ═══ */
 function StopwatchView({ onMinimize }) {
-  const { startStopwatch, pause, resume, reset, lapStopwatch, display, isRunning, activeClock, laps } = useClock();
-  const active = activeClock === 'stopwatch';
+  const navigate = useNavigate();
+  const { startStopwatch, pause, resume, reset, lapStopwatch, display, isRunning, activeClock, laps, minimize, isMinimized } = useClock();
+  const { setLiveTimer: setLiveTimerAT, setIsMinimized: setIsMinimizedAT } = useActiveTimer();
+  const active = activeClock === 'stopwatch' && !isMinimized;
+
+  const handleClockBack = (e) => {
+    e.stopPropagation();
+    if (isRunning) {
+      setLiveTimerAT({ type: 'stopwatch', display: fmtStopwatch(display), phase: 'סטופר', info: null, paused: false });
+      setIsMinimizedAT(true);
+    }
+    minimize();
+    navigate('/clocks');
+  };
+
   if (active) {
     return (
       <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" dir="rtl"
-        style={{ backgroundColor: BRAND, padding: '20px 16px 100px', gap: 16 }}>
+        style={{ backgroundColor: BRAND, padding: '20px 16px 100px', gap: 16, position: 'fixed' }}>
+        <button
+          onClick={handleClockBack}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          aria-label="חזרה"
+          style={{
+            position: 'absolute', top: 16, left: 16, zIndex: 5,
+            width: 44, height: 44, borderRadius: 12,
+            background: '#FFFFFF', border: '1px solid #F0E4D0',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <ChevronRight size={24} color="#1a1a1a" />
+        </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <MinimizeBtn onClick={onMinimize} />
           <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: 'rgba(255,255,255,0.7)', letterSpacing: 2, textTransform: 'uppercase' }}>STOPWATCH</div>
@@ -138,13 +167,25 @@ function TimerCol({ label, value, onChange, max, options, title }) {
 }
 
 function TimerView({ onMinimize }) {
-  const { startTimer, pause, resume, stop, display, totalDuration, isRunning, activeClock, phase } = useClock();
+  const navigate = useNavigate();
+  const { startTimer, pause, resume, stop, display, totalDuration, isRunning, activeClock, phase, minimize, isMinimized } = useClock();
+  const { setLiveTimer: setLiveTimerAT, setIsMinimized: setIsMinimizedAT } = useActiveTimer();
   const [prepSec, setPrepSec] = useState(0);
   const [timerMin, setTimerMin] = useState(0);
   const [timerSec, setTimerSec] = useState(30);
   const [prepPicking, setPrepPicking] = useState(false);
-  const active = activeClock === 'timer';
+  const active = activeClock === 'timer' && !isMinimized;
   const showSetup = !active || phase === 'idle' || phase === 'done';
+
+  const handleClockBack = (e) => {
+    e.stopPropagation();
+    if (isRunning) {
+      setLiveTimerAT({ type: 'timer', display: fmt(display), phase: 'טיימר', info: null, paused: false });
+      setIsMinimizedAT(true);
+    }
+    minimize();
+    navigate('/clocks');
+  };
   const totalTimerMs = (timerMin * 60 + timerSec) * 1000;
   const lastBeepRef = useRef(-1);
 
@@ -198,7 +239,23 @@ function TimerView({ onMinimize }) {
 
   return (
     <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" dir="rtl"
-      style={{ backgroundColor: '#FFFFFF', padding: '20px 16px 100px', gap: 16 }}>
+      style={{ backgroundColor: '#FFFFFF', padding: '20px 16px 100px', gap: 16, position: 'fixed' }}>
+      <button
+        onClick={handleClockBack}
+        onPointerDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        aria-label="חזרה"
+        style={{
+          position: 'absolute', top: 16, left: 16, zIndex: 5,
+          width: 44, height: 44, borderRadius: 12,
+          background: '#FFFFFF', border: '1px solid #F0E4D0',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer',
+        }}
+      >
+        <ChevronRight size={24} color="#1a1a1a" />
+      </button>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <button onClick={onMinimize} style={{ background: '#FFF0E8', border: 'none', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={BRAND} strokeWidth="2.5" strokeLinecap="round">

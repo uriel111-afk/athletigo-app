@@ -10,6 +10,16 @@ import {
 import { useActiveTimer } from '@/contexts/ActiveTimerContext';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
+import { ChevronRight } from 'lucide-react';
+
+const backBtnStyle = {
+  position: 'absolute', top: 16, left: 16, zIndex: 5,
+  width: 44, height: 44, borderRadius: 12,
+  background: '#FFFFFF', border: '1px solid #F0E4D0',
+  boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  cursor: 'pointer',
+};
 
 // ─── Constants (lifted from TabataTimer so the visible behavior is identical) ───
 const R = 138, S = 8, SIZE = 320, CX = SIZE / 2, CY = SIZE / 2;
@@ -422,6 +432,32 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
   const totalExerciseSeconds = totalWorkoutTime;
   useEffect(() => { totalExerciseSecondsRef.current = totalExerciseSeconds; }, [totalExerciseSeconds]);
 
+  // Back to clock-selection screen. If a clock is currently running
+  // (screen === 'running' AND not paused), capture a snapshot into the
+  // mini-bar slot first so the timer keeps running visibly. Always
+  // hide the overlay and navigate to /clocks.
+  // Hoisted function declaration so the early-return JSX (settings /
+  // done) above the running view can reference it without TDZ errors.
+  function handleClockBack(e) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    if (screen === 'running' && !paused) {
+      const snapshot = {
+        type: 'dynamicIntervals',
+        display: String(display),
+        phase: PHASE_LABEL[phaseRef.current.type] || '',
+        info: `סט ${phase.setIdx + 1}/${sets.length}`,
+        paused: false,
+      };
+      if (setLiveTimerDynamic) setLiveTimerDynamic(snapshot);
+      else if (setLiveTimer) setLiveTimer(snapshot);
+      if (setIsMinimized) setIsMinimized(true);
+    }
+    if (setShowDynamic) setShowDynamic(false);
+    Promise.resolve().then(() => {
+      navigate('/clocks', { replace: true });
+    });
+  }
+
   // ─── Settings screen ───
   if (screen === 'settings') {
     const addSet = () => {
@@ -461,7 +497,17 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
         background: '#FFF9F0', height: '100%',
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         padding: 12, direction: 'rtl', overflowY: 'auto', overflowX: 'hidden',
+        position: 'relative',
       }}>
+        <button
+          onClick={handleClockBack}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          aria-label="חזרה"
+          style={backBtnStyle}
+        >
+          <ChevronRight size={24} color="#1a1a1a" />
+        </button>
         <div style={{ fontSize: 24, fontWeight: 900, color: '#FF6F20', marginBottom: 4 }}>⏱ אינטרוולים דינאמיים</div>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a', marginBottom: 12 }}>בנה רשימת סטים</div>
 
@@ -672,7 +718,16 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
   // ─── Done screen ───
   if (screen === 'done') {
     return (
-      <div style={{ background: '#FF6F20', minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, direction: 'rtl', color: '#FFF' }}>
+      <div style={{ background: '#FF6F20', minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, direction: 'rtl', color: '#FFF', position: 'relative' }}>
+        <button
+          onClick={handleClockBack}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          aria-label="חזרה"
+          style={backBtnStyle}
+        >
+          <ChevronRight size={24} color="#1a1a1a" />
+        </button>
         <div style={{ fontSize: 72, marginBottom: 12 }}>🎉</div>
         <div style={{ fontSize: 48, fontWeight: 900, marginBottom: 8 }}>סיימת!</div>
         <div style={{ fontSize: 24, opacity: 0.8 }}>{sets.length} סטים</div>
@@ -803,7 +858,17 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
       direction: 'rtl', color: textPrimary,
       overflow: 'hidden',
       transition: 'background 0.3s ease, color 0.3s ease',
+      position: 'relative',
     }}>
+      <button
+        onClick={handleClockBack}
+        onPointerDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        aria-label="חזרה"
+        style={backBtnStyle}
+      >
+        <ChevronRight size={24} color="#1a1a1a" />
+      </button>
       {/* TOP — phase title + minimize + set counter + total row */}
       <div style={{ width: '100%', maxWidth: 460, flexShrink: 0 }}>
         <div style={{ position: 'relative', width: '100%', minHeight: 64 }}>
