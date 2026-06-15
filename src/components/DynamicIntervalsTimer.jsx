@@ -432,21 +432,25 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
   const totalExerciseSeconds = totalWorkoutTime;
   useEffect(() => { totalExerciseSecondsRef.current = totalExerciseSeconds; }, [totalExerciseSeconds]);
 
-  // Back to clock-selection screen. If a clock is currently running
-  // (screen === 'running' AND not paused), capture a snapshot into the
-  // mini-bar slot first so the timer keeps running visibly. Always
-  // hide the overlay and navigate to /clocks.
+  // Back to clock-selection screen. Mirrors doMinimize EXACTLY when a
+  // clock is currently running so the bar gets the proven snapshot —
+  // only the navigation destination differs (back → /clocks; the
+  // existing מזער ↗ button → role home). From the settings/done
+  // screens no clock is running, so skip the snapshot write to avoid
+  // surfacing a phantom bar from stale refs.
   // Hoisted function declaration so the early-return JSX (settings /
   // done) above the running view can reference it without TDZ errors.
   function handleClockBack(e) {
     if (e && e.stopPropagation) e.stopPropagation();
-    if (screen === 'running' && !paused) {
+    if (screen === 'running') {
+      // Copy of doMinimize's snapshot block, verbatim — same fields,
+      // same source values, same paused expression.
       const snapshot = {
         type: 'dynamicIntervals',
         display: String(display),
         phase: PHASE_LABEL[phaseRef.current.type] || '',
         info: `סט ${phase.setIdx + 1}/${sets.length}`,
-        paused: false,
+        paused,
       };
       if (setLiveTimerDynamic) setLiveTimerDynamic(snapshot);
       else if (setLiveTimer) setLiveTimer(snapshot);

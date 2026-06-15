@@ -637,22 +637,26 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   // calling the loop a second time.
   useEffect(() => { totalExerciseSecondsRef.current = totalExerciseSeconds; }, [totalExerciseSeconds]);
 
-  // Back to clock-selection screen. If a clock is currently running
-  // (screen === 'running' AND not paused), capture a snapshot into the
-  // mini-bar slot first so the timer keeps running visibly. Always
-  // hide the overlay and navigate to /clocks.
+  // Back to clock-selection screen. Mirrors doMinimize EXACTLY when a
+  // clock is currently running so the bar gets the proven snapshot —
+  // only the navigation destination differs (back → /clocks; the
+  // existing מזער ↗ button → role home). From the settings/done
+  // screens no clock is running, so skip the snapshot write to avoid
+  // surfacing a phantom bar from stale refs.
   // Declared as a hoisted function declaration so the settings/done
   // early-return JSX (which is rendered above the running-view JSX
   // and references handleClockBack) doesn't hit a TDZ error.
   function handleClockBack(e) {
     if (e && e.stopPropagation) e.stopPropagation();
-    if (screen === 'running' && !paused) {
+    if (screen === 'running') {
+      // Copy of doMinimize's snapshot block, verbatim — same fields,
+      // same source values, same paused expression.
       const snapshot = {
         type: 'tabata',
         display: String(display),
         phase: PHASE_LABEL[phaseRef.current.type] || '',
         info: `סבב ${phase.round}/${cfg.rounds} · סט ${phase.set}/${cfg.sets}`,
-        paused: false,
+        paused,
       };
       if (setLiveTimerTabata) setLiveTimerTabata(snapshot);
       else if (setLiveTimer) setLiveTimer(snapshot);

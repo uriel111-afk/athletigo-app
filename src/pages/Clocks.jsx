@@ -63,17 +63,21 @@ const SOUND_TRIPLE_BELL = playVictory;
 /* ═══ STOPWATCH ═══ */
 function StopwatchView({ onMinimize }) {
   const navigate = useNavigate();
-  const { startStopwatch, pause, resume, reset, lapStopwatch, display, isRunning, activeClock, laps, minimize, isMinimized } = useClock();
-  const { setLiveTimer: setLiveTimerAT, setIsMinimized: setIsMinimizedAT } = useActiveTimer();
-  const active = activeClock === 'stopwatch' && !isMinimized;
+  const { startStopwatch, pause, resume, reset, lapStopwatch, display, isRunning, activeClock, laps } = useClock();
+  const { setLiveTimer: setLiveTimerAT, setIsMinimized: setIsMinimizedAT, isMinimized: isMinimizedAT } = useActiveTimer();
+  // Gate the full-screen overlay on the *bar* minimize flag so that
+  // TimerFooterBar.handleExpand (which flips this flag back to false)
+  // returns the user to the running overlay — not the setup screen.
+  const active = activeClock === 'stopwatch' && !isMinimizedAT;
 
+  // Mirror minimizeTimer (Clocks.jsx) state writes EXACTLY so the bar
+  // gets the same snapshot the proven minimize button writes. Only the
+  // navigation destination differs — back goes to /clocks, the original
+  // minimize button goes to the role home.
   const handleClockBack = (e) => {
     e.stopPropagation();
-    if (isRunning) {
-      setLiveTimerAT({ type: 'stopwatch', display: fmtStopwatch(display), phase: 'סטופר', info: null, paused: false });
-      setIsMinimizedAT(true);
-    }
-    minimize();
+    setLiveTimerAT({ type: 'stopwatch', display: fmtStopwatch(display), phase: 'סטופר', info: null, paused: !isRunning });
+    setIsMinimizedAT(true);
     navigate('/clocks');
   };
 
@@ -168,22 +172,26 @@ function TimerCol({ label, value, onChange, max, options, title }) {
 
 function TimerView({ onMinimize }) {
   const navigate = useNavigate();
-  const { startTimer, pause, resume, stop, display, totalDuration, isRunning, activeClock, phase, minimize, isMinimized } = useClock();
-  const { setLiveTimer: setLiveTimerAT, setIsMinimized: setIsMinimizedAT } = useActiveTimer();
+  const { startTimer, pause, resume, stop, display, totalDuration, isRunning, activeClock, phase } = useClock();
+  const { setLiveTimer: setLiveTimerAT, setIsMinimized: setIsMinimizedAT, isMinimized: isMinimizedAT } = useActiveTimer();
   const [prepSec, setPrepSec] = useState(0);
   const [timerMin, setTimerMin] = useState(0);
   const [timerSec, setTimerSec] = useState(30);
   const [prepPicking, setPrepPicking] = useState(false);
-  const active = activeClock === 'timer' && !isMinimized;
+  // Gate the full-screen overlay on the *bar* minimize flag so that
+  // TimerFooterBar.handleExpand (which flips this flag back to false)
+  // returns the user to the running overlay — not the setup screen.
+  const active = activeClock === 'timer' && !isMinimizedAT;
   const showSetup = !active || phase === 'idle' || phase === 'done';
 
+  // Mirror minimizeTimer (Clocks.jsx) state writes EXACTLY so the bar
+  // gets the same snapshot the proven minimize button writes. Only the
+  // navigation destination differs — back goes to /clocks, the original
+  // minimize button goes to the role home.
   const handleClockBack = (e) => {
     e.stopPropagation();
-    if (isRunning) {
-      setLiveTimerAT({ type: 'timer', display: fmt(display), phase: 'טיימר', info: null, paused: false });
-      setIsMinimizedAT(true);
-    }
-    minimize();
+    setLiveTimerAT({ type: 'timer', display: fmt(display), phase: 'טיימר', info: null, paused: !isRunning });
+    setIsMinimizedAT(true);
     navigate('/clocks');
   };
   const totalTimerMs = (timerMin * 60 + timerSec) * 1000;
@@ -435,8 +443,27 @@ export default function Clocks() {
 
   return (
     <div dir="rtl" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: activeTab === 'tabata' ? '#FF6F20' : '#FFFFFF', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', boxSizing: 'border-box', overflowX: 'hidden' }}>
-      <div style={{ backgroundColor: '#FFFFFF', borderBottom: `0.5px solid ${BRD}`, flexShrink: 0 }}>
-        <div className="flex" style={{ padding: '10px 12px 8px', gap: 8 }}>
+      <div style={{ backgroundColor: '#FFFFFF', borderBottom: `0.5px solid ${BRD}`, flexShrink: 0, position: 'relative' }}>
+        {/* Selection-screen back chevron. Uses the same role-derived
+            destination as the in-clock minimize button (minimizeTimer
+            above) so the two stay in lockstep. */}
+        <button
+          onClick={() => navigate(isCoach ? '/dashboard' : '/trainee-home')}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          aria-label="חזרה"
+          style={{
+            position: 'absolute', top: 16, left: 16, zIndex: 5,
+            width: 44, height: 44, borderRadius: 12,
+            background: '#FFFFFF', border: '1px solid #F0E4D0',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <ChevronRight size={24} color="#1a1a1a" />
+        </button>
+        <div className="flex" style={{ padding: '10px 12px 8px 72px', gap: 8 }}>
           {MODES.map(m => {
             const on = activeTab === m.id; const Icon = m.icon;
             return (
