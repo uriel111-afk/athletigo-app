@@ -348,6 +348,12 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
     docs.push({ key: 'health_declaration_new', docType: 'health_declaration', label: 'הצהרת בריאות', signedAt: null, sigData: null, pdfUrl: null, metadata: null, record: null, badge: null });
   }
 
+  // TEMP DEBUG — remove after diagnosing why the canonical health
+  // declaration row doesn't appear in the coach's view.
+  console.log('[DEBUG] user.id =', user?.id, 'isCoach =', isCoach, 'currentUserId =', currentUserId);
+  console.log('[DEBUG] healthDecRow =', healthDecRow);
+  console.log('[DEBUG] final docs list =', docs);
+
   const signedCount = docs.filter(d => d.signedAt).length;
   const totalDocs = docs.length;
 
