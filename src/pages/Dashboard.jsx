@@ -376,10 +376,15 @@ export default function Dashboard() {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            minHeight: 'calc(100vh - 116px)',
-            // Narrower side padding so every section sits closer to
-            // the screen edges on phones, and zero top padding to keep
-            // the whole dashboard on one screen without scrolling.
+            // No fixed minHeight — the earlier `calc(100vh - 116px)`
+            // assumed a fixed 116 px of outer chrome, but Layout.jsx's
+            // page-container now consumes header + safe-area-top and
+            // bottom-nav + safe-area-bottom, so the old value
+            // overshot the available space and forced a phantom
+            // scroll with the top diamond clipped. Letting the column
+            // size to its content removes the dead area; if content
+            // ever overflows on a short viewport the parent's
+            // overflow-y:auto still scrolls cleanly.
             padding: '0 6px 0',
           }}
         >

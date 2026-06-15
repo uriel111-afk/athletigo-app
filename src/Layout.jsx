@@ -600,7 +600,7 @@ export default function Layout({ children, currentPageName }) {
             paddingLeft: (isClocks || isDashboard) ? 0 : '10px',
             paddingRight: (isClocks || isDashboard) ? 0 : '10px',
             paddingTop: isClocks ? 0 : 'var(--content-top)',
-            paddingBottom: isClocks ? 0 : (70 + timerBarsHeight),
+            paddingBottom: isClocks ? 0 : `calc(70px + ${timerBarsHeight}px + env(safe-area-inset-bottom))`,
             overflowY: isClocks ? 'hidden' : 'auto',
             height: isClocks ? '100dvh' : undefined,
             minHeight: 0,
@@ -634,7 +634,7 @@ export default function Layout({ children, currentPageName }) {
 
           {/* Mobile Bottom Navigation — fixed to bottom (pushed up by 72px per active timer bar) */}
           <div className="md:hidden"
-               style={{ position: 'fixed', bottom: timerBarsHeight, left: 0, right: 0, zIndex: 1050, backgroundColor: '#FFFFFF', borderTop: '0.5px solid #F0E4D0', boxShadow: '0 -2px 10px rgba(0,0,0,0.04)', display: isClocks ? 'none' : 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '10px 8px 18px', direction: 'rtl', overflow: 'visible' }}>
+               style={{ position: 'fixed', bottom: timerBarsHeight, left: 0, right: 0, zIndex: 1050, backgroundColor: '#FFFFFF', borderTop: '0.5px solid #F0E4D0', boxShadow: '0 -2px 10px rgba(0,0,0,0.04)', display: isClocks ? 'none' : 'flex', justifyContent: 'space-around', alignItems: 'center', paddingTop: 10, paddingRight: 8, paddingLeft: 8, paddingBottom: 'max(env(safe-area-inset-bottom), 8px)', direction: 'rtl', overflow: 'visible' }}>
             <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', width: '100%' }}>
               {(() => {
                 // The five canonical trainee tabs. Indices used below
