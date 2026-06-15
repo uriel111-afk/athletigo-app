@@ -176,6 +176,14 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
 
   const user = effectiveUser;
 
+  // True only when the page is actually showing someone else's profile
+  // (either the viewer is the trainee themselves, or a coach is on a
+  // DIFFERENT user's page). Used as a gate before any "sign / fill"
+  // action so a coach on their own /profile can never write
+  // trainee_id = their own id into health_declarations or
+  // signed_documents.
+  const isViewingTrainee = !!user?.id && (!isCoach || user.id !== currentUserId);
+
   // Fetch signed documents AND the canonical health_declarations row
   // in parallel. HealthDeclarationForm writes the canonical row
   // reliably but mirrors into signed_documents inside a try/catch that
@@ -489,7 +497,16 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
                 background: '#FFFFFF', border: '1px solid #FF6F20',
                 padding: '2px 8px', borderRadius: 12,
               }}>ממתין לחתימה</span>
-              <Button onClick={() => setSigningPendingDoc(doc.record)} size="sm"
+              <Button onClick={() => {
+                  // Same trainee-only gate as the row header — a coach
+                  // on their own profile can't sign on behalf of a
+                  // pending row (trainee_id would land as coach.id).
+                  if (!isViewingTrainee) {
+                    toast.error('יש לפתוח את הטופס מתוך פרופיל המתאמן');
+                    return;
+                  }
+                  setSigningPendingDoc(doc.record);
+                }} size="sm"
                 style={{ background: '#FF6F20', color: '#FFFFFF' }}>
                 חתום על ההסכם
               </Button>
@@ -516,6 +533,15 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
 
             {/* Header */}
             <button onClick={() => {
+                // A coach on their own /profile must never sign a
+                // trainee document — that would persist trainee_id =
+                // coach.id (the bug this gate exists to prevent).
+                // Viewing/expanding an already-signed row stays open
+                // so the coach can still inspect their own history.
+                if (!isSigned && canSign && !isViewingTrainee) {
+                  toast.error('יש לפתוח את הטופס מתוך פרופיל המתאמן');
+                  return;
+                }
                 // Health declaration uses the canonical modal form for both
                 // trainee onboarding and coach hand-the-phone-over flows —
                 // open it directly instead of expanding inline.
@@ -656,15 +682,23 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
       {/* Canonical health declaration form — same component the trainee
           fills out during casual onboarding (TraineeHome.jsx) and the
           PreHealthScreen handoff. Saves to health_declarations,
-          documents, and signed_documents in one shot. */}
-      <HealthDeclarationFormModal
-        isOpen={signingHealth}
-        onClose={() => setSigningHealth(false)}
-        trainee={{ id: user?.id, full_name: user?.full_name, birth_date: user?.birth_date }}
-        coachId={isCoach ? currentUserId : (user?.coach_id || null)}
-        autoConfirmSession={false}
-        onSigned={() => { setSigningHealth(false); fetchDocs(); }}
-      />
+          documents, and signed_documents in one shot.
+
+          Double-lock: never render the modal when a coach is on their
+          own /profile (user.id === currentUserId). The header-click
+          guard above already blocks the open, but skipping the render
+          entirely means a stale `signingHealth=true` from a navigation
+          race can't slip a coach-identity payload through either. */}
+      {!(isCoach && user?.id === currentUserId) && (
+        <HealthDeclarationFormModal
+          isOpen={signingHealth}
+          onClose={() => setSigningHealth(false)}
+          trainee={{ id: user?.id, full_name: user?.full_name, birth_date: user?.birth_date }}
+          coachId={isCoach ? currentUserId : (user?.coach_id || null)}
+          autoConfirmSession={false}
+          onSigned={() => { setSigningHealth(false); fetchDocs(); }}
+        />
+      )}
 
       {/* Sign-pending-agreement modal (opened from the prominent pending row) */}
       {signingPendingDoc && (
