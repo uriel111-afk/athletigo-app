@@ -67,28 +67,38 @@ export default function HealthDeclarationViewer({ isOpen, onClose, traineeId, tr
     setDocFallback(null);
     setSignedDocFallback(null);
     (async () => {
-      // Three-source lookup. Older signed rows live in only one of
-      // these tables, so the viewer must check all three before it
-      // declares "no signed declaration" — that mismatch is what
-      // produced the "לא נמצאה" toast for users who clearly had a
-      // green "חתום ✓" badge on the docs list (the badge is computed
-      // off signed_documents, but the viewer used to ignore it).
-      //
-      //   1. health_declarations  — canonical PAR-Q row (flat columns)
-      //   2. documents            — metadata mirror (no answers)
-      //   3. signed_documents     — full payload mirror with
-      //                             document_data.questions + signature_data
-      //
-      // The documents query intentionally does NOT filter on `type` —
-      // older installs wrote slightly different `type` strings or used
-      // `name` instead, and `.eq('type', ...)` made the row invisible.
-      const [decRes, docRes, sigRes] = await Promise.all([
-        supabase.from('health_declarations')
-          .select('*')
-          .eq('trainee_id', traineeId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+      // Canonical-first lookup. The save handler in
+      // HealthDeclarationForm.jsx writes `health_declarations` as the
+      // source of truth; mirror inserts into `documents` /
+      // `signed_documents` happen in try/catch blocks that only warn,
+      // so they can silently 4xx. Read the canonical row first and
+      // short-circuit on hit — only fall back to mirrors when the
+      // canonical table has nothing (legacy rows written only by
+      // DocumentSigningTab or older flows).
+      const decRes = await supabase
+        .from('health_declarations')
+        .select('*')
+        .eq('trainee_id', traineeId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled) return;
+      if (decRes.error) {
+        setError(decRes.error.message || 'שגיאה בטעינת ההצהרה');
+        setLoading(false);
+        return;
+      }
+      if (decRes.data) {
+        setRecord(decRes.data);
+        console.log('[HealthDec] loaded from health_declarations:', decRes.data);
+        setLoading(false);
+        return;
+      }
+      // No canonical row — fall back to the mirrors. The documents
+      // query intentionally does NOT filter on `type` — older installs
+      // wrote slightly different `type` strings or used `name`
+      // instead, and `.eq('type', ...)` made the row invisible.
+      const [docRes, sigRes] = await Promise.all([
         supabase.from('documents')
           .select('*')
           .eq('trainee_id', traineeId)
@@ -106,19 +116,9 @@ export default function HealthDeclarationViewer({ isOpen, onClose, traineeId, tr
           .maybeSingle(),
       ]);
       if (cancelled) return;
-      // health_declarations is the only failure that should bubble up
-      // — the others are best-effort fallbacks and a missing row /
-      // 4xx there shouldn't surface a red error to the user.
-      if (decRes.error) {
-        setError(decRes.error.message || 'שגיאה בטעינת ההצהרה');
-      } else {
-        setRecord(decRes.data || null);
-        setDocFallback(docRes.data || null);
-        setSignedDocFallback(sigRes.data || null);
-        console.log('[HealthDec] loaded:', decRes.data);
-        console.log('[HealthDec] doc:', docRes.data);
-        console.log('[HealthDec] signed_doc:', sigRes.data);
-      }
+      setDocFallback(docRes.data || null);
+      setSignedDocFallback(sigRes.data || null);
+      console.log('[HealthDec] no canonical row; doc:', docRes.data, 'signed_doc:', sigRes.data);
       setLoading(false);
     })();
     return () => { cancelled = true; };

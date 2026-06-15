@@ -168,6 +168,7 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
   const [signingType, setSigning] = useState(null);
   const [expandedDoc, setExpandedDoc] = useState(null);
   const [signedDocs, setSignedDocs] = useState([]);
+  const [healthDecRow, setHealthDecRow] = useState(null);
   const [docsLoading, setDocsLoading] = useState(true);
   const [viewingDoc, setViewingDoc] = useState(null);
   const [viewingHealth, setViewingHealth] = useState(false);
@@ -175,18 +176,31 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
 
   const user = effectiveUser;
 
-  // Fetch signed documents from signed_documents table
+  // Fetch signed documents AND the canonical health_declarations row
+  // in parallel. HealthDeclarationForm writes the canonical row
+  // reliably but mirrors into signed_documents inside a try/catch that
+  // only warns — so without the canonical fetch the list shows
+  // "ממתין לחתימה" for trainees who already signed.
   const fetchDocs = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const { data, error } = await supabase
-        .from('signed_documents')
-        .select('*')
-        .eq('trainee_id', user.id)
-        .or('status.is.null,status.neq.deleted')
-        .order('created_at', { ascending: true });
-      if (error) console.error("[DocumentSigning] Fetch error:", error);
-      setSignedDocs(data || []);
+      const [docsRes, hdRes] = await Promise.all([
+        supabase.from('signed_documents')
+          .select('*')
+          .eq('trainee_id', user.id)
+          .or('status.is.null,status.neq.deleted')
+          .order('created_at', { ascending: true }),
+        supabase.from('health_declarations')
+          .select('*')
+          .eq('trainee_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      if (docsRes.error) console.error("[DocumentSigning] Fetch error:", docsRes.error);
+      if (hdRes.error)   console.warn("[DocumentSigning] health_declarations fetch:", hdRes.error);
+      setSignedDocs(docsRes.data || []);
+      setHealthDecRow(hdRes.data || null);
     } catch (e) {
       console.error("[DocumentSigning] Fetch exception:", e);
     } finally {
@@ -257,6 +271,16 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
     arr.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   }
 
+  // If the canonical health_declarations row exists, the trainee has
+  // signed — any pending mirror rows of that type are obsolete and
+  // would render a confusing "ממתין לחתימה" alongside the canonical
+  // entry. Strip them so the list reflects the truth.
+  if (healthDecRow && grouped.has('health_declaration')) {
+    const filtered = grouped.get('health_declaration').filter(r => r.status !== 'pending');
+    if (filtered.length === 0) grouped.delete('health_declaration');
+    else grouped.set('health_declaration', filtered);
+  }
+
   // Map each row to a docs[] entry, computing latest/old badge per type.
   const docs = [];
   for (const [type, arr] of grouped.entries()) {
@@ -285,12 +309,34 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
     });
   }
 
+  // Synthesize a "signed" entry from the canonical health_declarations
+  // row when there is no signed signed_documents mirror (silent-fail
+  // save path). Without this, a trainee who completed the declaration
+  // sees the row stuck in "ממתין לחתימה" because the mirror insert
+  // 4xx'd server-side. The HealthDeclarationViewer reads the same
+  // canonical row, so clicking "צפה" renders the answers + signature.
+  const signedHealthInMirror = (grouped.get('health_declaration') || [])
+    .some(r => r.status === 'signed');
+  if (healthDecRow && !signedHealthInMirror) {
+    docs.push({
+      key: `health_declaration_canonical_${healthDecRow.id}`,
+      docType: 'health_declaration',
+      label: 'הצהרת בריאות',
+      signedAt: healthDecRow.signed_at || healthDecRow.created_at || null,
+      sigData: healthDecRow.signature_data || null,
+      pdfUrl: null,
+      metadata: null,
+      record: null,
+      badge: 'current',
+    });
+  }
+
   // Pending placeholder for the mandatory health declaration when no
-  // row of that type exists yet (so the trainee always sees the
-  // call-to-action card). The cooperation agreement is no longer a
-  // default — it only appears once a coach explicitly sends one via
-  // the "+ הוסף מסמך לחתימה" picker.
-  if (!grouped.has('health_declaration')) {
+  // row of that type exists in EITHER source (so a brand-new trainee
+  // always sees the call-to-action card). The cooperation agreement
+  // is no longer a default — it only appears once a coach explicitly
+  // sends one via the "+ הוסף מסמך לחתימה" picker.
+  if (!grouped.has('health_declaration') && !healthDecRow) {
     docs.push({ key: 'health_declaration_new', docType: 'health_declaration', label: 'הצהרת בריאות', signedAt: null, sigData: null, pdfUrl: null, metadata: null, record: null, badge: null });
   }
 
