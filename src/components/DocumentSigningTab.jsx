@@ -14,6 +14,21 @@ import HealthDeclarationViewer from "./HealthDeclarationViewer";
 import HealthDeclarationFormModal from "./forms/HealthDeclarationForm";
 import SignPendingAgreementDialog from "./forms/SignPendingAgreementDialog";
 import { DOCUMENT_TEMPLATES } from "@/lib/documentTemplates";
+import { downloadSignedDocument } from "@/lib/downloadSignedDocument";
+
+// Question prompts for the printable health-declaration body — kept
+// in sync with HealthDeclarationViewer.QUESTIONS so the PDF reads
+// exactly like the on-screen viewer.
+const PRINT_HEALTH_QUESTIONS = [
+  { key: 'heart_disease',       text: 'האם אובחנה מחלת לב?' },
+  { key: 'blood_pressure',      text: 'האם יש בעיות לחץ דם?' },
+  { key: 'joint_issues',        text: 'האם יש בעיות במפרקים או בעמוד השדרה?' },
+  { key: 'asthma',              text: 'האם יש אסטמה או בעיות נשימה?' },
+  { key: 'medications',         text: 'האם נלקחות תרופות באופן קבוע?' },
+  { key: 'medical_limitations', text: 'האם יש מגבלה רפואית שהמאמן צריך לדעת עליה?' },
+  { key: 'recent_surgery',      text: 'האם בוצע ניתוח ב-12 החודשים האחרונים?' },
+  { key: 'feels_healthy',       text: 'האם התחושה היא בריאות טובה ויכולת לפעילות גופנית?', inverted: true },
+];
 
 async function generatePdfFromRef(ref, fileName) {
   const canvas = await html2canvas(ref, { scale: 2, useCORS: true, backgroundColor: '#FFFFFF' });
@@ -173,6 +188,9 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
   const [viewingDoc, setViewingDoc] = useState(null);
   const [viewingHealth, setViewingHealth] = useState(false);
   const [signingHealth, setSigningHealth] = useState(false);
+  const [downloadingKey, setDownloadingKey] = useState(null);
+  const [printingDoc, setPrintingDoc] = useState(null);
+  const printRef = useRef(null);
 
   const user = effectiveUser;
 
@@ -449,6 +467,38 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
     }
   };
 
+  const buildDownloadFileName = (doc) => {
+    const typeLabel = doc.docType || 'document';
+    const rawName = (user?.full_name || 'trainee').trim();
+    const dateStr = doc.signedAt
+      ? new Date(doc.signedAt).toISOString().slice(0, 10)
+      : 'unsigned';
+    return `${typeLabel}_${rawName}_${dateStr}`;
+  };
+
+  const handleDownloadDoc = async (doc) => {
+    if (!doc?.signedAt) return;
+    const fileName = buildDownloadFileName(doc);
+    const existingUrl = doc.record?.file_url || doc.pdfUrl || null;
+    setDownloadingKey(doc.key);
+    try {
+      if (existingUrl) {
+        await downloadSignedDocument({ existingUrl, fileName });
+        return;
+      }
+      setPrintingDoc(doc);
+      // Let the offscreen DOM mount and the signature <img> decode
+      // before snapshotting — two frames + a short timeout covers
+      // Android WebView image decode latency.
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      await new Promise((r) => setTimeout(r, 250));
+      await downloadSignedDocument({ nodeRef: printRef, fileName });
+    } finally {
+      setPrintingDoc(null);
+      setDownloadingKey(null);
+    }
+  };
+
   return (
     <div className="space-y-4 w-full">
       <div className="flex justify-between items-center">
@@ -598,16 +648,27 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
 
             {/* Signed info */}
             {isSigned && !isExpanded && (
-              <div className="px-4 pb-3 flex items-center justify-between">
+              <div className="px-4 pb-3 flex items-center justify-between gap-2 flex-wrap">
                 <p className="text-xs text-gray-500">נחתם ב-{format(new Date(doc.signedAt), 'dd/MM/yyyy HH:mm', { locale: he })}</p>
-                <Button variant="outline" size="sm" className="h-8 text-xs gap-1" style={{ borderColor: '#FF6F20', color: '#FF6F20' }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (doc.docType === 'health_declaration') setViewingHealth(true);
-                    else setViewingDoc(doc.record);
-                  }}>
-                  <Eye className="w-3 h-3" />צפה במסמך החתום
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1" style={{ borderColor: '#FF6F20', color: '#FF6F20', borderRadius: 14 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (doc.docType === 'health_declaration') setViewingHealth(true);
+                      else setViewingDoc(doc.record);
+                    }}>
+                    <Eye className="w-3 h-3" />צפה במסמך החתום
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1"
+                    style={{ borderColor: '#FF6F20', color: '#FF6F20', borderRadius: 14 }}
+                    disabled={downloadingKey === doc.key}
+                    onClick={(e) => { e.stopPropagation(); handleDownloadDoc(doc); }}
+                    title="הורד PDF">
+                    {downloadingKey === doc.key
+                      ? <><Loader2 className="w-3 h-3 animate-spin" />שומר...</>
+                      : <><Download className="w-3 h-3" />הורד PDF</>}
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -708,6 +769,153 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
           doc={signingPendingDoc}
           isCoachView={isCoach}
         />
+      )}
+
+      {/* Offscreen printable instance — mounted only while a download
+          is in flight. Pulled offscreen via left:-10000 (NOT
+          display:none, which would skip layout and break html2canvas).
+          Fixed 720px width so the snapshot lays out identically on
+          every screen size. dir="rtl" + white background match the
+          on-screen viewers. */}
+      {printingDoc && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed', left: -10000, top: 0,
+            width: 720, pointerEvents: 'none', zIndex: -1,
+            background: '#FFFFFF',
+          }}
+        >
+          <div
+            ref={printRef}
+            dir="rtl"
+            style={{
+              width: 720, padding: 32, background: '#FFFFFF',
+              color: '#1a1a1a', lineHeight: 1.7,
+              fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+            }}
+          >
+            <div style={{ borderBottom: '2px solid #FF6F20', paddingBottom: 12, marginBottom: 20 }}>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>
+                {printingDoc.label || 'מסמך חתום'}
+              </div>
+              <div style={{ fontSize: 14, color: '#555', marginTop: 4 }}>
+                {(user?.full_name || '').trim()}
+                {printingDoc.signedAt
+                  ? ` · נחתם ב-${format(new Date(printingDoc.signedAt), 'dd/MM/yyyy HH:mm', { locale: he })}`
+                  : ''}
+              </div>
+            </div>
+
+            {/* Health declaration body — canonical row first, fall
+                back to the signed_documents.document_data.questions
+                array when there's no canonical row (legacy data). */}
+            {printingDoc.docType === 'health_declaration' && (() => {
+              const row = healthDecRow;
+              const fromDocData = printingDoc.record?.document_data;
+              const docQuestions = Array.isArray(fromDocData?.questions) ? fromDocData.questions : null;
+              const answerFor = (key) => {
+                if (row && key in row) return row[key];
+                if (docQuestions) {
+                  const q = docQuestions.find((it) => it.key === key);
+                  return q ? !!q.answer : undefined;
+                }
+                return undefined;
+              };
+              const notes = row?.additional_notes || fromDocData?.additional_notes || '';
+              return (
+                <div>
+                  {PRINT_HEALTH_QUESTIONS.map((q) => {
+                    const v = answerFor(q.key);
+                    const unanswered = v === null || v === undefined;
+                    const truthy = !!v;
+                    const concerning = q.inverted ? !truthy : truthy;
+                    const bg = unanswered ? '#F5F5F5' : (concerning ? '#FFEBEE' : '#E8F5E9');
+                    const fg = unanswered ? '#888' : (concerning ? '#C62828' : '#2E7D32');
+                    const label = unanswered ? 'לא נענה' : (truthy ? 'כן' : 'לא');
+                    return (
+                      <div key={q.key} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        gap: 10, padding: '10px 0', borderBottom: '1px solid #F0E4D0',
+                      }}>
+                        <div style={{ fontSize: 14, flex: 1, paddingLeft: 12 }}>{q.text}</div>
+                        <div style={{
+                          fontSize: 13, fontWeight: 700, padding: '4px 12px',
+                          borderRadius: 10, background: bg, color: fg,
+                        }}>{label}</div>
+                      </div>
+                    );
+                  })}
+                  {notes && (
+                    <div style={{ marginTop: 16 }}>
+                      <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>פירוט נוסף</div>
+                      <div style={{
+                        padding: 12, borderRadius: 12, background: '#FDF8F3',
+                        fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap',
+                      }}>{notes}</div>
+                    </div>
+                  )}
+                  {row?.declaration_confirmed && (
+                    <div style={{
+                      marginTop: 16, padding: 14, background: '#FDF8F3',
+                      borderRadius: 14, border: '1px solid #F0E4D0', fontSize: 13,
+                    }}>
+                      ✓ "אני מצהיר/ה כי כל הפרטים שנמסרו נכונים ומדויקים. אני
+                      לוקח/ת אחריות מלאה על מצבי הבריאותי."
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Agreement body — the full contract text is already
+                interpolated and stored in document_data.body_rendered
+                (AgreementFlowDialog) so the print mirrors the viewer. */}
+            {typeof printingDoc.docType === 'string' && printingDoc.docType.startsWith('agreement_') && (
+              <div style={{
+                whiteSpace: 'pre-wrap', background: '#FFF9F0',
+                border: '1px solid #FFE5D0', borderRadius: 8, padding: 16,
+                fontSize: 14, lineHeight: 1.75,
+              }}>
+                {printingDoc.record?.document_data?.body_rendered || '(תוכן ההסכם לא נמצא)'}
+              </div>
+            )}
+
+            {/* Legacy cooperation_agreement — full_text was captured
+                at sign time by the inline form above. */}
+            {printingDoc.docType === 'cooperation_agreement' && (
+              <div style={{
+                whiteSpace: 'pre-wrap', background: '#FFF9F0',
+                border: '1px solid #FFE5D0', borderRadius: 8, padding: 16,
+                fontSize: 14, lineHeight: 1.75,
+              }}>
+                {printingDoc.record?.document_data?.full_text
+                  || printingDoc.record?.document_data?.full_template
+                  || '(תוכן ההסכם לא נמצא)'}
+              </div>
+            )}
+
+            {/* Signature — base64 data URL renders inline so html2canvas
+                doesn't need CORS to fetch a remote image. */}
+            {printingDoc.sigData && (
+              <div style={{ marginTop: 24, borderTop: '1px solid #ddd', paddingTop: 16 }}>
+                <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>חתימה דיגיטלית</div>
+                <img
+                  src={printingDoc.sigData}
+                  alt=""
+                  style={{
+                    maxWidth: 320, maxHeight: 120,
+                    border: '1px solid #ddd', borderRadius: 6,
+                    background: '#fff', padding: 6, display: 'block',
+                  }}
+                />
+                <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>
+                  שם: {user?.full_name || ''}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
