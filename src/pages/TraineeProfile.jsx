@@ -1910,6 +1910,7 @@ export default function TraineeProfile() {
   const [selectedPackageHistory, setSelectedPackageHistory] = useState(null);
   const [packageSessions, setPackageSessions] = useState([]);
   const [packageSessionsLoading, setPackageSessionsLoading] = useState(false);
+  const [expandedHistoryPkgId, setExpandedHistoryPkgId] = useState(null);
   // Manual session→package linking inside the package history dialog
   const [showLinkSession, setShowLinkSession] = useState(false);
   const [unlinkedSessions, setUnlinkedSessions] = useState([]);
@@ -4703,10 +4704,10 @@ export default function TraineeProfile() {
                   <h3 className="text-base font-bold text-gray-800 border-b pb-2">היסטוריית רכישות</h3>
                   <div className="bg-gray-50 rounded-xl overflow-hidden border border-gray-200" dir="rtl">
                     <table className="w-full text-sm text-right">
-                      <thead className="bg-gray-100 border-b border-gray-200"><tr><th className="px-3 py-2 text-right font-bold text-gray-600">שירות</th><th className="px-3 py-2 text-right font-bold text-gray-600">תאריך</th><th className="px-3 py-2 text-right font-bold text-gray-600">מחיר</th><th className="px-3 py-2 text-right font-bold text-gray-600">סטטוס</th>{isCoach && <th className="px-3 py-2 text-right font-bold text-gray-600 w-16">פעולות</th>}</tr></thead>
+                      <thead className="bg-gray-100 border-b border-gray-200"><tr><th className="px-3 py-2 text-right font-bold text-gray-600 w-8"></th><th className="px-3 py-2 text-right font-bold text-gray-600">שירות</th><th className="px-3 py-2 text-right font-bold text-gray-600">תאריך</th><th className="px-3 py-2 text-right font-bold text-gray-600">מחיר</th><th className="px-3 py-2 text-right font-bold text-gray-600">סטטוס</th>{isCoach && <th className="px-3 py-2 text-right font-bold text-gray-600 w-16">פעולות</th>}</tr></thead>
                       <tbody className="divide-y divide-gray-200">
                         {historyServices.length === 0 ? (
-                          <tr><td colSpan={isCoach ? 5 : 4} className="px-4 py-4 text-center text-gray-500 italic">אין היסטוריה</td></tr>
+                          <tr><td colSpan={isCoach ? 6 : 5} className="px-4 py-4 text-center text-gray-500 italic">אין היסטוריה</td></tr>
                         ) : (
                           historyServices.map(s => {
                             const derivedStatus = (() => {
@@ -4721,20 +4722,75 @@ export default function TraineeProfile() {
                               return s.status || '—';
                             })();
                             const statusClass = derivedStatus === 'הסתיים' ? 'bg-blue-100 text-blue-800' : derivedStatus === 'פג תוקף' ? 'bg-red-100 text-red-800' : derivedStatus === 'בוטל' ? 'bg-gray-100 text-gray-600' : 'bg-gray-100 text-gray-800';
+                            const isExpanded = expandedHistoryPkgId === s.id;
+                            const pkgSessions = (Array.isArray(sessions) ? sessions : [])
+                              .filter(x => x.service_id === s.id)
+                              .slice()
+                              .sort((a, b) => {
+                                const da = String(a.date || '');
+                                const db = String(b.date || '');
+                                if (da !== db) return da.localeCompare(db);
+                                return String(a.time || '').localeCompare(String(b.time || ''));
+                              });
+                            const isCompletedSession = (sess) => ['completed','הושלם','present','הגיע','התקיים','מאושר','confirmed'].includes((sess?.status || '').toLowerCase());
                             return (
-                              <tr key={s.id} className="bg-white">
-                                <td className="px-3 py-2 text-right"><div className="font-medium">{s.package_name || s.service_type}</div></td>
-                                <td className="px-3 py-2 text-right text-gray-600">{s.start_date ? format(new Date(s.start_date), 'dd/MM/yy') : '—'}</td>
-                                <td className="px-3 py-2 text-right font-medium">₪{s.final_price || s.price || 0}</td>
-                                <td className="px-3 py-2 text-right"><span className={`text-xs px-2 py-0.5 rounded-full ${statusClass}`}>{derivedStatus}</span></td>
-                                {isCoach && (
-                                  <td className="px-3 py-2 text-right">
-                                    <Button onClick={() => openEditService(s)} variant="ghost" size="sm" className="h-7 px-2 text-xs text-[var(--ag-accent)] hover:bg-orange-50">
-                                      <Edit2 className="w-3 h-3 ml-1" />ערוך
-                                    </Button>
+                              <React.Fragment key={s.id}>
+                                <tr className="bg-white cursor-pointer hover:bg-gray-50"
+                                  onClick={() => setExpandedHistoryPkgId(isExpanded ? null : s.id)}>
+                                  <td className="px-3 py-2 text-right" style={{ color: '#888' }}>
+                                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                                   </td>
+                                  <td className="px-3 py-2 text-right"><div className="font-medium">{s.package_name || s.service_type}</div></td>
+                                  <td className="px-3 py-2 text-right text-gray-600">{s.start_date ? format(new Date(s.start_date), 'dd/MM/yy') : '—'}</td>
+                                  <td className="px-3 py-2 text-right font-medium">₪{s.final_price || s.price || 0}</td>
+                                  <td className="px-3 py-2 text-right"><span className={`text-xs px-2 py-0.5 rounded-full ${statusClass}`}>{derivedStatus}</span></td>
+                                  {isCoach && (
+                                    <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                                      <Button onClick={() => openEditService(s)} variant="ghost" size="sm" className="h-7 px-2 text-xs text-[var(--ag-accent)] hover:bg-orange-50">
+                                        <Edit2 className="w-3 h-3 ml-1" />ערוך
+                                      </Button>
+                                    </td>
+                                  )}
+                                </tr>
+                                {isExpanded && (
+                                  <tr>
+                                    <td colSpan={isCoach ? 6 : 5} style={{ padding: 0, background: '#FAFAFA' }}>
+                                      <div style={{ padding: 12, background: 'white', margin: 10, borderRadius: 14, boxShadow: '0 2px 6px rgba(0,0,0,0.04)', border: '1px solid #F0E4D0' }} dir="rtl">
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                          <Clock className="w-4 h-4" style={{ color: '#FF6F20' }} />
+                                          היסטוריית מפגשים
+                                        </div>
+                                        {pkgSessions.length === 0 ? (
+                                          <div style={{ textAlign: 'center', padding: '12px', color: '#888', fontSize: 13, fontStyle: 'italic' }}>
+                                            אין מפגשים משויכים לחבילה זו
+                                          </div>
+                                        ) : (
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            {pkgSessions.map(sess => {
+                                              const done = isCompletedSession(sess);
+                                              return (
+                                                <div key={sess.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'white', borderRadius: 14, border: '1px solid #F0E4D0', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}>
+                                                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>
+                                                      {sess.date ? format(new Date(sess.date), 'dd/MM/yyyy') : '—'}
+                                                    </div>
+                                                    <div style={{ fontSize: 13, color: '#888' }}>
+                                                      {sess.time ? String(sess.time).slice(0, 5) : '—'}
+                                                    </div>
+                                                  </div>
+                                                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: done ? '#FF6F20' : '#F0E4D0', color: done ? 'white' : '#888' }}>
+                                                    {sess.status || '—'}
+                                                  </span>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
                                 )}
-                              </tr>
+                              </React.Fragment>
                             );
                           })
                         )}
