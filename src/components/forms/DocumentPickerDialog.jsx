@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { supabase } from '@/lib/supabaseClient';
-import { toast } from 'sonner';
 import { ChevronLeft } from 'lucide-react';
 import { DOCUMENT_TYPES_LIST } from '@/lib/documentTemplates';
 import AgreementFlowDialog from './AgreementFlowDialog';
@@ -18,36 +16,22 @@ const cardStyle = {
   alignItems: 'center',
   gap: 12,
   transition: 'background 0.15s',
+  WebkitTapHighlightColor: 'rgba(255,111,32,0.15)',
+  touchAction: 'manipulation',
 };
 
 export default function DocumentPickerDialog({
-  open, onClose, traineeId, traineeName, coachId,
+  open, onClose, traineeId, traineeName, coachId, onPickHealth,
 }) {
   const [agreementKey, setAgreementKey] = useState(null);
 
-  async function handlePickHealth() {
-    // Re-use the existing pending-row mechanism — DocumentSigningTab already
-    // renders pending health_declaration rows with the inline form.
-    try {
-      const { error } = await supabase.from('signed_documents').insert({
-        trainee_id: traineeId,
-        coach_id: coachId ?? null,
-        document_type: 'health_declaration',
-        status: 'pending',
-        is_locked: false,
-      });
-      if (error) {
-        console.error('[DocumentPicker] insert health pending:', error);
-        toast.error('שגיאה בהוספת הצהרת בריאות: ' + (error.message || ''));
-        return;
-      }
-      window.dispatchEvent(new CustomEvent('signed-documents-changed', { detail: { traineeId } }));
-      toast.success('הצהרת בריאות נוספה. פתח/י אותה ברשימה כדי למלא ולחתום.');
-      onClose();
-    } catch (e) {
-      console.error('[DocumentPicker] exception:', e);
-      toast.error('שגיאה בלתי צפויה');
-    }
+  function handlePickHealth() {
+    // Close the picker first; the parent owns the HealthDeclarationForm
+    // dialog. The short delay lets Radix tear down this dialog's
+    // focus-trap before the next one mounts — necessary on the Android
+    // WebView where two simultaneous focus traps can swallow taps.
+    onClose();
+    setTimeout(() => onPickHealth?.(), 120);
   }
 
   function handlePick(template) {

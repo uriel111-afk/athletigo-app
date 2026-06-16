@@ -88,6 +88,7 @@ import DocumentSigningTab from "@/components/DocumentSigningTab";
 import GoalsTab from "@/components/profile/GoalsTab";
 import { TraineeDocumentUpload } from "@/components/profile/TraineeDocumentUpload";
 import DocumentPickerDialog from "@/components/forms/DocumentPickerDialog";
+import HealthDeclarationForm from "@/components/forms/HealthDeclarationForm";
 import TraineeNotificationsTab from "@/components/profile/TraineeNotificationsTab";
 import { openBaselineDialog } from "@/components/forms/BaselineFormDialog";
 import SessionFormDialog from "@/components/forms/SessionFormDialog";
@@ -1914,6 +1915,7 @@ export default function TraineeProfile() {
   const [unlinkedSessions, setUnlinkedSessions] = useState([]);
   const [showPlanDialog, setShowPlanDialog] = useState(false);
   const [showDocPicker, setShowDocPicker] = useState(false);
+  const [healthFormOpen, setHealthFormOpen] = useState(false);
 
   const [serviceForm, setServiceForm] = useState({
     service_type: "personal", // personal | group | online
@@ -5306,6 +5308,29 @@ export default function TraineeProfile() {
                       traineeId={user?.id}
                       traineeName={user?.full_name}
                       coachId={currentUser?.id}
+                      onPickHealth={() => setHealthFormOpen(true)}
+                    />
+                  )}
+                  {!(isCoach && (effectiveUser?.id || user?.id) === currentUser?.id) && (
+                    <HealthDeclarationForm
+                      isOpen={healthFormOpen}
+                      onClose={() => {
+                        setHealthFormOpen(false);
+                        const tId = (effectiveUser?.id || user?.id) ?? null;
+                        if (tId) window.dispatchEvent(new CustomEvent('signed-documents-changed', { detail: { traineeId: tId } }));
+                      }}
+                      trainee={{
+                        id: (effectiveUser?.id || user?.id) ?? null,
+                        full_name: (effectiveUser?.full_name || user?.full_name) ?? '',
+                        birth_date: (effectiveUser?.birth_date || user?.birth_date) ?? null,
+                      }}
+                      coachId={isCoach ? (currentUser?.id ?? null) : ((effectiveUser?.coach_id || user?.coach_id) ?? null)}
+                      autoConfirmSession={false}
+                      onSigned={() => {
+                        setHealthFormOpen(false);
+                        const tId = (effectiveUser?.id || user?.id) ?? null;
+                        if (tId) window.dispatchEvent(new CustomEvent('signed-documents-changed', { detail: { traineeId: tId } }));
+                      }}
                     />
                   )}
                   <TraineeReceiptsList traineeId={user?.id} />
