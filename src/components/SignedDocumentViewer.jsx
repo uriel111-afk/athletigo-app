@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { X, Download, CheckCircle } from "lucide-react";
 import { DOCUMENT_TEMPLATES, resolvePhotoConsentLabel, getPhotoConsentStatus } from "@/lib/documentTemplates";
 import PhotoConsentUpgradeDialog from "./forms/PhotoConsentUpgradeDialog";
+import { downloadSignedDocument } from "@/lib/downloadSignedDocument";
 
 const LABELS = {
   health_declaration: 'הצהרת בריאות',
@@ -94,6 +95,8 @@ async function generateAndDownloadPDF(doc, traineeName) {
 
 export default function SignedDocumentViewer({ isOpen, onClose, doc, traineeName, currentUserId }) {
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const bodyRef = useRef(null);
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
@@ -120,58 +123,118 @@ export default function SignedDocumentViewer({ isOpen, onClose, doc, traineeName
       && doc.status === 'signed'
       && consent && typeof consent === 'object'
       && consentStatus !== 'allowed';
+    const signedDateOnly = doc.signed_at ? new Date(doc.signed_at).toLocaleDateString('he-IL') : '';
+    const signedTimeOnly = doc.signed_at
+      ? new Date(doc.signed_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+      : '';
+
+    const handleAgreementDownload = async () => {
+      if (downloading) return;
+      setDownloading(true);
+      try {
+        const rawName = (data.trainee_name || traineeName || 'document').trim();
+        const dateStr = doc.signed_at ? new Date(doc.signed_at).toISOString().slice(0, 10) : 'unsigned';
+        await downloadSignedDocument({
+          existingUrl: doc.file_url || null,
+          nodeRef: bodyRef,
+          fileName: `${doc.document_type || 'agreement'}_${rawName}_${dateStr}`,
+        });
+      } finally {
+        setDownloading(false);
+      }
+    };
+
     return (
-      <div style={{ position: 'fixed', inset: 0, background: 'white', zIndex: 9999, display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #FFE5D0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a' }}>{title}</span>
-              {doc.signature_data && (
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', backgroundColor: '#16a34a', padding: '2px 10px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  <CheckCircle style={{ width: 12, height: 12 }} />חתום
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: 14, color: '#6B7280', marginTop: 2 }}>
-              {doc.signed_at ? `נחתם ב: ${signedDate}` : 'ממתין לחתימה'}
-            </div>
+      <div style={{
+        position: 'fixed', inset: 0,
+        background: 'white', zIndex: 9999,
+        display: 'flex', flexDirection: 'column',
+        direction: 'rtl',
+      }}>
+        {/* Sticky header — title on a SINGLE line via flex:1 + minWidth:0 + nowrap + ellipsis.
+            Health-viewer tokens (#F0E4D0 border, 18/600/#1A1A1A title). */}
+        <div style={{
+          padding: '16px 20px',
+          borderBottom: '1px solid #F0E4D0',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          gap: 12, flexShrink: 0, background: 'white',
+        }}>
+          <div style={{
+            flex: 1, minWidth: 0,
+            display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap',
+          }}>
+            <span style={{
+              fontSize: 18, fontWeight: 600, color: '#1A1A1A',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              minWidth: 0, flex: 1,
+            }}>{title}</span>
+            {doc.signature_data && (
+              <span style={{
+                fontSize: 12, fontWeight: 700, color: '#fff',
+                backgroundColor: '#16a34a',
+                padding: '2px 10px', borderRadius: 20,
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                flexShrink: 0,
+              }}>
+                <CheckCircle style={{ width: 12, height: 12 }} />חתום
+              </span>
+            )}
           </div>
-          <button onClick={onClose} style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', border: 'none', background: '#f5f5f5', cursor: 'pointer' }}>
-            <X style={{ width: 20, height: 20, color: '#6B7280' }} />
+          <button onClick={onClose} aria-label="סגור" style={{
+            width: 36, height: 36,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: '50%', border: 'none', background: 'transparent',
+            cursor: 'pointer', color: '#888', flexShrink: 0,
+          }}>
+            <X style={{ width: 20, height: 20 }} />
           </button>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: 20, WebkitOverflowScrolling: 'touch' }}>
+        {/* Scrollable body — bodyRef is the snapshot target for the PDF generator. */}
+        <div ref={bodyRef} style={{
+          flex: 1, overflowY: 'auto', padding: 20,
+          WebkitOverflowScrolling: 'touch', background: '#FFFFFF',
+        }}>
+          {/* Agreement body text — content UNCHANGED, only the box restyled */}
+          <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>נוסח ההסכם</div>
           <div style={{
-            whiteSpace: 'pre-wrap', background: '#FFF9F0',
-            border: '1px solid #FFE5D0', borderRadius: 8, padding: 16,
-            color: '#1a1a1a', lineHeight: 1.7, fontSize: 14, marginBottom: 20,
+            whiteSpace: 'pre-wrap',
+            background: '#FDF8F3',
+            border: '1px solid #F0E4D0',
+            borderRadius: 12,
+            padding: 16,
+            color: '#1a1a1a', lineHeight: 1.7, fontSize: 14,
+            marginBottom: 16,
           }}>
             {data.body_rendered || '(תוכן ההסכם לא נמצא)'}
           </div>
 
+          {/* Signature — centered, framed card matching HealthDeclarationViewer */}
           {doc.signature_data && (
-            <div style={{ borderTop: '1px solid #FFE5D0', paddingTop: 20, marginTop: 12 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a', marginBottom: 8 }}>חתימה דיגיטלית</div>
-              <img src={doc.signature_data} alt="חתימה"
-                style={{ maxWidth: 300, border: '1px solid #FFE5D0', borderRadius: 8, background: '#FFFFFF', padding: 8, display: 'block' }} />
-              <div style={{ fontSize: 13, color: '#6B7280', marginTop: 8 }}>
-                שם: {data.trainee_name || traineeName || ''}
-              </div>
-              <div style={{ fontSize: 13, color: '#6B7280' }}>
-                תאריך חתימה: {signedDate}
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 4 }}>חתימה</div>
+              <div style={{
+                padding: 12, borderRadius: 12,
+                border: '1px solid #F0E4D0', background: '#FFFFFF',
+                textAlign: 'center',
+              }}>
+                <img
+                  src={doc.signature_data}
+                  alt="חתימה"
+                  style={{ maxWidth: '100%', maxHeight: 120, objectFit: 'contain' }}
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
               </div>
             </div>
           )}
 
-          {/* Photo consent status — visible to both coach and trainee.
-              Trainee with denied/deferred status sees the upgrade CTA. */}
+          {/* Photo consent — kept, restyled to match (#FDF8F3 / #F0E4D0 / radius 12) */}
           {consent && (
             <div style={{
-              marginTop: 20, padding: 14,
-              background: '#FFF9F0',
-              border: isUpgradable ? '2px solid #FF6F20' : '1px solid #FFE5D0',
-              borderRadius: 10,
+              marginTop: 16, padding: 14,
+              background: '#FDF8F3',
+              border: isUpgradable ? '2px solid #FF6F20' : '1px solid #F0E4D0',
+              borderRadius: 12,
             }}>
               <div style={{ color: '#FF6F20', fontWeight: 700, marginBottom: 6 }}>
                 🔹 שימוש בצילומים לצרכי שיווק
@@ -192,16 +255,45 @@ export default function SignedDocumentViewer({ isOpen, onClose, doc, traineeName
               )}
             </div>
           )}
+
+          {/* Bottom signed-at trust pill — matches HealthDeclarationViewer */}
+          {doc.signed_at && (
+            <div style={{ marginTop: 16, textAlign: 'center' }}>
+              <span style={{
+                display: 'inline-block', padding: '6px 16px', borderRadius: 10,
+                background: '#E8F5E9', color: '#2E7D32',
+                fontSize: 13, fontWeight: 500,
+              }}>
+                ✓ נחתם ב-{signedDateOnly} בשעה {signedTimeOnly}
+              </span>
+            </div>
+          )}
         </div>
 
-        <div style={{ padding: '16px 20px', borderTop: '1px solid #FFE5D0', display: 'flex', gap: 8, flexShrink: 0, background: 'white' }}>
-          <button onClick={onClose} style={{ flex: 1, height: 52, borderRadius: 12, border: '1px solid #FFE5D0', background: '#fff', fontSize: 16, fontWeight: 700, color: '#6B7280', cursor: 'pointer' }}>סגור</button>
-          {doc.file_url && (
-            <button onClick={() => window.open(doc.file_url, '_blank')}
-              style={{ flex: 1, height: 52, borderRadius: 12, border: 'none', background: '#FF6F20', fontSize: 16, fontWeight: 700, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <Download style={{ width: 18, height: 18 }} />הורד PDF
-            </button>
-          )}
+        {/* Sticky footer — close + download. Download always available
+            via the shared helper; it short-circuits to file_url when set,
+            otherwise snapshots bodyRef and builds a PDF on demand. */}
+        <div style={{
+          padding: '16px 20px',
+          borderTop: '1px solid #F0E4D0',
+          display: 'flex', gap: 8, flexShrink: 0, background: 'white',
+        }}>
+          <button onClick={onClose} style={{
+            flex: 1, height: 52, borderRadius: 12,
+            border: '1px solid #F0E4D0', background: '#fff',
+            fontSize: 16, fontWeight: 700, color: '#6B7280', cursor: 'pointer',
+          }}>סגור</button>
+          <button onClick={handleAgreementDownload} disabled={downloading} style={{
+            flex: 1, height: 52, borderRadius: 12, border: 'none',
+            background: downloading ? '#D1D5DB' : '#FF6F20',
+            fontSize: 16, fontWeight: 700, color: '#fff',
+            cursor: downloading ? 'wait' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          }}>
+            {downloading
+              ? 'שומר...'
+              : <><Download style={{ width: 18, height: 18 }} />הורד PDF</>}
+          </button>
         </div>
 
         {showUpgrade && (
