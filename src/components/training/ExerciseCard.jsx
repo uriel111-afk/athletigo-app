@@ -14,6 +14,7 @@ import { parsePlannedSets, loadActualsForExercise, loadActualsByDrillForExercise
 import { UNIT_COLORS } from '../../constants/unitColors';
 import { supabase } from '../../lib/supabaseClient';
 import ScrollPickerPopup, { REPS_OPTIONS, SECONDS_OPTIONS } from '../ScrollPickerPopup';
+import { formatTime } from '../../lib/formatTime';
 
 // Stripe + border palette per exercise variant. The trainee execution
 // stripe flips to green once `exercise.completed` becomes true
@@ -923,6 +924,28 @@ function SectionLabel({ children }) {
   );
 }
 
+// Method chip on the closed card — one colored tag per training method
+// so the coach + trainee can see at a glance which protocol drives a
+// row without expanding it. Labels reuse the existing closedLabel
+// strings from PLANNED_SETS_METHODS / HORIZONTAL_MINISETS_METHODS /
+// ROUNDS_METHODS / STATIONS_METHODS. 'list' uses 'רשימת תרגילים' since
+// no closedLabel exists for it. Plain exercise rows (none / normal /
+// reps_new) get no chip so unmethodised rows stay quiet.
+function methodChipFor(variant) {
+  const map = {
+    super_set:  { label: 'סופר סט',      color: '#7F47B5' },
+    combo:      { label: 'קומבו',         color: '#EAB308' },
+    circuit:    { label: 'מחזורי',        color: '#3B82F6' },
+    tabata:     { label: 'טבטה',          color: '#DC2626' },
+    list:       { label: 'רשימת תרגילים', color: '#FF6F20' },
+    rest_pause: { label: 'רסט פאוז',      color: '#8B1A1A' },
+    pyramid:    { label: 'פירמידה',       color: '#FF6F20' },
+    drop_set:   { label: 'דרופ סט',       color: '#FF6F20' },
+    delorme:    { label: 'דלורם',         color: '#FF6F20' },
+  };
+  return map[variant] || null;
+}
+
 // Phase 4 — closed-card summary text by variant.
 // Returns the short status line shown under the exercise name in
 // the closed card. Each method describes its own rhythm. Returns
@@ -939,22 +962,30 @@ function buildClosedSummary(exercise, variant) {
     ? td.exercises_in_rotation
     : (Array.isArray(td.rotation) ? td.rotation : []);
   const cs = (td.clock_settings && typeof td.clock_settings === 'object') ? td.clock_settings : {};
+  // Inner-exercise count that works regardless of which editor saved
+  // the row (ModernExerciseForm SUPERSET writes td.rounds[0].exercises,
+  // EXERCISE_LIST writes td.sub_exercises, PlanBuilder ListBuilder
+  // writes the children column). Mirrors getSubExercises' fallback chain.
+  const innerCount = getSubExercises(exercise).length;
 
   if (variant === 'super_set') {
     const r = Number.isFinite(mc.rounds) ? mc.rounds : (rounds.length || 0);
-    const k = subExercises.length || (rounds[0]?.exercises?.length || 0);
+    const k = subExercises.length || (rounds[0]?.exercises?.length || 0) || innerCount;
     return `${r} סבבים · ${k} תרגילים`;
   }
   if (variant === 'combo') {
     const r = Number.isFinite(mc.rounds) ? mc.rounds : (rounds.length || 0);
-    const k = subExercises.length || (rounds[0]?.exercises?.length || 0);
+    const k = subExercises.length || (rounds[0]?.exercises?.length || 0) || innerCount;
     return `${r} סבבים · ${k} תנועות`;
+  }
+  if (variant === 'list') {
+    return `${innerCount} תרגילים`;
   }
   if (variant === 'tabata') {
     const work = cs.work_seconds ?? mc.work_seconds ?? exercise?.work_seconds ?? '';
     const rest = cs.rest_seconds ?? mc.rest_seconds ?? exercise?.rest_seconds ?? '';
     const rnds = cs.rounds ?? mc.rounds ?? exercise?.rounds ?? '';
-    const k = rotation.length || subExercises.length;
+    const k = rotation.length || subExercises.length || innerCount;
     return `${rnds} סבבים × ${work}/${rest} ש׳ · ${k} תרגילים`;
   }
   if (variant === 'circuit') {
@@ -987,18 +1018,37 @@ function buildClosedSummary(exercise, variant) {
 // opening the card. Returns null when no preview makes sense.
 function buildClosedPreview(exercise, variant) {
   const td = parseTabataData(exercise?.tabata_data) || {};
-  const subExercises = Array.isArray(td.sub_exercises) ? td.sub_exercises : [];
   const stations = Array.isArray(td.stations) ? td.stations : [];
   const rotation = Array.isArray(td.exercises_in_rotation)
     ? td.exercises_in_rotation
     : (Array.isArray(td.rotation) ? td.rotation : []);
   const nameOf = (item) => (item?.name || item?.exerciseName || '—');
 
+  // Resilient inner-exercise lookup for super_set / combo / list: tries
+  // td.sub_exercises, then flattens td.rounds[*].exercises, then falls
+  // back to whatever getSubExercises pulls (children column, etc.) so
+  // the preview line appears regardless of which editor wrote the row.
+  const resolveInner = () => {
+    const subEx = Array.isArray(td.sub_exercises) ? td.sub_exercises : [];
+    if (subEx.length) return subEx;
+    if (Array.isArray(td.rounds) && td.rounds.length) {
+      const flat = [];
+      for (const r of td.rounds) {
+        const arr = Array.isArray(r?.exercises) ? r.exercises : [];
+        for (const e of arr) flat.push(e);
+      }
+      if (flat.length) return flat;
+    }
+    return getSubExercises(exercise);
+  };
+
   let items = null;
-  if (variant === 'super_set' && subExercises.length) items = subExercises.map(nameOf);
-  if (variant === 'combo'     && subExercises.length) items = subExercises.map(nameOf);
-  if (variant === 'tabata'    && rotation.length)     items = rotation.map(nameOf);
-  if (variant === 'circuit'   && stations.length)     items = stations.map(nameOf);
+  if (variant === 'super_set' || variant === 'combo' || variant === 'list') {
+    const inner = resolveInner();
+    if (inner.length) items = inner.map(nameOf);
+  }
+  if (variant === 'tabata'  && rotation.length) items = rotation.map(nameOf);
+  if (variant === 'circuit' && stations.length) items = stations.map(nameOf);
   if (!items) return null;
   return items.join(' · ');
 }
@@ -1533,14 +1583,14 @@ export default function ExerciseCard({
 
     const workSec = toSeconds(cs?.work_seconds ?? src.work_time);
     if (workSec != null) {
-      const value = String(workSec), unit = 'שנ\'', descriptor = 'עבודה';
-      items.push({ key: 'work_time', value, unit, descriptor, display: fmt(value, unit, descriptor) });
+      const value = formatTime(workSec), descriptor = 'עבודה';
+      items.push({ key: 'work_time', value, unit: null, descriptor, display: fmt(value, null, descriptor) });
     }
 
     const restSec = toSeconds(cs?.rest_seconds ?? src.rest_time);
     if (restSec != null) {
-      const value = String(restSec), unit = 'שנ\'', descriptor = 'מנוחה';
-      items.push({ key: 'rest_time', value, unit, descriptor, display: fmt(value, unit, descriptor) });
+      const value = formatTime(restSec), descriptor = 'מנוחה';
+      items.push({ key: 'rest_time', value, unit: null, descriptor, display: fmt(value, null, descriptor) });
     }
 
     const roundsVal = cs?.rounds ?? src.rounds;
@@ -1559,14 +1609,14 @@ export default function ExerciseCard({
     // top-level tabata_data.
     const rbsSec = toSeconds(cs?.rest_between_sets ?? srcTd?.rest_between_sets ?? src.rest_between_sets);
     if (rbsSec != null) {
-      const value = String(rbsSec), unit = 'שנ\'', descriptor = 'בין סטים';
-      items.push({ key: 'rest_between_sets', value, unit, descriptor, display: fmt(value, unit, descriptor) });
+      const value = formatTime(rbsSec), descriptor = 'בין סטים';
+      items.push({ key: 'rest_between_sets', value, unit: null, descriptor, display: fmt(value, null, descriptor) });
     }
 
     const rbeSec = toSeconds(src.rest_between_exercises);
     if (rbeSec != null) {
-      const value = String(rbeSec), unit = 'שנ\'', descriptor = 'בין תרגילים';
-      items.push({ key: 'rest_between_exercises', value, unit, descriptor, display: fmt(value, unit, descriptor) });
+      const value = formatTime(rbeSec), descriptor = 'בין תרגילים';
+      items.push({ key: 'rest_between_exercises', value, unit: null, descriptor, display: fmt(value, null, descriptor) });
     }
 
     if (hasValue(src.reps)) {
@@ -1581,8 +1631,8 @@ export default function ExerciseCard({
 
     const shtSec = toSeconds(src.static_hold_time);
     if (shtSec != null) {
-      const value = String(shtSec), unit = 'שנ\'', descriptor = 'החזקה';
-      items.push({ key: 'static_hold_time', value, unit, descriptor, display: fmt(value, unit, descriptor) });
+      const value = formatTime(shtSec), descriptor = 'החזקה';
+      items.push({ key: 'static_hold_time', value, unit: null, descriptor, display: fmt(value, null, descriptor) });
     }
 
     if (hasValue(src.rpe)) {
@@ -2271,6 +2321,29 @@ export default function ExerciseCard({
                 lineHeight: 1.1,
                 wordBreak: 'break-word',
               }}>{name}</div>
+              {/* Method chip — one small pill per training method, brand
+                  color per variant. Hidden for plain exercise rows
+                  (none / normal / reps_new) so unmethodised rows don't
+                  carry a noisy tag. */}
+              {!expanded && (() => {
+                const chip = methodChipFor(variant);
+                if (!chip) return null;
+                return (
+                  <div style={{ marginTop: 5, direction: 'rtl' }}>
+                    <span style={{
+                      background: chip.color,
+                      color: '#FFFFFF',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      padding: '2px 10px',
+                      borderRadius: 10,
+                      flexShrink: 0,
+                      display: 'inline-block',
+                      lineHeight: 1.4,
+                    }}>{chip.label}</span>
+                  </div>
+                );
+              })()}
               {/* Phase 4 — method-specific summary + preview chip.
                   Shown only when closed; takes precedence over the
                   generic chip row. Preview is a single cream pill
@@ -2320,13 +2393,15 @@ export default function ExerciseCard({
                   label and the full word "שניות" (never the ״ symbol).
                   Only truthy values render. Order: sets → reps → hold → rest. */}
               {!expanded && !buildClosedSummary(exercise, variant) && (() => {
+                const workSec = toSeconds(exercise.work_time);
                 const restSec = toSeconds(exercise.rest_time);
                 const holdSec = toSeconds(exercise.static_hold_time);
                 const chips = [];
                 if (hasValue(closedSummary.sets)) chips.push({ value: String(closedSummary.sets), label: 'סטים' });
                 if (hasValue(closedSummary.reps)) chips.push({ value: String(closedSummary.reps), label: 'חזרות' });
-                if (holdSec != null) chips.push({ value: String(holdSec), label: 'שניות החזקה' });
-                if (restSec != null) chips.push({ value: String(restSec), label: 'שניות מנוחה' });
+                if (workSec != null) chips.push({ value: formatTime(workSec), label: 'עבודה' });
+                if (holdSec != null) chips.push({ value: formatTime(holdSec), label: 'החזקה' });
+                if (restSec != null) chips.push({ value: formatTime(restSec), label: 'מנוחה' });
                 if (chips.length === 0) return null;
                 return (
                   <div style={{
@@ -5102,7 +5177,9 @@ export default function ExerciseCard({
           const isTimeBased = hasWorkTimeParam && !hasRepsParam;
           const showFill = !isCoachMode && hasSetsParam && sectionTrackingMode !== 'display';
           const workTimeItem = paramItems.find((it) => it.key === 'work_time') || null;
-          const workTimeTarget = workTimeItem ? (parseInt(workTimeItem.value, 10) || 0) : 0;
+          const workTimeTarget = workTimeItem
+            ? (toSeconds(td?.clock_settings?.work_seconds ?? exercise.work_time) || 0)
+            : 0;
 
           // Right-side "<number> <word>" label shared by every row —
           // big Barlow Condensed number first (RTL DOM order = right),
