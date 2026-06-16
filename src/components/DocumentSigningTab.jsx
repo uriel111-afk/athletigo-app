@@ -533,46 +533,50 @@ export default function DocumentSigningTab({ effectiveUser, isCoach, onUserUpdat
               style={{
                 background: '#FFF9F0', border: '2px solid #FF6F20', borderRadius: 10,
                 padding: 14, marginBottom: 10,
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-                flexWrap: 'wrap',
+                display: 'flex', flexDirection: 'column', gap: 10,
               }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              {/* Title row — full width, no horizontal squeeze */}
+              <div>
                 <div style={{ color: '#1a1a1a', fontWeight: 700, fontSize: 14 }}>{doc.label}</div>
                 <div style={{ color: '#6b7280', fontSize: 12, marginTop: 2 }}>
                   נשלח: {format(new Date(sentAt), 'dd/MM/yyyy HH:mm', { locale: he })}
                 </div>
               </div>
-              <span style={{
-                fontSize: 11, fontWeight: 700, color: '#FF6F20',
-                background: '#FFFFFF', border: '1px solid #FF6F20',
-                padding: '2px 8px', borderRadius: 12,
-              }}>ממתין לחתימה</span>
-              <Button onClick={() => {
-                  // Same trainee-only gate as the row header — a coach
-                  // on their own profile can't sign on behalf of a
-                  // pending row (trainee_id would land as coach.id).
-                  if (!isViewingTrainee) {
-                    toast.error('יש לפתוח את הטופס מתוך פרופיל המתאמן');
-                    return;
-                  }
-                  setSigningPendingDoc(doc.record);
-                }} size="sm"
-                style={{ background: '#FF6F20', color: '#FFFFFF' }}>
-                חתום על ההסכם
-              </Button>
-              {isCoach && !isHealthDeclaration && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.record?.id, false); }}
-                  title="מחק מסמך"
-                  style={{
-                    width: 32, height: 32, borderRadius: '50%',
-                    border: 'none', background: '#FEE2E2',
-                    color: '#DC2626', fontSize: 16,
-                    cursor: 'pointer', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}
-                >🗑️</button>
-              )}
+              {/* Actions row — badge + sign button + trash, stacked below the title */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  fontSize: 11, fontWeight: 700, color: '#FF6F20',
+                  background: '#FFFFFF', border: '1px solid #FF6F20',
+                  padding: '2px 8px', borderRadius: 12,
+                  flexShrink: 0,
+                }}>ממתין לחתימה</span>
+                <Button onClick={() => {
+                    // Same trainee-only gate as the row header — a coach
+                    // on their own profile can't sign on behalf of a
+                    // pending row (trainee_id would land as coach.id).
+                    if (!isViewingTrainee) {
+                      toast.error('יש לפתוח את הטופס מתוך פרופיל המתאמן');
+                      return;
+                    }
+                    setSigningPendingDoc(doc.record);
+                  }} size="sm"
+                  style={{ background: '#FF6F20', color: '#FFFFFF', flex: 1 }}>
+                  חתום על ההסכם
+                </Button>
+                {isCoach && !isHealthDeclaration && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.record?.id, false); }}
+                    title="מחק מסמך"
+                    style={{
+                      width: 32, height: 32, borderRadius: '50%',
+                      border: 'none', background: '#FEE2E2',
+                      color: '#DC2626', fontSize: 16,
+                      cursor: 'pointer', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >🗑️</button>
+                )}
+              </div>
             </div>
           );
         }
