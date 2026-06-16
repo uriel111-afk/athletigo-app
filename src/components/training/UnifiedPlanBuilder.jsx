@@ -504,11 +504,13 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // trainee+plan. Pre-fills sectionRatings + ratedSectionsRef so the
   // section-feedback popup never re-fires on a section that was
   // already scored, and persistExecution becomes an UPDATE instead
-  // of an INSERT. Trainee-only — coach editing doesn't write
-  // executions. Calendar-day window (>= today 00:00 local) means a
+  // of an INSERT. Calendar-day window (>= today 00:00 local) means a
   // second workout the next day starts a fresh execution row.
+  // Runs in BOTH trainee and coach modes — the query is keyed by
+  // plan.assigned_to (the trainee), so coach mode hydrates the
+  // trainee's execution id + set logs. Without this, a coach-side
+  // fill would race the existing execution and INSERT a duplicate.
   React.useEffect(() => {
-    if (canEdit) return;
     if (!plan?.id) return;
     const traineeId = plan.assigned_to || plan.created_by;
     if (!traineeId) return;
@@ -577,7 +579,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     };
 
     loadActiveExecution();
-  }, [plan?.id, canEdit, plan?.assigned_to, plan?.created_by]);
+  }, [plan?.id, plan?.assigned_to, plan?.created_by]);
 
   // Refetch when the parent profile's tab changes — TraineeProfile
   // dispatches 'tab-changed' on every activeTab flip so users coming
@@ -1609,6 +1611,16 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   }, [plan?.assigned_to, plan?.created_by, plan?.id, currentExecutionId]);
 
   const saveWorkoutExecution = async () => {
+    // Coach-mode guard: the wipe-and-bulk-insert path here would delete
+    // every exercise_set_logs row on the trainee's execution before
+    // reinserting from the coach's (uninitialised) local setLogs state.
+    // Coach fills must flow through the per-cell saveSetActual upsert
+    // path only — see setSetValue. Without this guard a coach edit
+    // would clobber whatever the trainee had logged earlier.
+    if (canEdit) {
+      console.log('[saveWorkoutExecution] coach mode — skipping wipe path');
+      return null;
+    }
     try {
       const traineeId = plan.assigned_to || plan.created_by;
       if (!traineeId) {

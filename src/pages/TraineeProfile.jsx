@@ -6466,6 +6466,18 @@ export default function TraineeProfile() {
                 s.status === 'התקיים' || s.status === 'completed' || s.status === 'מאושר'
               );
 
+              // Chronological numbering — earliest linked session = #1.
+              // The displayed list order in packageSessions stays as-is;
+              // only the badge number changes, so the highest number on
+              // screen equals the total count of sessions performed.
+              const orderedSessions = [...packageSessions].sort((a, b) => {
+                const da = `${a.date || ''} ${a.time || ''}`;
+                const db = `${b.date || ''} ${b.time || ''}`;
+                return da.localeCompare(db);
+              });
+              const sessionNumberById = {};
+              orderedSessions.forEach((s, i) => { sessionNumberById[s.id] = i + 1; });
+
               return (
                 <div className="space-y-4">
                   {/* Summary */}
@@ -6511,6 +6523,9 @@ export default function TraineeProfile() {
                             <div key={s.id} className="bg-gray-50 rounded-xl p-3 flex items-center justify-between border border-gray-100">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
+                                  <span style={{ fontWeight: 700, color: '#FF6F20', marginInlineEnd: 8, minWidth: 28, display: 'inline-block' }}>
+                                    #{sessionNumberById[s.id]}
+                                  </span>
                                   <span className="text-sm font-bold text-gray-800">
                                     {s.date ? new Date(s.date).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
                                   </span>

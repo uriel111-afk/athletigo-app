@@ -5175,7 +5175,7 @@ export default function ExerciseCard({
           // (persisted via the existing time_completed column on
           // exercise_set_logs, documented in workoutExecutionApi.js).
           const isTimeBased = hasWorkTimeParam && !hasRepsParam;
-          const showFill = !isCoachMode && hasSetsParam && sectionTrackingMode !== 'display';
+          const showFill = hasSetsParam && sectionTrackingMode !== 'display';
           const workTimeItem = paramItems.find((it) => it.key === 'work_time') || null;
           const workTimeTarget = workTimeItem
             ? (toSeconds(td?.clock_settings?.work_seconds ?? exercise.work_time) || 0)
