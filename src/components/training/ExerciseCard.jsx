@@ -5670,6 +5670,64 @@ export default function ExerciseCard({
             </div>
           );
         })()}
+
+        {/* Fallback — never render a blank body for normal/none/reps_new.
+            When all three render paths above short-circuit (no fillable
+            rep card, no fillable time card, and no legacy display rows
+            because paramItems + subExercises are both empty), show a
+            minimal "סטים: 1" pill + a muted hint so the open card never
+            appears broken. Display-only — does NOT write to the DB. */}
+        {expanded && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
+          && !(sectionTrackingMode !== 'display' && hasValue(exercise.sets) && hasValue(exercise.reps))
+          && !(sectionTrackingMode !== 'display' && hasValue(exercise.sets) && !hasValue(exercise.reps)
+               && (hasValue(exercise.work_time) || hasValue(exercise.static_hold_time)))
+          && paramItems.length === 0
+          && subExercises.length === 0
+          && (() => {
+          const sNum = Number(exercise.sets) || 0;
+          const displaySets = sNum > 0 ? sNum : 1;
+          return (
+            <div style={{ padding: '0 36px 14px 16px', direction: 'rtl' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-end',
+                gap: 12,
+                padding: '11px 0',
+                direction: 'rtl',
+              }}>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'baseline',
+                  gap: 6,
+                  flexShrink: 0,
+                }}>
+                  <span style={{
+                    fontFamily: NUM_FONT,
+                    fontSize: 24,
+                    fontWeight: 700,
+                    color: '#1a1a1a',
+                    lineHeight: 1,
+                  }}>{displaySets}</span>
+                  <span style={{
+                    fontFamily: SANS_FONT,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#777',
+                  }}>סטים</span>
+                </span>
+              </div>
+              <div style={{
+                fontFamily: SANS_FONT,
+                fontSize: 12,
+                color: '#888',
+                marginTop: 6,
+                textAlign: 'right',
+              }}>
+                לתרגיל לא הוגדרו פרמטרים — לחץ על העריכה כדי להוסיף
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   }
