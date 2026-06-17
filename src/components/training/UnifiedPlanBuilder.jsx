@@ -803,8 +803,21 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         (e) => e && e.training_section_id === originalExercise.training_section_id
       );
       const maxOrder = Math.max(0, ...same.map((e) => Number(e.order) || 0));
+      // Suffix so two duplicates of the same exercise don't read as the
+      // same name in the list. Repeated duplications cascade:
+      //   "סקוואט" → "סקוואט (עותק)" → "סקוואט (עותק) (2)" → " (3)" …
+      const makeDupName = (srcName) => {
+        const base = (srcName || 'תרגיל').toString();
+        const m = base.match(/^(.*\s\(עותק\))(?:\s\((\d+)\))?$/);
+        if (!m) return base + ' (עותק)';
+        return `${m[1]} (${m[2] ? parseInt(m[2], 10) + 1 : 2})`;
+      };
       return await base44.entities.Exercise.create({
         ...exFields,
+        name: makeDupName(originalExercise?.name),
+        // A duplicate is never born "done" — completion is per-execution
+        // and must not bleed across the clone.
+        completed: false,
         order: maxOrder + 1,
       });
     },

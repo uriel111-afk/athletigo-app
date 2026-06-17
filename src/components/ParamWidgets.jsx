@@ -298,9 +298,29 @@ export function Tabata({ value, onChange }) {
   };
   const addExercise = () => patch({ exercises: [...exercises, { name: '' }] });
   const removeExercise = (idx) => patch({ exercises: exercises.filter((_, i) => i !== idx) });
-  const duplicateExercise = (idx) => patch({
-    exercises: [...exercises.slice(0, idx + 1), { name: exercises[idx].name }, ...exercises.slice(idx + 1)],
-  });
+  // Active widget — still mounted by pages/PlanBuilder.jsx via the
+  // <Tabata> editor for round-name sequences. Spread the FULL source
+  // object so any field added to the round shape in the future won't
+  // get silently dropped. Suffix the name with "(עותק)" + cascade
+  // " (2)", " (3)" on repeat. `completed:false` is defensive — round
+  // entries aren't tracked separately today, but kept in case the
+  // shape ever grows that way.
+  const duplicateExercise = (idx) => {
+    const src = exercises[idx] || {};
+    const makeDupName = (srcName) => {
+      const base = (srcName || 'תרגיל').toString();
+      const m = base.match(/^(.*\s\(עותק\))(?:\s\((\d+)\))?$/);
+      if (!m) return base + ' (עותק)';
+      return `${m[1]} (${m[2] ? parseInt(m[2], 10) + 1 : 2})`;
+    };
+    patch({
+      exercises: [
+        ...exercises.slice(0, idx + 1),
+        { ...src, name: makeDupName(src.name), completed: false },
+        ...exercises.slice(idx + 1),
+      ],
+    });
+  };
 
   // Total time estimate (seconds): rounds * (work + rest) * sets + rest_between * (sets - 1) - rest * sets
   const totalSec = ((v.work_sec || 0) + (v.rest_sec || 0)) * rounds * sets - (v.rest_sec || 0) * sets + restBetween * Math.max(0, sets - 1);
