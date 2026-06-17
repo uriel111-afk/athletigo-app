@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
 import { base44 } from "@/api/base44Client";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/supabaseClient";
 import { useQueryClient } from "@tanstack/react-query";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -90,23 +91,29 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
     setLoading(true);
 
     try {
-      // signUp switches the active session to the new trainee; save
-      // the coach session beforehand so we can restore it after the
-      // INSERT and not get bounced to the trainee's home.
-      const { data: { session: coachSession } } = await supabase.auth.getSession();
+      // Create the auth user on an isolated, non-persisting client so
+      // Supabase's auto-sign-in for the new user does NOT overwrite
+      // the coach's session in localStorage. The main `supabase`
+      // client is untouched, so AuthContext's onAuthStateChange does
+      // not fire and the coach keeps their session + UI.
+      const tempClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+          storageKey: 'athletigo-signup-temp',
+        },
+      });
 
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+      const { data: authData, error: signUpError } = await tempClient.auth.signUp({
         email: formData.email.trim(),
         password: formData.password,
         options: { data: { full_name: formData.full_name.trim(), role: formData.role } },
       });
 
-      if (coachSession) {
-        await supabase.auth.setSession({
-          access_token: coachSession.access_token,
-          refresh_token: coachSession.refresh_token,
-        });
-      }
+      // Clean up the throwaway client's in-memory session. Does not
+      // touch the main client.
+      try { await tempClient.auth.signOut(); } catch {}
 
       const roleLabelErr = isCoachRole ? 'המאמן' : 'המתאמן';
       if (signUpError) {
