@@ -4044,11 +4044,15 @@ export default function ExerciseCard({
                           color: BRAND.tagText,
                           borderRadius: 8,
                           padding: '6px 9px',
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: 700,
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: 4,
+                          maxWidth: '120px',
+                          overflowWrap: 'break-word',
+                          wordBreak: 'break-word',
+                          whiteSpace: 'normal',
                         }}>
                           <span style={{
                             fontFamily: "'Barlow Condensed', sans-serif",
