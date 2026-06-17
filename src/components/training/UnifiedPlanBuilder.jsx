@@ -1502,8 +1502,21 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       exerciseData.weight           = row0.weight_kg ?? row0.weight ?? null;
       exerciseData.rest_time        = row0.rest_seconds ?? row0.rest_time ?? null;
       exerciseData.work_time        = row0.work_time ?? exerciseData.work_time ?? null;
-      exerciseData.tempo            = row0.tempo ?? null;
-      exerciseData.rpe              = row0.rpe ?? null;
+      // Only overwrite if the row actually carries a value — never null-out a
+      // field the coach did not touch in this edit session.
+      if (row0.tempo != null) {
+        exerciseData.tempo = row0.tempo;
+      } else if (exerciseData.tempo == null) {
+        exerciseData.tempo = null; // genuinely new exercise, no prior value
+      }
+      // else: leave exerciseData.tempo untouched (keeps the DB value via spread)
+
+      if (row0.rpe != null) {
+        exerciseData.rpe = row0.rpe;
+      } else if (exerciseData.rpe == null) {
+        exerciseData.rpe = null;
+      }
+      // else: leave exerciseData.rpe untouched
       exerciseData.static_hold_time = row0.hold_seconds ?? row0.static_hold_time ?? null;
       exerciseData.rest_between_sets = row0.rest_between_sets ?? exerciseData.rest_between_sets ?? null;
     }

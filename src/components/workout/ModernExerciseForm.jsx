@@ -278,7 +278,30 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     if (Array.isArray(parsed?.set_fields)) {
       setSelectedSetFields(parsed.set_fields);
     } else {
-      setSelectedSetFields(DEFAULT_FIELDS_BY_METHOD[methodId] || []);
+      // Smart hydration: use saved set_fields if present,
+      // else infer from which numeric fields exist in planned_sets rows,
+      // else fall back to method defaults.
+      const savedFields = exercise.tabata_data?.set_fields;
+      let fieldsToUse;
+      if (savedFields && savedFields.length > 0) {
+        fieldsToUse = savedFields;
+      } else {
+        const rows = exercise.tabata_data?.planned_sets || [];
+        const inferred = new Set();
+        rows.forEach(row => {
+          if (row.reps != null)                                          inferred.add('reps');
+          if (row.weight_kg != null || row.weight != null)              inferred.add('weight_kg');
+          if (row.rest_seconds != null || row.rest_time != null)        inferred.add('rest_seconds');
+          if (row.work_time != null)                                     inferred.add('work_time');
+          if (row.hold_seconds != null || row.static_hold_time != null) inferred.add('hold_seconds');
+          if (row.tempo != null)                                         inferred.add('tempo');
+          if (row.rpe != null)                                           inferred.add('rpe');
+        });
+        fieldsToUse = inferred.size > 0
+          ? Array.from(inferred)
+          : (DEFAULT_FIELDS_BY_METHOD[methodId] || []);
+      }
+      setSelectedSetFields(fieldsToUse);
     }
 
     // Hydrate per-set rows. When the exercise carries a plain `sets`
