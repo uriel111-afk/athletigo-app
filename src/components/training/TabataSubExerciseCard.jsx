@@ -59,117 +59,270 @@ export default function TabataSubExerciseCard({
 }) {
   if (!sub || !sub.name) return null;
 
-  const preview = previewChipFor(sub);
+  // Shared 28×28 orange index badge — appears in both closed + open.
+  const IndexBadge = (
+    <span style={{
+      width: 28, height: 28,
+      background: BRAND.stripeActive,
+      color: '#FFFFFF',
+      borderRadius: 4,
+      fontFamily: NUM_FONT,
+      fontSize: 15,
+      fontWeight: 700,
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+      lineHeight: 1,
+    }}>{String(index + 1).padStart(2, '0')}</span>
+  );
+
+  // Shared right-side actions cluster (copy + delete). Hidden when
+  // !canEdit. stopPropagation so taps don't fire the wrapping toggle.
+  const Actions = canEdit ? (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onDuplicate && onDuplicate(index); }}
+        aria-label="שכפל תרגיל"
+        title="שכפל"
+        style={{
+          width: 28, height: 28,
+          background: 'transparent',
+          border: 'none',
+          color: BRAND.textMuted,
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 0,
+        }}
+      ><Copy size={15} /></button>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onDelete && onDelete(index); }}
+        aria-label="הסר תרגיל"
+        title="מחק"
+        style={{
+          width: 28, height: 28,
+          background: 'transparent',
+          border: 'none',
+          color: BRAND.textMuted,
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 0,
+        }}
+      ><Trash2 size={15} /></button>
+    </div>
+  ) : null;
+
+  // ── CLOSED state ────────────────────────────────────────────
+  if (!isExpanded) {
+    const preview = previewChipFor(sub);
+    return (
+      <div
+        onClick={() => onOpen && onOpen(index)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={false}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onOpen && onOpen(index);
+          }
+        }}
+        style={{
+          direction: 'rtl',
+          background: BRAND.cardBg,
+          border: `1px solid ${BRAND.panelBorder}`,
+          borderRadius: 12,
+          padding: 12,
+          marginBottom: 10,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          cursor: 'pointer',
+          userSelect: 'none',
+          WebkitTapHighlightColor: 'transparent',
+        }}
+      >
+        {IndexBadge}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontFamily: SANS_FONT,
+            fontSize: 15,
+            fontWeight: 700,
+            color: BRAND.textPrimary,
+            wordBreak: 'break-word',
+            lineHeight: 1.2,
+          }}>{sub.name}</div>
+          {preview && (
+            <div style={{ marginTop: 4 }}>
+              <span style={{
+                background: BRAND.tagBg,
+                color: '#993C1D',
+                fontSize: 11,
+                fontWeight: 500,
+                padding: '2px 7px',
+                borderRadius: 6,
+                whiteSpace: 'nowrap',
+                display: 'inline-block',
+              }}>{preview}</span>
+            </div>
+          )}
+        </div>
+        {Actions}
+      </div>
+    );
+  }
+
+  // ── OPEN state ──────────────────────────────────────────────
+  // Renders a single editable row per id in sub.set_fields.
+  // Respects PARAM_CATALOG entry.type ('text' for body_position /
+  // tempo / grip / …, 'number' for the rest) so text params don't
+  // collapse to a numeric input that strips their value.
+  const setFields = Array.isArray(sub.set_fields) ? sub.set_fields : [];
+
+  const renderParamField = (paramId) => {
+    const entry = PARAM_CATALOG[paramId];
+    if (!entry) return null;
+    const value = sub[paramId] ?? '';
+    const isText = entry.type === 'text';
+    return (
+      <div
+        key={paramId}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 8,
+          alignItems: 'center',
+          padding: '8px 0',
+          borderBottom: `1px solid ${BRAND.innerBorder}`,
+        }}
+      >
+        <span style={{
+          fontFamily: SANS_FONT,
+          fontSize: 13,
+          fontWeight: 600,
+          color: BRAND.textMuted,
+        }}>
+          {entry.label}
+        </span>
+        <input
+          type={isText ? 'text' : 'number'}
+          value={value}
+          onChange={(e) => onUpdateParam && onUpdateParam(index, paramId, e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          disabled={!canEdit}
+          style={{
+            padding: '6px 8px',
+            borderRadius: 6,
+            border: `1px solid ${BRAND.panelBorder}`,
+            background: 'white',
+            fontFamily: SANS_FONT,
+            fontSize: 13,
+            color: BRAND.textPrimary,
+            outline: 'none',
+            width: '100%',
+            textAlign: 'right',
+          }}
+        />
+      </div>
+    );
+  };
 
   return (
     <div
-      onClick={() => onOpen && onOpen(index)}
-      role="button"
-      tabIndex={0}
-      aria-expanded={!!isExpanded}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onOpen && onOpen(index);
-        }
-      }}
       style={{
         direction: 'rtl',
-        background: BRAND.cardBg,
-        border: `1px solid ${BRAND.panelBorder}`,
+        background: BRAND.panelBg,
+        border: `2px solid ${BRAND.stripeActive}`,
         borderRadius: 12,
         padding: 12,
         marginBottom: 10,
+        boxShadow: 'rgba(255,111,32,0.12) 0px 4px 10px',
+      }}
+    >
+      {/* Header — same shape as the closed card, no toggle on the band
+          (the dedicated "סיום" button at the bottom collapses). The
+          actions cluster stays available so the coach can duplicate or
+          delete while open. */}
+      <div style={{
         display: 'flex',
         alignItems: 'center',
         gap: 8,
-        cursor: 'pointer',
-        userSelect: 'none',
-        WebkitTapHighlightColor: 'transparent',
-      }}
-    >
-      {/* Right (RTL start): orange 2-digit index badge */}
-      <span style={{
-        width: 28, height: 28,
-        background: BRAND.stripeActive,
-        color: '#FFFFFF',
-        borderRadius: 4,
-        fontFamily: NUM_FONT,
-        fontSize: 15,
-        fontWeight: 700,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-        lineHeight: 1,
-      }}>{String(index + 1).padStart(2, '0')}</span>
-
-      {/* Center: name + one preview chip */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontFamily: SANS_FONT,
-          fontSize: 15,
-          fontWeight: 700,
-          color: BRAND.textPrimary,
-          wordBreak: 'break-word',
-          lineHeight: 1.2,
-        }}>{sub.name}</div>
-        {preview && (
-          <div style={{ marginTop: 4 }}>
-            <span style={{
-              background: BRAND.tagBg,
-              color: '#993C1D',
-              fontSize: 11,
-              fontWeight: 500,
-              padding: '2px 7px',
-              borderRadius: 6,
-              whiteSpace: 'nowrap',
-              display: 'inline-block',
-            }}>{preview}</span>
-          </div>
-        )}
+        marginBottom: 10,
+      }}>
+        {IndexBadge}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontFamily: SANS_FONT,
+            fontSize: 15,
+            fontWeight: 700,
+            color: BRAND.textPrimary,
+            wordBreak: 'break-word',
+            lineHeight: 1.2,
+          }}>{sub.name}</div>
+        </div>
+        {Actions}
       </div>
 
-      {/* Left (RTL end): copy + delete. Hidden when !canEdit. Stops
-          propagation so taps don't also fire the card open handler. */}
-      {canEdit && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onDuplicate && onDuplicate(index); }}
-            aria-label="שכפל תרגיל"
-            title="שכפל"
-            style={{
-              width: 28, height: 28,
-              background: 'transparent',
-              border: 'none',
-              color: BRAND.textMuted,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 0,
-            }}
-          ><Copy size={15} /></button>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onDelete && onDelete(index); }}
-            aria-label="הסר תרגיל"
-            title="מחק"
-            style={{
-              width: 28, height: 28,
-              background: 'transparent',
-              border: 'none',
-              color: BRAND.textMuted,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 0,
-            }}
-          ><Trash2 size={15} /></button>
+      {/* Divider between header and param body */}
+      <div style={{
+        height: 1,
+        background: BRAND.innerBorder,
+        marginBottom: 8,
+      }} />
+
+      {/* Param body — one row per picked field, or empty-state hint
+          when the coach hasn't picked any params for this exercise. */}
+      {setFields.length > 0 ? (
+        <div>
+          {setFields.map((paramId) => renderParamField(paramId))}
+        </div>
+      ) : (
+        <div style={{
+          fontFamily: SANS_FONT,
+          fontSize: 12,
+          color: BRAND.textMuted,
+          textAlign: 'center',
+          padding: '12px 8px',
+          background: 'white',
+          borderRadius: 6,
+          border: `1px dashed ${BRAND.innerBorder}`,
+        }}>
+          לתרגיל לא הוגדרו פרמטרים — לחץ על הוריאציה בסקשן לעריכה.
         </div>
       )}
+
+      {/* Collapse button — re-fires onOpen(index), which the parent
+          treats as a toggle (controlled-expand pattern: passing the
+          same index again closes the row). */}
+      <div style={{
+        marginTop: 12,
+        display: 'flex',
+        justifyContent: 'center',
+      }}>
+        <button
+          type="button"
+          onClick={() => onOpen && onOpen(index)}
+          style={{
+            background: BRAND.stripeActive,
+            color: '#FFFFFF',
+            border: 'none',
+            borderRadius: 6,
+            padding: '8px 20px',
+            fontFamily: SANS_FONT,
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          סיום
+        </button>
+      </div>
     </div>
   );
 }
