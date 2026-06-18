@@ -1557,7 +1557,7 @@ function PersonalTab({
         <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ag-text)', marginBottom: 10 }}>
           פרטי התקשרות
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
           <EditableField label="טלפון"        value={user?.phone}            fieldKey="phone"            type="tel"   editing={editingDetails} editFields={editFields} setEditFields={setEditFields} />
           <EditableField label="אימייל"       value={user?.email}            fieldKey="email"            type="email" editing={editingDetails} editFields={editFields} setEditFields={setEditFields} />
           {editingDetails ? (
@@ -1645,7 +1645,7 @@ function PersonalTab({
 
         {hasEmergency || editingDetails ? (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
               <EditableField label="שם"    value={user?.emergency_contact_name}  fieldKey="emergency_contact_name"  editing={editingDetails} editFields={editFields} setEditFields={setEditFields} />
               <EditableField label="טלפון" value={user?.emergency_contact_phone} fieldKey="emergency_contact_phone" type="tel" editing={editingDetails} editFields={editFields} setEditFields={setEditFields} />
             </div>
