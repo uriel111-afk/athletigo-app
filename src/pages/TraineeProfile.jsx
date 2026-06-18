@@ -1368,12 +1368,15 @@ function PersonalTab({
     const present = Object.fromEntries(
       Object.entries(editFields).filter(([, v]) => v !== undefined)
     );
-    const { error } = await supabase.from('users').update(present).eq('id', user.id);
+    console.log('[PROFILE SAVE] payload:', JSON.stringify(present));
+    const { data, error } = await supabase.from('users').update(present).eq('id', user.id).select();
+    console.log('[PROFILE SAVE] result:', JSON.stringify({ data, error }));
     if (error) {
       console.warn('[PersonalTab] bulk update failed:', error.message, '— retrying per-field');
       const failed = [];
       for (const [k, v] of Object.entries(present)) {
-        const { error: e } = await supabase.from('users').update({ [k]: v }).eq('id', user.id);
+        const { data: pData, error: e } = await supabase.from('users').update({ [k]: v }).eq('id', user.id).select();
+        console.log(`[PROFILE SAVE] per-field ${k}:`, JSON.stringify({ pData, error: e }));
         if (e) { console.warn(`[PersonalTab] ${k} failed:`, e.message); failed.push(k); }
       }
       if (failed.length === Object.keys(present).length) {
@@ -1383,6 +1386,9 @@ function PersonalTab({
       }
       if (failed.length) toast.warning(`חלק מהשדות לא נשמרו (${failed.join(', ')})`);
       else toast.success('פרטים עודכנו ✓');
+    } else if (Array.isArray(data) && data.length === 0) {
+      console.warn('[PROFILE SAVE] update returned 0 rows — likely RLS blocked the write');
+      toast.error('השמירה לא בוצעה (הרשאות)');
     } else {
       toast.success('פרטים עודכנו ✓');
     }
@@ -1399,6 +1405,10 @@ function PersonalTab({
   // breathe; focus border swaps to orange.
   const EditableField = ({ label, value, fieldKey, type = 'text' }) => {
     if (!editingDetails) return <FieldCell label={label} value={value} />;
+    // Emails are always LTR even in RTL layout — without this they
+    // get visually clipped because the right anchor pushes the local
+    // part out of view in a narrow grid column.
+    const isLTR = type === 'email' || type === 'tel';
     return (
       <div style={{ minWidth: 0, marginBottom: 16 }}>
         <label style={{
@@ -1421,13 +1431,17 @@ function PersonalTab({
           }}
           style={{
             width: '100%',
+            minWidth: 0,
             minHeight: 48,
             padding: '12px 14px',
             border: '1.5px solid var(--ag-border)',
             borderRadius: 10,
             fontSize: 15,
             fontFamily: 'inherit',
-            direction: 'rtl',
+            direction: isLTR ? 'ltr' : 'rtl',
+            textAlign: isLTR ? 'left' : 'right',
+            textOverflow: 'ellipsis',
+            overflow: 'hidden',
             background: '#FFF9F5',
             boxSizing: 'border-box',
             outline: 'none',
