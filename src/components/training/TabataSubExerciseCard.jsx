@@ -84,42 +84,47 @@ export default function TabataSubExerciseCard({
 
   // Shared right-side actions cluster (copy + delete). Hidden when
   // !canEdit. stopPropagation so taps don't fire the wrapping toggle.
+  // Soft cream backgrounds give both icons a visible chip against the
+  // white card; Copy gets brand orange (action), Trash gets a muted
+  // red (destructive) so they read at a glance.
   const Actions = canEdit ? (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onDuplicate && onDuplicate(index); }}
         aria-label="שכפל תרגיל"
         title="שכפל"
         style={{
-          width: 28, height: 28,
-          background: 'transparent',
-          border: 'none',
-          color: BRAND.textMuted,
+          width: 30, height: 30,
+          background: BRAND.tagBg,
+          border: `1px solid ${BRAND.panelBorder}`,
+          borderRadius: 6,
+          color: BRAND.stripeActive,
           cursor: 'pointer',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
           padding: 0,
         }}
-      ><Copy size={15} /></button>
+      ><Copy size={16} /></button>
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onDelete && onDelete(index); }}
         aria-label="הסר תרגיל"
         title="מחק"
         style={{
-          width: 28, height: 28,
-          background: 'transparent',
-          border: 'none',
-          color: BRAND.textMuted,
+          width: 30, height: 30,
+          background: '#FDECEC',
+          border: '1px solid #F5C9C9',
+          borderRadius: 6,
+          color: '#a32d2d',
           cursor: 'pointer',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
           padding: 0,
         }}
-      ><Trash2 size={15} /></button>
+      ><Trash2 size={16} /></button>
     </div>
   ) : null;
 

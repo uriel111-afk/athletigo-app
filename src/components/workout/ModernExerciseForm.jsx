@@ -2263,6 +2263,31 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
             )}
           </div>
 
+          {/* Bottom add-row button — mirrors the header "+ הוסף תרגיל"
+              so the coach can keep adding without scrolling back up. */}
+          <button
+            type="button"
+            onClick={addRotationExercise}
+            disabled={readOnly}
+            style={{
+              width: '100%',
+              padding: 12,
+              marginTop: 8,
+              marginBottom: 14,
+              background: 'var(--ag-accent)',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: readOnly ? 'default' : 'pointer',
+              fontFamily: 'inherit',
+              opacity: readOnly ? 0.5 : 1,
+            }}
+          >
+            + הוסף תרגיל
+          </button>
+
           {/* Clock settings */}
           <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--ag-text)', marginBottom: 10 }}>
             הגדרות שעון
