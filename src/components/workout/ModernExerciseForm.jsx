@@ -17,6 +17,7 @@ import { TRAINING_METHODS } from '../../constants/trainingMethods';
 import { PARAM_CATALOG } from '../../constants/paramCatalog';
 import { parsePlannedSets } from '../../lib/plannedSets';
 import { getParamOptions, addParamOption, hasOptions } from '../../lib/paramOptions';
+import TabataSubExerciseCard from '../training/TabataSubExerciseCard';
 
 // ────────────────────────────────────────────────────────────────
 // Section 1 — methods row.
@@ -216,6 +217,9 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   // TABATA state — rotation of exercise names + 5 clock settings.
   const [rotationExercises, setRotationExercises] = useState([]);
   const [clockSettings, setClockSettings] = useState({});
+  // Single-open-at-a-time for the new card-based rotation editor.
+  // null = all collapsed; integer = the open sub's index in rotationExercises.
+  const [expandedSubIndex, setExpandedSubIndex] = useState(null);
 
   // EXERCISE_LIST state — flat list of sub-exercises, each carrying
   // optional per-field values keyed by PARAM_CATALOG ids.
@@ -609,6 +613,20 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   const duplicateRotation = (idx) => {
     if (readOnly) return;
     setRotationExercises((prev) => duplicateAtIndex(prev, idx));
+  };
+  // Per-param edit on a rotation entry — drives onUpdateParam from
+  // TabataSubExerciseCard. PARAM_CATALOG ids land as top-level keys
+  // on the rotation entry, mirroring the EXERCISE_LIST sub shape.
+  const handleUpdateSubParam = (subIndex, paramId, newValue) => {
+    if (readOnly) return;
+    setRotationExercises((prev) =>
+      prev.map((ex, i) => (i === subIndex ? { ...ex, [paramId]: newValue } : ex))
+    );
+  };
+  // Reserved for the step-3 name-edit pass; safe no-op alias for now
+  // so the card can wire onUpdateName without parent changes later.
+  const handleUpdateSubName = (subIndex, newName) => {
+    updateRotationExerciseName(subIndex, newName);
   };
   const updateClockSetting = (key, val) => {
     if (readOnly) return;
@@ -2205,96 +2223,45 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
             </button>
           </div>
 
-          {rotationExercises.length === 0 ? (
-            <div style={{
-              padding: 20,
-              textAlign: 'center',
-              color: '#9CA3AF',
-              background: '#FAFAFA',
-              borderRadius: 8,
-              fontSize: 12,
-              marginBottom: 14,
-            }}>
-              אין תרגילים ברוטציה — לחץ "הוסף תרגיל" כדי להתחיל
-            </div>
-          ) : (
-            <div style={{ marginBottom: 14 }}>
-              {rotationExercises.map((ex, ei) => (
-                <div key={ei} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  marginBottom: 6,
-                  background: '#EFF6FF',
-                  border: '1px solid #BFDBFE',
-                  borderRadius: 8,
-                  padding: '6px 10px',
-                }}>
-                  <span style={{
-                    fontFamily: "'Bebas Neue', sans-serif",
-                    fontSize: 18,
-                    color: '#1D4ED8',
-                    lineHeight: 1,
-                    minWidth: 24,
-                    fontWeight: 800,
-                  }}>
-                    {String(ei + 1).padStart(2, '0')}
-                  </span>
-                  <input
-                    type="text"
-                    placeholder="שם התרגיל"
-                    value={ex.name ?? ''}
-                    onChange={(e) => updateRotationExerciseName(ei, e.target.value)}
-                    style={{
-                      flex: 1,
-                      height: 30,
-                      padding: '0 10px',
-                      border: '1px solid #BFDBFE',
-                      borderRadius: 6,
-                      fontSize: 12,
-                      color: 'var(--ag-text)',
-                      background: 'white',
-                      fontFamily: 'inherit',
-                      outline: 'none',
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => duplicateRotation(ei)}
-                    aria-label="שכפל תרגיל"
-                    title="שכפל"
-                    style={{
-                      width: 24,
-                      height: 24,
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#9CA3AF',
-                      cursor: readOnly ? 'default' : 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: 0,
-                    }}
-                  ><Copy size={13} /></button>
-                  <button
-                    type="button"
-                    onClick={() => removeRotationExercise(ei)}
-                    aria-label="הסר תרגיל"
-                    style={{
-                      width: 24,
-                      height: 24,
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#9CA3AF',
-                      cursor: readOnly ? 'default' : 'pointer',
-                      fontSize: 16,
-                      lineHeight: 1,
-                    }}
-                  >×</button>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Rotation list — card-based editor backed by
+              TabataSubExerciseCard. Single-open-at-a-time via
+              expandedSubIndex: tapping a closed card opens it (and
+              implicitly closes any sibling); tapping the same card's
+              header or its bottom "סיום" button re-fires the toggle
+              and closes it. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 14 }}>
+            {rotationExercises.length === 0 ? (
+              <div style={{
+                padding: 20,
+                textAlign: 'center',
+                color: '#9CA3AF',
+                background: '#FAFAFA',
+                borderRadius: 8,
+                fontSize: 12,
+              }}>
+                אין תרגילים ברוטציה — לחץ "הוסף תרגיל" כדי להתחיל
+              </div>
+            ) : (
+              rotationExercises.map((sub, idx) => (
+                <TabataSubExerciseCard
+                  key={`sub-${idx}`}
+                  sub={sub}
+                  index={idx}
+                  isExpanded={expandedSubIndex === idx}
+                  onOpen={() => setExpandedSubIndex(expandedSubIndex === idx ? null : idx)}
+                  canEdit={!readOnly}
+                  onDelete={() => {
+                    removeRotationExercise(idx);
+                    if (expandedSubIndex === idx) setExpandedSubIndex(null);
+                  }}
+                  onDuplicate={() => duplicateRotation(idx)}
+                  onUpdateName={handleUpdateSubName}
+                  onUpdateParam={handleUpdateSubParam}
+                  plan={exercise}
+                />
+              ))
+            )}
+          </div>
 
           {/* Clock settings */}
           <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--ag-text)', marginBottom: 10 }}>

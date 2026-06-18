@@ -57,7 +57,12 @@ export default function TabataSubExerciseCard({
   onUpdateParam,
   plan,
 }) {
-  if (!sub || !sub.name) return null;
+  if (!sub) return null;
+  // Freshly-added rotation entries arrive with name='' (the form's
+  // addRotationExercise pushes `{ name: '' }`). Until a name input
+  // ships in step 3, fall back to a placeholder so the card still
+  // renders and the coach can interact with it.
+  const displayName = sub.name && sub.name.trim() ? sub.name : 'תרגיל חדש';
 
   // Shared 28×28 orange index badge — appears in both closed + open.
   const IndexBadge = (
@@ -157,7 +162,7 @@ export default function TabataSubExerciseCard({
             color: BRAND.textPrimary,
             wordBreak: 'break-word',
             lineHeight: 1.2,
-          }}>{sub.name}</div>
+          }}>{displayName}</div>
           {preview && (
             <div style={{ marginTop: 4 }}>
               <span style={{
@@ -264,7 +269,7 @@ export default function TabataSubExerciseCard({
             color: BRAND.textPrimary,
             wordBreak: 'break-word',
             lineHeight: 1.2,
-          }}>{sub.name}</div>
+          }}>{displayName}</div>
         </div>
         {Actions}
       </div>
