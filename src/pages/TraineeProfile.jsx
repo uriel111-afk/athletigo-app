@@ -1302,6 +1302,61 @@ function IntroTab({ user }) {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// EditableField — renders FieldCell when not editing, or an input
+// bound to editFields[fieldKey] when editing. MUST stay at module
+// scope: if defined inside PersonalTab, every keystroke gives it a
+// new function identity and React remounts the input, eating focus
+// and the typed character.
+// ─────────────────────────────────────────────────────────────────
+function EditableField({ label, value, fieldKey, type = 'text', editing, editFields, setEditFields }) {
+  if (!editing) return <FieldCell label={label} value={value} />;
+  // Emails / phone numbers stay LTR even in an RTL layout, otherwise
+  // the local part gets clipped in narrow grid columns.
+  const isLTR = type === 'email' || type === 'tel';
+  return (
+    <div style={{ minWidth: 0, marginBottom: 16 }}>
+      <label style={{
+        fontSize: 12, fontWeight: 600, color: 'var(--ag-text-soft)',
+        marginBottom: 4, display: 'block', textAlign: 'right',
+      }}>
+        {label}
+      </label>
+      <input
+        type={type}
+        value={editFields[fieldKey] ?? ''}
+        onChange={(e) => setEditFields((prev) => ({ ...prev, [fieldKey]: e.target.value }))}
+        onFocus={(e) => {
+          e.target.style.borderColor = 'var(--ag-accent)';
+          e.target.style.background = 'white';
+        }}
+        onBlur={(e) => {
+          e.target.style.borderColor = 'var(--ag-border)';
+          e.target.style.background = '#FFF9F5';
+        }}
+        style={{
+          width: '100%',
+          minWidth: 0,
+          minHeight: 48,
+          padding: '12px 14px',
+          border: '1.5px solid var(--ag-border)',
+          borderRadius: 10,
+          fontSize: 15,
+          fontFamily: 'inherit',
+          direction: isLTR ? 'ltr' : 'rtl',
+          textAlign: isLTR ? 'left' : 'right',
+          textOverflow: 'ellipsis',
+          overflow: 'hidden',
+          background: '#FFF9F5',
+          boxSizing: 'border-box',
+          outline: 'none',
+          color: 'var(--ag-text)',
+        }}
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Personal Tab — identity card + emergency-contact card + account-
 // management card. Pure presentational component; all mutations are
 // handled by callbacks the parent passes in.
@@ -1399,58 +1454,12 @@ function PersonalTab({
     setSavingDetails(false);
   };
 
-  // EditableField — renders FieldCell when not editing, or an input
-  // bound to editFields[fieldKey] when editing. Inputs use the spec's
-  // larger padding + 1.5px subtle border so labels and values both
-  // breathe; focus border swaps to orange.
-  const EditableField = ({ label, value, fieldKey, type = 'text' }) => {
-    if (!editingDetails) return <FieldCell label={label} value={value} />;
-    // Emails are always LTR even in RTL layout — without this they
-    // get visually clipped because the right anchor pushes the local
-    // part out of view in a narrow grid column.
-    const isLTR = type === 'email' || type === 'tel';
-    return (
-      <div style={{ minWidth: 0, marginBottom: 16 }}>
-        <label style={{
-          fontSize: 12, fontWeight: 600, color: 'var(--ag-text-soft)',
-          marginBottom: 4, display: 'block', textAlign: 'right',
-        }}>
-          {label}
-        </label>
-        <input
-          type={type}
-          value={editFields[fieldKey] ?? ''}
-          onChange={(e) => setEditFields((prev) => ({ ...prev, [fieldKey]: e.target.value }))}
-          onFocus={(e) => {
-            e.target.style.borderColor = 'var(--ag-accent)';
-            e.target.style.background = 'white';
-          }}
-          onBlur={(e) => {
-            e.target.style.borderColor = 'var(--ag-border)';
-            e.target.style.background = '#FFF9F5';
-          }}
-          style={{
-            width: '100%',
-            minWidth: 0,
-            minHeight: 48,
-            padding: '12px 14px',
-            border: '1.5px solid var(--ag-border)',
-            borderRadius: 10,
-            fontSize: 15,
-            fontFamily: 'inherit',
-            direction: isLTR ? 'ltr' : 'rtl',
-            textAlign: isLTR ? 'left' : 'right',
-            textOverflow: 'ellipsis',
-            overflow: 'hidden',
-            background: '#FFF9F5',
-            boxSizing: 'border-box',
-            outline: 'none',
-            color: 'var(--ag-text)',
-          }}
-        />
-      </div>
-    );
-  };
+    // EditableField is now defined at module scope (below) — keeping
+    // it inline here was creating a new function reference each
+    // render, which forced React to unmount/remount every input on
+    // each keystroke. Result: focus was lost after one character and
+    // most typed characters never landed in editFields, so the save
+    // payload looked like the original user object.
 
   return (
     <>
@@ -1536,8 +1545,8 @@ function PersonalTab({
           פרטי התקשרות
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
-          <EditableField label="טלפון"        value={user?.phone}            fieldKey="phone"            type="tel" />
-          <EditableField label="אימייל"       value={user?.email}            fieldKey="email"            type="email" />
+          <EditableField label="טלפון"        value={user?.phone}            fieldKey="phone"            type="tel"   editing={editingDetails} editFields={editFields} setEditFields={setEditFields} />
+          <EditableField label="אימייל"       value={user?.email}            fieldKey="email"            type="email" editing={editingDetails} editFields={editFields} setEditFields={setEditFields} />
           {editingDetails ? (
             // Custom block instead of generic EditableField — gives
             // us a live "(גיל: X)" hint that updates as the coach
@@ -1569,9 +1578,9 @@ function PersonalTab({
           ) : (
             <FieldCell label="תאריך לידה" value={birthLabel} />
           )}
-          <EditableField label="מקור הגעה"    value={user?.referral_source}  fieldKey="referral_source" />
-          <EditableField label="כתובת"        value={user?.address}          fieldKey="address" />
-          <EditableField label="עיר"          value={user?.city}             fieldKey="city" />
+          <EditableField label="מקור הגעה"    value={user?.referral_source}  fieldKey="referral_source" editing={editingDetails} editFields={editFields} setEditFields={setEditFields} />
+          <EditableField label="כתובת"        value={user?.address}          fieldKey="address"         editing={editingDetails} editFields={editFields} setEditFields={setEditFields} />
+          <EditableField label="עיר"          value={user?.city}             fieldKey="city"            editing={editingDetails} editFields={editFields} setEditFields={setEditFields} />
         </div>
 
         {editingDetails && (
@@ -1624,8 +1633,8 @@ function PersonalTab({
         {hasEmergency || editingDetails ? (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
-              <EditableField label="שם"    value={user?.emergency_contact_name}  fieldKey="emergency_contact_name" />
-              <EditableField label="טלפון" value={user?.emergency_contact_phone} fieldKey="emergency_contact_phone" type="tel" />
+              <EditableField label="שם"    value={user?.emergency_contact_name}  fieldKey="emergency_contact_name"  editing={editingDetails} editFields={editFields} setEditFields={setEditFields} />
+              <EditableField label="טלפון" value={user?.emergency_contact_phone} fieldKey="emergency_contact_phone" type="tel" editing={editingDetails} editFields={editFields} setEditFields={setEditFields} />
             </div>
             <div style={{ marginTop: 10 }}>
               {editingDetails ? (
