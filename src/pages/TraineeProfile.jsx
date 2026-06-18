@@ -1308,7 +1308,13 @@ function IntroTab({ user }) {
 // new function identity and React remounts the input, eating focus
 // and the typed character.
 // ─────────────────────────────────────────────────────────────────
-function EditableField({ label, value, fieldKey, type = 'text', editing, editFields, setEditFields }) {
+const EditableField = React.memo(function EditableField({ label, value, fieldKey, type = 'text', editing, editFields, setEditFields }) {
+  // Diagnostic — if you see "[EditableField] MOUNT" fire on every
+  // keystroke (not just once when editing starts), some ancestor is
+  // re-creating this component's identity and React is tearing the
+  // input down. "[EditableField] render" alone is harmless.
+  useEffect(() => { console.log('[EditableField] MOUNT', fieldKey); return () => console.log('[EditableField] UNMOUNT', fieldKey); }, [fieldKey]);
+  console.log('[EditableField] render', fieldKey);
   if (!editing) return <FieldCell label={label} value={value} />;
   // Emails / phone numbers stay LTR even in an RTL layout, otherwise
   // the local part gets clipped in narrow grid columns.
@@ -1354,7 +1360,7 @@ function EditableField({ label, value, fieldKey, type = 'text', editing, editFie
       />
     </div>
   );
-}
+});
 
 // ─────────────────────────────────────────────────────────────────
 // Personal Tab — identity card + emergency-contact card + account-
@@ -1376,6 +1382,13 @@ function PersonalTab({
 }) {
   const queryClient = useQueryClient();
   const initials = (user?.full_name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('') || 'U';
+
+  // Diagnostic for the keyboard-drops-on-keystroke bug. If you see
+  // "[PersonalTab] MOUNT" fire on each keystroke, some ancestor is
+  // recreating PersonalTab's identity. Plain "[PersonalTab] render"
+  // is expected because editFields state lives here.
+  useEffect(() => { console.log('[PersonalTab] MOUNT'); return () => console.log('[PersonalTab] UNMOUNT'); }, []);
+  console.log('[PersonalTab] render');
 
   // Inline edit mode — coach toggles a pencil and every FieldCell
   // turns into an input. One save commits all changes to the users
@@ -1826,6 +1839,12 @@ function AccountActionRow({ icon, label, onClick, danger }) {
 }
 
 export default function TraineeProfile() {
+  // Diagnostic counter — if MOUNT fires more than once during a typing
+  // session, something above us in the tree is remounting the page
+  // (the real culprit for the keyboard-drops-on-keystroke bug).
+  useEffect(() => { console.log('[TraineeProfile] MOUNT'); return () => console.log('[TraineeProfile] UNMOUNT'); }, []);
+  console.log('[TraineeProfile] render');
+
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState(() => {
     const params = new URLSearchParams(window.location.search);
