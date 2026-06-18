@@ -1379,6 +1379,7 @@ function PersonalTab({
   onApplyStatusChange,
   onArchive,
   onRemoveUser,
+  onUserUpdated,
 }) {
   const queryClient = useQueryClient();
   const initials = (user?.full_name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('') || 'U';
@@ -1439,13 +1440,20 @@ function PersonalTab({
     console.log('[PROFILE SAVE] payload:', JSON.stringify(present));
     const { data, error } = await supabase.from('users').update(present).eq('id', user.id).select();
     console.log('[PROFILE SAVE] result:', JSON.stringify({ data, error }));
+    // freshRow — the authoritative just-saved row that we push up to
+    // the parent. Falls back to a merge of the current user + the
+    // payload we attempted, so the per-field path still updates the
+    // visible card immediately without waiting for a refetch.
+    let freshRow = null;
     if (error) {
       console.warn('[PersonalTab] bulk update failed:', error.message, '— retrying per-field');
       const failed = [];
+      let lastOkRow = null;
       for (const [k, v] of Object.entries(present)) {
         const { data: pData, error: e } = await supabase.from('users').update({ [k]: v }).eq('id', user.id).select();
         console.log(`[PROFILE SAVE] per-field ${k}:`, JSON.stringify({ pData, error: e }));
         if (e) { console.warn(`[PersonalTab] ${k} failed:`, e.message); failed.push(k); }
+        else if (Array.isArray(pData) && pData[0]) lastOkRow = pData[0];
       }
       if (failed.length === Object.keys(present).length) {
         toast.error('שגיאה בשמירה');
@@ -1454,12 +1462,17 @@ function PersonalTab({
       }
       if (failed.length) toast.warning(`חלק מהשדות לא נשמרו (${failed.join(', ')})`);
       else toast.success('פרטים עודכנו ✓');
+      freshRow = lastOkRow || { ...user, ...present };
     } else if (Array.isArray(data) && data.length === 0) {
       console.warn('[PROFILE SAVE] update returned 0 rows — likely RLS blocked the write');
       toast.error('השמירה לא בוצעה (הרשאות)');
     } else {
       toast.success('פרטים עודכנו ✓');
+      freshRow = data?.[0] || { ...user, ...present };
     }
+    // Push the fresh row to the parent BEFORE closing edit mode so
+    // the displayed card flips to the new values in the same paint.
+    if (freshRow) onUserUpdated?.(freshRow);
     queryClient.invalidateQueries({ queryKey: ['target-user-profile'] });
     queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
     setEditingDetails(false);
@@ -4124,6 +4137,7 @@ export default function TraineeProfile() {
                   onApplyStatusChange={(newStatus) => handleStatusChange(newStatus)}
                   onArchive={() => setShowDeleteConfirm(true)}
                   onRemoveUser={() => { setRemoveStage('choose'); setShowRemoveUser(true); }}
+                  onUserUpdated={(updated) => setUser(prev => prev ? { ...prev, ...updated } : updated)}
                 />
               </TabsContent>
 
