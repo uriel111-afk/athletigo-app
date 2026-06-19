@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Target, Loader2, User, CheckCircle, Trash2, Plus, ChevronDown, Copy, FolderPlus, ChevronRight } from "lucide-react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import UnifiedPlanBuilder from "../components/training/UnifiedPlanBuilder";
 import PlanFormDialog from "../components/training/PlanFormDialog";
@@ -185,6 +185,7 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelec
 };
 
 function MyPlanInner() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   // Phase 6 — selected plan persists in the URL via `?plan=<id>` so a
   // page refresh (or back-from-modal) restores the open plan instead
@@ -226,7 +227,7 @@ function MyPlanInner() {
 
   useEffect(() => {
     if (isCoach) {
-      window.location.href = createPageUrl("PlanBuilder");
+      navigate(createPageUrl("ActivePlans"), { replace: true });
     }
   }, [isCoach]);
 
