@@ -59,6 +59,7 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import { createPageUrl } from "@/utils";
+import { openPlanEditor } from "@/utils/openPlanEditor";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
 import { syncPackageStatus } from "@/lib/packageStatus";
@@ -3115,7 +3116,7 @@ export default function TraineeProfile() {
         }
       }
       if (results?.length === 1 && results[0]?.id) {
-        navigate(createPageUrl("TrainingPlanView") + `?planId=${results[0].id}`);
+        openPlanEditor(navigate, results[0].id);
       }
     },
     onError: (e) => {

@@ -4,6 +4,7 @@ import { isHiddenFromSelection } from "@/lib/clientStatusHelpers";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { openPlanEditor } from "@/utils/openPlanEditor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -134,7 +135,7 @@ export default function ActivePlans() {
       setShowPlanDialog(false);
       toast.success("✅ תוכנית נוצרה בהצלחה!");
       if (results && results.length === 1 && results[0]?.id) {
-        navigate(createPageUrl("TrainingPlanView") + `?planId=${results[0].id}`);
+        openPlanEditor(navigate, results[0].id);
       }
     },
     onError: (err) =>
@@ -358,12 +359,7 @@ export default function ActivePlans() {
 
                     {/* Open button */}
                     <button
-                      onClick={() =>
-                        navigate(
-                          createPageUrl("TrainingPlanView") +
-                            `?planId=${plan.id}`
-                        )
-                      }
+                      onClick={() => openPlanEditor(navigate, plan.id)}
                       className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-bold transition-colors"
                       style={{
                         backgroundColor: "#F5F5F5",

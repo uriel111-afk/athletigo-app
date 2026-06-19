@@ -14,6 +14,7 @@ import PlanFormDialog from "./training/PlanFormDialog";
 import MessageCenter from "./MessageCenter";
 import ClientStatusPicker from "./users/ClientStatusPicker";
 import { createPageUrl } from "@/utils";
+import { openPlanEditor } from "@/utils/openPlanEditor";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
@@ -477,7 +478,7 @@ export default function UnifiedClientCard({
       queryClient.invalidateQueries({ queryKey: ['my-plans'] });
       setShowAddPlan(false);
       toast.success("✅ תוכנית נוצרה");
-      navigate(createPageUrl("TrainingPlanView") + `?planId=${createdPlan.id}`);
+      openPlanEditor(navigate, createdPlan.id);
     },
     onError: (error) => {
       toast.error("❌ שגיאה ביצירת תוכנית: " + (error.message || "נסה שוב"));

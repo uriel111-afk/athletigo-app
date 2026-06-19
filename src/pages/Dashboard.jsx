@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { openPlanEditor } from "@/utils/openPlanEditor";
 import { AuthContext } from "@/lib/AuthContext";
 import PageLoader from "@/components/PageLoader";
 import RemindersPanel from "@/components/RemindersPanel";
@@ -335,7 +336,7 @@ export default function Dashboard() {
         }
       }
       if (results?.length === 1 && results[0]?.id) {
-        navigate(createPageUrl("TrainingPlanView") + `?planId=${results[0].id}`);
+        openPlanEditor(navigate, results[0].id);
       } else {
         navigate(createPageUrl("ActivePlans"));
       }
