@@ -121,7 +121,11 @@ export default function PlanBuilder() {
 
   const [sections, setSections] = useState([]);
   const [addingSectionType, setAddingSectionType] = useState(false);
-  const [editingExercise, setEditingExercise] = useState(null);
+  // editingExercise state + the local ExerciseEditor modal that consumed
+  // it have been removed — the page is orphaned (no in-app navigation
+  // routes here after the consolidation refactor) and the editor lives
+  // in UnifiedPlanBuilder / TrainingPlanView going forward. The section
+  // add/edit buttons render but their onAdd/onEdit props are no-ops.
 
   // ── Draft persistence ────────────────────────────────────────────
   // Saves the step-1 form so an accidental refresh doesn't wipe it.
@@ -422,7 +426,6 @@ export default function PlanBuilder() {
       setSections(prev => prev.map((s, i) =>
         i === sectionIndex ? { ...s, exercises: [...(s.exercises || []), data] } : s
       ));
-      setEditingExercise(null);
       toast.success('התרגיל נוסף');
     } catch (err) {
       console.error('[PlanBuilder] addExercise failed:', err, { payload });
@@ -504,7 +507,6 @@ export default function PlanBuilder() {
         )
       } : s
     ));
-    setEditingExercise(null);
   };
 
   const deleteExercise = async (sectionIndex, exerciseIndex) => {
@@ -691,8 +693,8 @@ export default function PlanBuilder() {
                 {sections.map((sec, si) => (
                   <SortableSectionBlock key={sec.id} section={sec} sectionIndex={si}
                     onDelete={() => deleteSection(si)}
-                    onAddExercise={() => setEditingExercise({ sectionIndex: si, isNew: true, name: "", params: {} })}
-                    onEditExercise={(ei) => setEditingExercise({ sectionIndex: si, exerciseIndex: ei, name: sec.exercises[ei]?.exercise_name || sec.exercises[ei]?.name || "", params: exerciseToParams(sec.exercises[ei]) })}
+                    onAddExercise={() => {}}
+                    onEditExercise={() => {}}
                     onDeleteExercise={(ei) => deleteExercise(si, ei)}
                     expandedExerciseId={expandedExerciseId}
                     setExpandedExerciseId={setExpandedExerciseId} />
@@ -763,12 +765,6 @@ export default function PlanBuilder() {
         </div>
       )}
 
-      {/* Exercise editor */}
-      {editingExercise && (
-        <ExerciseEditor data={editingExercise}
-          onSave={(data) => { if (editingExercise.isNew) addExercise(editingExercise.sectionIndex, data); else updateExercise(editingExercise.sectionIndex, editingExercise.exerciseIndex, data); }}
-          onClose={() => setEditingExercise(null)} />
-      )}
     </div>
     </ErrorBoundary>
   );
@@ -858,244 +854,3 @@ const STEPPER_LABELS = {
   "מנ׳ בין תרגילים": "מנ׳ תרג׳",
 };
 
-function ExerciseEditor({ data, onSave, onClose }) {
-  const [name, setName] = useState(data.name || "");
-  const [params, setParams] = useState(data.params || {});
-  const [selectedParams, setSelectedParams] = useState(Object.keys(data.params || {}));
-
-  const toggleParam = (p) => {
-    if (selectedParams.includes(p)) {
-      setSelectedParams(prev => prev.filter(x => x !== p));
-      setParams(prev => { const n = { ...prev }; delete n[p]; return n; });
-    } else {
-      setSelectedParams(prev => [...prev, p]);
-    }
-  };
-
-  const renderChip = (paramId) => {
-    const isSelected = selectedParams.includes(paramId);
-    return (
-      <div
-        key={paramId}
-        onClick={() => toggleParam(paramId)}
-        style={{
-          padding: "8px 4px",
-          borderRadius: 10,
-          fontSize: 11,
-          fontWeight: 600,
-          cursor: "pointer",
-          background: isSelected ? "#FF6F20" : "white",
-          color: isSelected ? "white" : "#666",
-          border: isSelected ? "none" : "1px solid #E5E7EB",
-          textAlign: "center",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-      >
-        {paramId}
-      </div>
-    );
-  };
-
-  // Inline editable pill for stepper-type numeric params
-  const renderInlinePill = (p) => {
-    const val = params[p] || "";
-    const set = (v) => setParams(prev => ({ ...prev, [p]: v }));
-    return (
-      <div key={p} style={{
-        display: "flex", alignItems: "center",
-        gap: "4px", background: "#FFF0E4",
-        borderRadius: "10px", padding: "4px 10px",
-      }}>
-        <span style={{ fontSize: "11px", fontWeight: 600, color: "#FF6F20" }}>{p}:</span>
-        <input
-          type="text"
-          inputMode="numeric"
-          value={val}
-          onChange={e => set(e.target.value.replace(/[^0-9.]/g, ""))}
-          placeholder="0"
-          style={{
-            width: "44px", border: "none",
-            background: "transparent",
-            fontSize: "14px", fontWeight: 700,
-            textAlign: "center", outline: "none",
-            direction: "ltr",
-          }}
-        />
-        <span style={{ fontSize: "10px", color: "#888" }}>{STEPPER_LABELS[p] || ""}</span>
-      </div>
-    );
-  };
-
-  // Rich widget for non-stepper params (TimePicker / RpeScale / etc)
-  const renderWidget = (p) => {
-    const schema = PARAM_SCHEMA[p] || { type: "text" };
-    const val = params[p] || "";
-    const set = (v) => setParams(prev => ({ ...prev, [p]: v }));
-    return (
-      <div key={p} style={{
-        background: "#FFF0E4",
-        borderRadius: "10px",
-        padding: "8px 10px",
-        marginBottom: "6px",
-      }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#FF6F20", marginBottom: 6 }}>{p}</div>
-        {schema.type === "time" && (
-          <TimePicker value={val} onChange={set} />
-        )}
-        {schema.type === "rpe" && (
-          <RpeScale value={val} onChange={set} />
-        )}
-        {schema.type === "tempo" && (
-          <TempoPattern value={val} onChange={set} />
-        )}
-        {schema.type === "chips" && (
-          <ChipsMulti value={val} options={EQUIPMENT_OPTIONS} onChange={set} allowCustom={!!schema.allowCustom} />
-        )}
-        {schema.type === "list" && (
-          <ListBuilder value={val} onChange={set} placeholder={schema.placeholder} />
-        )}
-        {schema.type === "tabata" && (
-          <Tabata value={val || TABATA_DEFAULTS} onChange={set} />
-        )}
-        {schema.type === "select" && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-            {schema.options.map(opt => (
-              <button key={opt} onClick={() => set(val === opt ? "" : opt)}
-                style={{ padding: "5px 10px", borderRadius: 9999, border: `1px solid ${val === opt ? "#FF6F20" : "#eee"}`, background: val === opt ? "#FF6F20" : "white", color: val === opt ? "white" : "#555", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                {opt}
-              </button>
-            ))}
-          </div>
-        )}
-        {schema.type === "textarea" && (
-          <textarea value={val} onChange={e => set(e.target.value)} placeholder={schema.placeholder} rows={2}
-            style={{ width: "100%", padding: "6px 8px", fontSize: 13, border: "1px solid #ddd", borderRadius: 8, boxSizing: "border-box", resize: "none", fontFamily: "inherit", direction: "rtl", outline: "none" }} />
-        )}
-        {(schema.type === "text" || schema.type === "url") && (
-          <input type={schema.type === "url" ? "url" : "text"} value={val} onChange={e => set(e.target.value)} placeholder={schema.placeholder || "..."}
-            style={{ width: "100%", padding: "6px 8px", fontSize: 13, border: "1px solid", borderColor: val ? "#FF6F20" : "#ddd", borderRadius: 8, boxSizing: "border-box", direction: "rtl", outline: "none", background: "white" }} />
-        )}
-      </div>
-    );
-  };
-
-  // Split selected params into inline-pill (stepper) vs widget-card
-  const inlineParams = selectedParams.filter(p => PARAM_SCHEMA[p]?.type === "stepper");
-  const widgetParams = selectedParams.filter(p => PARAM_SCHEMA[p]?.type !== "stepper");
-
-  const handleSave = () => {
-    console.log('[ExerciseEditor] handleSave triggered, name:', name, 'params:', params);
-    if (!name.trim()) { toast.error('יש להזין שם תרגיל'); return; }
-    onSave({ name: name.trim(), params });
-  };
-
-  return (
-    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 'var(--timer-bar-height, 0px)', background: "rgba(0,0,0,0.55)", zIndex: 11001, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div style={{
-        background: "#FFF9F0",
-        borderRadius: "24px 24px 0 0",
-        width: "100%", maxWidth: 480,
-        maxHeight: "85vh",
-        display: "flex", flexDirection: "column",
-        overflow: "hidden",
-        boxShadow: "0 -4px 20px rgba(0,0,0,0.1)",
-      }}>
-
-        {/* Compact header */}
-        <div style={{
-          flexShrink: 0,
-          padding: "12px 16px 10px",
-          direction: "rtl",
-          borderBottom: "0.5px solid #F0E4D0",
-          background: "white",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-        }}>
-          <div style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a" }}>
-            {data.isNew ? "🏋️ תרגיל חדש" : "✏️ ערוך תרגיל"}
-          </div>
-          <button onClick={onClose} style={{
-            background: "none", border: "none",
-            fontSize: "18px", color: "#888", cursor: "pointer", padding: 4,
-          }}>✕</button>
-        </div>
-
-        {/* Scrollable middle */}
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", minHeight: 0, padding: "12px 16px" }}>
-
-          {/* Name — compact */}
-          <input
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="שם התרגיל..."
-            style={{
-              width: "100%", padding: "12px",
-              borderRadius: "14px",
-              border: "1.5px solid #F0E4D0",
-              fontSize: "15px", fontWeight: 600,
-              direction: "rtl", textAlign: "right",
-              background: "white", outline: "none",
-              marginBottom: "12px",
-              boxSizing: "border-box",
-            }}
-          />
-
-          {/* All params — 4-col grid. Locked layout (no flex-wrap, no
-              caller-conditional variants) so this editor and
-              ModernExerciseForm look identical regardless of which
-              entry point opened them. */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: 8,
-            marginBottom: 16,
-            direction: 'rtl',
-          }}>
-            {PARAM_CATEGORIES.flatMap(cat => cat.params).map(renderChip)}
-          </div>
-
-          {/* Selected stepper params — inline editable pills */}
-          {inlineParams.length > 0 && (
-            <div style={{
-              display: "flex", flexWrap: "wrap",
-              gap: "6px", marginBottom: "10px",
-              direction: "rtl",
-            }}>
-              {inlineParams.map(renderInlinePill)}
-            </div>
-          )}
-
-          {/* Selected complex params — compact widget cards */}
-          {widgetParams.length > 0 && (
-            <div style={{ direction: "rtl" }}>
-              {widgetParams.map(renderWidget)}
-            </div>
-          )}
-        </div>
-
-        {/* Save button — sticky bottom, always visible */}
-        <div style={{
-          flexShrink: 0,
-          padding: "12px 16px",
-          borderTop: "0.5px solid #F0E4D0",
-          background: "white",
-          paddingBottom: "max(env(safe-area-inset-bottom), 12px)",
-        }}>
-          <button
-            onClick={handleSave}
-            style={{
-              width: "100%", padding: "14px",
-              borderRadius: "14px", border: "none",
-              background: name?.trim() ? "#FF6F20" : "#ccc",
-              color: "white", fontSize: "16px",
-              fontWeight: 700, cursor: "pointer",
-            }}
-          >
-            {data.isNew ? "✅ הוסף תרגיל" : "💾 עדכן תרגיל"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
