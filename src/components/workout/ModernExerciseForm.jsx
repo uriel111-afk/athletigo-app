@@ -506,7 +506,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     if (readOnly) return;
     setRoundsDraft((prev) => [
       ...prev,
-      { round_index: prev.length + 1, exercises: [{ name: '' }] },
+      { round_index: prev.length + 1, exercises: [{ name: '', set_fields: [] }] },
     ]);
   };
   const removeRound = (idx) => {
@@ -520,7 +520,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     setRoundsDraft((prev) =>
       prev.map((r, i) =>
         i === roundIdx
-          ? { ...r, exercises: [...(r.exercises || []), { name: '' }] }
+          ? { ...r, exercises: [...(r.exercises || []), { name: '', set_fields: [] }] }
           : r
       )
     );
@@ -558,17 +558,25 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     if (readOnly) return;
     setRoundsDraft((prev) => {
       const out = duplicateAtIndex(prev, idx, { indexField: 'round_index' });
+      // Inner exercises get their own shallow copy AND a fresh set_fields
+      // array so the per-exercise picker on the duplicate round doesn't
+      // mutate the original round's chip selection.
       return out.map((r, i) => i === idx + 1
-        ? { ...r, exercises: (r.exercises || []).map((e) => ({ ...e })) }
+        ? { ...r, exercises: (r.exercises || []).map((e) => ({
+            ...e,
+            set_fields: Array.isArray(e.set_fields) ? [...e.set_fields] : [],
+          })) }
         : r);
     });
   };
   // Inner-exercise duplicate — clones a single exercise WITHIN a round.
   // round.exercises has no per-item index field so no re-sequencing.
+  // Deep-copies set_fields so the per-exercise chip picker on the
+  // duplicate doesn't mutate the source's picked-field list.
   const duplicateRoundExercise = (roundIdx, exIdx) => {
     if (readOnly) return;
     setRoundsDraft((prev) => prev.map((r, i) =>
-      i === roundIdx ? { ...r, exercises: duplicateAtIndex(r.exercises || [], exIdx) } : r));
+      i === roundIdx ? { ...r, exercises: duplicateAtIndex(r.exercises || [], exIdx, { deepArrayFields: ['set_fields'] }) } : r));
   };
 
   // ── CIRCUIT helpers ─────────────────────────────────────────
@@ -1662,17 +1670,73 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                                 }}
                               >×</button>
                             </div>
-                            {selectedSetFields.length > 0 && (
-                              <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fit, minmax(72px, 1fr))',
-                                gap: 6,
-                              }}>
-                                {selectedSetFields.map((fieldId) =>
-                                  renderFieldInput(fieldId, ex, (f, v) => updateRoundExercise(ri, ei, f, v))
-                                )}
-                              </div>
-                            )}
+                            {/* Per-exercise chip picker — each exercise inside
+                                a combo round picks its own parameters. The
+                                parent's selectedSetFields stays as a fallback
+                                for legacy rows that have no ex.set_fields yet. */}
+                            <div style={{
+                              marginTop: 6,
+                              marginBottom: 6,
+                              display: 'flex',
+                              flexWrap: 'wrap',
+                              gap: 4,
+                              alignItems: 'center',
+                            }}>
+                              <span style={{ fontSize: 11, color: '#666', fontWeight: 600, marginInlineEnd: 4 }}>
+                                פרמטרים
+                              </span>
+                              {Object.keys(PARAM_CATALOG).map((paramId) => {
+                                const exFields = Array.isArray(ex.set_fields) ? ex.set_fields : [];
+                                const selected = exFields.includes(paramId);
+                                return (
+                                  <button
+                                    key={paramId}
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = selected
+                                        ? exFields.filter((f) => f !== paramId)
+                                        : [...exFields, paramId];
+                                      updateRoundExercise(ri, ei, 'set_fields', updated);
+                                    }}
+                                    disabled={readOnly}
+                                    style={{
+                                      padding: '4px 8px',
+                                      borderRadius: 6,
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      background: selected ? '#FF6F20' : '#f3f4f6',
+                                      color: selected ? '#fff' : '#666',
+                                      border: 'none',
+                                      cursor: readOnly ? 'default' : 'pointer',
+                                      fontFamily: 'inherit',
+                                    }}
+                                  >
+                                    {PARAM_CATALOG[paramId]?.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Inputs grid — driven by ex.set_fields when set,
+                                falls back to the parent's global selectedSetFields
+                                so legacy combo rows still show their inputs. */}
+                            {(() => {
+                              const effective = (Array.isArray(ex.set_fields) && ex.set_fields.length > 0)
+                                ? ex.set_fields
+                                : selectedSetFields;
+                              if (!effective || effective.length === 0) return null;
+                              return (
+                                <div style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'repeat(auto-fit, minmax(72px, 1fr))',
+                                  gap: 6,
+                                }}>
+                                  {effective.map((fieldId) =>
+                                    renderFieldInput(fieldId, ex, (f, v) => updateRoundExercise(ri, ei, f, v))
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </React.Fragment>
                       );
