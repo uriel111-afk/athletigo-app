@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +32,7 @@ export default function UnifiedClientCard({
   onClose,
   initialTab = "overview"
 }) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(initialTab);
 
   useEffect(() => {
@@ -475,7 +477,7 @@ export default function UnifiedClientCard({
       queryClient.invalidateQueries({ queryKey: ['my-plans'] });
       setShowAddPlan(false);
       toast.success("✅ תוכנית נוצרה");
-      window.location.href = createPageUrl("PlanBuilder") + "?planId=" + createdPlan.id;
+      navigate(createPageUrl("TrainingPlanView") + `?planId=${createdPlan.id}`);
     },
     onError: (error) => {
       toast.error("❌ שגיאה ביצירת תוכנית: " + (error.message || "נסה שוב"));

@@ -335,7 +335,7 @@ export default function Dashboard() {
         }
       }
       if (results?.length === 1 && results[0]?.id) {
-        navigate(createPageUrl("PlanBuilder") + `?planId=${results[0].id}`);
+        navigate(createPageUrl("TrainingPlanView") + `?planId=${results[0].id}`);
       } else {
         navigate(createPageUrl("PlanBuilder"));
       }

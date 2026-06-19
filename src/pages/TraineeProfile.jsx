@@ -3115,7 +3115,7 @@ export default function TraineeProfile() {
         }
       }
       if (results?.length === 1 && results[0]?.id) {
-        navigate(createPageUrl("PlanBuilder") + `?planId=${results[0].id}`);
+        navigate(createPageUrl("TrainingPlanView") + `?planId=${results[0].id}`);
       }
     },
     onError: (e) => {

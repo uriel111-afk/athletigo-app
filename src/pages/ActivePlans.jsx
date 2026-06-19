@@ -134,7 +134,7 @@ export default function ActivePlans() {
       setShowPlanDialog(false);
       toast.success("✅ תוכנית נוצרה בהצלחה!");
       if (results && results.length === 1 && results[0]?.id) {
-        navigate(createPageUrl("PlanBuilder") + `?planId=${results[0].id}`);
+        navigate(createPageUrl("TrainingPlanView") + `?planId=${results[0].id}`);
       }
     },
     onError: (err) =>
@@ -360,7 +360,7 @@ export default function ActivePlans() {
                     <button
                       onClick={() =>
                         navigate(
-                          createPageUrl("PlanBuilder") +
+                          createPageUrl("TrainingPlanView") +
                             `?planId=${plan.id}`
                         )
                       }
