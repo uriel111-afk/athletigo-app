@@ -1018,6 +1018,14 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           seeded when a method is first chosen. Hidden for TABATA
           (the clock settings replace per-set params there).
         ───────────────────────────────────────────────────── */}
+      {/* Parent-level set_fields picker — entire section 2 hidden for
+          TABATA because the per-rotation-exercise chip picker inside
+          TabataSubExerciseCard now owns this responsibility. Showing
+          the parent here would create a duplicate-intent UX (coach has
+          to think about which picker to use). The TABATA branch below
+          previously showed a 'tabata uses clock settings' placeholder,
+          which is now redundant. */}
+      {activeMethod !== 'TABATA' && (
       <div className="mb-4 px-1">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <span style={{ fontSize: 11, color: 'var(--ag-accent)', fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' }}>
@@ -1028,20 +1036,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           </span>
         </div>
 
-        {activeMethod === 'TABATA' ? (
-          <div style={{
-            background: '#FAFAFA',
-            border: '1px dashed #E5E7EB',
-            borderRadius: 8,
-            padding: '12px 14px',
-            fontSize: 12,
-            color: '#6b7280',
-            fontWeight: 600,
-            textAlign: 'center',
-          }}>
-            טבטה משתמש בהגדרות שעון קבועות
-          </div>
-        ) : activeMethod === 'EXERCISE_LIST' ? (
+        {activeMethod === 'EXERCISE_LIST' ? (
           <div style={{
             background: '#F5F3FF',
             border: '1px dashed #C4B5FD',
@@ -1137,6 +1132,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           </div>
         )}
       </div>
+      )}
 
       {/* ─────────────────────────────────────────────────────
           SECTION 3 — Per-method editor.
