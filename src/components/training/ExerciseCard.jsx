@@ -2117,7 +2117,10 @@ export default function ExerciseCard({
     const setsFromPlanned = planned.length;
     const repsFromPlanned = planned[0]?.reps;
     return {
-      sets: setsFromPlanned > 0 ? setsFromPlanned : exercise?.sets,
+      // Coach intent (exercise.sets) takes priority when it's higher than
+      // the per-set table length — a flat field of 4 with a legacy
+      // planned_sets of length 1 used to display as 1.
+      sets: Math.max(setsFromPlanned, Number(exercise?.sets) || 0),
       reps: repsFromPlanned != null ? repsFromPlanned : exercise?.reps,
     };
   }, [exercise?.tabata_data, exercise?.sets, exercise?.reps, exercise?.mode]);
