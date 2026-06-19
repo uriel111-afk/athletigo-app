@@ -345,7 +345,25 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
 
     setRoundsDraft(Array.isArray(parsed?.rounds) ? parsed.rounds : []);
     setStationsDraft(Array.isArray(parsed?.stations) ? parsed.stations : []);
-    setRotationExercises(Array.isArray(parsed?.exercises_in_rotation) ? parsed.exercises_in_rotation : []);
+    // Smart hydration for legacy rotation rows: pre-set_fields rows
+    // wrote params as bare top-level keys ({name, reps:10, weight_kg:50})
+    // with no set_fields array. Infer the picked fields from non-empty
+    // PARAM_CATALOG ids so the chip picker shows the right state and
+    // the open-card grid renders the saved inputs instead of the
+    // empty-state hint.
+    {
+      const baseRotation = Array.isArray(parsed?.exercises_in_rotation)
+        ? parsed.exercises_in_rotation
+        : [];
+      const hydratedRotation = baseRotation.map((ex) => {
+        if (Array.isArray(ex.set_fields) && ex.set_fields.length > 0) return ex;
+        const inferred = Object.keys(PARAM_CATALOG).filter(
+          (id) => ex[id] !== undefined && ex[id] !== null && ex[id] !== ''
+        );
+        return { ...ex, set_fields: inferred };
+      });
+      setRotationExercises(hydratedRotation);
+    }
     setClockSettings(parsed?.clock_settings && typeof parsed.clock_settings === 'object'
       ? parsed.clock_settings
       : {});
@@ -624,7 +642,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   // ── TABATA helpers ──────────────────────────────────────────
   const addRotationExercise = () => {
     if (readOnly) return;
-    setRotationExercises((prev) => [...prev, { name: '' }]);
+    setRotationExercises((prev) => [...prev, { name: '', set_fields: [] }]);
   };
   const removeRotationExercise = (idx) => {
     if (readOnly) return;
@@ -669,6 +687,23 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     if (readOnly) return;
     setRotationExercises((prev) =>
       prev.map((ex, i) => (i === subIndex ? { ...ex, [paramId]: newValue } : ex))
+    );
+  };
+  // Toggle a PARAM_CATALOG id in/out of a single rotation entry's
+  // set_fields list. Drives the chip picker inside TabataSubExerciseCard
+  // open body. Preserves any value already entered for the field so
+  // unpicking + repicking doesn't wipe what was typed.
+  const handleToggleSubField = (subIndex, paramId) => {
+    if (readOnly) return;
+    setRotationExercises((prev) =>
+      prev.map((ex, i) => {
+        if (i !== subIndex) return ex;
+        const fields = Array.isArray(ex.set_fields) ? ex.set_fields : [];
+        const next = fields.includes(paramId)
+          ? fields.filter((f) => f !== paramId)
+          : [...fields, paramId];
+        return { ...ex, set_fields: next };
+      })
     );
   };
   // Reserved for the step-3 name-edit pass; safe no-op alias for now
@@ -2476,6 +2511,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                   onMoveDown={() => moveRotationExercise(idx, 'down')}
                   onUpdateName={handleUpdateSubName}
                   onUpdateParam={handleUpdateSubParam}
+                  onToggleField={handleToggleSubField}
                   plan={exercise}
                 />
               ))

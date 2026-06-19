@@ -58,6 +58,7 @@ export default function TabataSubExerciseCard({
   totalCount,
   onUpdateName,
   onUpdateParam,
+  onToggleField,
   plan,
 }) {
   if (!sub) return null;
@@ -327,6 +328,42 @@ export default function TabataSubExerciseCard({
         marginBottom: 8,
       }} />
 
+      {/* Per-exercise chip picker — toggles entries in sub.set_fields.
+          Iterates PARAM_CATALOG as Object.entries because the catalog
+          is an object keyed by paramId (matches the COMBO picker). */}
+      {canEdit && (
+        <div style={{
+          marginBottom: 12,
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 6,
+        }}>
+          {Object.entries(PARAM_CATALOG).map(([paramId, entry]) => {
+            const selected = Array.isArray(sub.set_fields) && sub.set_fields.includes(paramId);
+            return (
+              <button
+                key={paramId}
+                type="button"
+                onClick={() => onToggleField && onToggleField(index, paramId)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: `1px solid ${selected ? BRAND.stripeActive : '#cbd5e1'}`,
+                  background: selected ? '#FFF5EE' : 'transparent',
+                  color: selected ? BRAND.stripeActive : '#475569',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: selected ? 700 : 500,
+                  fontFamily: SANS_FONT,
+                }}
+              >
+                {entry.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Param body — one row per picked field, or empty-state hint
           when the coach hasn't picked any params for this exercise. */}
       {setFields.length > 0 ? (
@@ -344,7 +381,7 @@ export default function TabataSubExerciseCard({
           borderRadius: 6,
           border: `1px dashed ${BRAND.innerBorder}`,
         }}>
-          לתרגיל לא הוגדרו פרמטרים — לחץ על הוריאציה בסקשן לעריכה.
+          בחר פרמטרים מהרשימה למעלה כדי שיופיעו כשדות.
         </div>
       )}
 
