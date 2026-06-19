@@ -623,6 +623,29 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     if (readOnly) return;
     setRotationExercises((prev) => duplicateAtIndex(prev, idx));
   };
+  // Adjacent-swap reorder driven by TabataSubExerciseCard's ChevronUp/Down.
+  // Bounds-checked here AND in the card so the buttons hide at the edges
+  // and the swap is a no-op if the caller somehow fires it past the end.
+  const moveRotationExercise = (idx, direction) => {
+    if (readOnly) return;
+    setRotationExercises((prev) => {
+      if (direction === 'up' && idx === 0) return prev;
+      if (direction === 'down' && idx === prev.length - 1) return prev;
+      const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+      const updated = [...prev];
+      [updated[idx], updated[newIdx]] = [updated[newIdx], updated[idx]];
+      return updated;
+    });
+    // Keep the same exercise expanded across the swap so the user sees
+    // the card they just moved still open in its new position.
+    setExpandedSubIndex((prev) => {
+      if (prev === null) return prev;
+      const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (prev === idx) return newIdx;
+      if (prev === newIdx) return idx;
+      return prev;
+    });
+  };
   // Per-param edit on a rotation entry — drives onUpdateParam from
   // TabataSubExerciseCard. PARAM_CATALOG ids land as top-level keys
   // on the rotation entry, mirroring the EXERCISE_LIST sub shape.
@@ -2327,6 +2350,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                   key={`sub-${idx}`}
                   sub={sub}
                   index={idx}
+                  totalCount={rotationExercises.length}
                   isExpanded={expandedSubIndex === idx}
                   onOpen={() => setExpandedSubIndex(expandedSubIndex === idx ? null : idx)}
                   canEdit={!readOnly}
@@ -2335,6 +2359,8 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                     if (expandedSubIndex === idx) setExpandedSubIndex(null);
                   }}
                   onDuplicate={() => duplicateRotation(idx)}
+                  onMoveUp={() => moveRotationExercise(idx, 'up')}
+                  onMoveDown={() => moveRotationExercise(idx, 'down')}
                   onUpdateName={handleUpdateSubName}
                   onUpdateParam={handleUpdateSubParam}
                   plan={exercise}

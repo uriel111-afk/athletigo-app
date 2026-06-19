@@ -1,5 +1,5 @@
 import React from 'react';
-import { Copy, Trash2 } from 'lucide-react';
+import { Copy, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { PARAM_CATALOG } from '../../constants/paramCatalog';
 
 // Local copy of the ExerciseCard palette + font tokens so this card
@@ -53,6 +53,9 @@ export default function TabataSubExerciseCard({
   canEdit,
   onDelete,
   onDuplicate,
+  onMoveUp,
+  onMoveDown,
+  totalCount,
   onUpdateName,
   onUpdateParam,
   plan,
@@ -89,6 +92,44 @@ export default function TabataSubExerciseCard({
   // red (destructive) so they read at a glance.
   const Actions = canEdit ? (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+      {index > 0 && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onMoveUp && onMoveUp(index); }}
+          aria-label="העלה תרגיל"
+          title="העלה"
+          style={{
+            width: 32, height: 32,
+            background: 'transparent',
+            border: 'none',
+            color: '#666',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+          }}
+        ><ChevronUp size={16} /></button>
+      )}
+      {typeof totalCount === 'number' && index < totalCount - 1 && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onMoveDown && onMoveDown(index); }}
+          aria-label="הורד תרגיל"
+          title="הורד"
+          style={{
+            width: 32, height: 32,
+            background: 'transparent',
+            border: 'none',
+            color: '#666',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+          }}
+        ><ChevronDown size={16} /></button>
+      )}
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onDuplicate && onDuplicate(index); }}
