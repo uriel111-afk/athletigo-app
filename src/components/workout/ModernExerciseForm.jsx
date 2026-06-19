@@ -6,7 +6,7 @@ import {
   Clock, Weight, Activity, PersonStanding, Hand, Dumbbell,
   ArrowBigUp, ArrowLeftRight, List, ListChecks,
   Footprints, Maximize2, Hash, RefreshCw,
-  Square, ArrowLeft, Copy, Trash2,
+  Square, ArrowLeft, Copy, Trash2, ChevronUp, ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { searchExercises } from "@/data/exercises";
@@ -578,6 +578,22 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     setRoundsDraft((prev) => prev.map((r, i) =>
       i === roundIdx ? { ...r, exercises: duplicateAtIndex(r.exercises || [], exIdx, { deepArrayFields: ['set_fields'] }) } : r));
   };
+  // Adjacent-swap reorder INSIDE a single round's exercises array.
+  // Cross-round moves are not supported — the chevron chrome on each
+  // inner exercise hides at the round's own array boundaries.
+  const moveRoundExercise = (roundIdx, exIdx, direction) => {
+    if (readOnly) return;
+    setRoundsDraft((prev) => prev.map((r, i) => {
+      if (i !== roundIdx) return r;
+      const exs = r.exercises || [];
+      if (direction === 'up' && exIdx === 0) return r;
+      if (direction === 'down' && exIdx === exs.length - 1) return r;
+      const newIdx = direction === 'up' ? exIdx - 1 : exIdx + 1;
+      const updated = [...exs];
+      [updated[exIdx], updated[newIdx]] = [updated[newIdx], updated[exIdx]];
+      return { ...r, exercises: updated };
+    }));
+  };
 
   // ── CIRCUIT helpers ─────────────────────────────────────────
   const addStation = () => {
@@ -686,6 +702,19 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   const duplicateSubExercise = (idx) => {
     if (readOnly) return;
     setSubExercises((prev) => duplicateAtIndex(prev, idx, { deepArrayFields: ['set_fields'] }));
+  };
+  // Adjacent-swap reorder for EXERCISE_LIST subs. No expanded-card
+  // state to sync (subs are always rendered open inline).
+  const moveSubExercise = (idx, direction) => {
+    if (readOnly) return;
+    setSubExercises((prev) => {
+      if (direction === 'up' && idx === 0) return prev;
+      if (direction === 'down' && idx === prev.length - 1) return prev;
+      const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+      const updated = [...prev];
+      [updated[idx], updated[newIdx]] = [updated[newIdx], updated[idx]];
+      return updated;
+    });
   };
 
   // EXERCISE_LIST per-exercise param picker — each sub-exercise
@@ -1659,6 +1688,46 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                                   outline: 'none',
                                 }}
                               />
+                              {ei > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => moveRoundExercise(ri, ei, 'up')}
+                                  aria-label="העלה תרגיל"
+                                  title="העלה"
+                                  disabled={readOnly}
+                                  style={{
+                                    width: 24, height: 24,
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#9CA3AF',
+                                    cursor: readOnly ? 'default' : 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: 0,
+                                  }}
+                                ><ChevronUp size={14} /></button>
+                              )}
+                              {ei < (round.exercises || []).length - 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => moveRoundExercise(ri, ei, 'down')}
+                                  aria-label="הורד תרגיל"
+                                  title="הורד"
+                                  disabled={readOnly}
+                                  style={{
+                                    width: 24, height: 24,
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#9CA3AF',
+                                    cursor: readOnly ? 'default' : 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: 0,
+                                  }}
+                                ><ChevronDown size={14} /></button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => duplicateRoundExercise(ri, ei)}
@@ -1885,6 +1954,50 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                           outline: 'none',
                         }}
                       />
+                      {ei > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => moveSubExercise(ei, 'up')}
+                          disabled={readOnly}
+                          aria-label="העלה תרגיל"
+                          title={readOnly ? 'לא ניתן לערוך' : 'העלה תרגיל'}
+                          style={{
+                            width: 32, height: 32,
+                            background: readOnly ? '#f3f4f6' : '#fff',
+                            border: `1px solid ${readOnly ? '#e5e7eb' : '#cbd5e1'}`,
+                            color: readOnly ? '#9ca3af' : '#475569',
+                            borderRadius: 6,
+                            cursor: readOnly ? 'not-allowed' : 'pointer',
+                            opacity: readOnly ? 0.5 : 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: 0,
+                          }}
+                        ><ChevronUp size={16} /></button>
+                      )}
+                      {ei < subExercises.length - 1 && (
+                        <button
+                          type="button"
+                          onClick={() => moveSubExercise(ei, 'down')}
+                          disabled={readOnly}
+                          aria-label="הורד תרגיל"
+                          title={readOnly ? 'לא ניתן לערוך' : 'הורד תרגיל'}
+                          style={{
+                            width: 32, height: 32,
+                            background: readOnly ? '#f3f4f6' : '#fff',
+                            border: `1px solid ${readOnly ? '#e5e7eb' : '#cbd5e1'}`,
+                            color: readOnly ? '#9ca3af' : '#475569',
+                            borderRadius: 6,
+                            cursor: readOnly ? 'not-allowed' : 'pointer',
+                            opacity: readOnly ? 0.5 : 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: 0,
+                          }}
+                        ><ChevronDown size={16} /></button>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
