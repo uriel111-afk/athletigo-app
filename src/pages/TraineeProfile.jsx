@@ -42,7 +42,7 @@ import { useFormDraft } from "@/hooks/useFormDraft";
 import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { DraftBanner } from "@/components/DraftBanner";
 import { base44 } from "@/api/base44Client";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, SUPABASE_URL } from "@/lib/supabaseClient";
 import { isHiddenFromSelection } from "@/lib/clientStatusHelpers";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -1475,6 +1475,37 @@ function PersonalTab({
     if (freshRow) onUserUpdated?.(freshRow);
     queryClient.invalidateQueries({ queryKey: ['target-user-profile'] });
     queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
+
+    // Sync email to Supabase Auth if it changed. The users-table update
+    // above only touches the profile row; auth.users.email is the source
+    // of truth for login, and stays stale without this. Best-effort —
+    // a failure leaves the profile updated but auth lagging, surfaced
+    // via a toast so the coach can retry rather than blocking the form.
+    if (editFields.email && editFields.email !== user.email) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const response = await fetch(
+          `${SUPABASE_URL}/functions/v1/update-trainee-email`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session?.access_token}`,
+            },
+            body: JSON.stringify({
+              userId: user.id,
+              newEmail: editFields.email,
+            }),
+          }
+        );
+        if (!response.ok) {
+          toast.error('Failed to sync email with auth');
+        }
+      } catch (err) {
+        console.error('Email sync error:', err);
+      }
+    }
+
     setEditingDetails(false);
     setEditFields({});
     setSavingDetails(false);
