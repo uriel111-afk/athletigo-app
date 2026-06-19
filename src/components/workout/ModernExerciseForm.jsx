@@ -6,8 +6,9 @@ import {
   Clock, Weight, Activity, PersonStanding, Hand, Dumbbell,
   ArrowBigUp, ArrowLeftRight, List, ListChecks,
   Footprints, Maximize2, Hash, RefreshCw,
-  Square, ArrowLeft, Copy,
+  Square, ArrowLeft, Copy, Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { searchExercises } from "@/data/exercises";
 import { supabase } from "@/lib/supabaseClient";
 import { AuthContext } from "@/lib/AuthContext";
@@ -1799,37 +1800,52 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                       />
                       <button
                         type="button"
-                        onClick={() => duplicateSubExercise(ei)}
+                        onClick={() => {
+                          duplicateSubExercise(ei);
+                          if (!readOnly) toast.success('תרגיל שוכפל');
+                        }}
+                        disabled={readOnly}
                         aria-label="שכפל תרגיל"
-                        title="שכפל"
+                        title={readOnly ? 'לא ניתן לערוך' : 'שכפל תרגיל'}
                         style={{
-                          width: 28,
-                          height: 28,
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#9CA3AF',
-                          cursor: readOnly ? 'default' : 'pointer',
-                          display: 'inline-flex',
+                          width: 32,
+                          height: 32,
+                          background: readOnly ? '#f3f4f6' : '#fff',
+                          border: `1px solid ${readOnly ? '#e5e7eb' : '#ff6f20'}`,
+                          color: readOnly ? '#9ca3af' : '#ff6f20',
+                          borderRadius: 6,
+                          cursor: readOnly ? 'not-allowed' : 'pointer',
+                          opacity: readOnly ? 0.5 : 1,
+                          display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           padding: 0,
                         }}
-                      ><Copy size={15} /></button>
+                      ><Copy size={16} /></button>
                       <button
                         type="button"
-                        onClick={() => removeSubExercise(ei)}
-                        aria-label="הסר תרגיל"
-                        style={{
-                          width: 28,
-                          height: 28,
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#9CA3AF',
-                          cursor: readOnly ? 'default' : 'pointer',
-                          fontSize: 18,
-                          lineHeight: 1,
+                        onClick={() => {
+                          removeSubExercise(ei);
+                          if (!readOnly) toast.success('תרגיל הוסר');
                         }}
-                      >×</button>
+                        disabled={readOnly}
+                        aria-label="הסר תרגיל"
+                        title={readOnly ? 'לא ניתן לערוך' : 'הסר תרגיל'}
+                        style={{
+                          width: 32,
+                          height: 32,
+                          background: readOnly ? '#f3f4f6' : '#fff',
+                          border: `1px solid ${readOnly ? '#e5e7eb' : '#dc2626'}`,
+                          color: readOnly ? '#9ca3af' : '#dc2626',
+                          borderRadius: 6,
+                          cursor: readOnly ? 'not-allowed' : 'pointer',
+                          opacity: readOnly ? 0.5 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 0,
+                        }}
+                      ><Trash2 size={16} /></button>
                     </div>
 
                     {/* LINE 2 — per-exercise param picker. 16 chips,
