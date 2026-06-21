@@ -2087,7 +2087,18 @@ export default function ExerciseCard({
 
   // Per-set checkbox row state (trainee mode). The parent owns the
   // actual toggle handler — we just read from `setLog` and forward.
-  const totalSets = Math.max(1, parseInt(exercise.sets, 10) || 1);
+  // Set-row count for the open card. Mirrors the closed-card
+  // `closedSummary` fix (line ~2123): the coach editor writes the real
+  // count into tabata_data.planned_sets but does NOT back-fill the flat
+  // `exercise.sets` shadow, so reading exercise.sets alone under-counts
+  // (4 sets added → planned_sets.length 4, exercise.sets still 1 → only
+  // 1 row rendered). Take the max so the open card matches the closed
+  // card. Tabata carries no planned_sets, so this leaves it unchanged.
+  const totalSets = Math.max(
+    1,
+    parsePlannedSets(exercise).length,
+    parseInt(exercise.sets, 10) || 0,
+  );
   const isSetDone = (idx) => !!(setLog?.[idx]?.done);
   // Scroll-picker open state for the single rep-based exercise block.
   // Held here (not inside the render IIFE) so the picker survives
