@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const isPWA = useIsPWA();
 
@@ -183,17 +184,42 @@ export default function Login() {
               <Label htmlFor="password" className="font-bold text-sm" style={{ color: "#000000" }}>
                 סיסמה
               </Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                placeholder="הכנס את הסיסמה שלך"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="border border-[#F0E4D0] focus:border-[#FF6F20] focus-visible:border-[#FF6F20] focus-visible:ring-0 focus-visible:ring-offset-0"
-                style={{ borderRadius: 10, padding: 10, minHeight: 44, height: 'auto', direction: "ltr" }}
-              />
+              <div style={{ position: "relative" }}>
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  placeholder="הכנס את הסיסמה שלך"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="border border-[#F0E4D0] focus:border-[#FF6F20] focus-visible:border-[#FF6F20] focus-visible:ring-0 focus-visible:ring-offset-0"
+                  style={{ borderRadius: 10, padding: 10, paddingRight: 44, minHeight: 44, height: 'auto', direction: "ltr" }}
+                />
+                {password && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
+                    style={{
+                      position: "absolute",
+                      top: "50%",
+                      right: 12,
+                      transform: "translateY(-50%)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 0,
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "#888",
+                    }}
+                  >
+                    {showPassword ? <EyeOff size={24} /> : <Eye size={24} />}
+                  </button>
+                )}
+              </div>
             </div>
 
             {error && (

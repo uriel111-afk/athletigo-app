@@ -279,6 +279,11 @@ export default function Onboarding() {
   // Step 2: measurements
   const [heightCm, setHeightCm] = useState('');
   const [weightKg, setWeightKg] = useState('');
+  // Body-fat % is optional, like height/weight. Persisted to the
+  // measurements table's `body_fat` column — the same place the coach's
+  // MeasurementFormDialog / PhysicalMetricsManager read+write — rather
+  // than a new users column, so body fat keeps a single source of truth.
+  const [bodyFatPct, setBodyFatPct] = useState('');
   const [bodyType, setBodyType] = useState('');
   const [goalBodyType, setGoalBodyType] = useState('');
 
