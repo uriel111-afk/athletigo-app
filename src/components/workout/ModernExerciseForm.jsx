@@ -1011,6 +1011,44 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
         />
       )}
 
+      {/* ── "למדוד" — track-for-measurement toggle ──────────────
+          Flags this exercise as a tracked benchmark. Writes the
+          top-level track_for_measurement column via updateEx →
+          onChange → handleSaveExercise (which spreads it into the DB
+          payload; it survives the non-column cleanup there). The
+          execution-side UI this gates is a deferred follow-up — for
+          now this only persists the coach's intent. */}
+      {!readOnly && (
+        <button
+          type="button"
+          onClick={() => updateEx('track_for_measurement', !exercise?.track_for_measurement)}
+          className="w-full flex items-center justify-between mb-4 px-3 py-3 rounded-xl border transition-colors"
+          style={{
+            borderColor: exercise?.track_for_measurement ? '#FF6F20' : '#F0E4D0',
+            background: exercise?.track_for_measurement ? '#FFF4EC' : '#FFFFFF',
+          }}
+          aria-pressed={!!exercise?.track_for_measurement}
+        >
+          <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>למדוד תרגיל זה</span>
+            <span style={{ fontSize: 12, color: '#888' }}>סמן כתרגיל מדידה למעקב התקדמות</span>
+          </span>
+          {/* Switch — knob slides on the LTR axis regardless of RTL text */}
+          <span style={{
+            width: 46, height: 28, borderRadius: 999, flexShrink: 0, position: 'relative',
+            background: exercise?.track_for_measurement ? '#FF6F20' : '#D8D8D8',
+            transition: 'background .15s',
+          }}>
+            <span style={{
+              position: 'absolute', top: 3,
+              left: exercise?.track_for_measurement ? 21 : 3,
+              width: 22, height: 22, borderRadius: '50%', background: '#FFFFFF',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.2)', transition: 'left .15s',
+            }} />
+          </span>
+        </button>
+      )}
+
       {/* ─────────────────────────────────────────────────────
           SECTION 1 — Methods row.
           Horizontal scroll, RTL, single-select.
