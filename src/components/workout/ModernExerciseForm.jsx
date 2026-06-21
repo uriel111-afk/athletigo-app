@@ -233,6 +233,41 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   // payload to the parent before the form has read the real values.
   const hydratedRef = useRef(false);
 
+  // ── UI-position persistence (expanded sub-card + scroll) ───────
+  // The form DATA already round-trips through exercise.tabata_data
+  // (the sync-back effect below), so reopening restores every set /
+  // method / sub already. What it does NOT restore is transient UI
+  // position: which sub-exercise card was open, and how far the
+  // dialog was scrolled. We persist just those two to localStorage,
+  // keyed by exercise id, and ALWAYS resume on reopen (we never clear
+  // on close — closing the dialog is treated as "pause here"). rootRef
+  // lets us find the dialog's scroll container without touching the
+  // parent (ExerciseCard / UnifiedPlanBuilder own that element).
+  const rootRef = useRef(null);
+  const stateKey = exercise?.id ? `exerciseEditState_${exercise.id}` : null;
+  const readEditState = () => {
+    if (!stateKey) return null;
+    try { return JSON.parse(localStorage.getItem(stateKey)) || null; } catch { return null; }
+  };
+  const writeEditState = (patch) => {
+    if (!stateKey) return;
+    try {
+      const cur = readEditState() || {};
+      localStorage.setItem(stateKey, JSON.stringify({ ...cur, ...patch }));
+    } catch { /* quota / disabled storage — non-fatal */ }
+  };
+  // Nearest scrollable ancestor of the form root — the DialogContent
+  // (overflow-y-auto). Returns null if none, so callers no-op safely.
+  const getScrollParent = (el) => {
+    let node = el?.parentElement;
+    while (node) {
+      const oy = window.getComputedStyle(node).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && node.scrollHeight > node.clientHeight) return node;
+      node = node.parentElement;
+    }
+    return null;
+  };
+
   // ── Variations count (admin only) ─────────────────────────────
   useEffect(() => {
     if (!isAdmin || !exercise?.id) {
@@ -369,11 +404,49 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       : {});
     setSubExercises(Array.isArray(parsed?.sub_exercises) ? parsed.sub_exercises : []);
 
+    // Restore the saved open sub-card for THIS exercise (or collapse
+    // all when there's no saved position — so the index never leaks
+    // across a switch to a different exercise). An out-of-range index
+    // is harmless: the render only matches it against existing cards.
+    const savedUi = readEditState();
+    setExpandedSubIndex(
+      savedUi && Number.isInteger(savedUi.expandedSubIndex)
+        ? savedUi.expandedSubIndex
+        : null,
+    );
+
     // Flip the gate AFTER React processes the queued setStates above
     // — a microtask runs after the current commit finishes, so by the
     // next render (when sync-back fires for real) state holds the
     // hydrated values and the gate is open.
     queueMicrotask(() => { hydratedRef.current = true; });
+  }, [exercise?.id]);
+
+  // Persist the open sub-card whenever the coach changes it. Gated on
+  // hydratedRef so the restore above (which also sets it) doesn't write
+  // back before the form has finished reading the saved value.
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    writeEditState({ expandedSubIndex });
+  }, [expandedSubIndex]);
+
+  // Scroll position: find the dialog's scroll container once per
+  // exercise, restore the saved offset after layout settles (two rAFs
+  // — one for the data hydration paint, one for the restored expanded
+  // card's height), and save on every scroll. Best-effort: if content
+  // is shorter than last time, the browser clamps to the new max.
+  useEffect(() => {
+    const sp = getScrollParent(rootRef.current);
+    if (!sp) return;
+    const savedUi = readEditState();
+    if (savedUi && Number.isFinite(savedUi.scrollTop)) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => { sp.scrollTop = savedUi.scrollTop; });
+      });
+    }
+    const onScroll = () => writeEditState({ scrollTop: sp.scrollTop });
+    sp.addEventListener('scroll', onScroll, { passive: true });
+    return () => sp.removeEventListener('scroll', onScroll);
   }, [exercise?.id]);
 
   // ── Sync state → exercise.mode + tabata_data ──────────────────
@@ -920,7 +993,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   // ── Render ───────────────────────────────────────────────────
   console.log('FORM: current method', activeMethod, 'rows count', (plannedSetsDraft || []).length, 'selectedSetFields', selectedSetFields);
   return (
-    <div className="px-2 pb-4" dir="rtl">
+    <div ref={rootRef} className="px-2 pb-4" dir="rtl">
       {/* ── Exercise name (read-only header in readOnly mode) ── */}
       {readOnly ? (
         <div className="mb-4 px-1">
