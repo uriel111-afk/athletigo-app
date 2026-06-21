@@ -256,13 +256,18 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       localStorage.setItem(stateKey, JSON.stringify({ ...cur, ...patch }));
     } catch { /* quota / disabled storage — non-fatal */ }
   };
-  // Nearest scrollable ancestor of the form root — the DialogContent
-  // (overflow-y-auto). Returns null if none, so callers no-op safely.
+  // Nearest scrollable ancestor of the form root — the dialog's
+  // overflow-y-auto body. Match on the overflow STYLE only: do NOT
+  // also require scrollHeight > clientHeight. This runs at mount,
+  // before the hydration effect's setStates re-render the form, so the
+  // content isn't tall enough to overflow yet — gating on current
+  // overflow returned null and silently killed scroll save+restore.
+  // Returns null only if there's genuinely no scrollable ancestor.
   const getScrollParent = (el) => {
     let node = el?.parentElement;
     while (node) {
       const oy = window.getComputedStyle(node).overflowY;
-      if ((oy === 'auto' || oy === 'scroll') && node.scrollHeight > node.clientHeight) return node;
+      if (oy === 'auto' || oy === 'scroll') return node;
       node = node.parentElement;
     }
     return null;
@@ -439,14 +444,32 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     const sp = getScrollParent(rootRef.current);
     if (!sp) return;
     const savedUi = readEditState();
-    if (savedUi && Number.isFinite(savedUi.scrollTop)) {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => { sp.scrollTop = savedUi.scrollTop; });
-      });
-    }
+    const target = savedUi && Number.isFinite(savedUi.scrollTop) ? savedUi.scrollTop : null;
+
+    // Restore once the content is tall enough to actually reach the
+    // saved offset. Hydration (and the restored expanded sub-card)
+    // grow the height across a few frames, so a single rAF can fire
+    // while the form is still short and the offset clamps to ~0. Poll
+    // per-frame until it fits or we give up (~30 frames ≈ 0.5s).
+    let raf = 0;
+    let attempts = 0;
+    const tryRestore = () => {
+      if (target == null) return;
+      if (sp.scrollHeight - sp.clientHeight >= target || attempts >= 30) {
+        sp.scrollTop = target;
+        return;
+      }
+      attempts += 1;
+      raf = requestAnimationFrame(tryRestore);
+    };
+    raf = requestAnimationFrame(tryRestore);
+
     const onScroll = () => writeEditState({ scrollTop: sp.scrollTop });
     sp.addEventListener('scroll', onScroll, { passive: true });
-    return () => sp.removeEventListener('scroll', onScroll);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      sp.removeEventListener('scroll', onScroll);
+    };
   }, [exercise?.id]);
 
   // ── Sync state → exercise.mode + tabata_data ──────────────────
