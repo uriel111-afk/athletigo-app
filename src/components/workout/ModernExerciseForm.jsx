@@ -179,6 +179,95 @@ function ExerciseNameInput({ value, onChange }) {
 // admin button. Existing readOnly mode shows the same content as
 // the editable variant; method/param picker buttons just don't react.
 // ────────────────────────────────────────────────────────────────
+// Editor-only display label. The hold_seconds field is presented as
+// "זמן" in this form; every other field keeps its PARAM_CATALOG label.
+// PARAM_CATALOG itself is NOT changed — ExerciseCard still reads
+// 'שניות' from the catalog for its own display.
+const fieldLabel = (fieldId) =>
+  fieldId === 'hold_seconds' ? 'זמן' : (PARAM_CATALOG[fieldId]?.label ?? fieldId);
+
+// ── Minutes/seconds entry for the hold_seconds ("זמן") field ──────
+// The DB ALWAYS stores seconds. "דקות" mode multiplies the typed value
+// by 60 on write and divides on display; "שניות" stores as-is. Mode is
+// local UI state, seeded from the saved value: a whole number of
+// minutes (>= 60 and divisible by 60) opens in דקות, anything else in
+// שניות. Self-contained so each per-set / sub-exercise / station time
+// input keeps its own mode. RTL: the segmented toggle sits to the
+// right of the input. Lumen palette — active segment orange #FF6F20 on
+// a cream #FBF3EA track.
+function TimeFieldInput({ value, color, readOnly, onChange }) {
+  const seconds = value === '' || value == null ? null : Number(value);
+  const seedMinutes = Number.isFinite(seconds) && seconds >= 60 && seconds % 60 === 0;
+  const [mode, setMode] = useState(seedMinutes ? 'minutes' : 'seconds');
+
+  const display = Number.isFinite(seconds)
+    ? (mode === 'minutes' ? seconds / 60 : seconds)
+    : '';
+
+  const commit = (raw) => {
+    if (raw === '' || raw == null) { onChange(null); return; }
+    const n = Number(raw);
+    if (!Number.isFinite(n)) { onChange(null); return; }
+    // Always hand back SECONDS, regardless of entry mode.
+    onChange(mode === 'minutes' ? Math.round(n * 60) : Math.round(n));
+  };
+
+  const seg = (id, label) => {
+    const active = mode === id;
+    return (
+      <button
+        type="button"
+        disabled={readOnly}
+        onClick={() => setMode(id)}
+        style={{
+          flex: 1, padding: '4px 0', fontSize: 10, fontWeight: 800,
+          fontFamily: 'inherit', border: 'none', borderRadius: 5,
+          cursor: readOnly ? 'default' : 'pointer',
+          background: active ? '#FF6F20' : 'transparent',
+          color: active ? '#FFFFFF' : '#9C7B53',
+          transition: 'background .12s',
+        }}
+      >{label}</button>
+    );
+  };
+
+  return (
+    <div style={{
+      background: 'white', border: `1px solid ${color.tint}`, borderRadius: 8,
+      padding: '8px 10px', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', gap: 4,
+    }}>
+      <span style={{
+        fontSize: 10, color: color.textPrimary, fontWeight: 800,
+        background: color.tint, padding: '2px 6px', borderRadius: 3,
+      }}>זמן</span>
+      {/* RTL row — toggle is the first child so it paints on the RIGHT */}
+      <div dir="rtl" style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}>
+        <div style={{
+          display: 'flex', flexShrink: 0, width: 92,
+          background: '#FBF3EA', borderRadius: 7, padding: 2, gap: 2,
+        }}>
+          {seg('minutes', 'דקות')}
+          {seg('seconds', 'שניות')}
+        </div>
+        <input
+          type="number"
+          min="0"
+          value={display}
+          disabled={readOnly}
+          placeholder={mode === 'minutes' ? "דק'" : "שנ'"}
+          onChange={(e) => commit(e.target.value)}
+          style={{
+            flex: 1, minWidth: 0, height: 34, border: 'none', textAlign: 'center',
+            fontFamily: "'Bebas Neue', sans-serif", fontSize: 24,
+            color: color.stripe, background: 'transparent', outline: 'none',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function ModernExerciseForm({ exercise, onChange, readOnly = false }) {
   const { user } = useContext(AuthContext) || {};
   const isAdmin = user?.id === ATHLETIGO_ADMIN_UUID;
@@ -892,6 +981,21 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
     }
     const c = meta.color;
 
+    // hold_seconds is presented as "זמן" with a דקות/שניות toggle and
+    // always persists SECONDS (minutes ×60). Covers every render site
+    // since per-set / sub / station inputs all funnel through here.
+    if (fieldId === 'hold_seconds') {
+      return (
+        <TimeFieldInput
+          key={fieldId}
+          value={row?.hold_seconds}
+          color={c}
+          readOnly={readOnly}
+          onChange={(secs) => onChangeField('hold_seconds', secs)}
+        />
+      );
+    }
+
     // Text params with a preset list (body_position / equipment /
     // grip / load_type / side / range_of_motion / tempo / foot_position)
     // render as a <select> with curated defaults + user-added customs
@@ -1241,7 +1345,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                     }}>✓</span>
                   )}
                   {Icon && <Icon size={iconSize} color={isSelected ? c.textPrimary : '#6b7280'} />}
-                  <span style={labelStyle}>{meta.label}</span>
+                  <span style={labelStyle}>{fieldLabel(fieldId)}</span>
                 </button>
               );
             })}
@@ -1968,7 +2072,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                                       fontFamily: 'inherit',
                                     }}
                                   >
-                                    {PARAM_CATALOG[paramId]?.label}
+                                    {fieldLabel(paramId)}
                                   </button>
                                 );
                               })}
@@ -2289,7 +2393,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
                                 textOverflow: 'ellipsis',
                                 maxWidth: '100%',
                               }}>
-                                {meta.label}
+                                {fieldLabel(fieldId)}
                               </span>
                             </button>
                           );
