@@ -11,7 +11,7 @@
 import {
   Hash, RefreshCw, Repeat, Clock, Weight, Zap, Timer, Activity,
   PersonStanding, Hand, Dumbbell, ArrowBigUp, ArrowLeftRight,
-  Info, Footprints, Maximize2,
+  Info, Footprints, Maximize2, Video,
 } from "lucide-react";
 
 export const PARAM_CATALOG = {
@@ -109,6 +109,15 @@ export const PARAM_CATALOG = {
     label: 'טווח תנועה',
     icon: Maximize2,
     type: 'text',
+    color: { stripe: '#6b7280', border: '#E5E7EB', tint: '#FAFAFA', textPrimary: '#374151', textSecondary: '#6b7280' },
+  },
+  // URL input (LTR) for a video demonstration link. `icon` is a Lucide
+  // component (the rest of the catalog passes components, not strings).
+  video_url: {
+    label: 'וידאו',
+    icon: Video,
+    type: 'url',
+    placeholder: 'https://...',
     color: { stripe: '#6b7280', border: '#E5E7EB', tint: '#FAFAFA', textPrimary: '#374151', textSecondary: '#6b7280' },
   },
 };

@@ -24,11 +24,29 @@ import TabataSubExerciseCard from '../training/TabataSubExerciseCard';
 // Section 1 — methods row.
 // Order = chip-row order; icons render inside the chip.
 // ────────────────────────────────────────────────────────────────
+// 2-col grid order, row by row: list/none, reps/pyramid,
+// dropset/restpause, tabata/circuit, superset/combo, then delorme
+// alone (it spans both columns in the render).
 const METHOD_ORDER = [
-  'NONE',
-  'EXERCISE_LIST',
-  'REPS', 'PYRAMID', 'DROP_SET', 'REST_PAUSE', 'CIRCUIT',
-  'TABATA', 'SUPERSET', 'COMBO', 'DELORME',
+  'EXERCISE_LIST', 'NONE',
+  'REPS', 'PYRAMID',
+  'DROP_SET', 'REST_PAUSE',
+  'TABATA', 'CIRCUIT',
+  'SUPERSET', 'COMBO',
+  'DELORME',
+];
+
+// Display order for the parent param picker (Section 2) — the designed
+// 4-col grid. PARAM_CATALOG stays the source of truth for keys / labels
+// / types; this array only controls the order they render in, with
+// video_url last. Any catalog key omitted here simply won't show in the
+// parent picker, so keep it in sync with PARAM_CATALOG.
+const PARAM_ORDER = [
+  'sets', 'reps', 'rounds', 'hold_seconds',
+  'weight_kg', 'rpe', 'rest_seconds', 'tempo',
+  'body_position', 'grip', 'equipment', 'load_type',
+  'side', 'notes', 'foot_position', 'range_of_motion',
+  'video_url',
 ];
 
 const METHOD_ICONS = {
@@ -996,6 +1014,61 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       );
     }
 
+    // Notes ("דגשים") — full-width auto-expanding textarea, no max
+    // height. Spans the whole input grid row and grows with content.
+    if (fieldId === 'notes') {
+      return (
+        <div key={fieldId} style={{ gridColumn: '1 / -1' }}>
+          <span style={{
+            display: 'inline-block', fontSize: 10, color: c.textPrimary,
+            fontWeight: 800, background: c.tint, padding: '2px 6px',
+            borderRadius: 3, marginBottom: 4,
+          }}>{meta.label}</span>
+          <textarea
+            value={row?.notes ?? ''}
+            disabled={readOnly}
+            onChange={(e) => {
+              onChangeField('notes', e.target.value);
+              e.target.style.height = 'auto';
+              e.target.style.height = e.target.scrollHeight + 'px';
+            }}
+            placeholder="דגשים והנחיות לתרגיל..."
+            style={{
+              width: '100%', minHeight: 60, resize: 'none', overflow: 'hidden',
+              borderRadius: 10, border: '0.5px solid #E5E5E0', padding: 10,
+              fontSize: 14, fontFamily: 'inherit', direction: 'rtl',
+              boxSizing: 'border-box', outline: 'none',
+            }}
+          />
+        </div>
+      );
+    }
+
+    // Video URL — full-width LTR url input (URLs read left-to-right).
+    if (fieldId === 'video_url') {
+      return (
+        <div key={fieldId} style={{ gridColumn: '1 / -1' }}>
+          <span style={{
+            display: 'inline-block', fontSize: 10, color: c.textPrimary,
+            fontWeight: 800, background: c.tint, padding: '2px 6px',
+            borderRadius: 3, marginBottom: 4,
+          }}>{meta.label}</span>
+          <input
+            type="url"
+            value={row?.video_url ?? ''}
+            disabled={readOnly}
+            onChange={(e) => onChangeField('video_url', e.target.value)}
+            placeholder={meta.placeholder || 'https://youtube.com/...'}
+            style={{
+              width: '100%', borderRadius: 10, border: '0.5px solid #E5E5E0',
+              padding: 10, fontSize: 14, direction: 'ltr', textAlign: 'left',
+              fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none',
+            }}
+          />
+        </div>
+      );
+    }
+
     // Text params with a preset list (body_position / equipment /
     // grip / load_type / side / range_of_motion / tempo / foot_position)
     // render as a <select> with curated defaults + user-added customs
@@ -1204,45 +1277,38 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
         </div>
 
         <div style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 6,
-          justifyContent: 'flex-start',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: 8,
         }}>
           {METHOD_ORDER.map((methodId) => {
             const Icon = METHOD_ICONS[methodId];
             const isActive = activeMethod === methodId;
-            const baseStyle = {
-              background: 'white',
-              border: '1px solid #E5E7EB',
-              color: '#6b7280',
-              padding: '7px 12px',
-              borderRadius: 9,
-              fontWeight: 600,
-              fontSize: 11,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              cursor: readOnly ? 'default' : 'pointer',
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-              fontFamily: 'inherit',
-            };
-            const activeStyle = {
-              background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
-              border: '2px solid var(--ag-accent)',
-              color: '#993C1D',
-              fontWeight: 800,
-              boxShadow: '0 2px 6px rgba(255,111,32,0.2)',
-            };
             return (
               <button
                 key={methodId}
                 type="button"
                 onClick={() => handleMethodClick(methodId)}
-                style={isActive ? { ...baseStyle, ...activeStyle } : baseStyle}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 4,
+                  padding: 10,
+                  borderRadius: 10,
+                  textAlign: 'center',
+                  fontSize: 13,
+                  fontWeight: isActive ? 800 : 600,
+                  cursor: readOnly ? 'default' : 'pointer',
+                  fontFamily: 'inherit',
+                  background: isActive ? '#FFF3EB' : '#F5F5F0',
+                  border: isActive ? '2px solid #FF6F20' : '0.5px solid #E5E5E0',
+                  color: isActive ? '#FF6F20' : '#888',
+                  gridColumn: methodId === 'DELORME' ? 'span 2' : undefined,
+                }}
               >
-                {Icon && <Icon size={13} />}
+                {Icon && <Icon size={18} />}
                 {TRAINING_METHODS[methodId].label}
               </button>
             );
@@ -1295,57 +1361,50 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
             gridTemplateColumns: 'repeat(4, 1fr)',
             gap: 6,
           }}>
-            {Object.entries(PARAM_CATALOG).map(([fieldId, meta]) => {
+            {PARAM_ORDER.map((fieldId) => {
+              const meta = PARAM_CATALOG[fieldId];
+              if (!meta) return null;
               const isSelected = selectedSetFields.includes(fieldId);
-              const c = meta.color;
               const Icon = meta.icon;
-              const baseStyle = {
-                background: 'white',
-                border: '1px solid #E5E7EB',
-                padding: '8px 4px',
-                borderRadius: 8,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 3,
-                position: 'relative',
-                cursor: readOnly ? 'default' : 'pointer',
-                fontFamily: 'inherit',
-              };
-              const activeStyle = {
-                background: `linear-gradient(135deg, ${c.tint}, white)`,
-                border: `2px solid ${c.border}`,
-              };
-              const iconSize = isSelected ? 16 : 14;
-              const labelStyle = {
-                fontSize: isSelected ? 11 : 10,
-                fontWeight: isSelected ? 800 : 600,
-                color: isSelected ? c.textPrimary : '#374151',
-                lineHeight: 1.1,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                maxWidth: '100%',
-              };
               return (
                 <button
                   key={fieldId}
                   type="button"
                   onClick={() => toggleSetField(fieldId)}
-                  style={isSelected ? { ...baseStyle, ...activeStyle } : baseStyle}
+                  style={{
+                    background: isSelected ? '#FFF3EB' : '#F5F5F0',
+                    border: isSelected ? '1.5px solid #FF6F20' : '0.5px solid #E5E5E0',
+                    color: isSelected ? '#FF6F20' : '#888',
+                    padding: '8px 4px',
+                    borderRadius: 10,
+                    textAlign: 'center',
+                    fontSize: 11,
+                    fontWeight: isSelected ? 800 : 600,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 3,
+                    position: 'relative',
+                    cursor: readOnly ? 'default' : 'pointer',
+                    fontFamily: 'inherit',
+                  }}
                 >
                   {isSelected && (
                     <span style={{
                       position: 'absolute', top: -4, left: -4,
-                      background: c.stripe, color: 'white',
+                      background: '#FF6F20', color: 'white',
                       width: 16, height: 16, borderRadius: '50%',
                       fontSize: 9, display: 'flex',
                       alignItems: 'center', justifyContent: 'center',
                       fontWeight: 800,
                     }}>✓</span>
                   )}
-                  {Icon && <Icon size={iconSize} color={isSelected ? c.textPrimary : '#6b7280'} />}
-                  <span style={labelStyle}>{fieldLabel(fieldId)}</span>
+                  {Icon && <Icon size={isSelected ? 16 : 14} color={isSelected ? '#FF6F20' : '#888'} />}
+                  <span style={{
+                    lineHeight: 1.15,
+                    overflow: 'hidden',
+                    maxWidth: '100%',
+                  }}>{fieldLabel(fieldId)}</span>
                 </button>
               );
             })}
