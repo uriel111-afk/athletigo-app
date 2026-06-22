@@ -161,7 +161,7 @@ function ExerciseNameInput({ value, onChange }) {
   };
 
   return (
-    <div className="mb-2 px-1 relative">
+    <div className="mb-2 relative">
       <label className="text-[10px] font-black text-gray-400 mb-1 block uppercase tracking-wider">
         שם התרגיל
       </label>
@@ -1193,10 +1193,10 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
   // ── Render ───────────────────────────────────────────────────
   console.log('FORM: current method', activeMethod, 'rows count', (plannedSetsDraft || []).length, 'selectedSetFields', selectedSetFields);
   return (
-    <div ref={rootRef} className="px-2 pb-2" dir="rtl">
+    <div ref={rootRef} className="pb-2" dir="rtl">
       {/* ── Exercise name (read-only header in readOnly mode) ── */}
       {readOnly ? (
-        <div className="mb-2 px-1">
+        <div className="mb-2">
           <label className="text-[10px] font-black text-gray-400 mb-1 block uppercase tracking-wider">
             שם התרגיל
           </label>
@@ -1253,7 +1253,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           SECTION 1 — Methods row.
           Horizontal scroll, RTL, single-select.
         ───────────────────────────────────────────────────── */}
-      <div className="mb-2 px-1">
+      <div className="mb-2">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
           <span style={{ fontSize: 11, color: 'var(--ag-accent)', fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' }}>
             שיטה
@@ -1279,7 +1279,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(2, 1fr)',
-          gap: 8,
+          gap: 6,
         }}>
           {METHOD_ORDER.map((methodId) => {
             const Icon = METHOD_ICONS[methodId];
@@ -1330,7 +1330,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           previously showed a 'tabata uses clock settings' placeholder,
           which is now redundant. */}
       {activeMethod !== 'TABATA' && (
-      <div className="mb-2 px-1">
+      <div className="mb-2">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <span style={{ fontSize: 11, color: 'var(--ag-accent)', fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' }}>
             פרמטרים לכל סט
@@ -1441,7 +1441,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           COMBO / CIRCUIT) keep the "in development" placeholder.
         ───────────────────────────────────────────────────── */}
       {METHODS_WITH_PLANNED_SETS.includes(activeMethod) && !usesPerSetRows(activeMethod) && (
-        <div className="mb-2 px-1">
+        <div className="mb-2">
           <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--ag-text)', marginBottom: 10 }}>
             סטים בתרגיל
           </div>
@@ -1529,7 +1529,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
       )}
 
       {METHODS_WITH_PLANNED_SETS.includes(activeMethod) && usesPerSetRows(activeMethod) && (
-        <div className="mb-2 px-1">
+        <div className="mb-2">
           {/* REST_PAUSE — shared method_config card (variation +
               uniform rest between mini-sets) renders above the
               mini-sets list. Lives in tabata_data.method_config so
@@ -1838,7 +1838,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           : { card: '#F5F3FF', border: '#C4B5FD', text: 'var(--ag-purple)', accent: 'var(--ag-purple)', name: 'סט סופר' };
 
         return (
-          <div className="mb-2 px-1">
+          <div className="mb-2">
             {isCombo && (
               <div style={{
                 background: 'linear-gradient(135deg, #FFF5EE, #FFFAF5)',
@@ -2197,7 +2197,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           ExerciseCard 'list' variant.
         ───────────────────────────────────────────────────── */}
       {METHODS_WITH_LIST.includes(activeMethod) && (
-        <div className="mb-2 px-1">
+        <div className="mb-2">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--ag-text)' }}>
               תרגילים ברשימה
@@ -2497,7 +2497,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           group-mode method_config header).
         ───────────────────────────────────────────────────── */}
       {METHODS_WITH_STATIONS.includes(activeMethod) && (
-        <div className="mb-2 px-1">
+        <div className="mb-2">
           <div style={{
             background: 'linear-gradient(135deg, #FFF5EE, white)',
             border: '1px solid #FFD0AC',
@@ -2741,7 +2741,7 @@ export default function ModernExerciseForm({ exercise, onChange, readOnly = fals
           Section 2 is replaced with a static note above.
         ───────────────────────────────────────────────────── */}
       {METHODS_WITH_CLOCK.includes(activeMethod) && (
-        <div className="mb-2 px-1">
+        <div className="mb-2">
           {/* Rotation list */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--ag-text)' }}>
