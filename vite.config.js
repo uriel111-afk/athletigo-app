@@ -9,7 +9,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'AthletiGo Coach',
+        name: 'AthletiGo',
         short_name: 'AthletiGo',
         description: 'AthletiGo - Fitness Coaching App',
         theme_color: '#FF6F20',
@@ -22,8 +22,12 @@ export default defineConfig({
         // "loop" before React finished booting.
         start_url: '/',
         icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+          // Dedicated maskable icons (40% safe zone, orange bg) so Android
+          // doesn't crop the logo; regular icons kept as 'any' only.
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           { src: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
         ],
       },
