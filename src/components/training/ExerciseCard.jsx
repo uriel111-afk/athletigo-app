@@ -3459,7 +3459,7 @@ export default function ExerciseCard({
                   background: '#FBF1F1',
                   borderRight: '5px solid #7F1D1D',
                   borderRadius: '12px 0 0 12px',
-                  padding: '18px 16px',
+                  padding: 12,
                   marginTop: 12,
                 }}>
                   {/* Exercise name — right-aligned */}
@@ -3828,7 +3828,7 @@ export default function ExerciseCard({
                   background: '#FFF9F0',
                   borderRight: '4px solid #FF6F20',
                   borderRadius: '12px 0 0 12px',
-                  padding: '18px 16px',
+                  padding: 12,
                   marginTop: 12,
                 }}>
                   {/* Exercise name — right-aligned */}
@@ -4873,7 +4873,7 @@ export default function ExerciseCard({
               background: '#FFF9F0',
               borderRight: '4px solid #FF6F20',
               borderRadius: '12px 0 0 12px',
-              padding: '18px 16px',
+              padding: 12,
               marginTop: 12,
             }}>
               {/* Exercise name — top bar */}
@@ -5047,7 +5047,7 @@ export default function ExerciseCard({
               background: '#FFF9F0',
               borderRight: '4px solid #FF6F20',
               borderRadius: '12px 0 0 12px',
-              padding: '18px 16px',
+              padding: 12,
               marginTop: 12,
             }}>
               {/* Exercise name — top bar */}
