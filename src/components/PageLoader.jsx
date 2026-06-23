@@ -23,7 +23,7 @@ export default function PageLoader({ message = "טוען..." }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "var(--ag-bg)",
+        background: "#FFFFFF",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -32,14 +32,18 @@ export default function PageLoader({ message = "טוען..." }) {
         fontFamily: "'Rubik', system-ui, sans-serif",
         direction: "rtl",
         padding: 20,
+        // Extra bottom padding pulls the vertically-centered cluster
+        // upward so the logo sits ~40% from the top instead of dead
+        // center (50%).
+        paddingBottom: "18vh",
       }}
     >
       <img
         src="/logoR-black.png"
         alt="AthletiGo"
         style={{
-          width: 160,
-          maxWidth: "50vw",
+          width: 208,
+          maxWidth: "60vw",
           height: "auto",
           opacity: 0.5,
           marginBottom: 40,
