@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useContext, useCallback, useMemo } from "react";
+import React, { useState, useContext, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { AuthContext } from "@/lib/AuthContext";
+import { useCoachChallenges } from "@/components/hooks/useCoachChallenges";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import PageLoader from "@/components/PageLoader";
 import { toast } from "sonner";
@@ -38,13 +40,20 @@ const todayISO = () => new Date().toISOString().split("T")[0];
 export default function Challenges() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const [trainees, setTrainees] = useState([]);
-  const [allTracks, setAllTracks] = useState([]);
-  const [trackMilestones, setTrackMilestones] = useState({});
-  const [trackChallenges, setTrackChallenges] = useState({}); // by track_id
-  const [todayChallenges, setTodayChallenges] = useState([]);
+  // React Query owns the page data now — cached across navigation, so
+  // returning to this page is instant instead of re-running fetchAll
+  // behind a PageLoader. isLoading is true only on the first load.
+  const { data, isLoading } = useCoachChallenges(user?.id);
+  const trainees = data?.trainees || [];
+  const allTracks = data?.allTracks || [];
+  const trackMilestones = data?.trackMilestones || {};
+  const trackChallenges = data?.trackChallenges || {};
+  const todayChallenges = data?.todayChallenges || [];
+
+  // Invalidate the cached query — replaces the old fetchAll() refetch.
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["coach-challenges", user?.id] });
 
   // Send-options dialog
   const [showSendOptions, setShowSendOptions] = useState(false);
@@ -63,79 +72,6 @@ export default function Challenges() {
   const [extendTrack, setExtendTrack] = useState(null);
   const [newGoalValue, setNewGoalValue] = useState("");
   const [newGoalLabel, setNewGoalLabel] = useState("");
-
-  // Fetch everything in one shot
-  const fetchAll = useCallback(async () => {
-    if (!user?.id) return;
-    setLoading(true);
-    try {
-      const { data: traineeRows } = await supabase
-        .from("users")
-        .select("id, full_name")
-        .eq("coach_id", user.id)
-        .order("full_name");
-      setTrainees(traineeRows || []);
-
-      const { data: tracks, error: trackErr } = await supabase
-        .from("skill_tracks")
-        .select("*")
-        .eq("coach_id", user.id)
-        .order("created_at", { ascending: false });
-      if (trackErr) console.warn("[Challenges] tracks:", trackErr);
-      setAllTracks(tracks || []);
-
-      const trackIds = (tracks || []).map(t => t.id);
-      if (trackIds.length > 0) {
-        const { data: ms } = await supabase
-          .from("goal_milestones")
-          .select("*")
-          .in("track_id", trackIds)
-          .order("value", { ascending: true });
-        const grouped = {};
-        for (const m of (ms || [])) {
-          if (!grouped[m.track_id]) grouped[m.track_id] = [];
-          grouped[m.track_id].push(m);
-        }
-        setTrackMilestones(grouped);
-
-        const { data: stages } = await supabase
-          .from("skill_stages")
-          .select("id, track_id")
-          .in("track_id", trackIds);
-        const stageIds = (stages || []).map(s => s.id);
-        const stageToTrack = {};
-        for (const s of (stages || [])) stageToTrack[s.id] = s.track_id;
-        if (stageIds.length > 0) {
-          const { data: ch } = await supabase
-            .from("skill_challenges")
-            .select("*")
-            .in("stage_id", stageIds)
-            .order("sort_order", { ascending: true });
-          const byTrack = {};
-          for (const c of (ch || [])) {
-            const tid = stageToTrack[c.stage_id];
-            if (!tid) continue;
-            if (!byTrack[tid]) byTrack[tid] = [];
-            byTrack[tid].push(c);
-          }
-          setTrackChallenges(byTrack);
-        }
-      }
-
-      const today = todayISO();
-      const { data: tc } = await supabase
-        .from("notifications")
-        .select("id, user_id, type, message, is_read")
-        .eq("type", "daily_challenge")
-        .gte("created_at", today + "T00:00:00");
-      setTodayChallenges(tc || []);
-      console.log("[Challenges] loaded —", { tracks: tracks?.length || 0, today: tc?.length || 0 });
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.id]);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const traineeNameById = useMemo(() => {
     const m = new Map();
@@ -188,7 +124,7 @@ export default function Challenges() {
     if (error) { toast.error("שגיאה: " + error.message); return; }
     toast.success("אתגר נשלח!");
     setShowSendOptions(false);
-    fetchAll();
+    refresh();
   };
 
   const sendChallengeFromTrack = async (challenge, track) => {
@@ -213,7 +149,7 @@ export default function Challenges() {
     if (error) { toast.error("שגיאה: " + error.message); return; }
     toast.success(`אתגר נשלח מ"${track.name}"!`);
     setShowSendOptions(false);
-    fetchAll();
+    refresh();
   };
 
   const saveNewTrack = async () => {
@@ -253,7 +189,7 @@ export default function Challenges() {
     toast.success("מסלול נוצר!");
     setShowNewTrack(false);
     setNewTrack(emptyTrack);
-    fetchAll();
+    refresh();
   };
 
   const updateTrackProgress = async (track, newValueRaw) => {
@@ -281,7 +217,7 @@ export default function Challenges() {
     } else {
       toast.success("התקדמות עודכנה");
     }
-    fetchAll();
+    refresh();
   };
 
   const extendGoal = async () => {
@@ -298,10 +234,10 @@ export default function Challenges() {
     setNewGoalValue("");
     setNewGoalLabel("");
     setExtendTrack(null);
-    fetchAll();
+    refresh();
   };
 
-  if (loading) return <ProtectedCoachPage><PageLoader /></ProtectedCoachPage>;
+  if (isLoading) return <ProtectedCoachPage><PageLoader /></ProtectedCoachPage>;
 
   return (
     <ProtectedCoachPage>

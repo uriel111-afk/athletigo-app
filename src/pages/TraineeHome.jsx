@@ -26,6 +26,8 @@ import PendingSessionsPopup from "../components/trainee/PendingSessionsPopup";
 import EntryNotificationsPopup from "../components/trainee/EntryNotificationsPopup";
 import ActivityHeatmap from "@/components/charts/ActivityHeatmap";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/lib/AuthContext";
+import { useTraineeHome } from "@/components/hooks/useTraineeHome";
 import { daysUntilBirthday } from "@/lib/dateHelpers";
 
 // "השיאים שלי" surface for the trainee home — pulls the latest
@@ -154,10 +156,14 @@ const primaryApprovalBtnStyle = {
 
 export default function TraineeHome() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  // User comes from AuthContext (already loaded app-wide) instead of a
+  // per-mount base44.auth.me() call. The home data bundle is fetched via
+  // React Query so returning to this screen is instant (served from cache)
+  // — the first app open is the only time PageLoader shows.
+  const { user, isLoadingAuth } = useAuth();
+  const { data: homeData, isLoading, error: loadError } = useTraineeHome(user?.id, user?.email);
+  const unreadModalShownRef = useRef(false);
   const [coach, setCoach] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null);
   const [showBookingDialog, setShowBookingDialog] = useState(false);
   const [mySessions, setMySessions] = useState([]);
   const [activeServices, setActiveServices] = useState([]);
@@ -353,113 +359,28 @@ export default function TraineeHome() {
     if (revertTimerRef.current) clearTimeout(revertTimerRef.current);
   }, []);
 
+  // Seed the page's working state from the cached query result. On a
+  // fresh mount (navigating back to home) homeData is already in cache,
+  // so this runs once and the optimistic mutation handlers below keep
+  // operating on the local copies exactly as before. A background
+  // refetch (stale data) re-seeds with fresh server state.
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const currentUser = await base44.auth.me();
-        setUser(currentUser);
-        
-        if (currentUser) {
-          // Direct supabase read so the console surfaces both the raw
-          // rows and any RLS / network error — a thrown error from the
-          // base44 wrapper looks identical to an RLS-silenced empty
-          // array, which is the exact ambiguity we're trying to debug.
-          const { data: rawServices, error: servicesError } = await supabase
-            .from('client_services')
-            .select('*')
-            .eq('trainee_id', currentUser.id);
-          console.log('[TraineeHome] packages query result:', {
-            trainee_id: currentUser.id,
-            email: currentUser.email,
-            count: rawServices?.length ?? 0,
-            data: rawServices,
-            error: servicesError,
-          });
-          const services = rawServices || [];
-
-          if (services.length > 0 && services[0].created_by) {
-            const coaches = await base44.entities.User.filter({ id: services[0].created_by });
-            if (coaches.length > 0) setCoach(coaches[0]);
-          }
-          // No status filtering — surface every linked package.
-          setActiveServices(services);
-
-          // Load unread notifications
-          try {
-            const notifs = await base44.entities.Notification.filter({ user_id: currentUser.id }, '-created_at');
-            const unread = notifs.filter(n => !n.is_read || (n.requires_acknowledgment && !n.acknowledged_at));
-            if (unread.length > 0) {
-              setUnreadNotifs(unread);
-              setShowUnreadModal(true);
-            }
-          } catch (e) { console.error("Error fetching notifications", e); }
-
-          // Fetch completed sessions count for streak card
-          try {
-            const allUserSessions = await base44.entities.Session.filter({}, '-date', 500);
-            const mineCompleted = allUserSessions.filter(s =>
-              s.participants?.some(p => p.trainee_id === currentUser.id) &&
-              (s.status === 'הושלם' || s.status === 'התקיים' || s.status === 'הגיע')
-            );
-            setCompletedCount(mineCompleted.length);
-            // Date keys (YYYY-MM-DD) for the 28-day activity heatmap.
-            // We store the raw list and bucket downstream so the same
-            // source feeds streak, weeks-active, and the heatmap.
-            const dateKeys = mineCompleted
-              .map(s => (s.date ? String(s.date).slice(0, 10) : null))
-              .filter(Boolean);
-            setCompletedDates(dateKeys);
-            if (mineCompleted.length > 0) {
-              const dates = mineCompleted.map(s => new Date(s.date)).sort((a, b) => a - b);
-              setFirstSessionDate(dates[0]);
-            }
-          } catch (e) { console.error("Error fetching completed sessions", e); }
-
-          // Per-trainee health-declaration check. Drives the approval
-          // banner gate for both NEW sessions (no per-session link
-          // yet) AND legacy sessions where the link column was never
-          // populated. Any signed row → trainee is considered signed.
-          try {
-            const { data: hd, error: hdErr } = await supabase
-              .from('health_declarations')
-              .select('id')
-              .eq('trainee_id', currentUser.id)
-              .limit(1);
-            if (!hdErr) setHasSignedHealth((hd?.length || 0) > 0);
-            else setHasSignedHealth(false);
-          } catch (e) {
-            console.warn('[TraineeHome] health-declaration check failed:', e?.message);
-            setHasSignedHealth(false);
-          }
-
-          // Fetch sessions
-          try {
-            // Attempt server-side filtering for privacy and performance
-            // We filter by date to avoid loading old history
-            const today = new Date().toISOString().split('T')[0];
-            const allSessions = await base44.entities.Session.filter({
-                date: { $gte: today }
-            }, 'date', 100); // Limit 100 upcoming
-
-            // Client-side filter for participants (as JSON array filtering might vary by backend)
-            const userSessions = allSessions.filter(s =>
-              s.participants?.some(p => p.trainee_id === currentUser.id)
-            );
-
-            setMySessions(userSessions);
-          } catch (err) {
-            console.error("Error fetching sessions", err);
-          }
-        }
-      } catch (error) {
-        console.error("Error loading home data:", error);
-        setLoadError(error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, []);
+    if (!homeData) return;
+    setCoach(homeData.coach);
+    setActiveServices(homeData.activeServices);
+    setMySessions(homeData.mySessions);
+    setCompletedCount(homeData.completedCount);
+    setCompletedDates(homeData.completedDates);
+    setFirstSessionDate(homeData.firstSessionDate);
+    setHasSignedHealth(homeData.hasSignedHealth);
+    setUnreadNotifs(homeData.unreadNotifs);
+    // Auto-open the unread modal once per mount when unread notifs exist
+    // (same as the old loadData behaviour, which fired on every mount).
+    if (homeData.unreadNotifs.length > 0 && !unreadModalShownRef.current) {
+      unreadModalShownRef.current = true;
+      setShowUnreadModal(true);
+    }
+  }, [homeData]);
 
   const weeksActive = useMemo(() => {
     if (!firstSessionDate) return 0;
@@ -706,6 +627,7 @@ export default function TraineeHome() {
       // Broadcast: every list of sessions that downstream tabs
       // (coach view / trainee profile attendance) might be reading.
       try {
+        queryClient.invalidateQueries({ queryKey: ['trainee-home', user?.id] });
         queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
         queryClient.invalidateQueries({ queryKey: ['sessions'] });
         queryClient.invalidateQueries({ queryKey: ['trainee-today-session'] });
@@ -801,6 +723,9 @@ export default function TraineeHome() {
           setActiveServices(services);
           console.log('[REFRESH] after cancel — sessions:', mySessions.length, 'active services:', services.length);
         } catch (e) { console.warn('[TraineeHome] refresh after cancel:', e); }
+        // Keep the cached home bundle in sync so a quick navigate-away-
+        // and-back doesn't resurrect the cancelled session from cache.
+        queryClient.invalidateQueries({ queryKey: ['trainee-home', user?.id] });
         toast.success("המפגש בוטל והיתרה הוחזרה לחבילה");
       } catch (err) {
         console.error("Error cancelling session", err);
@@ -840,7 +765,10 @@ export default function TraineeHome() {
     return <span className={`px-2 py-1 rounded text-xs font-bold ${styles[status] || 'bg-gray-100'}`}>{status}</span>;
   };
 
-  if (loading) {
+  // PageLoader shows while auth resolves or on the FIRST home-data fetch
+  // (no cache). On later navigations homeData is cached → isLoading is
+  // false → instant render, no loading screen.
+  if (isLoadingAuth || isLoading) {
     return <PageLoader />;
   }
 
@@ -876,6 +804,7 @@ export default function TraineeHome() {
         acknowledged_at: new Date().toISOString(),
       });
       setUnreadNotifs(prev => prev.filter(n => n.id !== notifId));
+      queryClient.invalidateQueries({ queryKey: ['trainee-home', user?.id] });
       toast.success("✅ קריאה אושרה");
     } catch { toast.error("שגיאה"); }
     setAcknowledgingId(null);
@@ -885,6 +814,7 @@ export default function TraineeHome() {
     try {
       await base44.entities.Notification.update(notifId, { is_read: true });
       setUnreadNotifs(prev => prev.filter(n => n.id !== notifId));
+      queryClient.invalidateQueries({ queryKey: ['trainee-home', user?.id] });
     } catch {}
   };
 
@@ -1822,6 +1752,7 @@ export default function TraineeHome() {
                         if (data) setMySessions(data);
                       } catch {}
                       try {
+                        queryClient.invalidateQueries({ queryKey: ['trainee-home', user?.id] });
                         queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
                         queryClient.invalidateQueries({ queryKey: ['sessions'] });
                         queryClient.invalidateQueries({ queryKey: ['trainee-today-session'] });

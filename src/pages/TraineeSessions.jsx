@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/lib/AuthContext";
+import { useTraineeSessions } from "@/components/hooks/useTraineeSessions";
 import { Loader2, Calendar, Clock as ClockIcon } from "lucide-react";
 import { toast } from "sonner";
 import { syncPackageStatus } from "@/lib/packageStatus";
@@ -51,11 +54,18 @@ function formatDate(d) {
 }
 
 function TraineeSessionsInner() {
-  const [user, setUser] = useState(null);
-  const [coach, setCoach] = useState(null);
-  const [sessions, setSessions] = useState([]);
-  const [activePackages, setActivePackages] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const sessionsKey = ['trainee-sessions', user?.id];
+
+  // React Query is the source of truth for sessions/packages/coach now.
+  // isLoading is true ONLY on the very first load (no cache); switching
+  // back to this page serves cached data instantly — no PageLoader.
+  const { data, isLoading } = useTraineeSessions(user?.id, user?.email);
+  const coach = data?.coach || null;
+  const sessions = data?.sessions || [];
+  const activePackages = data?.activePackages || [];
+
   const [filter, setFilter] = useState('upcoming');
   const [showBooking, setShowBooking] = useState(false);
   const [rescheduleSession, setRescheduleSession] = useState(null);
@@ -65,71 +75,36 @@ function TraineeSessionsInner() {
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
 
+  // Refresh = invalidate the cached query. Keeps the old 'data-changed'
+  // cross-component sync working (mutations still dispatch the event).
+  const refresh = () => queryClient.invalidateQueries({ queryKey: sessionsKey });
+
+  // Optimistic local flip of a session's status — mirrors the previous
+  // setSessions(prev => ...) instant feedback, but writes into the cache.
+  const patchSessionStatus = (sessionId, status) => {
+    queryClient.setQueryData(sessionsKey, (old) =>
+      old
+        ? { ...old, sessions: old.sessions.map(s => s.id === sessionId ? { ...s, status } : s) }
+        : old
+    );
+  };
+
   useEffect(() => {
-    loadData();
-    const onChange = () => loadData();
+    const onChange = () => refresh();
     window.addEventListener('data-changed', onChange);
     return () => window.removeEventListener('data-changed', onChange);
-  }, []);
+  }, [user?.id]);
 
   // Realtime — when coach changes session status, trainee sees it instantly
   useEffect(() => {
     if (!user?.id) return;
     const ch = supabase
       .channel(`trainee-sessions-rt-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => loadData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'client_services' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => refresh())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'client_services' }, () => refresh())
       .subscribe();
     return () => supabase.removeChannel(ch);
   }, [user?.id]);
-
-  const loadData = async () => {
-    try {
-      const currentUser = await base44.auth.me();
-      setUser(currentUser);
-      if (!currentUser) return;
-
-      // Direct supabase read so we surface RLS / empty-result distinctions
-      // in the console. The base44 wrapper throws-on-error and would mask
-      // an RLS-silenced empty array vs a real network failure.
-      const { data: rawServices, error: servicesError } = await supabase
-        .from('client_services')
-        .select('*')
-        .eq('trainee_id', currentUser.id);
-      console.log('[TraineeSessions] packages query result:', {
-        trainee_id: currentUser.id,
-        email: currentUser.email,
-        count: rawServices?.length ?? 0,
-        data: rawServices,
-        error: servicesError,
-      });
-      const services = rawServices || [];
-
-      if (services.length > 0 && services[0].created_by) {
-        const coaches = await base44.entities.User.filter({ id: services[0].created_by });
-        if (coaches.length > 0) setCoach(coaches[0]);
-      }
-      // No status filtering — show every package linked to this
-      // trainee, regardless of status. Display labels live in
-      // STATUS_LABEL but never gate visibility.
-      const visible = services.map(s => ({
-        ...s,
-        remaining: Math.max(0, (s.total_sessions || 0) - (s.used_sessions || 0)),
-      }));
-      setActivePackages(visible);
-
-      // Get all sessions for this trainee
-      const allSessions = await base44.entities.Session.filter({}, '-date', 500);
-      const mine = allSessions.filter(s =>
-        s.participants?.some(p => p.trainee_id === currentUser.id)
-      );
-      setSessions(mine);
-    } catch (err) {
-      console.error("Error loading sessions:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -180,9 +155,7 @@ function TraineeSessionsInner() {
         status: 'cancelled',
         status_updated_at: new Date().toISOString(),
       });
-      setSessions(prev => prev.map(s =>
-        s.id === session.id ? { ...s, status: 'cancelled' } : s
-      ));
+      patchSessionStatus(session.id, 'cancelled');
       toast.success('הבקשה בוטלה');
       window.dispatchEvent(new CustomEvent('data-changed'));
     } catch (err) {
@@ -225,7 +198,7 @@ function TraineeSessionsInner() {
           });
         } catch {}
       }
-      setSessions(prev => prev.map(s => s.id === session.id ? { ...s, status: 'בוטל על ידי מתאמן' } : s));
+      patchSessionStatus(session.id, 'בוטל על ידי מתאמן');
       toast.success("המפגש בוטל והיתרה הוחזרה");
       window.dispatchEvent(new CustomEvent('data-changed'));
     } catch (err) {
@@ -253,7 +226,7 @@ function TraineeSessionsInner() {
           });
         } catch {}
       }
-      setSessions(prev => prev.map(s => s.id === session.id ? { ...s, status: 'מאושר' } : s));
+      patchSessionStatus(session.id, 'מאושר');
       toast.success('ההגעה אושרה. המאמן קיבל הודעה.');
       window.dispatchEvent(new CustomEvent('data-changed'));
     } catch (err) {
@@ -292,7 +265,7 @@ function TraineeSessionsInner() {
       setNewDate(''); setNewTime(''); setRescheduleNote('');
       toast.success('בקשת שינוי המועד נשלחה למאמן');
       window.dispatchEvent(new CustomEvent('data-changed'));
-      loadData();
+      refresh();
     } catch (err) {
       toast.error('שגיאה: ' + (err?.message || 'נסה שוב'));
     } finally {
@@ -300,7 +273,7 @@ function TraineeSessionsInner() {
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return <PageLoader />;
   }
 
@@ -580,7 +553,7 @@ function TraineeSessionsInner() {
           user={user}
           coach={coach}
           onClose={() => setShowBooking(false)}
-          onSuccess={() => loadData()}
+          onSuccess={() => refresh()}
         />
       )}
 
