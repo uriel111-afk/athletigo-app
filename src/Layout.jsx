@@ -40,7 +40,8 @@ import {
   Flame,
   Route,
   BookOpen,
-  MessageCircle
+  MessageCircle,
+  Clapperboard
   } from "lucide-react";
 import FeedbackButton from "@/components/feedback/FeedbackButton";
 import { Button } from "@/components/ui/button";
@@ -205,6 +206,7 @@ export default function Layout({ children, currentPageName }) {
     // ── ניהול יומיומי ──
     { title: "דשבורד", url: createPageUrl("Dashboard"), icon: LayoutDashboard, section: "daily" },
     { title: "מתאמנים", url: createPageUrl("AllUsers"), icon: Users, section: "daily" },
+    { title: "תוכן", url: createPageUrl("Content"), icon: Clapperboard, section: "daily" },
     { title: "תוכניות פעילות", url: createPageUrl("TrainingPlans"), icon: Dumbbell, section: "daily" },
     { title: "מפגשים", url: createPageUrl("Sessions"), icon: Calendar, section: "daily" },
     { title: "לידים", url: createPageUrl("Leads"), icon: UserPlus, section: "daily" },
@@ -678,12 +680,17 @@ export default function Layout({ children, currentPageName }) {
                 const navItems = isCoach ? [
                   { to: createPageUrl("Dashboard"),    emoji: '🏠', label: 'בית' },
                   { to: createPageUrl("AllUsers"),     emoji: '👥', label: 'מתאמנים' },
+                  { to: createPageUrl("Content"),      emoji: '🎬', label: 'תוכן' },
                   { to: createPageUrl("TrainingPlans"),emoji: '📋', label: 'תוכניות' },
                   { to: createPageUrl("Sessions"),     emoji: '📅', label: 'מפגשים' },
                   { to: createPageUrl("CoachProfile"), emoji: '👤', label: 'פרופיל' },
                 ] : traineeNav;
                 return navItems.map(item => {
-                  const active = location.pathname === item.to;
+                  // The content tab nests sub-routes (/content/drop, /clip…)
+                  // so highlight it on any /content path, not just the root.
+                  const active = item.to === '/content'
+                    ? location.pathname.startsWith('/content')
+                    : location.pathname === item.to;
                   return (
                     <Link
                       key={item.to}

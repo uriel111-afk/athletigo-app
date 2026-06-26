@@ -15,6 +15,10 @@ import PageLoader from '@/components/PageLoader';
 import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
 import CoachHub from './pages/CoachHub';
+import ContentCommander from './pages/ContentCommander';
+import ContentDropDetail from './pages/content/DropDetail';
+import ContentClipDetail from './pages/content/ClipDetail';
+import ContentTeleprompter from './pages/content/Teleprompter';
 import LifeOSDashboard from './pages/lifeos/LifeOSDashboard';
 import LifeOSExpenses from './pages/lifeos/Expenses';
 import LifeOSExpenseFormPage from './pages/lifeos/ExpenseFormPage';
@@ -526,6 +530,18 @@ const AuthenticatedApp = () => {
           </PageRouteGuard>
         }
       />
+
+      {/* ── Content Commander (coach-only) ──────────────────────── */}
+      {/* /content keeps the app-wide Layout so the bottom nav stays   */}
+      {/* visible; detail + teleprompter screens render full-screen.  */}
+      <Route path="/content" element={
+        <PageRouteGuard pageKey="Content">
+          <LayoutWrapper currentPageName="Content"><ContentCommander /></LayoutWrapper>
+        </PageRouteGuard>
+      } />
+      <Route path="/content/drop/:id"          element={<PageRouteGuard pageKey="Content"><ContentDropDetail /></PageRouteGuard>} />
+      <Route path="/content/clip/:id"          element={<PageRouteGuard pageKey="Content"><ContentClipDetail /></PageRouteGuard>} />
+      <Route path="/content/clip/:id/prompter" element={<PageRouteGuard pageKey="Content"><ContentTeleprompter /></PageRouteGuard>} />
 
       {/* ── Life OS (coach hub + financial OS) ─────────────────── */}
       {/* These screens render without the app-wide Layout — they use */}
