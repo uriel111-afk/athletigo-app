@@ -5,12 +5,12 @@ import { toast } from 'sonner';
 import { useAuth } from '@/lib/AuthContext';
 import { COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 import {
-  useClip, useContentMutations, CLIP_TYPES, CLIP_STATUSES,
+  useClip, useDrop, useContentMutations, CLIP_TYPES, CLIP_STATUSES,
 } from '@/api/content-api';
 
 const ORANGE = '#FF6F20';
 
-const FIELDS = ['title', 'hook', 'script', 'loop_close', 'clip_type', 'target_audience', 'status'];
+const FIELDS = ['title', 'chapter_notes', 'hook', 'script', 'loop_close', 'clip_type', 'target_audience', 'status'];
 
 export default function ClipDetail() {
   const { id } = useParams();
@@ -20,6 +20,8 @@ export default function ClipDetail() {
   const coachId = user?.id || COACH_USER_ID;
 
   const { data: clip, isLoading } = useClip(id);
+  const { data: parentDrop } = useDrop(clip?.drop_id);
+  const isCourse = parentDrop?.category === 'course';
   const { updateClip, deleteClip } = useContentMutations(coachId);
 
   const [form, setForm] = useState(null);
@@ -99,6 +101,19 @@ export default function ClipDetail() {
           />
         </Field>
 
+        {/* Course chapters get an outline / talking-points field above
+            the script. Marketing clips skip it. */}
+        {isCourse && (
+          <Field label="נקודות מפתח לפרק">
+            <textarea
+              value={form.chapter_notes} onChange={(e) => setField('chapter_notes', e.target.value)}
+              onBlur={() => saveField('chapter_notes', form.chapter_notes)} rows={4}
+              placeholder="הוסף נקודות שתרצה לכסות בפרק..." dir="rtl"
+              style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.6 }}
+            />
+          </Field>
+        )}
+
         <Field label="פתיח (Hook)">
           <textarea
             value={form.hook} onChange={(e) => setField('hook', e.target.value)}
@@ -107,7 +122,7 @@ export default function ClipDetail() {
           />
         </Field>
 
-        <Field label="תסריט (טקסט פרומפטר)">
+        <Field label={isCourse ? 'תסריט השיעור' : 'תסריט (טקסט פרומפטר)'}>
           <AutoTextarea
             value={form.script} onChange={(v) => setField('script', v)}
             onBlur={() => saveField('script', form.script)}

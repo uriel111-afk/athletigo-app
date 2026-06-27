@@ -16,9 +16,12 @@ const startOfDay = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); retur
 // the view auto-centers on the current week.
 export default function GanttTab() {
   const navigate = useNavigate();
-  const { data: drops = [], isLoading } = useDrops();
+  const { data: allDrops = [], isLoading } = useDrops();
   const { data: clips = [] } = useClips();
   const scrollRef = useRef(null);
+
+  // Marketing drops only — courses have their own (non-dated) flow.
+  const drops = useMemo(() => allDrops.filter((d) => d.category !== 'course'), [allDrops]);
 
   const clipsByDrop = useMemo(() => {
     const m = {};

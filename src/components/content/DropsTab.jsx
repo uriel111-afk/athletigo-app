@@ -19,10 +19,13 @@ const fmtDate = (d) => {
 // its detail page. FAB opens a quick create sheet (title/date/funnel).
 export default function DropsTab({ coachId }) {
   const navigate = useNavigate();
-  const { data: drops = [], isLoading } = useDrops();
+  const { data: allDrops = [], isLoading } = useDrops();
   const { data: clips = [] } = useClips();
   const { addDrop } = useContentMutations(coachId);
   const [creating, setCreating] = useState(false);
+
+  // Marketing drops only — course drops live in the קורסים tab.
+  const drops = useMemo(() => allDrops.filter((d) => d.category !== 'course'), [allDrops]);
 
   // clip count per drop
   const clipCount = useMemo(() => {
@@ -38,7 +41,7 @@ export default function DropsTab({ coachId }) {
   }, [drops]);
 
   const handleCreate = (payload) => {
-    addDrop.mutate(payload, {
+    addDrop.mutate({ category: 'marketing', ...payload }, {
       onSuccess: (drop) => {
         setCreating(false);
         toast.success('הדרופ נוצר');

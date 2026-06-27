@@ -6,8 +6,10 @@ import { useAuth } from '@/lib/AuthContext';
 import { COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 import { useContentMutations, contentKeys } from '@/api/content-api';
 import { seedJulyContent } from '@/data/july-content-seed';
+import { seedCourses } from '@/data/courses-seed';
 import IdeasTab from '@/components/content/IdeasTab';
 import DropsTab from '@/components/content/DropsTab';
+import CoursesTab from '@/components/content/CoursesTab';
 import GanttTab from '@/components/content/GanttTab';
 
 const ORANGE = '#FF6F20';
@@ -15,6 +17,7 @@ const ORANGE = '#FF6F20';
 const SUB_TABS = [
   { key: 'ideas', label: 'רעיונות' },
   { key: 'drops', label: 'דרופים' },
+  { key: 'courses', label: 'קורסים' },
   { key: 'gantt', label: 'לוח' },
 ];
 
@@ -38,12 +41,14 @@ export default function ContentCommander() {
   // on every mount. Refresh the drop/clip queries if it actually wrote.
   useEffect(() => {
     let alive = true;
-    seedJulyContent('67b0093d-d4ca-4059-8572-26f020bef1eb').then((res) => {
+    const refreshIfSeeded = (res) => {
       if (alive && res?.seeded) {
         qc.invalidateQueries({ queryKey: contentKeys.drops });
         qc.invalidateQueries({ queryKey: contentKeys.clips });
       }
-    });
+    };
+    seedJulyContent('67b0093d-d4ca-4059-8572-26f020bef1eb').then(refreshIfSeeded);
+    seedCourses('67b0093d-d4ca-4059-8572-26f020bef1eb').then(refreshIfSeeded);
     return () => { alive = false; };
   }, [qc]);
 
@@ -133,6 +138,7 @@ export default function ContentCommander() {
       {/* ── Active tab ──────────────────────────────────────────── */}
       {tab === 'ideas' && <IdeasTab coachId={coachId} />}
       {tab === 'drops' && <DropsTab coachId={coachId} />}
+      {tab === 'courses' && <CoursesTab coachId={coachId} />}
       {tab === 'gantt' && <GanttTab />}
     </div>
   );
