@@ -1,6 +1,6 @@
 import React, { useContext } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Briefcase, Coins, Sprout, User } from "lucide-react";
+import { Briefcase, Coins, Sprout, User, Clapperboard } from "lucide-react";
 import { AuthContext } from "@/lib/AuthContext";
 import { COACH_USER_ID } from "@/lib/lifeos/lifeos-constants";
 
@@ -25,12 +25,14 @@ export default function AppSwitcher({ wide = false }) {
                   || path.startsWith("/lifeos/content")
                   || path.startsWith("/lifeos/community");
   const isFin      = path.startsWith("/lifeos") && !isGrowth;
+  const isContent  = path.startsWith("/content");
 
   const tabs = [
     { key: "pro",      label: "מקצועי", href: "/dashboard",    active: isPro,      Icon: Briefcase },
     { key: "fin",      label: "פיננסי", href: "/lifeos/finance-dashboard", active: isFin,      Icon: Coins     },
     { key: "growth",   label: "צמיחה",  href: "/lifeos/leads", active: isGrowth,   Icon: Sprout    },
     { key: "personal", label: "אישי",   href: "/personal",     active: isPersonal, Icon: User      },
+    { key: "content",  label: "תוכן",   href: "/content",      active: isContent,  Icon: Clapperboard },
   ];
 
   return (
@@ -44,6 +46,11 @@ export default function AppSwitcher({ wide = false }) {
         // fits one screen without scrolling.
         padding: wide ? "4px 4px" : "6px 12px",
         background: "transparent",
+        // 5 tabs — let the row scroll horizontally on narrow screens
+        // instead of crushing the tabs. minWidth on each button (below)
+        // stops them shrinking past a legible size and triggers scroll.
+        overflowX: "auto",
+        scrollbarWidth: "none",
       }}
     >
       {tabs.map(t => {
@@ -53,8 +60,10 @@ export default function AppSwitcher({ wide = false }) {
             key={t.key}
             onClick={() => navigate(t.href)}
             style={{
-              // flex:1 + minWidth:0 share the row evenly across 4 tabs.
-              flex: 1, minWidth: 0,
+              // flex:1 fills the row evenly when there's room; minWidth
+              // keeps each tab legible and lets the row scroll when 5
+              // tabs don't fit a narrow screen.
+              flex: 1, minWidth: 58,
               padding: wide ? "11px 0" : "8px 0",
               borderRadius: 12,
               fontSize: wide ? 16 : 15, fontWeight: t.active ? 700 : 500,

@@ -43,7 +43,7 @@ export const CLIP_TYPES = [
   { key: 'proof',       label: 'הוכחה' },
   { key: 'product',     label: 'מוצר' },
   { key: 'bts',         label: 'BTS' },
-  { key: 'inspiration', label: 'השראה' },
+  { key: 'inspire',     label: 'השראה' },
 ];
 export const CLIP_TYPE_BY_KEY = Object.fromEntries(CLIP_TYPES.map(t => [t.key, t]));
 

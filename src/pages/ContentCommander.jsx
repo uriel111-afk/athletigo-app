@@ -1,9 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Send } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
-import { useContentMutations } from '@/api/content-api';
+import { useContentMutations, contentKeys } from '@/api/content-api';
+import { seedJulyContent } from '@/data/july-content-seed';
 import IdeasTab from '@/components/content/IdeasTab';
 import DropsTab from '@/components/content/DropsTab';
 import GanttTab from '@/components/content/GanttTab';
@@ -27,8 +29,23 @@ export default function ContentCommander() {
   const [tab, setTab] = useState('ideas');
   const [idea, setIdea] = useState('');
   const inputRef = useRef(null);
+  const qc = useQueryClient();
 
   const { addIdea } = useContentMutations(coachId);
+
+  // One-time seed of the July content plan. seedJulyContent is
+  // idempotent (skips if the coach already has drops), so this is safe
+  // on every mount. Refresh the drop/clip queries if it actually wrote.
+  useEffect(() => {
+    let alive = true;
+    seedJulyContent('67b0093d-d4ca-4059-8572-26f020bef1eb').then((res) => {
+      if (alive && res?.seeded) {
+        qc.invalidateQueries({ queryKey: contentKeys.drops });
+        qc.invalidateQueries({ queryKey: contentKeys.clips });
+      }
+    });
+    return () => { alive = false; };
+  }, [qc]);
 
   const submitIdea = () => {
     const text = idea.trim();
