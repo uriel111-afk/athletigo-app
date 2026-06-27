@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronRight, Plus, Trash2, GripVertical, Loader2 } from 'lucide-react';
+import { ChevronRight, Plus, Trash2, GripVertical, Loader2, CheckCircle2, Circle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/AuthContext';
 import { COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
@@ -20,7 +20,7 @@ export default function DropDetail() {
 
   const { data: drop, isLoading } = useDrop(id);
   const { data: clips = [] } = useClips(id);
-  const { updateDrop, deleteDrop, addClip, reorderClips } = useContentMutations(coachId);
+  const { updateDrop, deleteDrop, addClip, reorderClips, updateClip } = useContentMutations(coachId);
 
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
@@ -74,6 +74,19 @@ export default function DropDetail() {
     [next[i], next[j]] = [next[j], next[i]];
     setOrder(next);
     reorderClips.mutate(next.map((c) => c.id));
+  };
+
+  // Quick "mark as done" toggle on a chapter row. filmed/edited/published
+  // count as done → checkmark; tapping flips between filmed and
+  // script_ready. Optimistic so the row and the course progress bar move
+  // instantly; updateClip invalidates the clip queries to reconcile.
+  const COMPLETED = new Set(['filmed', 'edited', 'published']);
+  const toggleDone = (clip) => {
+    const next = COMPLETED.has(clip.status) ? 'script_ready' : 'filmed';
+    setOrder((cur) => cur.map((c) => (c.id === clip.id ? { ...c, status: next } : c)));
+    updateClip.mutate({ id: clip.id, status: next }, {
+      onError: (e) => { console.error(e); toast.error('עדכון הסטטוס נכשל'); },
+    });
   };
 
   if (isLoading) {
@@ -184,6 +197,17 @@ export default function DropDetail() {
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 13, fontWeight: 800, color: 'var(--ink)', flexShrink: 0,
                   }}>{i + 1}</span>
+                  {/* Completion toggle — orange check when filmed+, empty circle otherwise. */}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); toggleDone(c); }}
+                    aria-label={['filmed', 'edited', 'published'].includes(c.status) ? 'סמן כלא הושלם' : 'סמן כהושלם'}
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', flexShrink: 0 }}
+                  >
+                    {['filmed', 'edited', 'published'].includes(c.status)
+                      ? <CheckCircle2 size={24} color={ORANGE} />
+                      : <Circle size={24} color="#CBBFA9" />}
+                  </button>
                   <div onClick={() => navigate(`/content/clip/${c.id}`)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {c.title || 'קליפ ללא שם'}
