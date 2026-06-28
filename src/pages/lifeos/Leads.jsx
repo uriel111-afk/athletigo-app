@@ -1,4 +1,6 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Pencil, Trash2, ChevronLeft, ChevronRight, RefreshCw, UserPlus, Phone, MessageCircle, AlertTriangle } from 'lucide-react';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
@@ -12,6 +14,8 @@ import {
 } from '@/lib/lifeos/lifeos-constants';
 import { listLeads, updateLead, deleteLead } from '@/lib/lifeos/lifeos-api';
 import { waLink, telLink, relTime, followUpState, followUpSortKey } from '@/lib/lifeos/lead-helpers';
+import { seedSalesScripts } from '@/data/sales-scripts-seed';
+import { scriptsKey } from '@/lib/lifeos/sales-scripts-api';
 import { toast } from 'sonner';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
@@ -47,6 +51,18 @@ function scoreBadge(s) {
 export default function Leads() {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+
+  // Seed the default sales scripts once (idempotent) so the guided
+  // flow + editor always have content; refresh the scripts query if it
+  // actually wrote so the flow reads live rows.
+  useEffect(() => {
+    if (!userId) return;
+    seedSalesScripts(userId).then((res) => {
+      if (res?.seeded) qc.invalidateQueries({ queryKey: scriptsKey });
+    });
+  }, [userId, qc]);
 
   const [rows, setRows] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -135,14 +151,24 @@ export default function Leads() {
 
   return (
     <LifeOSLayout title="לידים" onQuickSaved={load} rightSlot={
-      <button onClick={load} aria-label="רענן" title="רענן" style={{
-        width: 32, height: 32, borderRadius: 10, border: 'none',
-        background: 'transparent', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: LIFEOS_COLORS.textSecondary,
-      }}>
-        <RefreshCw size={16} />
-      </button>
+      <div style={{ display: 'flex', gap: 4 }}>
+        <button onClick={() => navigate('/leads/scripts')} aria-label="עריכת סקריפטים" title="עריכת סקריפטים" style={{
+          width: 32, height: 32, borderRadius: 10, border: 'none',
+          background: 'transparent', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: LIFEOS_COLORS.textSecondary,
+        }}>
+          <Pencil size={16} />
+        </button>
+        <button onClick={load} aria-label="רענן" title="רענן" style={{
+          width: 32, height: 32, borderRadius: 10, border: 'none',
+          background: 'transparent', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: LIFEOS_COLORS.textSecondary,
+        }}>
+          <RefreshCw size={16} />
+        </button>
+      </div>
     }>
       <button onClick={openNew} style={{
         width: '100%', padding: '14px 16px', borderRadius: 12, border: 'none',

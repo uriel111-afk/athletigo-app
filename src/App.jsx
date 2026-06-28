@@ -37,6 +37,7 @@ import LifeOSStreakDetail  from './pages/lifeos/StreakDetail';
 import LifeOSBusinessPlan from './pages/lifeos/BusinessPlan';
 import LifeOSTasks from './pages/lifeos/Tasks';
 import LifeOSLeads from './pages/lifeos/Leads';
+import LifeOSSalesScripts from './pages/lifeos/SalesScriptEditor';
 import LifeOSContent from './pages/lifeos/ContentCalendar';
 import LifeOSCommunity from './pages/lifeos/Community';
 import LifeOSMomentum from './pages/lifeos/Momentum';
@@ -567,6 +568,7 @@ const AuthenticatedApp = () => {
       <Route path="/lifeos/plan"         element={<PageRouteGuard pageKey="LifeOS"><LifeOSBusinessPlan /></PageRouteGuard>} />
       <Route path="/lifeos/tasks"        element={<PageRouteGuard pageKey="LifeOS"><LifeOSTasks /></PageRouteGuard>} />
       <Route path="/lifeos/leads"        element={<PageRouteGuard pageKey="LifeOS"><LifeOSLeads /></PageRouteGuard>} />
+      <Route path="/leads/scripts"       element={<PageRouteGuard pageKey="LifeOS"><LifeOSSalesScripts /></PageRouteGuard>} />
       <Route path="/lifeos/content"      element={<PageRouteGuard pageKey="LifeOS"><LifeOSContent /></PageRouteGuard>} />
       <Route path="/lifeos/community"    element={<PageRouteGuard pageKey="LifeOS"><LifeOSCommunity /></PageRouteGuard>} />
       <Route path="/lifeos/momentum"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSMomentum /></PageRouteGuard>} />

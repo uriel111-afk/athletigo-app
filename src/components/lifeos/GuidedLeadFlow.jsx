@@ -8,6 +8,7 @@ import {
 } from '@/lib/lifeos/lifeos-constants';
 import { addLead, updateLead } from '@/lib/lifeos/lifeos-api';
 import { waLink } from '@/lib/lifeos/lead-helpers';
+import { useSalesScripts } from '@/lib/lifeos/sales-scripts-api';
 
 const ORANGE = '#FF6F20';
 const TOTAL_STEPS = 6;
@@ -54,6 +55,7 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
   const [form, setForm] = useState(blankForm());
   const [leadId, setLeadId] = useState(null);
   const [busy, setBusy] = useState(false);
+  const sc = useSalesScripts(userId);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -195,12 +197,12 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
 
       {/* Step body — compact, single safety scroll if a device is tiny */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '4px 14px 10px' }}>
-        {step === 1 && <Step1 form={form} set={set} />}
-        {step === 2 && <Step2 form={form} set={set} />}
-        {step === 3 && <Step3 form={form} ladder={ladder} onSend={sendContent} />}
-        {step === 4 && <Step4 form={form} set={set} ladder={ladder} />}
-        {step === 5 && <Step5 form={form} set={set} />}
-        {step === 6 && <Step6 form={form} set={set} />}
+        {step === 1 && <Step1 form={form} set={set} sc={sc} />}
+        {step === 2 && <Step2 form={form} set={set} sc={sc} />}
+        {step === 3 && <Step3 form={form} ladder={ladder} onSend={sendContent} sc={sc} />}
+        {step === 4 && <Step4 form={form} set={set} ladder={ladder} sc={sc} />}
+        {step === 5 && <Step5 form={form} set={set} ladder={ladder} sc={sc} />}
+        {step === 6 && <Step6 form={form} set={set} sc={sc} />}
       </div>
 
       {/* Footer nav */}
@@ -230,7 +232,7 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
 
 // ─── Steps ──────────────────────────────────────────────────────────
 
-function Step1({ form, set }) {
+function Step1({ form, set, sc }) {
   return (
     <div style={col}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -244,15 +246,12 @@ function Step1({ form, set }) {
       <Field label="מקור">
         <ChipRow options={LEAD_SOURCE_CHIPS} value={form.source} onPick={(k) => set({ source: k })} />
       </Field>
-      <SmartTip>{`🔑 הרושם הראשוני
-חייך. הצג את עצמך בשם.
-׳היי, אני אוריאל מאתלטיגו. ספר לי קצת על עצמך — מה הביא אותך אלינו?׳
-תקשיב. אל תמכור כלום בשלב הזה.`}</SmartTip>
+      <SmartTip>{sc.getScript('step1_tip', 'first_impression')}</SmartTip>
     </div>
   );
 }
 
-function Step2({ form, set }) {
+function Step2({ form, set, sc }) {
   return (
     <div style={col}>
       <Field label="ניסיון ספורטיבי">
@@ -267,31 +266,30 @@ function Step2({ form, set }) {
       <Field label="מה עצר אותך עד עכשיו?">
         <textarea style={{ ...inp, height: 'auto' }} rows={2} value={form.fear_barrier} onChange={(e) => set({ fear_barrier: e.target.value })} placeholder="החסם..." />
       </Field>
-      <SmartTip small>{`👂 שאלות שפותחות אנשים
-׳מה הדבר שהכי מתסכל אותך באימונים — או בזה שאתה לא מתאמן?׳
-׳אם הייתי נותן לך שרביט — מה היית רוצה שהגוף שלך ידע לעשות?׳
-׳מה ניסית בעבר ולמה הפסקת?׳
-
-אל תציע פתרון עדיין. תן לו לדבר.`}</SmartTip>
+      <SmartTip small>{sc.getScript('step2_tip', 'deep_listening')}</SmartTip>
     </div>
   );
 }
 
-function Step3({ form, ladder, onSend }) {
+function Step3({ form, ladder, onSend, sc }) {
   const m = LADDER_MATCHES[ladder];
   const content = LADDER_CONTENT[ladder] || [];
+  const body = sc.getScript(`pitch_${ladder}`, 'main') || m.body;
+  const recommended = sc.getScript(`pitch_${ladder}`, 'recommended') || m.recommended;
+  const coreRows = sc.getSection('core_messages');
+  const core = coreRows.length ? coreRows.map((r) => `✦ ${r.content}`) : LADDER_CORE_MESSAGES;
   return (
     <div style={col}>
       <div style={{ fontSize: 16, fontWeight: 800, color: '#1A1A1A' }}>ככה אתלטיגו יכול לעזור לך</div>
       <div style={{ background: '#fff', borderRadius: 14, padding: 14, border: `2px solid ${m.color}` }}>
         <div style={{ fontSize: 16, fontWeight: 800, color: m.color, marginBottom: 6 }}>{m.title}</div>
-        <div style={{ fontSize: 13, lineHeight: 1.55, color: '#3a3a3a', whiteSpace: 'pre-wrap' }}>{m.body}</div>
-        <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 10, background: m.color, color: '#fff', fontSize: 13, fontWeight: 800 }}>
-          {m.recommended}
+        <div style={{ fontSize: 13, lineHeight: 1.55, color: '#3a3a3a', whiteSpace: 'pre-wrap' }}>{body}</div>
+        <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 10, background: m.color, color: '#fff', fontSize: 13, fontWeight: 800, whiteSpace: 'pre-wrap' }}>
+          {recommended}
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {LADDER_CORE_MESSAGES.map((t, i) => (
+        {core.map((t, i) => (
           <div key={i} style={{ fontSize: 12, color: '#9A8F82' }}>{t}</div>
         ))}
       </div>
@@ -321,17 +319,12 @@ function Step3({ form, ladder, onSend }) {
           })}
         </div>
       </div>
-      <SmartTip small>{`💡 הצגת ההתאמה
-קרא את הטקסט בכרטיס — הוא כתוב בדיוק בשביל המצב הזה.
-אחרי שהצגת, שאל: ׳איך זה נשמע לך? יש שאלות?׳
-אם הוא מתלהב — עבור להצעת מחיר.
-אם הוא מהסס — שלח תוכן רלוונטי ותחזור אליו מחר.
-אף ליד לא הולך ריק. תמיד יש מוצר שמתאים.`}</SmartTip>
+      <SmartTip small>{sc.getScript('step3_tip', 'matching')}</SmartTip>
     </div>
   );
 }
 
-function Step4({ form, set, ladder }) {
+function Step4({ form, set, ladder, sc }) {
   const m = LADDER_MATCHES[ladder];
   const advancedTotal = form.equipment.reduce((s, k) => {
     const e = LADDER_EQUIPMENT.find((x) => x.key === k); return s + (e ? e.price : 0);
@@ -412,35 +405,54 @@ function Step4({ form, set, ladder }) {
         <span style={{ fontSize: 24, fontWeight: 900, color: ORANGE }}>{discounted || base || 0}₪</span>
       </div>
 
-      <SmartTip small>{`💡 סדר הצגת המחיר
-1. קודם הערך: ׳הנה מה כלול...׳
-2. אחר כך הסיפור: ׳אנשים שהתחילו ככה הגיעו ל...׳
-3. רק אז המחיר.
-4. אם מהסס: ׳אני נותן 50₪ הנחה למי שמתחיל היום.׳
-אם לא סוגר ליווי — תמיד הצע מוצר פריצה ב-49₪. אף שיחה לא נגמרת בלי הצעה.`}</SmartTip>
+      <SmartTip small>{sc.getScript('step4_tip', 'pricing')}</SmartTip>
     </div>
   );
 }
 
-function Step5({ form, set }) {
+function Step5({ form, set, ladder, sc }) {
+  const objections = sc.getSection(`objections_${ladder}`);
+  const [open, setOpen] = useState(null);
   return (
     <div style={col}>
-      <Field label="התנגדויות">
-        <textarea style={{ ...inp, height: 'auto' }} rows={3} value={form.objections} onChange={(e) => set({ objections: e.target.value })} placeholder="מה עצר אותו מלסגור..." />
-      </Field>
       <Field label="תוצאת סגירה">
         <ChipRow options={LEAD_CLOSE_RESULTS} value={form.close_result} onPick={(k) => set({ close_result: k })} wrap colored />
       </Field>
-      <SmartTip small>{`🛡️ התנגדויות ותגובות
-׳יקר לי׳ → ׳X מפגשים יוצא Y למפגש — פחות מחדר כושר, ותוכנית בדיוק בשבילך.׳ ואם עדיין: ׳יש 49₪ — 7 ימים לטעום את השיטה, בלי התחייבות.׳
-׳אני צריך לחשוב׳ → ׳מה הכי חשוב לך לבדוק?׳ + שלח תוכן ופולואפ מחר.
-׳לא בטוח שזה בשבילי׳ → ׳בדיוק בשביל זה יש 7 ימים — 49₪, בסלון, בלי ציוד.׳
-׳אחזור אליך׳ → ׳אני שולח לך קליפ קצר שרלוונטי למה שדיברנו.׳`}</SmartTip>
+      <Field label="התנגדויות שעלו">
+        <textarea style={{ ...inp, height: 'auto' }} rows={2} value={form.objections} onChange={(e) => set({ objections: e.target.value })} placeholder="מה עצר אותו מלסגור..." />
+      </Field>
+
+      {/* Scenario-specific objection scripts for this ladder match. */}
+      {objections.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {objections.map((o) => {
+            const expanded = open === o.key;
+            const title = (o.content || '').split('\n')[0];
+            const rest = (o.content || '').split('\n').slice(1).join('\n');
+            return (
+              <div key={o.id || o.key} style={{ background: '#fff', borderRadius: 12, border: '1px solid #F0E4D0', overflow: 'hidden' }}>
+                <button type="button" onClick={() => setOpen(expanded ? null : o.key)} style={{
+                  width: '100%', textAlign: 'right', padding: '10px 12px', border: 'none', cursor: 'pointer',
+                  background: expanded ? '#FFF8F0' : '#fff', display: 'flex', alignItems: 'center', gap: 8,
+                }}>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 800, color: '#1A1A1A' }}>{title}</span>
+                  <span style={{ fontSize: 12, color: '#FF6F20', fontWeight: 700 }}>{expanded ? '−' : '+'}</span>
+                </button>
+                {expanded && (
+                  <div style={{ padding: '0 12px 12px', fontSize: 13, lineHeight: 1.6, color: '#5C4A3A', whiteSpace: 'pre-wrap' }}>{rest}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <SmartTip small>{sc.getScript('step5_tip', 'general')}</SmartTip>
     </div>
   );
 }
 
-function Step6({ form, set }) {
+function Step6({ form, set, sc }) {
   return (
     <div style={col}>
       <Field label="סיכום השיחה">
@@ -459,8 +471,7 @@ function Step6({ form, set }) {
         <Field label="מעקב הבא"><input style={inp} type="date" value={form.next_follow_up ? String(form.next_follow_up).slice(0, 10) : ''} onChange={(e) => set({ next_follow_up: e.target.value })} /></Field>
         <Field label="הערות"><input style={inp} value={form.notes} onChange={(e) => set({ notes: e.target.value })} placeholder="הערות..." /></Field>
       </div>
-      <SmartTip small>{`📝 כתוב כאילו אתה מספר לעצמך בעוד שבוע.
-׳דיברתי עם X, בן Y, אף פעם לא התאמן, מפחד להתחיל. הצעתי מוצר פריצה, שלחתי קליפ Z, אמר שיחשוב. פולואפ ביום ראשון.׳`}</SmartTip>
+      <SmartTip small>{sc.getScript('step6_tip', 'summary')}</SmartTip>
     </div>
   );
 }
