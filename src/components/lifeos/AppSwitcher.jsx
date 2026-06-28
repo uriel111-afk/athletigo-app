@@ -41,16 +41,15 @@ export default function AppSwitcher({ wide = false }) {
       style={{
         display: "flex", gap: wide ? 5 : 6,
         // wide → less horizontal padding so the row extends closer to
-        // the screen edges on the coach dashboard. Vertical padding
-        // 4 (was 6) reclaims 4px so the diamond/tile scale-up still
-        // fits one screen without scrolling.
+        // the screen edges on the coach dashboard.
         padding: wide ? "4px 4px" : "6px 12px",
         background: "transparent",
-        // 5 tabs — let the row scroll horizontally on narrow screens
-        // instead of crushing the tabs. minWidth on each button (below)
-        // stops them shrinking past a legible size and triggers scroll.
-        overflowX: "auto",
-        scrollbarWidth: "none",
+        // All 5 tabs SHARE one row and shrink to fit (flex:1 + minWidth:0
+        // on each button below). No horizontal overflow/scroll — that
+        // previously pushed the 5th tab (תוכן) off-screen on the compact
+        // sections, so it only showed on the wide dashboard. Now every
+        // section shows all five.
+        width: "100%",
       }}
     >
       {tabs.map(t => {
@@ -60,11 +59,13 @@ export default function AppSwitcher({ wide = false }) {
             key={t.key}
             onClick={() => navigate(t.href)}
             style={{
-              // flex:1 fills the row evenly when there's room; minWidth
-              // keeps each tab legible and lets the row scroll when 5
-              // tabs don't fit a narrow screen.
-              flex: 1, minWidth: 58,
-              padding: wide ? "11px 0" : "8px 0",
+              // flex:1 + minWidth:0 → five equal columns that always fit
+              // the row, never overflow. The whole column is the button,
+              // so a tap anywhere inside it (icon, label, or the gap)
+              // navigates.
+              flex: 1, minWidth: 0,
+              // 12px vertical padding keeps the touch target ≥44px tall.
+              padding: "12px 0",
               borderRadius: 12,
               fontSize: wide ? 16 : 15, fontWeight: t.active ? 700 : 500,
               cursor: "pointer",
@@ -78,13 +79,14 @@ export default function AppSwitcher({ wide = false }) {
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
+              justifyContent: "center",
               gap: wide ? 4 : 3,
               lineHeight: 1,
               fontFamily: "'Rubik', system-ui, sans-serif",
             }}
           >
             <Icon size={wide ? 19 : 17} aria-hidden style={{ display: "block", color: t.active ? "#FFFFFF" : "#9A6A3A" }} />
-            <span>{t.label}</span>
+            <span style={{ pointerEvents: "none" }}>{t.label}</span>
           </button>
         );
       })}
