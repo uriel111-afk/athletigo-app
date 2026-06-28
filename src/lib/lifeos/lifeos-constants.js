@@ -202,6 +202,142 @@ export const LEAD_INTERESTED_IN = [
 ];
 
 // ─────────────────────────────────────────────────────────────────
+// Guided sales flow — value-ladder matching
+// ─────────────────────────────────────────────────────────────────
+
+// Step-1 source chips (subset of LEAD_SOURCES, in the spec's order).
+export const LEAD_SOURCE_CHIPS = [
+  { key: 'instagram', label: 'אינסטגרם' },
+  { key: 'facebook',  label: 'פייסבוק' },
+  { key: 'whatsapp',  label: 'וואטסאפ' },
+  { key: 'website',   label: 'אתר' },
+  { key: 'referral',  label: 'הפניה' },
+  { key: 'walk_in',   label: 'הגעה ישירה' },
+];
+
+// Step-2 sports-experience chips. The key drives the ladder match.
+export const SPORTS_EXPERIENCE = [
+  { key: 'never',     label: 'אף פעם לא התאמנתי' },
+  { key: 'quit',      label: 'התאמנתי פעם והפסקתי' },
+  { key: 'sometimes', label: 'מתאמן לפעמים' },
+  { key: 'regular',   label: 'מתאמן באופן קבוע' },
+  { key: 'athlete',   label: 'ספורטאי' },
+];
+
+// The three ladder positions a lead can be matched to, each with the
+// personalized pitch shown on step 3 and the recommended product.
+export const LADDER_MATCHES = {
+  breakthrough: {
+    key: 'breakthrough',
+    title: 'הצעד הראשון',
+    color: '#0d9488', // teal
+    body:
+      'אתלטיגו מלמד מיומנות גופנית — לא סתם להזיע, אלא ללמוד לשלוט בגוף.\n' +
+      'אנחנו מתחילים עם תוכנית של 7 ימים — בסלון, בלי ציוד, בלי ניסיון קודם.\n' +
+      'כל יום סרטון קצר עם תרגיל אחד פשוט. אתה מצלם את עצמך ושולח — ואני נותן לך פידבק אישי.\n' +
+      'המטרה? שתרגיש שאתה יכול. כי ברגע שהגוף מכיר תנועה — אתה רוצה עוד.\n' +
+      'ואפשר לעשות את זה ביחד עם בן/בת זוג, ילדים, חברים. זו חוויה משותפת.',
+    recommended: 'מומלץ: 7 ימים של תנועה ראשונה — 49₪',
+  },
+  '3month': {
+    key: '3month',
+    title: 'בניית שגרה',
+    color: '#3B82F6', // blue
+    body:
+      'יש לך את הבסיס — עכשיו צריך לבנות שגרה שמחזיקה.\n' +
+      'אנחנו בונים לך תוכנית אימון אישית, עם מפגשים אונליין, מעקב שבועי, ומשימות לצילום.\n' +
+      'המטרה היא עצמאות — שתדע להתאמן לבד נכון. אבל כל עוד אתה רוצה להתקדם חזק יותר — אני כאן.\n' +
+      'אחרי 3 חודשים הגוף שלך כבר מתורגל ומתמיד. ואז מרחיבים.',
+    recommended: 'מומלץ: תוכנית 3 חודשים — 300₪/חודש',
+  },
+  advanced: {
+    key: 'advanced',
+    title: 'הרמה הבאה',
+    color: '#8b5cf6', // purple
+    body:
+      'אתה מתאמן — עכשיו צריך ללמוד תנועות שהגוף שלך עוד לא מכיר.\n' +
+      'עלייה לכוח. פלאנצ׳. פרונט לבר. עמידת ידיים.\n' +
+      'הדרים מאשין מוריד 50% מהמשקל ונותן לגוף שלך להרגיש תנועות שהוא עוד לא מסוגל לעשות לבד.\n' +
+      'ברגע שהגוף מכיר — הדרך מתקצרת בחודשים.',
+    recommended: 'מומלץ: דרים מאשין (1,199₪) + קורס עליות כוח',
+  },
+};
+
+// Map a sports-experience key → ladder position.
+export function ladderForExperience(exp) {
+  if (exp === 'never' || exp === 'quit') return 'breakthrough';
+  if (exp === 'sometimes') return '3month';
+  if (exp === 'regular' || exp === 'athlete') return 'advanced';
+  return 'breakthrough';
+}
+
+// The three core authority messages shown under every pitch card.
+export const LADDER_CORE_MESSAGES = [
+  '✦ המטרה היא עצמאות ספורטיבית',
+  '✦ עם ליווי, התהליך חזק ומשמעותי יותר',
+  '✦ אנחנו לא מלמדים להתאושש — מלמדים לא להיפצע מלכתחילה',
+];
+
+// Shareable content per ladder match — each item carries a pre-written
+// WhatsApp message + a link. Sending one appends to the lead's
+// content_sent array (builds authority before the ask).
+export const LADDER_CONTENT = {
+  breakthrough: [
+    { label: 'קליפ מוטיבציה — הצעד הראשון', url: 'https://instagram.com/athletigo',
+      message: 'היי! שלחתי לך קליפ קצר על מה שדיברנו — הצעד הראשון בתנועה 🙌' },
+    { label: 'טיפ למתחילים — 5 דקות בבוקר', url: 'https://instagram.com/athletigo',
+      message: 'הנה תרגיל בוקר של 5 דקות בלי ציוד — תנסה ותגיד לי איך הרגיש 💪' },
+  ],
+  '3month': [
+    { label: 'הסבר על השיטה', url: 'https://instagram.com/athletigo',
+      message: 'שלחתי לך סרטון שמסביר בדיוק איך עובדת השיטה שלנו 🎯' },
+    { label: 'מאחורי הקלעים — בניית תוכנית', url: 'https://instagram.com/athletigo',
+      message: 'הצצה מאחורי הקלעים — ככה אני בונה תוכנית אישית 🏋️' },
+  ],
+  advanced: [
+    { label: 'דרים מאשין — מקרוב', url: 'https://instagram.com/athletigo',
+      message: 'תראה את הדרים מאשין מקרוב — זה משנה את כל הכללים 🔥' },
+    { label: 'קליפ מיומנות — עליות כוח', url: 'https://instagram.com/athletigo',
+      message: 'קליפ קצר על עליות כוח — בדיוק מה שדיברנו עליו 💪' },
+  ],
+};
+
+// Step-4 advanced equipment options (with prices) for the build.
+export const LADDER_EQUIPMENT = [
+  { key: 'dream_machine', label: 'דרים מאשין', price: 1199 },
+  { key: 'rings',         label: 'טבעות',      price: 249 },
+  { key: 'parallettes',   label: 'פרלטים',     price: 220 },
+  { key: 'speed_rope',    label: 'ספיד רופ',   price: 220 },
+  { key: 'bands',         label: 'גומיות',     price: 159 },
+];
+export const LADDER_COURSE_OPTIONS = [
+  'עליות כוח', 'עמידות ידיים', 'טבעות בסיסי', 'יסודות הכושר',
+  'כושר מקצועי', 'כושר אולימפי',
+];
+
+// Step-5 close-result chips (drives the detail-view status badge).
+export const LEAD_CLOSE_RESULTS = [
+  { key: 'closed_now',        label: 'סגר במקום',      color: '#16a34a' },
+  { key: 'closed_today',      label: 'סגר באותו יום',  color: '#16a34a' },
+  { key: 'took_breakthrough', label: 'לקח מוצר פריצה', color: '#3B82F6' },
+  { key: 'needs_followup',    label: 'דורש מעקב',      color: '#EAB308' },
+  { key: 'not_now',           label: 'לא עכשיו',       color: '#9ca3af' },
+];
+
+// close_result → lead status, so the kanban/summary + the converted
+// income sync in lifeos-api keep working.
+export function statusForCloseResult(cr) {
+  switch (cr) {
+    case 'closed_now':
+    case 'closed_today':
+    case 'took_breakthrough': return 'converted';
+    case 'needs_followup':    return 'negotiating';
+    case 'not_now':           return 'contacted';
+    default:                  return undefined;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Content calendar
 // ─────────────────────────────────────────────────────────────────
 

@@ -1,19 +1,22 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Pencil, Trash2, ChevronLeft, ChevronRight, RefreshCw, UserPlus, CheckCircle, X } from 'lucide-react';
+import { Pencil, Trash2, ChevronLeft, ChevronRight, RefreshCw, UserPlus, Phone, MessageCircle, AlertTriangle } from 'lucide-react';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
-import LeadForm from '@/components/lifeos/LeadForm';
+import GuidedLeadFlow from '@/components/lifeos/GuidedLeadFlow';
+import LeadDetailView from '@/components/lifeos/LeadDetailView';
 import AddTraineeDialog from '@/components/forms/AddTraineeDialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   LIFEOS_COLORS, LIFEOS_CARD,
-  LEAD_STATUS, LEAD_SOURCES, LEAD_INTERESTED_IN,
+  LEAD_STATUS, LEAD_SOURCES, LEAD_INTERESTED_IN, LEAD_CLOSE_RESULTS,
+  LADDER_MATCHES, ladderForExperience,
 } from '@/lib/lifeos/lifeos-constants';
 import { listLeads, updateLead, deleteLead } from '@/lib/lifeos/lifeos-api';
+import { waLink, telLink, relTime, followUpState, followUpSortKey } from '@/lib/lifeos/lead-helpers';
 import { toast } from 'sonner';
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
 const STATUS_BY_KEY   = Object.fromEntries(LEAD_STATUS.map(s => [s.key, s]));
+const CLOSE_BY_KEY    = Object.fromEntries(LEAD_CLOSE_RESULTS.map(s => [s.key, s]));
 const SOURCE_BY_KEY   = Object.fromEntries(LEAD_SOURCES.map(s => [s.key, s]));
 const INTEREST_BY_KEY = Object.fromEntries(LEAD_INTERESTED_IN.map(s => [s.key, s]));
 
@@ -51,10 +54,7 @@ export default function Leads() {
   const [filter, setFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
-  // Convert flow: which lead is being converted, and the matching
-  // confirm dialog. After confirm we call updateLead → triggers the
-  // cross-app income+funnel sync inside lifeos-api.
-  const [convertingLead, setConvertingLead] = useState(null);
+  const [viewingLead, setViewingLead] = useState(null);  // detail overlay
   // Create-trainee flow: when the coach wants to spin a paying client
   // out of a converted lead, we open AddTraineeDialog with name+phone
   // prefilled so they don't retype the contact info.
@@ -69,10 +69,20 @@ export default function Leads() {
   }, [userId]);
   useEffect(() => { load(); }, [load]);
 
-  const filtered = useMemo(
-    () => filter === 'all' ? rows : rows.filter(r => r.status === filter),
-    [rows, filter]
-  );
+  // Follow-up urgency drives both the overdue badge and the list sort.
+  const overdueIds = useMemo(() => {
+    const out = new Set();
+    rows.forEach(r => { if (followUpState(r) === 'overdue') out.add(r.id); });
+    return out;
+  }, [rows]);
+
+  const filtered = useMemo(() => {
+    let list = rows;
+    if (filter === 'overdue') list = rows.filter(r => followUpState(r) === 'overdue');
+    else if (filter !== 'all') list = rows.filter(r => r.status === filter);
+    // Sort by follow-up urgency: overdue → today → upcoming → none → dead.
+    return [...list].sort((a, b) => followUpSortKey(a).localeCompare(followUpSortKey(b)));
+  }, [rows, filter]);
 
   const counts = useMemo(() => {
     const m = { all: rows.length };
@@ -92,21 +102,11 @@ export default function Leads() {
     };
   }, [rows]);
 
-  // Auto-flag leads stuck in "contacted" 2+ days as needing attention.
-  const overdueIds = useMemo(() => {
-    const out = new Set();
-    rows.forEach(r => {
-      if (r.status !== 'contacted') return;
-      const ref = r.last_contact_date || r.created_at;
-      if (!ref) return;
-      const days = Math.floor((Date.now() - new Date(ref).getTime()) / 86_400_000);
-      if (days >= 2) out.add(r.id);
-    });
-    return out;
-  }, [rows]);
+  const overdueCount = overdueIds.size;
 
   const openNew  = () => { setEditing(null); setShowForm(true); };
-  const openEdit = (e, row) => { e?.stopPropagation?.(); setEditing(row); setShowForm(true); };
+  const openEdit = (lead) => { setViewingLead(null); setEditing(lead); setShowForm(true); };
+  const openView = (row) => setViewingLead(row);
 
   const handleDelete = async (e, id) => {
     e?.stopPropagation?.();
@@ -122,28 +122,6 @@ export default function Leads() {
       await updateLead(lead.id, patch);
       load();
     } catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
-  };
-
-  // Convert dialog: confirm + optional revenue. updateLead() in
-  // lifeos-api auto-creates the income row when status flips to
-  // converted and revenue_if_converted > 0, so we patch both fields
-  // in one call.
-  const handleConvertConfirm = async (lead, amount) => {
-    try {
-      const patch = {
-        status: 'converted',
-        converted_at: new Date().toISOString(),
-        last_contact_date: new Date().toISOString(),
-      };
-      const num = Number(amount);
-      if (!Number.isNaN(num) && num > 0) patch.revenue_if_converted = num;
-      await updateLead(lead.id, patch);
-      toast.success('הליד הומר ללקוח');
-      setConvertingLead(null);
-      load();
-    } catch (err) {
-      toast.error('שגיאה: ' + (err?.message || ''));
-    }
   };
 
   const openCreateTrainee = (e, lead) => {
@@ -198,12 +176,30 @@ export default function Leads() {
         </div>
       )}
 
+      {/* Overdue follow-up banner — tap to filter to overdue only. */}
+      {overdueCount > 0 && view === 'list' && (
+        <button onClick={() => setFilter(filter === 'overdue' ? 'all' : 'overdue')} style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+          padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
+          border: `1px solid ${filter === 'overdue' ? '#dc2626' : '#FCA5A5'}`,
+          background: filter === 'overdue' ? '#FEE2E2' : '#FEF2F2', textAlign: 'right',
+        }}>
+          <AlertTriangle size={18} color="#dc2626" />
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 800, color: '#dc2626' }}>
+            {overdueCount} לידים מחכים לפולואפ
+          </span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#dc2626' }}>
+            {filter === 'overdue' ? 'הצג הכל' : 'הצג'}
+          </span>
+        </button>
+      )}
+
       {!loaded ? (
         <Empty text="טוען..." />
       ) : view === 'kanban' ? (
         <KanbanView
           rows={rows}
-          onTap={(row) => openEdit({}, row)}
+          onTap={openView}
           onMove={moveStatus}
           overdueIds={overdueIds}
         />
@@ -214,14 +210,13 @@ export default function Leads() {
           filter={filter}
           setFilter={setFilter}
           overdueIds={overdueIds}
-          onEdit={openEdit}
+          onView={openView}
           onDelete={handleDelete}
-          onConvert={(e, row) => { e?.stopPropagation?.(); setConvertingLead(row); }}
           onCreateTrainee={openCreateTrainee}
         />
       )}
 
-      <LeadForm
+      <GuidedLeadFlow
         isOpen={showForm}
         onClose={() => { setShowForm(false); setEditing(null); }}
         userId={userId}
@@ -229,11 +224,14 @@ export default function Leads() {
         onSaved={load}
       />
 
-      <ConvertLeadDialog
-        lead={convertingLead}
-        onClose={() => setConvertingLead(null)}
-        onConfirm={handleConvertConfirm}
-      />
+      {viewingLead && (
+        <LeadDetailView
+          lead={viewingLead}
+          onClose={() => setViewingLead(null)}
+          onEdit={openEdit}
+          onChanged={load}
+        />
+      )}
 
       {traineeSeed && (
         <AddTraineeDialog
@@ -248,7 +246,7 @@ export default function Leads() {
 
 // ─── List view ───────────────────────────────────────────────────
 
-function ListView({ rows, counts, filter, setFilter, overdueIds, onEdit, onDelete, onConvert, onCreateTrainee }) {
+function ListView({ rows, counts, filter, setFilter, overdueIds, onView, onDelete, onCreateTrainee }) {
   return (
     <>
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, overflowX: 'auto', scrollbarWidth: 'none' }}>
@@ -276,9 +274,8 @@ function ListView({ rows, counts, filter, setFilter, overdueIds, onEdit, onDelet
         ) : rows.map((row, idx) => (
           <LeadRow key={row.id} row={row} isLast={idx === rows.length - 1}
                    overdue={overdueIds.has(row.id)}
-                   onEdit={(e) => onEdit(e, row)}
+                   onView={() => onView(row)}
                    onDelete={(e) => onDelete(e, row.id)}
-                   onConvert={(e) => onConvert(e, row)}
                    onCreateTrainee={(e) => onCreateTrainee(e, row)} />
         ))}
       </div>
@@ -286,15 +283,20 @@ function ListView({ rows, counts, filter, setFilter, overdueIds, onEdit, onDelet
   );
 }
 
-function LeadRow({ row, isLast, overdue, onEdit, onDelete, onConvert, onCreateTrainee }) {
-  const status = STATUS_BY_KEY[row.status] || { label: row.status, color: '#9ca3af' };
-  const source = SOURCE_BY_KEY[row.source];
-  const interest = row.interested_in ? INTEREST_BY_KEY[row.interested_in] : null;
-  const score = leadScore(row);
-  const sb = scoreBadge(score);
+function LeadRow({ row, isLast, overdue, onView, onDelete, onCreateTrainee }) {
+  const closeBadge = CLOSE_BY_KEY[row.close_result];
+  const status = closeBadge || STATUS_BY_KEY[row.status] || { label: row.status, color: '#9ca3af' };
+  const ladderKey = row.ladder_match || (row.sports_experience ? ladderForExperience(row.sports_experience) : null);
+  const ladder = ladderKey ? LADDER_MATCHES[ladderKey] : null;
+  const fu = followUpState(row);
+  const fuDate = row.next_follow_up ? String(row.next_follow_up).slice(0, 10) : null;
+  const fuColor = fu === 'overdue' ? '#dc2626' : fu === 'today' ? '#16a34a' : LIFEOS_COLORS.textSecondary;
+  const lastContact = row.last_contact_date || row.created_at;
+
+  const stop = (e) => e.stopPropagation();
 
   return (
-    <div onClick={onEdit} style={{
+    <div onClick={onView} style={{
       padding: '12px 14px',
       borderBottom: isLast ? 'none' : `0.5px solid ${LIFEOS_COLORS.border}`,
       cursor: 'pointer',
@@ -302,23 +304,21 @@ function LeadRow({ row, isLast, overdue, onEdit, onDelete, onConvert, onCreateTr
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <div style={{ fontSize: 14, fontWeight: 700 }}>{row.name}</div>
-            <span style={{
-              padding: '2px 8px', borderRadius: 999,
-              backgroundColor: sb.bg, color: sb.color,
-              fontSize: 10, fontWeight: 800,
-            }}>{sb.emoji} {score}</span>
-            {overdue && (
+            {ladder && (
               <span style={{
-                padding: '2px 6px', borderRadius: 999,
-                backgroundColor: LIFEOS_COLORS.error, color: '#FFFFFF',
-                fontSize: 9, fontWeight: 800,
-              }}>⚠️ דורש מענה</span>
+                padding: '2px 8px', borderRadius: 999,
+                backgroundColor: '#F4E8D8', color: ladder.color,
+                fontSize: 10, fontWeight: 800,
+              }}>{ladder.title}</span>
             )}
           </div>
-          <div style={{ fontSize: 12, color: LIFEOS_COLORS.textSecondary, marginTop: 2 }}>
-            {row.phone}{source ? ` • ${source.label}` : ''}{interest ? ` • ${interest.label}` : ''}
+          <div style={{ fontSize: 12, marginTop: 3, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {fuDate && <span style={{ color: fuColor, fontWeight: 700 }}>
+              📅 {fuDate}{fu === 'overdue' ? ' · באיחור' : fu === 'today' ? ' · היום' : ''}
+            </span>}
+            {lastContact && <span style={{ color: LIFEOS_COLORS.textMuted }}>· {relTime(lastContact)}</span>}
           </div>
         </div>
         <span style={{
@@ -328,21 +328,16 @@ function LeadRow({ row, isLast, overdue, onEdit, onDelete, onConvert, onCreateTr
         }}>{status.label}</span>
       </div>
       <div style={{ display: 'flex', gap: 6, marginTop: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-        {/* Convert CTA — visible while there's still a funnel step
-            ahead. After conversion the same row offers a "create
-            trainee" shortcut with the lead's name + phone prefilled. */}
-        {(row.status === 'interested' || row.status === 'negotiating' || row.status === 'contacted' || row.status === 'new') && (
-          <button onClick={onConvert} aria-label="המר ללקוח" style={{
-            display: 'inline-flex', alignItems: 'center', gap: 4,
-            padding: '5px 10px', borderRadius: 999, border: 'none',
-            backgroundColor: LIFEOS_COLORS.success, color: '#FFFFFF',
-            fontSize: 11, fontWeight: 700, cursor: 'pointer',
-          }}>
-            <CheckCircle size={12} /> המר
-          </button>
+        {row.phone && (
+          <>
+            <a href={waLink(row.phone, '')} target="_blank" rel="noreferrer" onClick={stop}
+               aria-label="וואטסאפ" style={{ ...iconBtn, color: '#25D366' }}><MessageCircle size={16} /></a>
+            <a href={telLink(row.phone)} onClick={stop}
+               aria-label="התקשר" style={{ ...iconBtn, color: '#3B82F6' }}><Phone size={16} /></a>
+          </>
         )}
         {row.status === 'converted' && (
-          <button onClick={onCreateTrainee} aria-label="צור מתאמן" style={{
+          <button onClick={(e) => { stop(e); onCreateTrainee(e); }} aria-label="צור מתאמן" style={{
             display: 'inline-flex', alignItems: 'center', gap: 4,
             padding: '5px 10px', borderRadius: 999, border: 'none',
             backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
@@ -351,74 +346,9 @@ function LeadRow({ row, isLast, overdue, onEdit, onDelete, onConvert, onCreateTr
             <UserPlus size={12} /> צור מתאמן
           </button>
         )}
-        <button onClick={onEdit} style={iconBtn} aria-label="עריכה"><Pencil size={14} /></button>
-        <button onClick={onDelete} style={{ ...iconBtn, color: LIFEOS_COLORS.error }} aria-label="מחיקה"><Trash2 size={14} /></button>
+        <button onClick={(e) => { stop(e); onDelete(e); }} style={{ ...iconBtn, color: LIFEOS_COLORS.error }} aria-label="מחיקה"><Trash2 size={14} /></button>
       </div>
     </div>
-  );
-}
-
-// Confirm-then-convert dialog with an optional revenue field. The
-// amount is pushed into revenue_if_converted before status flips so
-// lifeos-api `updateLead` can fire the income insert in the same
-// patch.
-function ConvertLeadDialog({ lead, onClose, onConfirm }) {
-  const [amount, setAmount] = useState('');
-  useEffect(() => {
-    if (lead) setAmount(lead.revenue_if_converted ? String(lead.revenue_if_converted) : '');
-  }, [lead]);
-  if (!lead) return null;
-  return (
-    <Dialog open={!!lead} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent dir="rtl" className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle style={{ fontSize: 18, fontWeight: 800, textAlign: 'right' }}>
-            המרה ללקוח
-          </DialogTitle>
-        </DialogHeader>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 6 }}>
-          <div style={{ fontSize: 14, color: LIFEOS_COLORS.textPrimary }}>
-            להמיר את <strong>{lead.name || lead.full_name}</strong> ללקוח?
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: LIFEOS_COLORS.textSecondary, marginBottom: 6 }}>
-              סכום עסקה (אופציונלי)
-            </label>
-            <input
-              type="number" inputMode="decimal" autoFocus
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="₪"
-              style={{
-                width: '100%', padding: '10px 12px', borderRadius: 10,
-                border: `1px solid ${LIFEOS_COLORS.border}`, backgroundColor: '#FFFFFF',
-                fontSize: 14, color: LIFEOS_COLORS.textPrimary, outline: 'none',
-                boxSizing: 'border-box',
-                fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-              }}
-            />
-            <div style={{ fontSize: 11, color: LIFEOS_COLORS.textMuted, marginTop: 4 }}>
-              אם תזין סכום — תיווצר אוטומטית שורת הכנסה ביומן הפיננסי.
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
-            <button onClick={onClose} style={{
-              flex: 1, padding: '10px 14px', borderRadius: 10,
-              border: `1px solid ${LIFEOS_COLORS.border}`, backgroundColor: '#FFFFFF',
-              color: LIFEOS_COLORS.textPrimary, fontSize: 14, fontWeight: 700, cursor: 'pointer',
-            }}>ביטול</button>
-            <button
-              onClick={() => onConfirm(lead, amount)}
-              style={{
-                flex: 1, padding: '10px 14px', borderRadius: 10, border: 'none',
-                backgroundColor: LIFEOS_COLORS.success, color: '#FFFFFF',
-                fontSize: 14, fontWeight: 700, cursor: 'pointer',
-              }}
-            >אשר המרה</button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
 
