@@ -68,11 +68,15 @@ export function useSalesScripts(coachId) {
     return def ? def.content : '';
   };
 
-  // getSection(section) → ordered array of rows in that section.
-  const getSection = (section) =>
-    source.filter((s) => s.section === section)
-      .slice()
-      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  // getSection(section) → ordered array of rows in that section. Falls
+  // back to defaults when the DB has no rows for that section yet (e.g.
+  // a newly-added section before the additive seed has run).
+  const getSection = (section) => {
+    const sortRows = (rows) => rows.slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    const fromSource = source.filter((s) => s.section === section);
+    if (fromSource.length) return sortRows(fromSource);
+    return sortRows(DEFAULT_SCRIPTS.filter((s) => s.section === section));
+  };
 
   return { scripts, getScript, getSection, isLoading, coachId };
 }

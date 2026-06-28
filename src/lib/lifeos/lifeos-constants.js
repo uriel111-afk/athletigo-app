@@ -324,6 +324,62 @@ export const LEAD_CLOSE_RESULTS = [
   { key: 'not_now',           label: 'לא עכשיו',       color: '#9ca3af' },
 ];
 
+// ── Payment / close (step 7) ──────────────────────────────────────
+// Named LEAD_* to avoid colliding with the finance PAYMENT_METHODS.
+export const LEAD_PAYMENT_METHODS = [
+  { key: 'credit',   label: 'אשראי בטלפון' },
+  { key: 'bit',      label: 'ביט' },
+  { key: 'cash',     label: 'מזומן' },
+  { key: 'transfer', label: 'העברה בנקאית' },
+];
+export const LEAD_PAYMENT_METHOD_BY_KEY = Object.fromEntries(LEAD_PAYMENT_METHODS.map((m) => [m.key, m]));
+
+// Granular lead status (lead_status_detail column) → badge label/color.
+export const LEAD_STATUS_DETAIL = {
+  new:                 { label: 'חדש',              color: '#9ca3af' },
+  contacted:           { label: 'נוצר קשר',         color: '#FF6F20' },
+  interested:          { label: 'מעוניין',          color: '#EAB308' },
+  offered:             { label: 'קיבל הצעה',        color: '#3B82F6' },
+  thinking:            { label: 'צריך לחשוב',       color: '#EAB308' },
+  closed_breakthrough: { label: 'סגר — מוצר פריצה', color: '#16a34a' },
+  closed_3month:       { label: 'סגר — 3 חודשים',   color: '#16a34a' },
+  closed_annual:       { label: 'סגר — שנתי',       color: '#16a34a' },
+  closed_equipment:    { label: 'סגר — ציוד',       color: '#16a34a' },
+  closed_coaching:     { label: 'סגר — ליווי אישי', color: '#16a34a' },
+  refused:             { label: 'סירב',             color: '#dc2626' },
+  lost:                { label: 'אבוד',             color: '#4b5563' },
+};
+
+// lead_status_detail → lead.status (drives the converted income sync).
+export function statusForDetail(detail) {
+  if (!detail) return undefined;
+  if (detail.startsWith('closed')) return 'converted';
+  if (detail === 'refused') return 'lost';
+  if (detail === 'thinking') return 'negotiating';
+  return undefined;
+}
+
+// Which closed_* detail a ladder+selection produces.
+export function closedDetailForLadder(ladder, form = {}) {
+  if (ladder === 'breakthrough') return 'closed_breakthrough';
+  if (ladder === '3month') return 'closed_3month';
+  if (ladder === 'advanced') return (form.equipment || []).length ? 'closed_equipment' : 'closed_coaching';
+  return 'closed_breakthrough';
+}
+
+// Default human product name for the closing summary.
+export function productNameForLadder(ladder, form = {}) {
+  if (ladder === 'breakthrough') return form.family_deal ? 'חבילה משפחתית — 7 ימים' : 'מוצר פריצה — 7 ימים';
+  if (ladder === '3month') return 'תוכנית 3 חודשים';
+  if (ladder === 'advanced') {
+    const eq = (form.equipment || []).map((k) => (LADDER_EQUIPMENT.find((e) => e.key === k) || {}).label).filter(Boolean);
+    const parts = [...eq];
+    if (form.course) parts.push(`קורס ${form.course}`);
+    return parts.length ? parts.join(' + ') : 'ליווי מתקדם';
+  }
+  return 'מוצר אתלטיגו';
+}
+
 // close_result → lead status, so the kanban/summary + the converted
 // income sync in lifeos-api keep working.
 export function statusForCloseResult(cr) {

@@ -10,7 +10,7 @@ import AddTraineeDialog from '@/components/forms/AddTraineeDialog';
 import {
   LIFEOS_COLORS, LIFEOS_CARD,
   LEAD_STATUS, LEAD_SOURCES, LEAD_INTERESTED_IN, LEAD_CLOSE_RESULTS,
-  LADDER_MATCHES, ladderForExperience,
+  LADDER_MATCHES, ladderForExperience, LEAD_STATUS_DETAIL,
 } from '@/lib/lifeos/lifeos-constants';
 import { listLeads, updateLead, deleteLead } from '@/lib/lifeos/lifeos-api';
 import { waLink, telLink, relTime, followUpState, followUpSortKey } from '@/lib/lifeos/lead-helpers';
@@ -23,6 +23,23 @@ const STATUS_BY_KEY   = Object.fromEntries(LEAD_STATUS.map(s => [s.key, s]));
 const CLOSE_BY_KEY    = Object.fromEntries(LEAD_CLOSE_RESULTS.map(s => [s.key, s]));
 const SOURCE_BY_KEY   = Object.fromEntries(LEAD_SOURCES.map(s => [s.key, s]));
 const INTEREST_BY_KEY = Object.fromEntries(LEAD_INTERESTED_IN.map(s => [s.key, s]));
+
+// ── lead_status_detail classification for filters/badges ──
+const isClosedDetail = (l) => (l.lead_status_detail || '').startsWith('closed');
+const isNewLead       = (l) => (l.lead_status_detail || l.status || 'new') === 'new';
+const needsFollowup   = (l) => l.lead_status_detail === 'thinking' || ['overdue', 'today'].includes(followUpState(l));
+const isClosedLead    = (l) => isClosedDetail(l) || l.status === 'converted';
+const isRefusedLead   = (l) => l.lead_status_detail === 'refused' || l.status === 'lost';
+const noReceiptLead   = (l) => isClosedDetail(l) && l.receipt_issued === false;
+
+const LEAD_FILTERS = [
+  { key: 'all',        label: 'הכל',            test: () => true },
+  { key: 'new',        label: 'חדשים',          test: isNewLead },
+  { key: 'followup',   label: 'מחכים לפולואפ',  test: needsFollowup },
+  { key: 'closed',     label: 'סגרו',           test: isClosedLead },
+  { key: 'refused',    label: 'סירבו',          test: isRefusedLead },
+  { key: 'no_receipt', label: 'חסר קבלה',       test: noReceiptLead, danger: true },
+];
 
 // Lead score — bigger numbers = hotter lead.
 function leadScore(lead) {
@@ -93,17 +110,15 @@ export default function Leads() {
   }, [rows]);
 
   const filtered = useMemo(() => {
-    let list = rows;
-    if (filter === 'overdue') list = rows.filter(r => followUpState(r) === 'overdue');
-    else if (filter !== 'all') list = rows.filter(r => r.status === filter);
+    const f = LEAD_FILTERS.find((x) => x.key === filter) || LEAD_FILTERS[0];
+    const list = rows.filter(f.test);
     // Sort by follow-up urgency: overdue → today → upcoming → none → dead.
     return [...list].sort((a, b) => followUpSortKey(a).localeCompare(followUpSortKey(b)));
   }, [rows, filter]);
 
   const counts = useMemo(() => {
-    const m = { all: rows.length };
-    LEAD_STATUS.forEach(s => { m[s.key] = 0; });
-    rows.forEach(r => { if (m[r.status] !== undefined) m[r.status]++; });
+    const m = {};
+    LEAD_FILTERS.forEach((f) => { m[f.key] = rows.filter(f.test).length; });
     return m;
   }, [rows]);
 
@@ -204,18 +219,18 @@ export default function Leads() {
 
       {/* Overdue follow-up banner — tap to filter to overdue only. */}
       {overdueCount > 0 && view === 'list' && (
-        <button onClick={() => setFilter(filter === 'overdue' ? 'all' : 'overdue')} style={{
+        <button onClick={() => setFilter(filter === 'followup' ? 'all' : 'followup')} style={{
           width: '100%', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
           padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
-          border: `1px solid ${filter === 'overdue' ? '#dc2626' : '#FCA5A5'}`,
-          background: filter === 'overdue' ? '#FEE2E2' : '#FEF2F2', textAlign: 'right',
+          border: `1px solid ${filter === 'followup' ? '#dc2626' : '#FCA5A5'}`,
+          background: filter === 'followup' ? '#FEE2E2' : '#FEF2F2', textAlign: 'right',
         }}>
           <AlertTriangle size={18} color="#dc2626" />
           <span style={{ flex: 1, fontSize: 14, fontWeight: 800, color: '#dc2626' }}>
             {overdueCount} לידים מחכים לפולואפ
           </span>
           <span style={{ fontSize: 12, fontWeight: 700, color: '#dc2626' }}>
-            {filter === 'overdue' ? 'הצג הכל' : 'הצג'}
+            {filter === 'followup' ? 'הצג הכל' : 'הצג'}
           </span>
         </button>
       )}
@@ -276,11 +291,15 @@ function ListView({ rows, counts, filter, setFilter, overdueIds, onView, onDelet
   return (
     <>
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, overflowX: 'auto', scrollbarWidth: 'none' }}>
-        <FilterChip active={filter === 'all'} onClick={() => setFilter('all')} label={`הכל (${counts.all})`} />
-        {LEAD_STATUS.map(s => (
-          <FilterChip key={s.key} active={filter === s.key} onClick={() => setFilter(s.key)}
-                      label={`${s.label} (${counts[s.key] || 0})`} activeColor={s.color} />
-        ))}
+        {LEAD_FILTERS.map(f => {
+          const danger = f.danger && (counts[f.key] || 0) > 0;
+          return (
+            <FilterChip key={f.key} active={filter === f.key} onClick={() => setFilter(f.key)}
+                        label={`${f.label} (${counts[f.key] || 0})`}
+                        activeColor={danger ? '#dc2626' : LIFEOS_COLORS.primary}
+                        dangerIdle={danger} />
+          );
+        })}
       </div>
       <div style={{ ...LIFEOS_CARD, padding: 0, overflow: 'hidden' }}>
         {rows.length === 0 ? (
@@ -310,8 +329,17 @@ function ListView({ rows, counts, filter, setFilter, overdueIds, onView, onDelet
 }
 
 function LeadRow({ row, isLast, overdue, onView, onDelete, onCreateTrainee }) {
-  const closeBadge = CLOSE_BY_KEY[row.close_result];
-  const status = closeBadge || STATUS_BY_KEY[row.status] || { label: row.status, color: '#9ca3af' };
+  // Prefer the granular lead_status_detail; fall back to close_result/status.
+  const detailBadge = LEAD_STATUS_DETAIL[row.lead_status_detail];
+  const status = detailBadge || CLOSE_BY_KEY[row.close_result]
+    || STATUS_BY_KEY[row.status] || { label: row.status || 'חדש', color: '#9ca3af' };
+  const isClosed = (row.lead_status_detail || '').startsWith('closed');
+  const receiptMissing = isClosed && row.receipt_issued === false;
+  // Secondary text on the badge: price/product for closed deals.
+  const badgeExtra = row.lead_status_detail === 'closed_breakthrough' ? '49₪'
+    : (isClosed && row.payment_amount) ? `${Math.round(row.payment_amount)}₪`
+    : (row.lead_status_detail === 'closed_equipment' && row.product_sold) ? row.product_sold
+    : null;
   const ladderKey = row.ladder_match || (row.sports_experience ? ladderForExperience(row.sports_experience) : null);
   const ladder = ladderKey ? LADDER_MATCHES[ladderKey] : null;
   const fu = followUpState(row);
@@ -347,11 +375,17 @@ function LeadRow({ row, isLast, overdue, onView, onDelete, onCreateTrainee }) {
             {lastContact && <span style={{ color: LIFEOS_COLORS.textMuted }}>· {relTime(lastContact)}</span>}
           </div>
         </div>
-        <span style={{
-          padding: '4px 10px', borderRadius: 999,
-          backgroundColor: status.color, color: '#FFFFFF',
-          fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap',
-        }}>{status.label}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {receiptMissing && <span title="חסרה קבלה" style={{ fontSize: 13 }}>⚠️</span>}
+            <span style={{
+              padding: '4px 10px', borderRadius: 999,
+              backgroundColor: status.color, color: '#FFFFFF',
+              fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap',
+            }}>{status.label}</span>
+          </div>
+          {badgeExtra && <span style={{ fontSize: 11, fontWeight: 800, color: '#16a34a' }}>{badgeExtra}</span>}
+        </div>
       </div>
       <div style={{ display: 'flex', gap: 6, marginTop: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         {row.phone && (
@@ -461,14 +495,17 @@ function KanbanCard({ lead, columns, onTap, onMove, overdue }) {
 
 // ─── Shared ──────────────────────────────────────────────────────
 
-function FilterChip({ active, onClick, label, activeColor = LIFEOS_COLORS.primary }) {
+function FilterChip({ active, onClick, label, activeColor = LIFEOS_COLORS.primary, dangerIdle }) {
+  // dangerIdle → red border + text when not active (e.g. "חסר קבלה" > 0).
+  const idleBorder = dangerIdle ? '#dc2626' : LIFEOS_COLORS.border;
+  const idleText = dangerIdle ? '#dc2626' : LIFEOS_COLORS.textPrimary;
   return (
     <button onClick={onClick} style={{
       padding: '6px 12px', borderRadius: 999,
-      border: `1px solid ${active ? activeColor : LIFEOS_COLORS.border}`,
+      border: `1px solid ${active ? activeColor : idleBorder}`,
       backgroundColor: active ? activeColor : '#FFFFFF',
-      color: active ? '#FFFFFF' : LIFEOS_COLORS.textPrimary,
-      fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+      color: active ? '#FFFFFF' : idleText,
+      fontSize: 12, fontWeight: dangerIdle ? 800 : 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
     }}>{label}</button>
   );
 }

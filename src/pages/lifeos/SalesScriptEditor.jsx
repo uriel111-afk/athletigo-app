@@ -14,6 +14,7 @@ const TABS = [
   { key: 'tips', label: 'טיפים' },
   { key: 'pitches', label: 'פיץ׳ים' },
   { key: 'objections', label: 'התנגדויות' },
+  { key: 'yesladder', label: 'שאלות הכן' },
 ];
 
 const LADDERS = [
@@ -73,8 +74,10 @@ export default function SalesScriptEditor() {
         <TipsTab scripts={scripts} mut={mut} />
       ) : tab === 'pitches' ? (
         <PitchesTab scripts={scripts} mut={mut} />
-      ) : (
+      ) : tab === 'objections' ? (
         <ObjectionsTab scripts={scripts} mut={mut} coachId={coachId} />
+      ) : (
+        <YesLadderTab scripts={scripts} mut={mut} />
       )}
     </LifeOSLayout>
   );
@@ -223,6 +226,49 @@ function ObjectionGroup({ ladder, scripts, mut, coachId }) {
       }}>
         <Plus size={16} /> הוסף התנגדות
       </button>
+    </div>
+  );
+}
+
+// ─── Yes-ladder + payment ───────────────────────────────────────────
+
+function YesLadderTab({ scripts, mut }) {
+  const payment = scripts.filter((s) => s.section === 'payment').sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const PAY_LABELS = { bank_details: 'פרטי חשבון בנק', bit_message: 'הודעת ביט' };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {LADDERS.map((l) => {
+        const rows = scripts.filter((s) => s.section === `yes_ladder_${l.key}`)
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+        if (!rows.length) return null;
+        return (
+          <div key={l.key} style={card}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1A1A', marginBottom: 8 }}>{l.label}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {rows.map((row, i) => (
+                <div key={row.id}>
+                  <div style={sectionLabel}>שאלה {i + 1}</div>
+                  <EditableText value={row.content} onSave={(v) => mut.updateScript.mutate({ id: row.id, content: v })} rows={2} />
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      {payment.length > 0 && (
+        <div style={card}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1A1A', marginBottom: 8 }}>תשלום</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {payment.map((row) => (
+              <div key={row.id}>
+                <div style={sectionLabel}>{PAY_LABELS[row.key] || row.key}</div>
+                <EditableText value={row.content} onSave={(v) => mut.updateScript.mutate({ id: row.id, content: v })} rows={row.key === 'bank_details' ? 4 : 2} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

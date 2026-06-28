@@ -3,14 +3,18 @@ import { X, Phone, MessageCircle, Pencil, Send } from 'lucide-react';
 import {
   LADDER_MATCHES, LEAD_CLOSE_RESULTS, LEAD_STATUS, LEAD_SOURCES,
   SPORTS_EXPERIENCE, LADDER_CONTENT, ladderForExperience,
+  LEAD_STATUS_DETAIL, LEAD_PAYMENT_METHOD_BY_KEY,
 } from '@/lib/lifeos/lifeos-constants';
 import { updateLead } from '@/lib/lifeos/lifeos-api';
+import { useSalesScripts } from '@/lib/lifeos/sales-scripts-api';
 import { waLink, telLink, relTime, followUpState } from '@/lib/lifeos/lead-helpers';
 
 const CLOSE_BY_KEY = Object.fromEntries(LEAD_CLOSE_RESULTS.map((s) => [s.key, s]));
 const STATUS_BY_KEY = Object.fromEntries(LEAD_STATUS.map((s) => [s.key, s]));
 const SOURCE_BY_KEY = Object.fromEntries(LEAD_SOURCES.map((s) => [s.key, s]));
 const EXP_BY_KEY = Object.fromEntries(SPORTS_EXPERIENCE.map((s) => [s.key, s]));
+
+const fmtTs = (t) => { try { return new Date(t).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' }); } catch { return ''; } };
 
 const fmt = (n) => Math.round(Number(n)).toLocaleString('he-IL');
 
@@ -20,12 +24,17 @@ export default function LeadDetailView({ lead, onClose, onEdit, onChanged }) {
   const [picker, setPicker] = useState(false);
   if (!lead) return null;
 
+  const sc = useSalesScripts();
   const ladderKey = lead.ladder_match || ladderForExperience(lead.sports_experience);
   const ladder = LADDER_MATCHES[ladderKey];
-  const statusBadge = CLOSE_BY_KEY[lead.close_result] || STATUS_BY_KEY[lead.status];
+  const statusBadge = LEAD_STATUS_DETAIL[lead.lead_status_detail] || CLOSE_BY_KEY[lead.close_result] || STATUS_BY_KEY[lead.status];
   const fu = followUpState(lead);
   const exp = EXP_BY_KEY[lead.sports_experience];
   const source = SOURCE_BY_KEY[lead.source];
+  const isClosed = (lead.lead_status_detail || '').startsWith('closed');
+  const yesQuestions = sc.getSection(`yes_ladder_${ladderKey}`);
+  const yesSet = new Set(Array.isArray(lead.yes_answers) ? lead.yes_answers : []);
+  const payMethod = LEAD_PAYMENT_METHOD_BY_KEY[lead.payment_method];
 
   const sendContent = async (item) => {
     window.open(waLink(lead.phone, `${item.message}\n${item.url}`), '_blank');
@@ -103,6 +112,49 @@ export default function LeadDetailView({ lead, onClose, onEdit, onChanged }) {
           </div>
         )}
 
+        {/* Payment + receipt (closed deals) */}
+        {(isClosed || lead.payment_method || lead.payment_amount) && (
+          <div style={card}>
+            <div style={cardTitle}>תשלום</div>
+            {lead.product_sold && <Row label="מוצר" value={lead.product_sold} />}
+            {lead.payment_amount ? <Row label="שולם" value={`${fmt(lead.payment_amount)}₪`} /> : null}
+            {payMethod && <Row label="אמצעי תשלום" value={payMethod.label} />}
+            <Row label="קבלה" value={lead.receipt_issued
+              ? <span style={{ color: '#16a34a', fontWeight: 700 }}>✓ הוצאה</span>
+              : <span style={{ color: '#dc2626', fontWeight: 800 }}>⚠️ לא הוצאה קבלה</span>} />
+          </div>
+        )}
+
+        {/* Yes-ladder results */}
+        {yesQuestions.length > 0 && (lead.yes_answers || []).length >= 0 && (yesSet.size > 0 || lead.sports_experience) && (
+          <div style={card}>
+            <div style={cardTitle}>שאלות הכן — ענה כן על {yesSet.size}/{yesQuestions.length}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {yesQuestions.map((q) => {
+                const yes = yesSet.has(q.key);
+                return (
+                  <div key={q.key} style={{ display: 'flex', gap: 6, fontSize: 12, color: '#3a3a3a', lineHeight: 1.4 }}>
+                    <span style={{ flexShrink: 0, color: yes ? '#16a34a' : '#9ca3af', fontWeight: 800 }}>{yes ? '✓' : '✗'}</span>
+                    <span style={{ flex: 1 }}>{q.content}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* "מה קרה?" timeline */}
+        {(lead.created_at || lead.last_contact_date || lead.converted_at) && (
+          <div style={card}>
+            <div style={cardTitle}>מה קרה?</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {lead.created_at && <TimelineRow color="#9ca3af" label="נוצר ליד" when={fmtTs(lead.created_at)} />}
+              {lead.last_contact_date && <TimelineRow color="#FF6F20" label="קשר אחרון" when={fmtTs(lead.last_contact_date)} />}
+              {lead.converted_at && <TimelineRow color="#16a34a" label="נסגרה עסקה" when={fmtTs(lead.converted_at)} />}
+            </div>
+          </div>
+        )}
+
         {/* Summary + follow-up */}
         {(lead.conversation_summary || lead.next_follow_up || lead.notes) && (
           <div style={card}>
@@ -162,6 +214,15 @@ function Badge({ children, color, subtle }) {
       fontSize: 12, fontWeight: 800, padding: '4px 12px', borderRadius: 999,
       color: subtle ? color : '#fff', background: subtle ? '#F4E8D8' : color,
     }}>{children}</span>
+  );
+}
+function TimelineRow({ color, label, when }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ width: 8, height: 8, borderRadius: 999, background: color, flexShrink: 0 }} />
+      <span style={{ flex: 1, fontSize: 13, color: '#1A1A1A', fontWeight: 600 }}>{label}</span>
+      <span style={{ fontSize: 12, color: '#9A8F82' }}>{when}</span>
+    </div>
   );
 }
 function Row({ label, value }) {

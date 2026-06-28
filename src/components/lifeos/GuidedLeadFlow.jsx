@@ -4,32 +4,37 @@ import { toast } from 'sonner';
 import {
   LEAD_SOURCE_CHIPS, SPORTS_EXPERIENCE, LADDER_MATCHES, ladderForExperience,
   LADDER_CORE_MESSAGES, LADDER_CONTENT, LADDER_EQUIPMENT, LADDER_COURSE_OPTIONS,
-  LEAD_CLOSE_RESULTS, statusForCloseResult,
+  LEAD_CLOSE_RESULTS, LEAD_PAYMENT_METHODS, statusForDetail, closedDetailForLadder, productNameForLadder,
 } from '@/lib/lifeos/lifeos-constants';
 import { addLead, updateLead } from '@/lib/lifeos/lifeos-api';
 import { waLink } from '@/lib/lifeos/lead-helpers';
 import { useSalesScripts } from '@/lib/lifeos/sales-scripts-api';
 
 const ORANGE = '#FF6F20';
-const TOTAL_STEPS = 6;
-const STEP_TITLES = ['היכרות', 'הבנת הצורך', 'ההתאמה', 'ההצעה', 'התנגדויות', 'סיכום'];
+const TOTAL_STEPS = 8;
+const STEP_TITLES = ['היכרות', 'הבנת הצורך', 'שאלות הכן', 'ההתאמה', 'ההצעה', 'התנגדויות', 'סגירה ותשלום', 'סיכום'];
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
+const deriveLadder = (f) => f.ladder_match || ladderForExperience(f.sports_experience);
 
 const blankForm = () => ({
   name: '', phone: '', email: '', age: '', source: 'instagram',
   sports_experience: '', current_training: '', fitness_goal: '', fear_barrier: '',
   ladder_match: '',
+  yes_answers: [], yes_map: {},
   session_price: '', package_sessions: '', package_price: '',
   offered_discount: false, discount_deadline: '', family_deal: false,
   equipment: [], course: '',
   objections: '', close_result: '',
+  payment_method: '', payment_amount: '', product_sold: '', receipt_issued: false,
+  lead_status_detail: '',
   conversation_summary: '', next_follow_up: '', notes: '',
   content_sent: [],
 });
 
 function fromLead(lead) {
   if (!lead) return blankForm();
+  const yesAns = Array.isArray(lead.yes_answers) ? lead.yes_answers : [];
   return {
     ...blankForm(),
     name: lead.name || '', phone: lead.phone || '', email: lead.email || '',
@@ -37,11 +42,15 @@ function fromLead(lead) {
     sports_experience: lead.sports_experience || '',
     current_training: lead.current_training || '', fitness_goal: lead.fitness_goal || '',
     fear_barrier: lead.fear_barrier || '', ladder_match: lead.ladder_match || '',
+    yes_answers: yesAns, yes_map: Object.fromEntries(yesAns.map((k) => [k, 'yes'])),
     session_price: lead.session_price != null ? String(lead.session_price) : '',
     package_sessions: lead.package_sessions != null ? String(lead.package_sessions) : '',
     package_price: lead.package_price != null ? String(lead.package_price) : '',
     offered_discount: !!lead.offered_discount, discount_deadline: lead.discount_deadline || '',
     objections: lead.objections || '', close_result: lead.close_result || '',
+    payment_method: lead.payment_method || '', payment_amount: lead.payment_amount != null ? String(lead.payment_amount) : '',
+    product_sold: lead.product_sold || '', receipt_issued: !!lead.receipt_issued,
+    lead_status_detail: lead.lead_status_detail || '',
     conversation_summary: lead.conversation_summary || '',
     next_follow_up: lead.next_follow_up || '', notes: lead.notes || '',
     content_sent: Array.isArray(lead.content_sent) ? lead.content_sent : [],
@@ -73,62 +82,70 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
 
   if (!isOpen) return null;
 
-  // ── Persist current state. isFinal adds the status/revenue mapping. ──
-  const buildPayload = (isFinal) => {
+  // ── Build the DB payload from a form snapshot. applyStatus maps
+  //    lead_status_detail → lead.status (+ income) and is set ONLY by
+  //    the step-7 close actions so the converted income sync fires once. ──
+  const buildPayload = (f, applyStatus) => {
     const num = (v) => (v === '' || v == null ? null : Number(v));
-    const advancedTotal = form.equipment.reduce((s, k) => {
+    const lad = deriveLadder(f);
+    const advancedTotal = (f.equipment || []).reduce((s, k) => {
       const e = LADDER_EQUIPMENT.find((x) => x.key === k); return s + (e ? e.price : 0);
     }, 0);
-    const basePrice = ladder === 'advanced' ? advancedTotal : num(form.package_price);
-    const discounted = (basePrice || 0) - (form.offered_discount ? 50 : 0);
 
     const payload = {
-      name: form.name.trim(),
-      phone: form.phone.trim() || null,
-      email: form.email.trim() || null,
-      age: form.age ? parseInt(form.age, 10) : null,
-      source: form.source || null,
-      sports_experience: form.sports_experience || null,
-      current_training: form.current_training || null,
-      fitness_goal: form.fitness_goal || null,
-      fear_barrier: form.fear_barrier || null,
-      ladder_match: ladder || null,
-      session_price: num(form.session_price),
-      package_sessions: num(form.package_sessions),
-      package_price: ladder === 'advanced' ? (advancedTotal || null) : num(form.package_price),
-      offered_discount: !!form.offered_discount,
-      // Plain date (today) — valid for both `date` and `timestamp`
-      // columns. A type mismatch here would block the whole save.
-      discount_deadline: form.offered_discount ? (String(form.discount_deadline).slice(0, 10) || todayISO()) : null,
-      objections: form.objections || null,
-      close_result: form.close_result || null,
-      conversation_summary: form.conversation_summary || null,
-      next_follow_up: form.next_follow_up || null,
-      notes: form.notes || null,
-      content_sent: form.content_sent,
+      name: f.name.trim(),
+      phone: f.phone.trim() || null,
+      email: f.email.trim() || null,
+      age: f.age ? parseInt(f.age, 10) : null,
+      source: f.source || null,
+      sports_experience: f.sports_experience || null,
+      current_training: f.current_training || null,
+      fitness_goal: f.fitness_goal || null,
+      fear_barrier: f.fear_barrier || null,
+      ladder_match: lad || null,
+      yes_answers: Array.isArray(f.yes_answers) ? f.yes_answers : [],
+      session_price: num(f.session_price),
+      package_sessions: num(f.package_sessions),
+      package_price: lad === 'advanced' ? (advancedTotal || null) : num(f.package_price),
+      offered_discount: !!f.offered_discount,
+      discount_deadline: f.offered_discount ? (String(f.discount_deadline).slice(0, 10) || todayISO()) : null,
+      objections: f.objections || null,
+      close_result: f.close_result || null,
+      payment_method: f.payment_method || null,
+      payment_amount: num(f.payment_amount),
+      product_sold: f.product_sold || null,
+      receipt_issued: !!f.receipt_issued,
+      lead_status_detail: f.lead_status_detail || null,
+      conversation_summary: f.conversation_summary || null,
+      next_follow_up: f.next_follow_up || null,
+      notes: f.notes || null,
+      content_sent: f.content_sent,
       last_contact_date: new Date().toISOString(),
     };
     // Derive interested_in so the legacy list/score + income sync stay useful.
-    if (ladder === 'advanced') {
-      payload.interested_in = form.equipment.includes('dream_machine') ? 'dream_machine'
-        : form.course ? 'course' : (form.equipment[0] || 'other');
-    } else if (ladder === '3month') {
+    if (lad === 'advanced') {
+      payload.interested_in = (f.equipment || []).includes('dream_machine') ? 'dream_machine'
+        : f.course ? 'course' : ((f.equipment || [])[0] || 'other');
+    } else if (lad === '3month') {
       payload.interested_in = 'online_coaching';
     } else {
       payload.interested_in = 'workshop';
     }
-    if (isFinal && form.close_result) {
-      const st = statusForCloseResult(form.close_result);
+    if (applyStatus && f.lead_status_detail) {
+      const st = statusForDetail(f.lead_status_detail);
       if (st) payload.status = st;
-      if (st === 'converted' && (discounted > 0)) payload.revenue_if_converted = discounted;
-      if (st === 'converted') payload.converted_at = new Date().toISOString();
+      const amount = num(f.payment_amount);
+      if (st === 'converted' && amount > 0) {
+        payload.revenue_if_converted = amount;
+        payload.converted_at = new Date().toISOString();
+      }
     }
     return payload;
   };
 
   // Save and return the lead id (creating on first save).
-  const persist = async (isFinal = false) => {
-    const payload = buildPayload(isFinal);
+  const persist = async (applyStatus = false, f = form) => {
+    const payload = buildPayload(f, applyStatus);
     if (leadId) {
       await updateLead(leadId, payload);
       return leadId;
@@ -142,7 +159,7 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
     if (step === 1 && !form.name.trim()) { toast.error('הכנס שם'); return; }
     setBusy(true);
     try {
-      await persist(step === TOTAL_STEPS);
+      await persist(false, form);
       if (step === TOTAL_STEPS) {
         toast.success(lead ? 'הליד עודכן' : 'הליד נשמר');
         onSaved?.();
@@ -152,6 +169,23 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
       }
     } catch (e) {
       console.error('[GuidedLeadFlow] save error', e);
+      toast.error('שגיאה בשמירה: ' + (e?.message || ''));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Step 7 → step 8 with a close/not-close patch. Persists with status
+  // mapping applied so a closed deal records income exactly once.
+  const finishStep7 = async (patch) => {
+    const merged = { ...form, ...patch };
+    setForm(merged);
+    setBusy(true);
+    try {
+      await persist(true, merged);
+      setStep(8);
+    } catch (e) {
+      console.error('[GuidedLeadFlow] close save error', e);
       toast.error('שגיאה בשמירה: ' + (e?.message || ''));
     } finally {
       setBusy(false);
@@ -199,10 +233,12 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '4px 14px 10px' }}>
         {step === 1 && <Step1 form={form} set={set} sc={sc} />}
         {step === 2 && <Step2 form={form} set={set} sc={sc} />}
-        {step === 3 && <Step3 form={form} ladder={ladder} onSend={sendContent} sc={sc} />}
-        {step === 4 && <Step4 form={form} set={set} ladder={ladder} sc={sc} />}
-        {step === 5 && <Step5 form={form} set={set} ladder={ladder} sc={sc} />}
-        {step === 6 && <Step6 form={form} set={set} sc={sc} />}
+        {step === 3 && <StepYesLadder form={form} set={set} ladder={ladder} sc={sc} />}
+        {step === 4 && <Step3 form={form} ladder={ladder} onSend={sendContent} sc={sc} />}
+        {step === 5 && <Step4 form={form} set={set} ladder={ladder} sc={sc} />}
+        {step === 6 && <Step5 form={form} set={set} ladder={ladder} sc={sc} />}
+        {step === 7 && <StepPayment form={form} set={set} ladder={ladder} sc={sc} busy={busy} onFinish={finishStep7} />}
+        {step === 8 && <Step6 form={form} set={set} ladder={ladder} sc={sc} />}
       </div>
 
       {/* Footer nav */}
@@ -210,15 +246,18 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
         flexShrink: 0, padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)',
         display: 'flex', flexDirection: 'column', gap: 6, borderTop: '1px solid #F0E4D0', background: '#fff',
       }}>
-        <button type="button" onClick={next} disabled={busy} style={{
-          width: '100%', height: 48, borderRadius: 14, border: 'none', cursor: 'pointer',
-          background: ORANGE, color: '#fff', fontSize: 16, fontWeight: 800,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          opacity: busy ? 0.6 : 1,
-        }}>
-          {busy && <Loader2 size={18} className="animate-spin" />}
-          {step === TOTAL_STEPS ? 'שמור' : 'הבא →'}
-        </button>
+        {/* Step 7 (payment) drives its own advance via close/not-close. */}
+        {step !== 7 && (
+          <button type="button" onClick={next} disabled={busy} style={{
+            width: '100%', height: 48, borderRadius: 14, border: 'none', cursor: 'pointer',
+            background: ORANGE, color: '#fff', fontSize: 16, fontWeight: 800,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            opacity: busy ? 0.6 : 1,
+          }}>
+            {busy && <Loader2 size={18} className="animate-spin" />}
+            {step === TOTAL_STEPS ? 'שמור' : 'הבא →'}
+          </button>
+        )}
         {step > 1 && (
           <button type="button" onClick={back} disabled={busy} style={{
             width: '100%', height: 32, border: 'none', background: 'transparent', cursor: 'pointer',
@@ -452,9 +491,31 @@ function Step5({ form, set, ladder, sc }) {
   );
 }
 
-function Step6({ form, set, sc }) {
+function Step6({ form, set, ladder, sc }) {
+  const closed = (form.lead_status_detail || '').startsWith('closed');
+  const questions = sc.getSection(`yes_ladder_${ladder}`);
+  const yesCount = (form.yes_answers || []).length;
+  const methodLabel = (LEAD_PAYMENT_METHODS.find((m) => m.key === form.payment_method) || {}).label;
   return (
     <div style={col}>
+      {/* Deal outcome summary */}
+      {(closed || form.product_sold || form.payment_amount) && (
+        <div style={{ background: '#fff', borderRadius: 12, padding: 12, border: '1px solid #F0E4D0' }}>
+          {form.product_sold && <SumRow label="מוצר" value={form.product_sold} />}
+          {form.payment_amount && <SumRow label="שולם" value={`${form.payment_amount}₪`} />}
+          {methodLabel && <SumRow label="אמצעי תשלום" value={methodLabel} />}
+          <SumRow label="קבלה" value={form.receipt_issued
+            ? <span style={{ color: '#16a34a', fontWeight: 700 }}>✓ הוצאה</span>
+            : <span style={{ color: '#dc2626', fontWeight: 800 }}>⚠️ לא הוצאה קבלה!</span>} />
+        </div>
+      )}
+
+      {questions.length > 0 && (
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#5C4A3A' }}>
+          ענה כן על {yesCount}/{questions.length} שאלות
+        </div>
+      )}
+
       <Field label="סיכום השיחה">
         <textarea style={{ ...inp, height: 'auto' }} rows={4} value={form.conversation_summary} onChange={(e) => set({ conversation_summary: e.target.value })} placeholder="ספר לעצמך מה קרה בשיחה..." />
       </Field>
@@ -467,11 +528,213 @@ function Step6({ form, set, sc }) {
           </div>
         </Field>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <Field label="מעקב הבא"><input style={inp} type="date" value={form.next_follow_up ? String(form.next_follow_up).slice(0, 10) : ''} onChange={(e) => set({ next_follow_up: e.target.value })} /></Field>
-        <Field label="הערות"><input style={inp} value={form.notes} onChange={(e) => set({ notes: e.target.value })} placeholder="הערות..." /></Field>
-      </div>
+      {!closed && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Field label="מעקב הבא"><input style={inp} type="date" value={form.next_follow_up ? String(form.next_follow_up).slice(0, 10) : ''} onChange={(e) => set({ next_follow_up: e.target.value })} /></Field>
+          <Field label="הערות"><input style={inp} value={form.notes} onChange={(e) => set({ notes: e.target.value })} placeholder="הערות..." /></Field>
+        </div>
+      )}
       <SmartTip small>{sc.getScript('step6_tip', 'summary')}</SmartTip>
+    </div>
+  );
+}
+
+// ── Step 3: Yes-ladder ──
+function StepYesLadder({ form, set, ladder, sc }) {
+  const questions = sc.getSection(`yes_ladder_${ladder}`);
+  const map = form.yes_map || {};
+  const answer = (key, val) => {
+    const nm = { ...map, [key]: val };
+    const yes = Object.keys(nm).filter((k) => nm[k] === 'yes');
+    set({ yes_map: nm, yes_answers: yes });
+  };
+  const total = questions.length;
+  const yesCount = questions.filter((q) => map[q.key] === 'yes').length;
+  return (
+    <div style={col}>
+      <div style={{ fontSize: 16, fontWeight: 800, color: '#1A1A1A' }}>בוא נוודא שאנחנו מבינים אותך</div>
+      {questions.map((q) => {
+        const a = map[q.key];
+        return (
+          <div key={q.key} style={{ background: '#fff', borderRadius: 12, padding: 12, border: '1px solid #F0E4D0' }}>
+            <div style={{ fontSize: 14, lineHeight: 1.5, color: '#1A1A1A', marginBottom: 8 }}>{q.content}</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={() => answer(q.key, 'yes')} style={{
+                flex: 1, padding: '9px 0', borderRadius: 10, cursor: 'pointer', fontSize: 14, fontWeight: 800,
+                border: a === 'yes' ? '2px solid #16a34a' : '1px solid #F0E4D0',
+                background: a === 'yes' ? '#16a34a' : '#fff', color: a === 'yes' ? '#fff' : '#16a34a',
+              }}>כן ✓</button>
+              <button type="button" onClick={() => answer(q.key, 'no')} style={{
+                flex: 1, padding: '9px 0', borderRadius: 10, cursor: 'pointer', fontSize: 14, fontWeight: 800,
+                border: a === 'no' ? '2px solid #9ca3af' : '1px solid #F0E4D0',
+                background: a === 'no' ? '#9ca3af' : '#fff', color: a === 'no' ? '#fff' : '#9ca3af',
+              }}>לא ✗</button>
+            </div>
+          </div>
+        );
+      })}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+        <Ring value={yesCount} total={total} />
+        <div style={{ fontSize: 14, fontWeight: 800, color: yesCount >= 3 ? '#16a34a' : '#5C4A3A' }}>
+          {yesCount}/{total} שאלות — כן
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Ring({ value, total }) {
+  const r = 16, c = 2 * Math.PI * r;
+  const pct = total ? value / total : 0;
+  return (
+    <svg width="40" height="40" viewBox="0 0 40 40">
+      <circle cx="20" cy="20" r={r} fill="none" stroke="#E7E0D5" strokeWidth="4" />
+      <circle cx="20" cy="20" r={r} fill="none" stroke={value >= 3 ? '#16a34a' : ORANGE} strokeWidth="4"
+        strokeDasharray={c} strokeDashoffset={c * (1 - pct)} strokeLinecap="round"
+        transform="rotate(-90 20 20)" />
+      <text x="20" y="24" textAnchor="middle" fontSize="13" fontWeight="800" fill="#1A1A1A">{value}</text>
+    </svg>
+  );
+}
+
+// ── Step 7: Closing + payment ──
+function StepPayment({ form, set, ladder, sc, busy, onFinish }) {
+  const num = (v) => (v === '' || v == null ? 0 : Number(v));
+  const advancedTotal = (form.equipment || []).reduce((s, k) => {
+    const e = LADDER_EQUIPMENT.find((x) => x.key === k); return s + (e ? e.price : 0);
+  }, 0);
+  const base = ladder === 'advanced' ? advancedTotal : num(form.package_price);
+  const discounted = Math.max(0, base - (form.offered_discount ? 50 : 0));
+  const productName = form.product_sold || productNameForLadder(ladder, form);
+
+  // Local, NEVER-persisted card fields.
+  const [card, setCard] = useState({ number: '', exp: '', cvv: '' });
+  const [cashAmount, setCashAmount] = useState(form.payment_amount || String(discounted || ''));
+  const [paid, setPaid] = useState(false);
+
+  const method = form.payment_method;
+  const pick = (k) => set({ payment_method: k });
+  const amount = method === 'cash' ? num(cashAmount) : discounted;
+
+  const bitMsg = (sc.getScript('payment', 'bit_message') || 'AthletiGo — [product]').replace('[product]', productName);
+  const bankDetails = sc.getScript('payment', 'bank_details');
+
+  const closeDeal = () => onFinish({
+    product_sold: productName,
+    payment_amount: amount,
+    payment_method: method || null,
+    receipt_issued: !!form.receipt_issued,
+    lead_status_detail: closedDetailForLadder(ladder, form),
+  });
+  const notClose = (detail) => onFinish({ lead_status_detail: detail });
+
+  return (
+    <div style={col}>
+      <div style={{ fontSize: 16, fontWeight: 800, color: '#1A1A1A' }}>סגירת עסקה</div>
+
+      {/* Summary card */}
+      <div style={{ background: ORANGE, color: '#fff', borderRadius: 12, padding: 14 }}>
+        <div style={{ fontSize: 15, fontWeight: 800 }}>{productName}</div>
+        <div style={{ marginTop: 4 }}>
+          {form.offered_discount && base > 0 && (
+            <span style={{ fontSize: 14, opacity: 0.8, textDecoration: 'line-through', marginInlineEnd: 8 }}>{base}₪</span>
+          )}
+          <span style={{ fontSize: 22, fontWeight: 900 }}>{discounted || base || 0}₪</span>
+        </div>
+      </div>
+
+      {/* Payment method */}
+      <ChipRow options={LEAD_PAYMENT_METHODS} value={method} onPick={pick} wrap />
+
+      {method === 'credit' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <input style={inp} inputMode="numeric" placeholder="מספר כרטיס" value={card.number} onChange={(e) => setCard({ ...card, number: e.target.value })} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <input style={inp} placeholder="תוקף MM/YY" value={card.exp} onChange={(e) => setCard({ ...card, exp: e.target.value })} />
+            <input style={inp} inputMode="numeric" maxLength={3} placeholder="CVV" value={card.cvv} onChange={(e) => setCard({ ...card, cvv: e.target.value })} />
+          </div>
+          <div style={{ fontSize: 12, color: '#9A8F82' }}>הקלד את פרטי הכרטיס תוך כדי שהלקוח מכתיב</div>
+        </div>
+      )}
+      {method === 'bit' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button type="button" onClick={() => window.open(waLink(form.phone, `${bitMsg}\nסכום: ${amount}₪`), '_blank')} style={greenBtn}>
+            <Send size={16} /> שלח בקשת ביט
+          </button>
+          <Toggle on={paid} onClick={() => setPaid(!paid)} label="הלקוח שילם?" />
+        </div>
+      )}
+      {method === 'cash' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Field label="סכום שהתקבל"><input style={inp} type="number" inputMode="decimal" value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} placeholder="₪" /></Field>
+          <Toggle on={paid} onClick={() => setPaid(!paid)} label="שולם במלואו?" />
+        </div>
+      )}
+      {method === 'transfer' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ background: '#fff', border: '1px solid #F0E4D0', borderRadius: 10, padding: 10, fontSize: 13, lineHeight: 1.6, color: '#3a3a3a', whiteSpace: 'pre-wrap' }}>{bankDetails}</div>
+          <Toggle on={paid} onClick={() => setPaid(!paid)} label="הלקוח העביר?" />
+        </div>
+      )}
+
+      {/* Receipt */}
+      <button type="button" onClick={() => set({ receipt_issued: !form.receipt_issued })} style={{
+        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
+        border: form.receipt_issued ? '2px solid #16a34a' : '1px solid #F0E4D0', background: form.receipt_issued ? '#ECFDF3' : '#fff', textAlign: 'right',
+      }}>
+        <span style={{
+          width: 22, height: 22, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: form.receipt_issued ? 'none' : '2px solid #D9CDBB', background: form.receipt_issued ? '#16a34a' : '#fff', color: '#fff', fontSize: 14, fontWeight: 800,
+        }}>{form.receipt_issued ? '✓' : ''}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A' }}>הוצאתי קבלה</div>
+          <div style={{ fontSize: 11, color: '#dc2626' }}>חובה להוציא קבלה לכל תשלום</div>
+        </div>
+      </button>
+
+      <button type="button" onClick={closeDeal} disabled={busy} style={{ ...greenBtn, height: 48, fontSize: 16, background: '#16a34a', opacity: busy ? 0.6 : 1 }}>
+        {busy && <Loader2 size={18} className="animate-spin" />} סגור עסקה
+      </button>
+
+      <NotClosedSection onPick={notClose} />
+
+      <SmartTip small>{sc.getScript('step7_tip', 'closing')}</SmartTip>
+    </div>
+  );
+}
+
+function NotClosedSection({ onPick }) {
+  const [open, setOpen] = useState(false);
+  const OPTS = [
+    { key: 'thinking', label: 'צריך לחשוב' },
+    { key: 'thinking', label: 'יקר' },
+    { key: 'thinking', label: 'לא עכשיו' },
+    { key: 'refused', label: 'סירוב' },
+  ];
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} style={{
+        background: 'transparent', border: 'none', cursor: 'pointer', color: '#9A8F82', fontSize: 13, fontWeight: 700,
+      }}>הלקוח לא סגר</button>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {OPTS.map((o) => (
+        <button key={o.label} type="button" onClick={() => onPick(o.key)} style={{
+          padding: '7px 14px', borderRadius: 999, cursor: 'pointer', fontSize: 13, fontWeight: 700,
+          border: '1px solid #F0E4D0', background: '#fff', color: '#3a3a3a',
+        }}>{o.label}</button>
+      ))}
+    </div>
+  );
+}
+
+function SumRow({ label, value }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', fontSize: 13 }}>
+      <span style={{ color: '#9A8F82', fontWeight: 700 }}>{label}</span>
+      <span style={{ color: '#1A1A1A', fontWeight: 600 }}>{value}</span>
     </div>
   );
 }
@@ -558,6 +821,11 @@ function Toggle({ on, onClick, label }) {
 
 const col = { display: 'flex', flexDirection: 'column', gap: 10 };
 const iconBtn = { background: 'transparent', border: 'none', cursor: 'pointer', padding: 6, display: 'flex' };
+const greenBtn = {
+  width: '100%', height: 44, borderRadius: 12, border: 'none', cursor: 'pointer',
+  background: '#25D366', color: '#fff', fontSize: 14, fontWeight: 800,
+  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+};
 const inp = {
   width: '100%', height: 36, padding: '6px 10px', borderRadius: 10,
   border: '1px solid #F0E4D0', background: '#fff', fontSize: 14, color: '#1A1A1A',

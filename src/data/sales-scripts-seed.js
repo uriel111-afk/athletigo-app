@@ -74,6 +74,35 @@ export const DEFAULT_SCRIPTS = [
   { section: 'core_messages', key: 'authority_1', sort_order: 1, content: 'המטרה היא עצמאות ספורטיבית' },
   { section: 'core_messages', key: 'authority_2', sort_order: 2, content: 'עם ליווי, התהליך חזק ומשמעותי יותר' },
   { section: 'core_messages', key: 'authority_3', sort_order: 3, content: 'אנחנו לא מלמדים להתאושש — מלמדים לא להיפצע מלכתחילה' },
+
+  // ── Yes-ladder questions — breakthrough (never / quit) ──
+  { section: 'yes_ladder_breakthrough', key: 'q1', sort_order: 1, content: 'אתה מסכים שאם היה לך מישהו שמלווה אותך צעד אחרי צעד — היית מרגיש יותר בטוח להתחיל?' },
+  { section: 'yes_ladder_breakthrough', key: 'q2', sort_order: 2, content: 'ואם זה היה בסלון שלך, בלי ציוד ובלי שאף אחד רואה — זה היה מוריד את הלחץ?' },
+  { section: 'yes_ladder_breakthrough', key: 'q3', sort_order: 3, content: 'אם היית יכול לראות בדיוק מה לעשות, עם הסבר מלא, וגם לקבל פידבק אישי — זה נשמע כמו משהו שיעזור?' },
+  { section: 'yes_ladder_breakthrough', key: 'q4', sort_order: 4, content: 'ואם כל זה היה עולה פחות מארוחה בחוץ — זה היה מרגיש שווה לנסות?' },
+  { section: 'yes_ladder_breakthrough', key: 'q5', sort_order: 5, content: 'אתה מרגיש שעכשיו זה הזמן הנכון לעשות את הצעד?' },
+
+  // ── Yes-ladder questions — 3 month (sometimes) ──
+  { section: 'yes_ladder_3month', key: 'q1', sort_order: 1, content: 'אתה מסכים שיש לך את הבסיס — אבל חסר לך מישהו שיבנה לך תוכנית שעובדת?' },
+  { section: 'yes_ladder_3month', key: 'q2', sort_order: 2, content: 'אם היית מקבל מעקב שבועי עם פידבק על מה שאתה עושה — זה היה עוזר לך להתמיד?' },
+  { section: 'yes_ladder_3month', key: 'q3', sort_order: 3, content: 'אם אחרי 3 חודשים היית מרגיש שאתה יודע להתאמן לבד נכון — זה שווה את ההשקעה?' },
+  { section: 'yes_ladder_3month', key: 'q4', sort_order: 4, content: 'אם היו נותנים לך משימות לצילום ואתה רואה את ההתקדמות שלך בחזרה — זה היה מחזק את המוטיבציה?' },
+  { section: 'yes_ladder_3month', key: 'q5', sort_order: 5, content: 'מרגיש לך שעכשיו זה הזמן לקחת את זה צעד קדימה?' },
+
+  // ── Yes-ladder questions — advanced (regular / athlete) ──
+  { section: 'yes_ladder_advanced', key: 'q1', sort_order: 1, content: 'יש תנועות שאתה מרגיש שהן עדיין רחוקות ממך — נכון?' },
+  { section: 'yes_ladder_advanced', key: 'q2', sort_order: 2, content: 'אם היה מכשיר שנותן לגוף שלך להרגיש את התנועה הזו כבר היום — היית רוצה לנסות?' },
+  { section: 'yes_ladder_advanced', key: 'q3', sort_order: 3, content: 'אתה מסכים שכוח לבד לא מספיק — צריך גם לדעת איך התנועה מרגישה?' },
+  { section: 'yes_ladder_advanced', key: 'q4', sort_order: 4, content: 'אם הדרך לעלייה לכוח או פלאנצ׳ הייתה מתקצרת בחודשים — זה שווה את ההשקעה?' },
+  { section: 'yes_ladder_advanced', key: 'q5', sort_order: 5, content: 'מרגיש לך שאתה מוכן לרמה הבאה?' },
+
+  // ── Payment ──
+  { section: 'payment', key: 'bank_details', sort_order: 0, content: 'בנק: [שם הבנק]\nסניף: [מספר]\nחשבון: [מספר]\nשם: אוריאל שלמה' },
+  { section: 'payment', key: 'bit_message', sort_order: 1, content: 'AthletiGo — תשלום עבור [product]' },
+
+  // ── Step 7 tip ──
+  { section: 'step7_tip', key: 'closing', sort_order: 0,
+    content: '💰 רגע הסגירה\nאחרי שאמר כן:\n׳מעולה. אז בוא נסדר את זה עכשיו — איך נוח לך לשלם? אשראי או ביט?׳\nתן שתי אפשרויות, לא שלוש. פשוט וקל.\nאם מהסס ברגע התשלום: ׳זכור, יש 50₪ הנחה אם סוגרים היום. ואפשר להתחיל כבר מחר.׳' },
 ];
 
 // 42703 unknown-column tolerance.
@@ -105,14 +134,19 @@ export async function seedSalesScripts(coachId) {
   if (inFlight) return inFlight;
 
   inFlight = (async () => {
-    let existing = await supabase.from('sales_scripts').select('id').eq('coach_id', coachId).limit(1);
+    // Additive seed: fetch existing (section,key) pairs and insert only
+    // the defaults that are missing. This way an already-seeded coach
+    // still receives newly-added sections (yes-ladder, payment, etc.).
+    let existing = await supabase.from('sales_scripts').select('section,key').eq('coach_id', coachId);
     if (existing.error && missingColumn(existing.error) === 'coach_id') {
-      existing = await supabase.from('sales_scripts').select('id').limit(1);
+      existing = await supabase.from('sales_scripts').select('section,key');
     }
     if (existing.error) { console.error('[sales-scripts-seed] check failed', existing.error); return { seeded: false, reason: 'check-failed' }; }
-    if (existing.data && existing.data.length) return { seeded: false, reason: 'already-seeded' };
+    const have = new Set((existing.data || []).map((r) => `${r.section}|${r.key}`));
+    const missing = DEFAULT_SCRIPTS.filter((s) => !have.has(`${s.section}|${s.key}`));
+    if (!missing.length) return { seeded: false, reason: 'already-seeded' };
 
-    const rows = DEFAULT_SCRIPTS.map((s) => ({ ...s, coach_id: coachId }));
+    const rows = missing.map((s) => ({ ...s, coach_id: coachId }));
     const inserted = await insertMany('sales_scripts', rows);
     console.log(`[sales-scripts-seed] seeded ${inserted.length} scripts`);
     return { seeded: true, count: inserted.length };
