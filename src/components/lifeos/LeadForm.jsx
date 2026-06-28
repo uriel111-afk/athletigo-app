@@ -82,15 +82,21 @@ export default function LeadForm({ isOpen, onClose, userId, lead = null, onSaved
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !saving) onClose(); }}>
-      <DialogContent dir="rtl" className="max-w-md" onPointerDownOutside={e => e.preventDefault()}>
+      {/* Raise the shared dialog's height cap (default 75vh) so the
+          compact form fits in one view — no scroll. */}
+      <DialogContent dir="rtl" className="max-w-md" style={{ '--modal-max-height': '92dvh' }} onPointerDownOutside={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle style={{ fontSize: 18, fontWeight: 800, textAlign: 'right' }}>
             {lead ? 'עריכת ליד' : 'ליד חדש'}
           </DialogTitle>
         </DialogHeader>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 8, maxHeight: '70vh', overflowY: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {/* No nested scroll here — the form is compact enough to fit in
+            a single view. The only scrollable region in the modal is the
+            shared dialog body wrapper, and the compact layout keeps the
+            content under its height cap so it never actually scrolls. */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 4 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <div>
               <label style={labelStyle}>שם *</label>
               <input type="text" value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="שם מלא" style={inputStyle} autoFocus />
@@ -132,7 +138,7 @@ export default function LeadForm({ isOpen, onClose, userId, lead = null, onSaved
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <div>
               <label style={labelStyle}>מעקב הבא</label>
               <input type="date" value={form.next_follow_up} onChange={(e) => set({ next_follow_up: e.target.value })} style={inputStyle} />
@@ -149,10 +155,10 @@ export default function LeadForm({ isOpen, onClose, userId, lead = null, onSaved
             <label style={labelStyle}>הערות</label>
             <textarea value={form.notes} onChange={(e) => set({ notes: e.target.value })}
                       placeholder="פרטים נוספים..." rows={2}
-                      style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
+                      style={{ ...inputStyle, height: 'auto', padding: '6px 10px', resize: 'none', minHeight: 44 }} />
           </div>
 
-          <div style={{ display: 'flex', gap: 10, paddingTop: 8 }}>
+          <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
             <button onClick={onClose} disabled={saving} style={btnSecondary}>ביטול</button>
             <button onClick={handleSave} disabled={saving} style={btnPrimary}>
               {saving ? <Loader2 className="w-5 h-5 animate-spin" style={{ margin: '0 auto' }} /> : 'שמור'}
@@ -170,11 +176,11 @@ function ChipBtn({ active, onClick, label, activeColor = LIFEOS_COLORS.primary }
       type="button"
       onClick={onClick}
       style={{
-        padding: '8px 6px', borderRadius: 10,
+        padding: '6px 12px', borderRadius: 8,
         border: `1px solid ${active ? activeColor : LIFEOS_COLORS.border}`,
         backgroundColor: active ? activeColor : '#FFFFFF',
         color: active ? '#FFFFFF' : LIFEOS_COLORS.textPrimary,
-        fontSize: 11, fontWeight: 600, cursor: 'pointer',
+        fontSize: 13, fontWeight: 600, cursor: 'pointer',
       }}
     >
       {label}
@@ -187,20 +193,20 @@ const chipGrid = (cols) => ({
   gridTemplateColumns: `repeat(${cols}, 1fr)`,
   gap: 6,
 });
-const labelStyle = { display: 'block', fontSize: 12, fontWeight: 700, color: LIFEOS_COLORS.textSecondary, marginBottom: 6 };
+const labelStyle = { display: 'block', fontSize: 12, fontWeight: 700, color: LIFEOS_COLORS.textSecondary, marginBottom: 3 };
 const inputStyle = {
-  width: '100%', padding: '10px 12px', borderRadius: 10,
+  width: '100%', height: 36, padding: '0 10px', borderRadius: 10,
   border: `1px solid ${LIFEOS_COLORS.border}`, backgroundColor: '#FFFFFF',
   fontSize: 14, color: LIFEOS_COLORS.textPrimary,
   fontFamily: "'Rubik', system-ui, -apple-system, sans-serif", outline: 'none', boxSizing: 'border-box',
 };
 const btnPrimary = {
-  flex: 1, padding: '12px 16px', borderRadius: 12, border: 'none',
+  flex: 1, padding: '10px 16px', borderRadius: 12, border: 'none',
   backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
-  fontSize: 15, fontWeight: 700, cursor: 'pointer',
+  fontSize: 14, fontWeight: 700, cursor: 'pointer',
 };
 const btnSecondary = {
-  flex: 1, padding: '12px 16px', borderRadius: 12,
+  flex: 1, padding: '10px 16px', borderRadius: 12,
   border: `1px solid ${LIFEOS_COLORS.border}`, backgroundColor: '#FFFFFF',
-  color: LIFEOS_COLORS.textPrimary, fontSize: 15, fontWeight: 700, cursor: 'pointer',
+  color: LIFEOS_COLORS.textPrimary, fontSize: 14, fontWeight: 700, cursor: 'pointer',
 };
