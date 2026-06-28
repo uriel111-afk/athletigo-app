@@ -19,6 +19,8 @@ import ContentCommander from './pages/ContentCommander';
 import ContentDropDetail from './pages/content/DropDetail';
 import ContentClipDetail from './pages/content/ClipDetail';
 import ContentTeleprompter from './pages/content/Teleprompter';
+import CoursePlayer from './pages/course/CoursePlayer';
+import CourseDayView from './pages/course/CourseDayView';
 import LifeOSDashboard from './pages/lifeos/LifeOSDashboard';
 import LifeOSExpenses from './pages/lifeos/Expenses';
 import LifeOSExpenseFormPage from './pages/lifeos/ExpenseFormPage';
@@ -376,7 +378,7 @@ const AuthenticatedApp = () => {
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
   const isTrainee = user?.role === 'trainee' || user?.role === 'user';
   const traineeOnlyPages = new Set(['TraineeHome', 'TraineeSessions', 'MyPlan', 'MyWorkoutLog', 'Workouts', 'Progress', 'MyAttendance', 'Forms']);
-  const sharedPages = new Set(['Notifications', 'Onboarding', 'Home', 'TraineeProfile', 'Clocks', 'Journal']);
+  const sharedPages = new Set(['Notifications', 'Onboarding', 'Home', 'TraineeProfile', 'Clocks', 'Journal', 'Course']);
 
   const PageRouteGuard = ({ pageKey, children }) => {
     if (isLoadingAuth) {
@@ -543,6 +545,10 @@ const AuthenticatedApp = () => {
       <Route path="/content/drop/:id"          element={<PageRouteGuard pageKey="Content"><ContentDropDetail /></PageRouteGuard>} />
       <Route path="/content/clip/:id"          element={<PageRouteGuard pageKey="Content"><ContentClipDetail /></PageRouteGuard>} />
       <Route path="/content/clip/:id/prompter" element={<PageRouteGuard pageKey="Content"><ContentTeleprompter /></PageRouteGuard>} />
+
+      {/* ── Trainee course player (breakthrough product) ─────────── */}
+      <Route path="/course/:dropId"               element={<PageRouteGuard pageKey="Course"><CoursePlayer /></PageRouteGuard>} />
+      <Route path="/course/:dropId/day/:clipId"   element={<PageRouteGuard pageKey="Course"><CourseDayView /></PageRouteGuard>} />
 
       {/* ── Life OS (coach hub + financial OS) ─────────────────── */}
       {/* These screens render without the app-wide Layout — they use */}

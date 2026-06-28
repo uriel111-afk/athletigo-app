@@ -7,6 +7,7 @@ import { COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 import { useContentMutations, contentKeys } from '@/api/content-api';
 import { seedJulyContent } from '@/data/july-content-seed';
 import { seedCourses } from '@/data/courses-seed';
+import { seedBreakthroughCourse } from '@/data/breakthrough-course-seed';
 import IdeasTab from '@/components/content/IdeasTab';
 import DropsTab from '@/components/content/DropsTab';
 import CoursesTab from '@/components/content/CoursesTab';
@@ -49,6 +50,7 @@ export default function ContentCommander() {
     };
     seedJulyContent('67b0093d-d4ca-4059-8572-26f020bef1eb').then(refreshIfSeeded);
     seedCourses('67b0093d-d4ca-4059-8572-26f020bef1eb').then(refreshIfSeeded);
+    seedBreakthroughCourse('67b0093d-d4ca-4059-8572-26f020bef1eb').then(refreshIfSeeded);
     return () => { alive = false; };
   }, [qc]);
 

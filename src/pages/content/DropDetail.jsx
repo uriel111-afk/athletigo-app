@@ -8,6 +8,7 @@ import {
   useDrop, useClips, useContentMutations,
   FUNNELS, CLIP_TYPE_BY_KEY, CLIP_STATUS_BY_KEY,
 } from '@/api/content-api';
+import CourseStudents from '@/components/content/CourseStudents';
 
 const ORANGE = '#FF6F20';
 
@@ -25,6 +26,7 @@ export default function DropDetail() {
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   const [order, setOrder] = useState([]);     // local clip ordering
+  const [showStudents, setShowStudents] = useState(false);
   const dragIndex = useRef(null);
 
   useEffect(() => { if (drop) { setTitle(drop.title || ''); setDesc(drop.description || ''); } }, [drop?.id]);
@@ -159,9 +161,23 @@ export default function DropDetail() {
           />
         </div>
 
+        {/* Students (purchasable courses only) */}
+        {drop.is_purchasable && (
+          <div style={{ marginBottom: 20 }}>
+            <button type="button" onClick={() => setShowStudents((s) => !s)} style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '12px 14px', borderRadius: 14, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer',
+            }}>
+              <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}>👥 תלמידים</span>
+              <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 700 }}>{showStudents ? 'הסתר' : 'הצג'}</span>
+            </button>
+            {showStudents && <div style={{ marginTop: 10 }}><CourseStudents dropId={id} /></div>}
+          </div>
+        )}
+
         {/* Clips */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}>קליפים ({order.length})</div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}>{drop.is_purchasable ? 'ימים' : 'קליפים'} ({order.length})</div>
           <button type="button" onClick={handleAddClip} style={{
             display: 'inline-flex', alignItems: 'center', gap: 4, padding: '7px 12px',
             borderRadius: 999, border: 'none', background: ORANGE, color: '#fff',

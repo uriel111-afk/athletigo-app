@@ -18,6 +18,7 @@ import HealthDeclarationForm from "../components/forms/HealthDeclarationForm";
 import WelcomeBlessingPopup from "../components/WelcomeBlessingPopup";
 import PaymentResultModal from "@/components/PaymentResultModal";
 import OnboardingProgressBar from "@/components/OnboardingProgressBar";
+import TraineeCourseCard from "@/components/course/TraineeCourseCard";
 import SessionPaymentBadge from "@/components/SessionPaymentBadge";
 import PreHealthScreen from "@/components/PreHealthScreen";
 import NewRecordDialog from "../components/forms/NewRecordDialog";
@@ -1055,6 +1056,10 @@ export default function TraineeHome() {
             </div>
           </div>
         </div>
+
+        {/* Breakthrough course — prominent card, renders only when the
+            trainee has a purchasable course available. */}
+        <TraineeCourseCard userId={user?.id} />
 
         {/* Casual onboarding banner — three-state approval machine:
               (a) health declaration not signed → opens HealthDeclarationForm
