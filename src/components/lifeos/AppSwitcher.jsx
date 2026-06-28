@@ -30,7 +30,7 @@ export default function AppSwitcher({ wide = false }) {
   const tabs = [
     { key: "pro",      label: "מקצועי", href: "/dashboard",    active: isPro,      Icon: Briefcase },
     { key: "fin",      label: "פיננסי", href: "/lifeos/finance-dashboard", active: isFin,      Icon: Coins     },
-    { key: "growth",   label: "צמיחה",  href: "/lifeos/leads", active: isGrowth,   Icon: Sprout    },
+    { key: "growth",   label: "לידים",  href: "/lifeos/leads", active: isGrowth,   Icon: Sprout    },
     { key: "personal", label: "אישי",   href: "/personal",     active: isPersonal, Icon: User      },
     { key: "content",  label: "תוכן",   href: "/content",      active: isContent,  Icon: Clapperboard },
   ];

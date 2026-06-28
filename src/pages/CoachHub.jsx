@@ -297,7 +297,7 @@ export default function CoachHub() {
           {[
             { label: 'מקצועי', path: '/dashboard',    Icon: Briefcase },
             { label: 'פיננסי', path: '/lifeos/finance-dashboard', Icon: Coins     },
-            { label: 'צמיחה', path: '/lifeos',        Icon: Sprout    },
+            { label: 'לידים', path: '/lifeos',        Icon: Sprout    },
             { label: 'אישי',  path: '/personal',      Icon: User      },
             { label: 'תוכן',  path: '/content',       Icon: Clapperboard },
           ].map((tab) => {

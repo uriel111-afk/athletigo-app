@@ -680,7 +680,6 @@ export default function Layout({ children, currentPageName }) {
                 const navItems = isCoach ? [
                   { to: createPageUrl("Dashboard"),    emoji: '🏠', label: 'בית' },
                   { to: createPageUrl("AllUsers"),     emoji: '👥', label: 'מתאמנים' },
-                  { to: createPageUrl("Content"),      emoji: '🎬', label: 'תוכן' },
                   { to: createPageUrl("TrainingPlans"),emoji: '📋', label: 'תוכניות' },
                   { to: createPageUrl("Sessions"),     emoji: '📅', label: 'מפגשים' },
                   { to: createPageUrl("CoachProfile"), emoji: '👤', label: 'פרופיל' },
