@@ -745,7 +745,7 @@ export default function Dashboard() {
           await createLeadMutation.mutateAsync({ ...data, user_id: coach?.id || null });
         }}
         isLoading={createLeadMutation.isPending} />
-      <SessionFormDialog isOpen={isSessionDialogOpen} onClose={() => setIsSessionDialogOpen(false)}
+      <SessionFormDialog isOpen={isSessionDialogOpen} coachId={coach?.id} onClose={() => setIsSessionDialogOpen(false)}
         onSubmit={async (data) => {
           // Honor 'הושלם' from the form (past-date heuristic in
           // SessionFormDialog) so retroactive sessions don't get

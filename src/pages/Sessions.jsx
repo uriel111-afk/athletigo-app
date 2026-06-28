@@ -2181,6 +2181,8 @@ export default function Sessions() {
             }}
             onSubmit={handleSessionSubmit}
             trainees={selectableTrainees}
+            coachId={coach?.id}
+            sessions={sessions}
             editingSession={editingSession}
             isLoading={createSessionMutation.isPending || updateSessionMutation.isPending} />
 

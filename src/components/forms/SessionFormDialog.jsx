@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useRef, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { AuthContext } from "@/lib/AuthContext";
 import { suggestPackageForSession } from "../hooks/useServiceDeduction";
@@ -66,9 +66,21 @@ export default function SessionFormDialog({
   onSubmit,
   trainees = [],
   editingSession = null,
-  isLoading = false
+  isLoading = false,
+  // Coach id passed down from the parent (Sessions.jsx already has a
+  // loaded `coach` object). Prefer it over the AuthContext value so
+  // the trainee query no longer races AuthContext hydration — the
+  // parent only opens this dialog once its coach is ready.
+  coachId = null,
+  // Sessions list from the parent — used only to derive the coach's
+  // most-recent trainees for the quick-select chips. Optional; absent
+  // → no recent chips, full list still works.
+  sessions = [],
 }) {
   const { user: currentCoach } = useContext(AuthContext);
+  // Single source for "who is the coach" — prop wins, AuthContext is
+  // the fallback for any caller that doesn't pass coachId.
+  const effectiveCoachId = coachId ?? currentCoach?.id ?? null;
   const queryClient = useQueryClient();
 
   // Trainee picker source — loads ALL users in the system except the
@@ -79,24 +91,44 @@ export default function SessionFormDialog({
   // dozens of real trainees. effectiveTrainees prefers this internal
   // list; falls back to the prop only if the load fails/empty.
   const [searchQuery, setSearchQuery] = useState('');
-  const { data: allUsers = [] } = useQuery({
-    queryKey: ['session-dialog-all-users', currentCoach?.id],
+  // Ref + delayed focus (see effect below) so the search field is
+  // ready-to-type the instant a coach opens the dialog to create.
+  const searchInputRef = useRef(null);
+  // No initialData here on purpose — leaving data undefined until the
+  // first fetch resolves is what makes `isLoading` true on open, so
+  // the spinner can show instead of a misleading empty state.
+  const {
+    data: allUsers = [],
+    isLoading: isLoadingUsers,
+    error: usersError,
+    refetch: refetchUsers,
+  } = useQuery({
+    queryKey: ['session-dialog-all-users', coachId || currentCoach?.id],
     queryFn: async () => {
-      console.log('[loadAllUsers] starting for coach:', currentCoach?.id);
+      console.log('[loadAllUsers] starting for coach:', effectiveCoachId);
       const { data, error } = await supabase
         .from('users')
         .select('id, full_name, email, phone, role, coach_id, client_status, avatar_url')
+        // Scope to this coach's trainees plus legacy unassigned rows
+        // (coach_id IS NULL) — many older trainee rows never got a
+        // coach_id and would otherwise vanish from the picker.
+        .or(`coach_id.eq.${effectiveCoachId},coach_id.is.null`)
+        .neq('id', effectiveCoachId)
         .order('full_name', { ascending: true });
+      // Throw so the query surfaces `error` (and retries) instead of
+      // silently resolving to [] — the UI shows a retry button.
       if (error) {
         console.error('[loadAllUsers] error:', error);
-        return [];
+        throw error;
       }
-      const filtered = (data || []).filter((u) => u.id !== currentCoach?.id);
+      const filtered = (data || []).filter((u) => u.id !== effectiveCoachId);
       console.log('[loadAllUsers] total:', data?.length, 'after excluding coach:', filtered.length);
       return filtered;
     },
-    enabled: isOpen && !!currentCoach?.id,
-    initialData: [],
+    // Gate on a known coach id — the coach_id filter above requires it.
+    // coachId comes from the parent (already loaded) so this resolves
+    // the old AuthContext timing race.
+    enabled: isOpen && !!(coachId || currentCoach?.id),
   });
 
   const effectiveTrainees = (allUsers && allUsers.length > 0) ? allUsers : trainees;
@@ -110,6 +142,47 @@ export default function SessionFormDialog({
       t.phone?.includes(q)
     ));
   })();
+
+  // Recent trainees — last few unique people the coach booked, surfaced
+  // as one-tap chips above the full list. Derived from the parent's
+  // sessions list (newest first), resolved against the loaded trainee
+  // rows so chips carry name/avatar. Capped at 5.
+  const recentTrainees = useMemo(() => {
+    if (!Array.isArray(sessions) || sessions.length === 0) return [];
+    const byId = new Map((effectiveTrainees || []).map((t) => [t.id, t]));
+    const ordered = [...sessions].sort(
+      (a, b) =>
+        new Date(b.created_at || b.date || 0) - new Date(a.created_at || a.date || 0)
+    );
+    const seen = new Set();
+    const result = [];
+    for (const s of ordered) {
+      const ids = [];
+      if (s.trainee_id) ids.push(s.trainee_id);
+      if (Array.isArray(s.participants)) {
+        s.participants.forEach((p) => p?.trainee_id && ids.push(p.trainee_id));
+      }
+      for (const id of ids) {
+        if (seen.has(id)) continue;
+        const t = byId.get(id);
+        if (!t) continue;
+        seen.add(id);
+        result.push(t);
+        if (result.length >= 5) break;
+      }
+      if (result.length >= 5) break;
+    }
+    return result;
+  }, [sessions, effectiveTrainees]);
+
+  // Auto-focus the trainee search when creating (not editing) so the
+  // coach can type-to-filter immediately. 300ms lets the dialog open
+  // animation settle before stealing focus.
+  useEffect(() => {
+    if (!isOpen || editingSession) return;
+    const t = setTimeout(() => searchInputRef.current?.focus(), 300);
+    return () => clearTimeout(t);
+  }, [isOpen, editingSession]);
 
   const initialData = editingSession ? {
     date: editingSession.date || "",
@@ -491,7 +564,7 @@ export default function SessionFormDialog({
         };
 
         const baseRow = {
-          coach_id: currentCoach?.id || null,
+          coach_id: effectiveCoachId || null,
           trainee_id: traineeId,
           time: sessionForm.time,
           session_type: sessionForm.session_type,
@@ -567,7 +640,7 @@ export default function SessionFormDialog({
       duration: sessionForm.duration || 60,
       coach_notes: sessionForm.coach_notes || null,
       coach_private_notes: sessionForm.coach_private_notes || null,
-      coach_id: currentCoach?.id || null,
+      coach_id: effectiveCoachId || null,
       trainee_id: firstTraineeId,
       participants: sessionForm.participants || [],
       // null = free / no price; positive number → unpaid until the
@@ -644,7 +717,9 @@ export default function SessionFormDialog({
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-5">
+          {/* flex column (not space-y) so visual `order` below can lift
+              the trainee picker to the top without breaking spacing. */}
+          <div className="flex flex-col gap-5">
           {/* Status pills — when editing an existing row, switching the
               chip writes to the DB immediately AND mirrors into the
               local form state so a later "save" of other fields
@@ -652,7 +727,7 @@ export default function SessionFormDialog({
               row yet → only the local form state is touched and the
               create flow picks up the chosen status on submit. */}
           {editingSession?.id && (
-            <div>
+            <div style={{ order: -2 }}>
               <Label className="text-sm font-bold mb-2 block" style={{ color: '#000000' }}>
                 סטטוס המפגש
               </Label>
@@ -1028,15 +1103,18 @@ export default function SessionFormDialog({
             </p>
           </div>
 
-          <div>
+          {/* Trainee picker — order:-1 lifts it directly under the
+              status pills (order:-2) so it is the first field the coach
+              sees / types into when creating a session. */}
+          <div style={{ order: -1 }}>
             <Label className="text-sm font-bold mb-3 block" style={{ color: '#000000' }}>
               👥 בחר משתתפים * ({sessionForm.participants.length} נבחרו)
             </Label>
             <div className="flex justify-between items-center mb-2">
-                <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm" 
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => setShowGuestForm(!showGuestForm)}
                     className="text-xs"
                 >
@@ -1148,7 +1226,46 @@ export default function SessionFormDialog({
                 </div>
               </div>
             )}
+            {/* Recent trainees — one-tap chips for the people the coach
+                booked most recently. Hidden while searching so the full
+                results take over. */}
+            {!searchQuery && recentTrainees.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-bold mb-2" style={{ color: '#7D7D7D' }}>⏱️ אחרונים</p>
+                <div className="flex flex-wrap gap-2">
+                  {recentTrainees.map((t) => {
+                    const isSelected = sessionForm.participants.some(p => p.trainee_id === t.id);
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => toggleParticipant(t.id, t.full_name)}
+                        className="flex items-center gap-2 px-3 py-2 rounded-full text-sm font-bold transition-all"
+                        style={{
+                          backgroundColor: isSelected ? 'var(--ag-accent)' : '#FFFFFF',
+                          color: isSelected ? 'white' : '#000000',
+                          border: isSelected ? 'none' : '2px solid #E0E0E0',
+                        }}
+                      >
+                        <span
+                          className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs"
+                          style={{
+                            backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : '#FFF8F3',
+                            color: isSelected ? 'white' : 'var(--ag-accent)',
+                          }}
+                        >
+                          {t.full_name?.[0] || '?'}
+                        </span>
+                        {t.full_name || 'ללא שם'}
+                        {isSelected && <Check className="w-4 h-4" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <Input
+              ref={searchInputRef}
               type="search"
               placeholder="חפש לפי שם, אימייל או טלפון..."
               value={searchQuery}
@@ -1157,7 +1274,27 @@ export default function SessionFormDialog({
               style={{ border: '1px solid #E0E0E0', direction: 'rtl' }}
             />
             <div className="p-4 rounded-xl overflow-y-auto" style={{ backgroundColor: '#FAFAFA', border: '2px solid #E0E0E0', maxHeight: '40vh', minHeight: 120 }}>
-              {filteredTrainees.length === 0 ? (
+              {isLoadingUsers ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-6" style={{ color: '#7D7D7D' }}>
+                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--ag-accent)' }} />
+                  <p className="text-sm">טוען מתאמנים...</p>
+                </div>
+              ) : usersError ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-6">
+                  <p className="text-sm text-center" style={{ color: '#B71C1C' }}>
+                    שגיאה בטעינת מתאמנים
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => refetchUsers()}
+                    className="text-xs font-bold text-white"
+                    style={{ backgroundColor: 'var(--ag-accent)' }}
+                  >
+                    נסה שוב
+                  </Button>
+                </div>
+              ) : filteredTrainees.length === 0 ? (
                 <p className="text-sm text-center py-4" style={{ color: '#7D7D7D' }}>
                   {searchQuery ? 'לא נמצאו תוצאות' : 'אין משתמשים במערכת'}
                 </p>

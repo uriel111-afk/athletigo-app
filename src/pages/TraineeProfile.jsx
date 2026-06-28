@@ -5893,6 +5893,7 @@ export default function TraineeProfile() {
             }}
             editingSession={editingSession}
             trainees={[user]}
+            coachId={coach?.id}
             isLoading={false}
           />
         )}
@@ -5970,6 +5971,7 @@ export default function TraineeProfile() {
               }
             }}
             trainees={[user]}
+            coachId={coach?.id}
             isLoading={savingNewSession}
           />
         )}
