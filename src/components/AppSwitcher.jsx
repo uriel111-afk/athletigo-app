@@ -1,6 +1,6 @@
 import React, { useContext } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Briefcase, Coins, Sprout, User } from 'lucide-react';
+import { Briefcase, Coins, Sprout, User, Clapperboard } from 'lucide-react';
 import { AuthContext } from '@/lib/AuthContext';
 import { COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 
@@ -24,7 +24,8 @@ export default function AppSwitcher() {
 
   const path = location.pathname;
   const activeKey =
-    path.startsWith('/personal')                                                  ? 'personal'
+    path.startsWith('/content')                                                   ? 'content'
+    : path.startsWith('/personal')                                                ? 'personal'
     : path.startsWith('/lifeos/leads') || path.startsWith('/lifeos/content') ||
       path.startsWith('/lifeos/community')                                         ? 'finance'
     : path.startsWith('/lifeos')                                                   ? 'growth'
@@ -35,6 +36,7 @@ export default function AppSwitcher() {
     { key: 'finance',  label: 'פיננסי', to: '/lifeos/finance-dashboard', Icon: Coins     },
     { key: 'growth',   label: 'צמיחה',  to: '/lifeos',       Icon: Sprout    },
     { key: 'personal', label: 'אישי',   to: '/personal',     Icon: User      },
+    { key: 'content',  label: 'תוכן',   to: '/content',      Icon: Clapperboard },
   ];
 
   return (

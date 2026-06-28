@@ -354,6 +354,11 @@ button:focus-visible {
 
 .trainees-scroll::-webkit-scrollbar { display: none; }
 
+/* App-switcher tab rows (CoachHub home + AppSwitcher) — horizontal
+   scroll on narrow screens with the scrollbar hidden. */
+.ag-tabrow-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+.ag-tabrow-scroll::-webkit-scrollbar { display: none; }
+
 /* ── Lumen scope ─────────────────────────────────────────────────────
    Applied as className="lumen-dashboard" on the COACH HOME screens
    ONLY (CoachHub + Dashboard). Provides the cream halo background

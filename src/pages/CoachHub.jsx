@@ -10,7 +10,7 @@ import DailyStreak from '@/components/lifeos/DailyStreak';
 import PageLoader from '@/components/PageLoader';
 import { MentorChatIconButton } from '@/components/lifeos/MentorChat';
 import PopupNotificationManager from '@/components/PopupNotificationManager';
-import { Briefcase, Coins, Sprout, User } from 'lucide-react';
+import { Briefcase, Coins, Sprout, User, Clapperboard } from 'lucide-react';
 
 const weekRangeFromOffset = (weeksAgo) => {
   const end = new Date();
@@ -278,26 +278,32 @@ export default function CoachHub() {
             Positioned directly under the title block and above the
             Daily Focus banner so the navigation is the first thing the
             coach scans after the greeting. */}
-        <div style={{
+        <div className="ag-tabrow-scroll" style={{
           // Live inside the same maxWidth-560 inner wrapper as the KPI
           // cards below — no negative-margin escape — so the row's
           // left/right edges line up exactly with the cards on every
-          // viewport width. flex:1 buttons fill the row evenly.
+          // viewport width. The 5 tabs grow to fill the row evenly when
+          // there's room and scroll horizontally (snap) when the screen
+          // is too narrow to fit them all.
           padding: '12px 0 8px',
           display: 'flex',
           gap: 8,
           background: 'white',
           borderBottom: '1px solid #FFF0E4',
           marginBottom: 12,
+          overflowX: 'auto',
+          scrollSnapType: 'x proximity',
         }}>
           {[
             { label: 'מקצועי', path: '/dashboard',    Icon: Briefcase },
             { label: 'פיננסי', path: '/lifeos/finance-dashboard', Icon: Coins     },
             { label: 'צמיחה', path: '/lifeos',        Icon: Sprout    },
             { label: 'אישי',  path: '/personal',      Icon: User      },
+            { label: 'תוכן',  path: '/content',       Icon: Clapperboard },
           ].map((tab) => {
             const isActive = location.pathname === tab.path
-              || (tab.path === '/dashboard' && location.pathname === '/');
+              || (tab.path === '/dashboard' && location.pathname === '/')
+              || (tab.path === '/content' && location.pathname.startsWith('/content'));
             const { Icon } = tab;
             return (
               <button
@@ -305,11 +311,13 @@ export default function CoachHub() {
                 type="button"
                 onClick={() => navigate(tab.path)}
                 style={{
-                  // flex:1 + minWidth:0 splits the row evenly across the
-                  // 4 tabs so the strip spans full width edge to edge,
-                  // independent of each label's character length.
-                  flex: 1, minWidth: 0,
-                  padding: '10px 0',
+                  // grow to fill the row, never shrink below 64px, so the
+                  // 5 tabs span full width on normal phones and scroll on
+                  // very narrow ones. The whole button (icon + label +
+                  // padding) is the tap target.
+                  flex: '1 0 auto', minWidth: 64, flexShrink: 0,
+                  scrollSnapAlign: 'start',
+                  padding: '12px 8px',
                   borderRadius: 12,
                   cursor: 'pointer',
                   fontSize: 15,
@@ -325,12 +333,13 @@ export default function CoachHub() {
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
+                  justifyContent: 'center',
                   gap: 3,
                   lineHeight: 1,
                 }}
               >
-                <Icon size={17} aria-hidden style={{ display: 'block', color: isActive ? 'white' : '#9A6A3A' }} />
-                <span>{tab.label}</span>
+                <Icon size={17} aria-hidden style={{ display: 'block', color: isActive ? 'white' : '#9A6A3A', pointerEvents: 'none' }} />
+                <span style={{ pointerEvents: 'none' }}>{tab.label}</span>
               </button>
             );
           })}
