@@ -15,6 +15,7 @@ import PageLoader from '@/components/PageLoader';
 import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
 import CoachHub from './pages/CoachHub';
+import BusinessCalculator from './pages/BusinessCalculator';
 import ContentCommander from './pages/ContentCommander';
 import ContentDropDetail from './pages/content/DropDetail';
 import ContentClipDetail from './pages/content/ClipDetail';
@@ -533,6 +534,14 @@ const AuthenticatedApp = () => {
           </PageRouteGuard>
         }
       />
+
+      {/* ── Business Calculator (coach-only) ────────────────────── */}
+      {/* Keeps the app-wide Layout so header + bottom nav stay visible. */}
+      <Route path="/calculator" element={
+        <PageRouteGuard pageKey="Calculator">
+          <LayoutWrapper currentPageName="Calculator"><BusinessCalculator /></LayoutWrapper>
+        </PageRouteGuard>
+      } />
 
       {/* ── Content Commander (coach-only) ──────────────────────── */}
       {/* /content keeps the app-wide Layout so the bottom nav stays   */}
