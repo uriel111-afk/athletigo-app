@@ -97,6 +97,13 @@ export default function SessionFormDialog({
   // No initialData here on purpose — leaving data undefined until the
   // first fetch resolves is what makes `isLoading` true on open, so
   // the spinner can show instead of a misleading empty state.
+  console.log('[SessionForm] Query enabled check:', {
+    isOpen,
+    coachId,
+    currentCoachId: currentCoach?.id,
+    effectiveCoachId: coachId || currentCoach?.id,
+    enabled: isOpen && !!(coachId || currentCoach?.id),
+  });
   const {
     data: allUsers = [],
     isLoading: isLoadingUsers,
@@ -119,10 +126,12 @@ export default function SessionFormDialog({
       // silently resolving to [] — the UI shows a retry button.
       if (error) {
         console.error('[loadAllUsers] error:', error);
+        console.error('[SessionForm] Supabase error:', JSON.stringify(error));
         throw error;
       }
       const filtered = (data || []).filter((u) => u.id !== effectiveCoachId);
       console.log('[loadAllUsers] total:', data?.length, 'after excluding coach:', filtered.length);
+      console.log('[SessionForm] Got trainees:', data?.length, data?.map((u) => u.full_name));
       return filtered;
     },
     // Gate on a known coach id — the coach_id filter above requires it.
