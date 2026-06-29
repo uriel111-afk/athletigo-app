@@ -41,7 +41,8 @@ import {
   Route,
   BookOpen,
   MessageCircle,
-  Clapperboard
+  Clapperboard,
+  Calculator
   } from "lucide-react";
 import FeedbackButton from "@/components/feedback/FeedbackButton";
 import { Button } from "@/components/ui/button";
@@ -222,6 +223,7 @@ export default function Layout({ children, currentPageName }) {
     // (ConversionDashboard) are all merged into the single Reports
     // page above. Old menu links removed.
     // ── כלים ──
+    { title: "מחשבון", url: createPageUrl("Calculator"), icon: Calculator, section: "content" },
     { title: "שעונים", url: createPageUrl("Clocks"), icon: Clock, section: "content" },
     // Mentor chat — moved here from the header. `onClick` fires the
     // global MENTOR_CHAT_OPEN_EVENT instead of routing, so the
