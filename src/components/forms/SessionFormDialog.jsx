@@ -115,7 +115,7 @@ export default function SessionFormDialog({
       console.log('[loadAllUsers] starting for coach:', effectiveCoachId);
       const { data, error } = await supabase
         .from('users')
-        .select('id, full_name, email, phone, role, coach_id, client_status, avatar_url')
+        .select('id, full_name, email, phone, role, coach_id, client_status')
         // Scope to this coach's trainees plus legacy unassigned rows
         // (coach_id IS NULL) — many older trainee rows never got a
         // coach_id and would otherwise vanish from the picker.
