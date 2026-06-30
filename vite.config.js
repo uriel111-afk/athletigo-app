@@ -12,8 +12,8 @@ export default defineConfig({
         name: 'AthletiGo',
         short_name: 'AthletiGo',
         description: 'AthletiGo - Fitness Coaching App',
-        theme_color: '#FF6F20',
-        background_color: '#ffffff',
+        theme_color: '#FFFFFF',
+        background_color: '#FFFFFF',
         display: 'standalone',
         // start_url '/' lets RoutingGate decide where the user lands.
         // Was '/login' before — that forced the PWA shortcut to always
@@ -22,13 +22,20 @@ export default defineConfig({
         // "loop" before React finished booting.
         start_url: '/',
         icons: [
-          // Dedicated maskable icons (40% safe zone, orange bg) so Android
-          // doesn't crop the logo; regular icons kept as 'any' only.
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: '/icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-          { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-          { src: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+          // White background, black AG-triangle logo. Maskable icons use a
+          // 60% safe zone so Android doesn't crop the mark. ?v=2 cache-buster
+          // forces clients to refetch the recoloured icons.
+          { src: '/icon-72.png?v=2', sizes: '72x72', type: 'image/png', purpose: 'any' },
+          { src: '/icon-96.png?v=2', sizes: '96x96', type: 'image/png', purpose: 'any' },
+          { src: '/icon-128.png?v=2', sizes: '128x128', type: 'image/png', purpose: 'any' },
+          { src: '/icon-144.png?v=2', sizes: '144x144', type: 'image/png', purpose: 'any' },
+          { src: '/icon-152.png?v=2', sizes: '152x152', type: 'image/png', purpose: 'any' },
+          { src: '/icon-192.png?v=2', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-384.png?v=2', sizes: '384x384', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png?v=2', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icon-maskable-192.png?v=2', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: '/icon-maskable-512.png?v=2', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/apple-touch-icon.png?v=2', sizes: '180x180', type: 'image/png' },
         ],
       },
       workbox: {

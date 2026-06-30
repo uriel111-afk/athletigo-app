@@ -593,6 +593,7 @@ export default function Onboarding() {
     try {
       const heightNum = heightCm ? parseInt(heightCm, 10) : null;
       const weightNum = weightKg ? parseFloat(weightKg) : null;
+      const bodyFatNum = bodyFatPct ? parseFloat(bodyFatPct) : null;
       await safeUpdate(userId, buildPayload({
         height_cm: Number.isFinite(heightNum) ? heightNum : null,
         weight_kg: Number.isFinite(weightNum) ? weightNum : null,
@@ -604,12 +605,13 @@ export default function Onboarding() {
       // conditionally — only include fields we have a value for, so a
       // null `height_cm` doesn't NOT NULL-violate, and we never send
       // `source` / `notes` (those columns may not exist on older installs).
-      if (heightNum || weightNum) {
+      if (heightNum || weightNum || bodyFatNum) {
         try {
           const today = new Date().toISOString().split('T')[0];
           const measurePayload = { trainee_id: userId, date: today };
           if (Number.isFinite(heightNum)) measurePayload.height_cm = heightNum;
           if (Number.isFinite(weightNum)) measurePayload.weight_kg = weightNum;
+          if (Number.isFinite(bodyFatNum)) measurePayload.body_fat = bodyFatNum;
           console.log('[Onboarding] measurements payload keys:', Object.keys(measurePayload));
           const { error: mErr } = await supabase.from('measurements').insert(measurePayload);
           if (mErr) {
@@ -1090,6 +1092,11 @@ export default function Onboarding() {
                   <input value={weightKg} onChange={e => setWeightKg(e.target.value.replace(/[^\d.]/g, ''))}
                     placeholder="70" inputMode="decimal" style={inputStyle} />
                 </div>
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 13, color: COLORS.muted, marginBottom: 4 }}>אחוז שומן (%) — לא חובה</div>
+                <input value={bodyFatPct} onChange={e => setBodyFatPct(e.target.value.replace(/[^\d.]/g, ''))}
+                  placeholder="18" inputMode="decimal" style={inputStyle} />
               </div>
             </div>
 
