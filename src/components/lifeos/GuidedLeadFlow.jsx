@@ -146,6 +146,9 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
   // Save and return the lead id (creating on first save).
   const persist = async (applyStatus = false, f = form) => {
     const payload = buildPayload(f, applyStatus);
+    console.log('[GuidedLeadFlow] persist —', leadId ? 'UPDATE' : 'CREATE',
+      { userId, leadId, payloadKeys: Object.keys(payload) });
+    console.log('[GuidedLeadFlow] persist payload:', JSON.stringify(payload));
     if (leadId) {
       await updateLead(leadId, payload);
       return leadId;
@@ -156,10 +159,15 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
   };
 
   const next = async () => {
+    console.log('[GuidedLeadFlow] Next clicked — step:', step, 'of', TOTAL_STEPS);
+    console.log('[GuidedLeadFlow] name:', form.name, '| userId:', userId, '| leadId:', leadId);
+    const step1Valid = !(step === 1 && !form.name.trim());
+    console.log('[GuidedLeadFlow] step-1 validation passed:', step1Valid);
     if (step === 1 && !form.name.trim()) { toast.error('הכנס שם'); return; }
     setBusy(true);
     try {
       await persist(false, form);
+      console.log('[GuidedLeadFlow] persist OK — advancing from step', step);
       if (step === TOTAL_STEPS) {
         toast.success(lead ? 'הליד עודכן' : 'הליד נשמר');
         onSaved?.();
@@ -169,6 +177,7 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
       }
     } catch (e) {
       console.error('[GuidedLeadFlow] save error', e);
+      console.error('[GuidedLeadFlow] save error (full):', JSON.stringify(e, Object.getOwnPropertyNames(e || {})));
       toast.error('שגיאה בשמירה: ' + (e?.message || ''));
     } finally {
       setBusy(false);
