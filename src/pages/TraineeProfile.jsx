@@ -2419,7 +2419,8 @@ export default function TraineeProfile() {
         .from('sessions')
         .select('*')
         .eq('trainee_id', user.id)
-        .order('date', { ascending: false });
+        .order('date', { ascending: false })
+        .order('time', { ascending: false });
       if (error) {
         console.warn('[TraineeProfile] sessions query failed:', error.message);
         return [];
@@ -4955,8 +4956,15 @@ export default function TraineeProfile() {
                     {/* Upcoming */}
                     {(() => {
                       const today = new Date().toISOString().split('T')[0];
-                      const upcomingSessions = [...sessions].filter(s => s.date >= today).sort((a, b) => new Date(a.date) - new Date(b.date));
-                      const pastSessions = [...sessions].filter(s => s.date < today).sort((a, b) => new Date(b.date) - new Date(a.date));
+                      // Newest first (latest at the top) — date desc, then
+                      // time desc. String compare on 'YYYY-MM-DD' / 'HH:MM'
+                      // is chronological and avoids Invalid-Date NaN sorts.
+                      const byDateTimeDesc = (a, b) => {
+                        const d = String(b.date || '').localeCompare(String(a.date || ''));
+                        return d !== 0 ? d : String(b.time || '').localeCompare(String(a.time || ''));
+                      };
+                      const upcomingSessions = [...sessions].filter(s => s.date >= today).sort(byDateTimeDesc);
+                      const pastSessions = [...sessions].filter(s => s.date < today).sort(byDateTimeDesc);
                       return (<>
                         {upcomingSessions.length > 0 && (
                           <div>
@@ -5908,8 +5916,18 @@ export default function TraineeProfile() {
             onSubmit={async (data) => {
               setSavingNewSession(true);
               try {
+                // Guarantee the new row carries THIS profile's trainee.
+                // Opened from Meir's profile, the coach may not re-pick him
+                // in the participant chip; without a top-level trainee_id the
+                // ['trainee-sessions'] query (.eq('trainee_id', user.id))
+                // filters the fresh session out → "session didn't appear".
+                const ensuredParticipants = (Array.isArray(data.participants) && data.participants.length > 0)
+                  ? data.participants
+                  : [{ trainee_id: user.id, trainee_name: user.full_name, attendance_status: 'ממתין' }];
                 const created = await base44.entities.Session.create({
                   ...data,
+                  trainee_id: data.trainee_id || user.id,
+                  participants: ensuredParticipants,
                   location: data.location || "לא צוין",
                   duration: data.duration || 60,
                   coach_id: currentUser?.id,
