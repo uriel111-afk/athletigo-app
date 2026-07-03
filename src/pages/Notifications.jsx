@@ -96,7 +96,15 @@ export default function Notifications() {
     queryKey: ['notifications', user?.id],
     queryFn: async () => {
       try {
-        return await base44.entities.Notification.filter({ user_id: user?.id }, '-created_at');
+        // Bound the fetch so the inbox can't grow unbounded: last 6 months,
+        // newest 200 rows. Older notifications are history, not actionable.
+        const since = new Date();
+        since.setMonth(since.getMonth() - 6);
+        return await base44.entities.Notification.filter(
+          { user_id: user?.id, created_at: { $gte: since.toISOString() } },
+          '-created_at',
+          200,
+        );
       } catch (e) {
         console.warn('[Notifications] fetch failed:', e?.message);
         toast.error('שגיאה בטעינת ההתראות: ' + (e?.message || 'נסה לרענן'));

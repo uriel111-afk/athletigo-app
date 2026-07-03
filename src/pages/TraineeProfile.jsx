@@ -63,6 +63,7 @@ import { openPlanEditor } from "@/utils/openPlanEditor";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
 import { syncPackageStatus } from "@/lib/packageStatus";
+import { notifyServiceCompletedOnce } from "@/lib/notify";
 import PhysicalMetricsManager from "../components/PhysicalMetricsManager";
 import MessageCenter from "../components/MessageCenter";
 import GoalFormDialog from "../components/forms/GoalFormDialog";
@@ -2841,15 +2842,16 @@ export default function TraineeProfile() {
                       } catch {}
                     }
                     if (remaining <= 0 && isNowAttended) {
-                      try {
-                        await base44.entities.Notification.create({
-                          user_id: currentUser?.id || coach?.id,
-                          type: 'service_completed',
-                          title: 'חבילה הסתיימה',
-                          message: `חבילה "${activePackage.package_name || 'חבילה'}" של ${user.full_name} הסתיימה — 0 מפגשים נותרו`,
-                          is_read: false,
-                        });
-                      } catch {}
+                      // De-duplicated: shared guard skips if the coach already
+                      // has an unread service_completed for this package (keyed
+                      // on related_id), so this path and useServiceDeduction
+                      // can't both notify for the same completion.
+                      await notifyServiceCompletedOnce({
+                        coachId: currentUser?.id || coach?.id,
+                        packageId: activePackage.id,
+                        packageName: activePackage.package_name,
+                        traineeName: user.full_name,
+                      });
                     }
                 }
             }

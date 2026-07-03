@@ -2,6 +2,7 @@ import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { syncPackageStatus } from "@/lib/packageStatus";
 import { supabase } from "@/lib/supabaseClient";
+import { notifyServiceCompletedOnce } from "@/lib/notify";
 
 /**
  * Smart deduction based on package type:
@@ -86,15 +87,14 @@ export async function deductSessionFromService(session, coachId) {
     }
     if (newRemaining <= 0) {
       toast.warning(`חבילה "${pkgName}" הסתיימה`);
-      try {
-        await base44.entities.Notification.create({
-          user_id: coachId,
-          type: "service_completed",
-          title: "חבילה הסתיימה",
-          message: `חבילה "${pkgName}" של ${service.trainee_name || "מתאמן"} הסתיימה`,
-          is_read: false,
-        });
-      } catch {}
+      // De-duplicated: shared guard skips if the coach already has an
+      // unread service_completed for this package (see notify.js).
+      await notifyServiceCompletedOnce({
+        coachId,
+        packageId: service.id,
+        packageName: pkgName,
+        traineeName: service.trainee_name,
+      });
     }
 
     return { deducted: true, newRemaining };

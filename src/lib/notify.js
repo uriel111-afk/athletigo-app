@@ -19,6 +19,48 @@ export function isEnabled(type, prefs) {
   return NOTIFICATION_TYPES[type]?.recommended ?? true;
 }
 
+/**
+ * Insert a coach "חבילה הסתיימה" (service_completed) notification, de-duplicated
+ * per package. Two completion code paths — useServiceDeduction.deductSessionFromService
+ * and TraineeProfile's session-status mutation — can both fire for the same event;
+ * this guard skips the insert when an unread service_completed for the same
+ * coach + package (via related_id) already exists, so the coach never gets two
+ * identical alerts. Also blocks re-fires from toggling a session attended/unattended.
+ */
+export async function notifyServiceCompletedOnce({ coachId, packageId, packageName, traineeName }) {
+  if (!coachId) return null;
+  try {
+    let q = supabase
+      .from('notifications')
+      .select('id')
+      .eq('user_id', coachId)
+      .eq('type', 'service_completed')
+      .eq('is_read', false);
+    // related_id carries the package id so both call sites converge on one guard.
+    if (packageId) q = q.eq('related_id', packageId);
+    const { data: existing } = await q.limit(1);
+    if (existing && existing.length > 0) return null;
+
+    const { data: row, error } = await supabase
+      .from('notifications')
+      .insert({
+        user_id: coachId,
+        type: 'service_completed',
+        title: 'חבילה הסתיימה',
+        message: `חבילה "${packageName || 'חבילה'}" של ${traineeName || 'מתאמן'} הסתיימה`,
+        related_id: packageId || null,
+        is_read: false,
+      })
+      .select()
+      .single();
+    if (error) { console.error('[notify] service_completed error:', error); return null; }
+    return row;
+  } catch (e) {
+    console.error('[notify] service_completed exception:', e);
+    return null;
+  }
+}
+
 export async function createNotification({ userId, type, message, data = {}, traineeId = null }) {
   try {
     const { data: u } = await supabase
