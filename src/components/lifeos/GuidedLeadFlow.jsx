@@ -203,6 +203,14 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
 
   const back = () => setStep((s) => Math.max(1, s - 1));
 
+  // Closing via the X (or backdrop) after any step advance means a lead
+  // was already created/updated (leadId is set). Tell the parent to
+  // refresh its list so the new/edited lead shows without a remount.
+  const handleClose = () => {
+    if (leadId) onSaved?.();
+    onClose();
+  };
+
   // Send a content item over WhatsApp + record it on the lead.
   const sendContent = async (item) => {
     const url = waLink(form.phone, `${item.message}\n${item.url}`);
@@ -227,7 +235,7 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
         display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <button type="button" onClick={onClose} aria-label="סגור" style={iconBtn}>
+          <button type="button" onClick={handleClose} aria-label="סגור" style={iconBtn}>
             <X size={22} color="#5C4A3A" />
           </button>
           <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1A1A' }}>

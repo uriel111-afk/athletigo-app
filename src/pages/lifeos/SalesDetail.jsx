@@ -64,7 +64,7 @@ export default function SalesDetail() {
   );
 
   return (
-    <LifeOSLayout title="פירוט מכירות" rightSlot={
+    <LifeOSLayout title="פירוט מכירות" onQuickSaved={load} rightSlot={
       <button onClick={load} aria-label="רענן" style={iconBtn}>
         <RefreshCw size={16} />
       </button>

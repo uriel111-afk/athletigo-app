@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
+import { useInvalidateRelated } from "@/lib/useInvalidateRelated";
 
 // "What happened with this session?" prompt for confirmed sessions
 // whose date has passed without the coach updating the status.
@@ -23,6 +24,7 @@ const COLORS = {
 };
 
 export default function SessionFollowupDialog({ session, onClose }) {
+  const invalidate = useInvalidateRelated();
   const [step, setStep] = useState('main');     // main / completed / no_show / reschedule
   const [newDate, setNewDate] = useState(session?.date || '');
   const [pkg, setPkg] = useState(null);
@@ -101,6 +103,10 @@ export default function SessionFollowupDialog({ session, onClose }) {
         try { await supabase.from('client_services').update(pkgUpdate).eq('id', pkg.id); }
         catch (e) { console.warn('[SessionFollowup] package bump failed:', e?.message); }
       }
+      // Refresh coach Sessions list, trainee profile sessions tab, and
+      // (when deducted) package balances everywhere.
+      invalidate('session_change', session.trainee_id);
+      if (deductFromPackage && pkg?.id) invalidate('package_change', session.trainee_id);
       toast.success('המפגש סומן כהושלם ✓');
       onClose?.();
     } catch (err) {
@@ -117,6 +123,7 @@ export default function SessionFollowupDialog({ session, onClose }) {
         status: kind,
         status_updated_at: new Date().toISOString(),
       }).eq('id', session.id);
+      invalidate('session_change', session.trainee_id);
       toast.success(kind === 'no_show' ? 'סומן: לא הגיע/ה' : 'סומן: בוטל');
       onClose?.();
     } catch (err) {
@@ -133,6 +140,7 @@ export default function SessionFollowupDialog({ session, onClose }) {
         status: 'confirmed',
         status_updated_at: new Date().toISOString(),
       }).eq('id', session.id);
+      invalidate('session_change', session.trainee_id);
       toast.success(`המפגש נדחה ל-${newDate}`);
       onClose?.();
     } catch (err) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -595,8 +595,21 @@ function GoalCard({ goal, isOpen, onToggle, onMeasurementSaved }) {
 }
 
 export default function GoalsTab({ traineeId }) {
+  const queryClient = useQueryClient();
   const [openGoalId, setOpenGoalId] = useState(null);
   const [showNewGoal, setShowNewGoal] = useState(false);
+
+  // Refresh this tab's own list AND the sibling stores that show the
+  // same goals — ProgressTab reads ['goals']/['goal-progress'], the
+  // coach lists read ['trainee-goals']/['my-goals']. Without this a
+  // goal created/measured here stays stale in those views.
+  const refreshGoals = () => {
+    refetch();
+    queryClient.invalidateQueries({ queryKey: ['goals', traineeId] });
+    queryClient.invalidateQueries({ queryKey: ['goal-progress', traineeId] });
+    queryClient.invalidateQueries({ queryKey: ['trainee-goals'] });
+    queryClient.invalidateQueries({ queryKey: ['my-goals'] });
+  };
 
   const { data: goals = [], refetch } = useQuery({
     queryKey: ['goals-v2', traineeId],
@@ -644,7 +657,7 @@ export default function GoalsTab({ traineeId }) {
           goal={goal}
           isOpen={openGoalId === goal.id}
           onToggle={() => setOpenGoalId(openGoalId === goal.id ? null : goal.id)}
-          onMeasurementSaved={refetch}
+          onMeasurementSaved={refreshGoals}
         />
       ))}
 
@@ -667,7 +680,7 @@ export default function GoalsTab({ traineeId }) {
         <NewGoalSheet
           traineeId={traineeId}
           onClose={() => setShowNewGoal(false)}
-          onSaved={() => { refetch(); setShowNewGoal(false); }}
+          onSaved={() => { refreshGoals(); setShowNewGoal(false); }}
         />
       )}
     </div>

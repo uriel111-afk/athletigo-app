@@ -35,7 +35,7 @@ import { daysUntilBirthday } from "@/lib/dateHelpers";
 // personal_records row + total PB count for this trainee. Renders
 // nothing while loading or when no records exist. Click navigates
 // to the achievements tab in the trainee profile.
-function RecordsHomeCard({ userId }) {
+function RecordsHomeCard({ userId, refreshToken }) {
   const [latest, setLatest] = useState(null);
   const [pbCount, setPbCount] = useState(0);
 
@@ -68,7 +68,7 @@ function RecordsHomeCard({ userId }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [userId, refreshToken]);
 
   if (!latest) return null;
 
@@ -181,6 +181,9 @@ export default function TraineeHome() {
   // a one-shot welcome popup fires.
   const [showHealthForm, setShowHealthForm] = useState(false);
   const [showNewRecord, setShowNewRecord] = useState(false);
+  // Bumped after a new personal record is saved so the (useState-based)
+  // RecordsHomeCard re-fetches — invalidateQueries can't reach it.
+  const [recordsRefreshToken, setRecordsRefreshToken] = useState(0);
   const [showPreHealth, setShowPreHealth] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [pendingSessionId, setPendingSessionId] = useState(null);
@@ -943,9 +946,12 @@ export default function TraineeHome() {
         currentUserId={user?.id}
         isCoach={false}
         onSuccess={() => {
-          // Refresh the home card + the achievements query in profile.
-          // Both keys live under 'personal-records' (TanStack invalidates
-          // by prefix-matching key arrays).
+          // Refresh the home card (useState-based → bump its token) plus
+          // the achievements queries used in the profile (prefix match).
+          setRecordsRefreshToken((n) => n + 1);
+          queryClient.invalidateQueries({ queryKey: ['personal-records'] });
+          queryClient.invalidateQueries({ queryKey: ['goals'] });
+          queryClient.invalidateQueries({ queryKey: ['goal-progress'] });
         }}
       />
 
@@ -1416,7 +1422,7 @@ export default function TraineeHome() {
             count from the achievements tab. Renders only when at least
             one record exists; click → opens the achievements tab in
             the trainee profile. */}
-        <RecordsHomeCard userId={user?.id} />
+        <RecordsHomeCard userId={user?.id} refreshToken={recordsRefreshToken} />
 
         {/* Trainee can self-log a record only when the coach has
             granted view_progress (same gate that exposes the

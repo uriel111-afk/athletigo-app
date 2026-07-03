@@ -49,6 +49,10 @@ export default function TraineeNoteDialog({
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
       queryClient.invalidateQueries({ queryKey: ['users-list'] });
       queryClient.invalidateQueries({ queryKey: ['trainee', traineeId] });
+      // An open trainee profile reads its data from these keys — refresh
+      // them so the note shows without a manual reload.
+      queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['target-user-profile', traineeId] });
       toast.success('✅ ההערה נשמרה');
       onClose && onClose();
     },

@@ -222,6 +222,8 @@ export default function FastAttendanceDialog({
       queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
       queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+      // This dialog's own weekly-quota / eligibility history query.
+      queryClient.invalidateQueries({ queryKey: ['group-session-history', group?.id] });
       toast.success('✅ הנוכחות נשמרה והאימון נוצר');
       if (typeof onCreated === 'function') onCreated();
       onClose && onClose();

@@ -784,6 +784,7 @@ export default function SessionFormDialog({
                     // app (coach Sessions page uses ['sessions'],
                     // TraineeProfile uses ['trainee-sessions']).
                     queryClient.invalidateQueries({ queryKey: ['sessions'] });
+                    queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
                     queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
                     queryClient.invalidateQueries({ queryKey: ['trainee-today-session'] });
                     toast.success(`הסטטוס עודכן ל-${newStatus}`);
@@ -1566,6 +1567,7 @@ export default function SessionFormDialog({
         onConfirm={() => {
           setSessionForm(prev => ({ ...prev, status: 'הושלם' }));
           queryClient.invalidateQueries({ queryKey: ['sessions'] });
+          queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
           queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
           queryClient.invalidateQueries({ queryKey: ['trainee-today-session'] });
           setOverrideTarget(null);

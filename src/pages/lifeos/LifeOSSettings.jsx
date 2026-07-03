@@ -66,7 +66,7 @@ export default function LifeOSSettings() {
   const firstName = (user?.full_name || '').split(' ')[0] || '';
 
   return (
-    <LifeOSLayout title="הגדרות">
+    <LifeOSLayout title="הגדרות" onQuickSaved={load}>
       {/* User card */}
       <div style={{ ...LIFEOS_CARD, marginBottom: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: LIFEOS_COLORS.textSecondary, marginBottom: 10 }}>

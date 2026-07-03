@@ -143,7 +143,7 @@ export default function StreakDetail() {
   };
 
   return (
-    <LifeOSLayout title="פירוט רצף ימים" rightSlot={
+    <LifeOSLayout title="פירוט רצף ימים" onQuickSaved={load} rightSlot={
       <button onClick={load} aria-label="רענן" style={iconBtn}>
         <RefreshCw size={16} />
       </button>

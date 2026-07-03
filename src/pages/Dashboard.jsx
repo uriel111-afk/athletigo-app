@@ -747,6 +747,15 @@ export default function Dashboard() {
         isLoading={createLeadMutation.isPending} />
       <SessionFormDialog isOpen={isSessionDialogOpen} coachId={coach?.id} onClose={() => setIsSessionDialogOpen(false)}
         onSubmit={async (data) => {
+          // Require an identifiable trainee — without a picked participant
+          // the row saves with trainee_id null and disappears from every
+          // .eq('trainee_id', …) list (trainee profile sessions, etc.).
+          const hasTrainee = !!data?.trainee_id
+            || (Array.isArray(data?.participants) && data.participants.some((p) => p?.trainee_id));
+          if (!hasTrainee) {
+            toast.error("יש לבחור מתאמן למפגש");
+            return;
+          }
           // Honor 'הושלם' from the form (past-date heuristic in
           // SessionFormDialog) so retroactive sessions don't get
           // forced back into "ממתין לאישור".

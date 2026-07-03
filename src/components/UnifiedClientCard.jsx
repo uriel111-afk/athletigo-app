@@ -384,6 +384,8 @@ export default function UnifiedClientCard({
       queryClient.invalidateQueries({ queryKey: ['all-services'] });
       queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
       queryClient.invalidateQueries({ queryKey: ['my-services'] });
+      // Canonical roster/dashboard package list.
+      queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
       setShowAddService(false);
       setEditingService(null);
       setServiceForm({
@@ -413,6 +415,8 @@ export default function UnifiedClientCard({
       queryClient.invalidateQueries({ queryKey: ['all-services'] });
       queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
       queryClient.invalidateQueries({ queryKey: ['my-services'] });
+      // Canonical roster/dashboard package list.
+      queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
       setShowEditService(false);
       setEditingService(null);
       toast.success("✅ שירות עודכן");
@@ -429,6 +433,8 @@ export default function UnifiedClientCard({
       queryClient.invalidateQueries({ queryKey: ['all-services'] });
       queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
       queryClient.invalidateQueries({ queryKey: ['my-services'] });
+      // Canonical roster/dashboard package list.
+      queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
       toast.success("✅ שירות נמחק");
     },
     onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),

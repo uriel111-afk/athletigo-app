@@ -3328,6 +3328,10 @@ export default function TraineeProfile() {
         .eq('id', pkg.id);
       queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+      // This profile's own package + sessions tabs read these keys —
+      // without them the linked/used counts here stay stale.
+      queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
+      queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
     } catch (err) {
       console.error('[TraineeProfile] refreshLinkedAfterChange error:', err);
     }

@@ -52,7 +52,7 @@ export default function RevenueDetail() {
   );
 
   return (
-    <LifeOSLayout title="פירוט הכנסה" rightSlot={
+    <LifeOSLayout title="פירוט הכנסה" onQuickSaved={load} rightSlot={
       <button onClick={load} aria-label="רענן" style={iconBtn}>
         <RefreshCw size={16} />
       </button>

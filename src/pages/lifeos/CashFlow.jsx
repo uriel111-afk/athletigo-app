@@ -153,7 +153,7 @@ export default function CashFlow() {
   }
 
   return (
-    <LifeOSLayout title="תזרים מזומנים">
+    <LifeOSLayout title="תזרים מזומנים" onQuickSaved={load}>
       {/* Alerts */}
       {alerts.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>

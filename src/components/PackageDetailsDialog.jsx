@@ -66,6 +66,8 @@ export default function PackageDetailsDialog({ isOpen, onClose, packageData, onE
         units_changed: 0, notes: `סטטוס שונה ל-${newStatus}`, created_by: null,
       }).catch(() => {});
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
+      // Trainee profile package tab reads its own key.
+      queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
       toast.success("סטטוס עודכן");
       onClose();
     } catch (e) {

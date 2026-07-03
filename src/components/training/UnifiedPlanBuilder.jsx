@@ -2031,7 +2031,15 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
       if (shouldUpdatePlanStatus && !plan.is_template) {
         await base44.entities.TrainingPlan.update(plan.id, { status: 'הושלמה' });
+        // The plan just flipped to 'הושלמה' — bust every list that shows
+        // plan status/history so it doesn't keep reading as active.
+        queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+        queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
+        queryClient.invalidateQueries({ queryKey: ['workouts-plan-details'] });
       }
+      // Refresh workout-history lists regardless of the status flip.
+      queryClient.invalidateQueries({ queryKey: ['my-workout-history'] });
+      queryClient.invalidateQueries({ queryKey: ['trainee-workout-history'] });
 
       toast.success("🎉 האימון נשמר ביומן ההיסטוריה!");
       // Navigation back is owned by the caller (the "סיום אימון" button

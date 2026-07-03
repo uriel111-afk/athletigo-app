@@ -151,7 +151,7 @@ export default function Momentum() {
   useEffect(() => { load(); }, [load]);
 
   return (
-    <LifeOSLayout title="מומנטום">
+    <LifeOSLayout title="מומנטום" onQuickSaved={load}>
       {!loaded || !data ? (
         <div style={{ ...LIFEOS_CARD, textAlign: 'center', padding: '20px 0' }}>
           <div style={{ fontSize: 13, color: LIFEOS_COLORS.textSecondary }}>טוען...</div>

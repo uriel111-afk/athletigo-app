@@ -3,9 +3,11 @@ import { supabase } from "@/lib/supabaseClient";
 import { X, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { syncPackageStatus } from "@/lib/packageStatus";
+import { useInvalidateRelated } from "@/lib/useInvalidateRelated";
 import MiniTimerBar from "./MiniTimerBar";
 
 export default function SessionEditModal({ session, isOpen, onClose }) {
+  const invalidate = useInvalidateRelated();
   const [formData, setFormData] = useState({
     date: "",
     time: "",
@@ -177,6 +179,10 @@ export default function SessionEditModal({ session, isOpen, onClose }) {
 
       toast.success("המפגש עודכן בהצלחה");
       window.dispatchEvent(new Event("data-changed"));
+      // Refresh session lists everywhere; also push package balances
+      // when this save deducted a session from a package.
+      invalidate('session_change', traineeId);
+      if (shouldDeduct && selectedPackageId) invalidate('package_change', traineeId);
       if (draftKey) { try { localStorage.removeItem(draftKey); } catch {} }
       onClose();
 
@@ -251,6 +257,10 @@ export default function SessionEditModal({ session, isOpen, onClose }) {
         .eq('id', session.id);
       toast.success("המפגש בוטל");
       window.dispatchEvent(new Event("data-changed"));
+      // Refresh session lists; also push the restored package balance
+      // back to the services lists when this cancel refunded a session.
+      invalidate('session_change', traineeId);
+      if (session.was_deducted && session.service_id) invalidate('package_change', traineeId);
       onClose();
     } catch (err) {
       toast.error("שגיאה במחיקה: " + (err?.message || "נסה שוב"));

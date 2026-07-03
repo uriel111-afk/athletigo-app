@@ -261,6 +261,8 @@ export default function Sessions() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      // Each participant's trainee-profile sessions tab reads this key.
+      queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
       setShowGroupSessionDialog(false);
       setSelectedGroup(null);
       toast.success('✅ אימון קבוצתי נוצר לכל חברי הקבוצה');
@@ -276,6 +278,8 @@ export default function Sessions() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      // Each participant's trainee-profile sessions tab reads this key.
+      queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
       setMarkingGroupAttendance(null);
       toast.success('✅ נוכחות עודכנה לכל חברי הקבוצה');
     },
@@ -398,6 +402,20 @@ export default function Sessions() {
     if (!coach || !coach.id) {
       toast.error("שגיאה: לא ניתן לטעון את פרטי המאמן. אנא רענן את הדף.");
       return;
+    }
+
+    // Require an identifiable trainee on new sessions. Without a picked
+    // participant the row saves with trainee_id null and then vanishes
+    // from every .eq('trainee_id', …) list (trainee profile, etc.).
+    // Block the save rather than persist a ghost session.
+    if (!editingSession) {
+      const hasTrainee = !!sessionData?.trainee_id
+        || (Array.isArray(sessionData?.participants)
+            && sessionData.participants.some((p) => p?.trainee_id));
+      if (!hasTrainee) {
+        toast.error("יש לבחור מתאמן למפגש");
+        return;
+      }
     }
 
     // Casual-trainee gate: when the booked trainee's client_status is
@@ -571,6 +589,8 @@ export default function Sessions() {
       }
       toast.success("✅ נוכחות נרשמה ויתרות עודכנו");
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
+      // Trainee profile package tab reads its own key.
+      queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
       invalidateDashboard(queryClient);
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     }
@@ -608,6 +628,8 @@ export default function Sessions() {
 
       toast.success("סטטוס עודכן וזיכויים הוחזרו");
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
+      // Trainee profile package tab reads its own key.
+      queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
       invalidateDashboard(queryClient);
     }
   };

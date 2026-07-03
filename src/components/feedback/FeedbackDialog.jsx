@@ -1,6 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -35,6 +35,7 @@ const CATEGORIES = [
 export default function FeedbackDialog({ open, onClose }) {
   const { user } = useContext(AuthContext);
   const location = useLocation();
+  const queryClient = useQueryClient();
   const [category, setCategory] = useState('bug');
   const [message, setMessage] = useState('');
 
@@ -59,6 +60,8 @@ export default function FeedbackDialog({ open, onClose }) {
       return base44.entities.AppFeedback.create(payload);
     },
     onSuccess: () => {
+      // Refresh the admin feedback inbox if it's mounted in this session.
+      queryClient.invalidateQueries({ queryKey: ['app-feedback'] });
       toast.success('תודה! הפידבק נשלח');
       setMessage('');
       setCategory('bug');
