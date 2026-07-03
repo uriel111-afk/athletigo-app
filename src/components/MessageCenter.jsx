@@ -60,7 +60,7 @@ export default function MessageCenter({ currentUserId, currentUserName, otherUse
   const markAsReadMutation = useMutation({
     mutationFn: async (messageIds) => {
       for (const id of messageIds) {
-        await base44.entities.Message.update(id, { isRead: true });
+        await base44.entities.Message.update(id, { is_read: true });
       }
     },
     onSuccess: () => {

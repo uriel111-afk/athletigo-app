@@ -169,6 +169,32 @@ export default function UnifiedClientCard({
     onError: (err) => toast.error("❌ שגיאה: " + (err?.message || "נסה שוב")),
   });
 
+  // Coach note — persisted to users.additional_notes, the same column
+  // TraineeNoteDialog writes. This is an "add" action, so append to any
+  // existing note (newline-separated) instead of overwriting it.
+  const saveNoteMutation = useMutation({
+    mutationFn: async (noteText) => {
+      const trimmed = (noteText || "").trim();
+      if (!trimmed) throw new Error("הערה ריקה");
+      const existing = (currentClient?.additional_notes || "").trim();
+      const next = existing ? `${existing}\n${trimmed}` : trimmed;
+      return await base44.entities.User.update(noteTraineeId, { additional_notes: next });
+    },
+    onSuccess: (updatedUser) => {
+      setCurrentClient(updatedUser);
+      // Same keys TraineeNoteDialog busts so an open profile reflects it.
+      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
+      queryClient.invalidateQueries({ queryKey: ['users-list'] });
+      queryClient.invalidateQueries({ queryKey: ['trainee', noteTraineeId] });
+      queryClient.invalidateQueries({ queryKey: ['current-user-trainee-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['target-user-profile', noteTraineeId] });
+      clearNoteDraft();
+      toast.success("✅ הערה נשמרה");
+      setShowAddNote(false);
+    },
+    onError: (err) => toast.error("❌ שגיאה בשמירה: " + (err?.message || "נסה שוב")),
+  });
+
   const deleteClientMutation = useMutation({
     mutationFn: async (clientId) => {
       const clientServices = await base44.entities.ClientService.filter({ trainee_id: clientId });
@@ -1685,7 +1711,8 @@ export default function UnifiedClientCard({
           <DialogHeader><DialogTitle className="text-base md:text-lg">הוסף הערה</DialogTitle></DialogHeader>
           <div className="space-y-3 md:space-y-4">
             <div><Label className="text-xs md:text-sm">הערת מאמן</Label><Textarea value={noteForm.note_text} onChange={(e) => setNoteForm({...noteForm, note_text: e.target.value})} className="rounded-xl min-h-[100px] md:min-h-[120px] text-sm md:text-base" placeholder="הקלד הערה..." /></div>
-            <Button onClick={() => { clearNoteDraft(); toast.success("✅ הערה נשמרה"); setShowAddNote(false); }} className="w-full rounded-xl py-3 md:py-4 text-white text-sm md:text-base" style={{ backgroundColor: '#FF6F20' }}>
+            <Button onClick={() => saveNoteMutation.mutate(noteForm.note_text)} disabled={saveNoteMutation.isPending || !noteForm.note_text?.trim()} className="w-full rounded-xl py-3 md:py-4 text-white text-sm md:text-base" style={{ backgroundColor: '#FF6F20' }}>
+              {saveNoteMutation.isPending ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : null}
               שמור הערה
             </Button>
           </div>
