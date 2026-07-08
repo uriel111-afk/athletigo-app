@@ -4981,6 +4981,9 @@ export default function TraineeProfile() {
                       const displayStatus = participant?.attendance_status || session.status || 'ממתין';
                       const typeColors = { 'אישי': { bg: '#F3E8FF', border: '#D8B4FE', text: '#7C3AED' }, 'קבוצתי': { bg: '#DBEAFE', border: '#93C5FD', text: '#2563EB' }, 'אונליין': { bg: '#D1FAE5', border: '#6EE7B7', text: '#059669' } };
                       const tc = typeColors[session.session_type] || typeColors['אישי'];
+                      // Package this session is linked to (in-memory lookup
+                      // against already-fetched `services`; null if unlinked).
+                      const linkedPkg = session.service_id ? services.find(s => s.id === session.service_id) : null;
                       // Status palette covers both Hebrew (legacy +
                       // current coach UI) and English (new canonical
                       // values from the casual onboarding pipeline).
@@ -5009,6 +5012,9 @@ export default function TraineeProfile() {
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: tc.bg, color: tc.text, border: `1px solid ${tc.border}` }}>{session.session_type}</span>
                                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${statusColors[displayStatus] || 'bg-gray-100 text-gray-800'}`}>{displayStatus}</span>
+                                {linkedPkg && (
+                                  <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 999, background: '#FFF3EB', color: '#FF6F20', fontWeight: 700 }}>📦 {linkedPkg.package_name || linkedPkg.group_name || 'חבילה'}</span>
+                                )}
                               </div>
                               <h4 className="font-bold text-base text-gray-900">{format(new Date(session.date), 'EEEE, dd/MM/yy', { locale: he })}</h4>
                               <p className="text-xs text-gray-500">{session.time} • {session.location || 'לא צוין'} • {session.duration || 60} דקות</p>
@@ -5128,6 +5134,7 @@ export default function TraineeProfile() {
                                 const displayStatus = participant?.attendance_status || session.status || 'ממתין';
                                 const typeColors = { 'אישי': { bg: '#F3E8FF', border: '#D8B4FE', text: '#7C3AED' }, 'קבוצתי': { bg: '#DBEAFE', border: '#93C5FD', text: '#2563EB' }, 'אונליין': { bg: '#D1FAE5', border: '#6EE7B7', text: '#059669' } };
                                 const tc = typeColors[session.session_type] || typeColors['אישי'];
+                                const linkedPkg = session.service_id ? services.find(s => s.id === session.service_id) : null;
                                 const statusColors = { 'הגיע': 'bg-green-100 text-green-800', 'התקיים': 'bg-green-100 text-green-800', 'הושלם': 'bg-emerald-100 text-emerald-800', 'מאושר': 'bg-blue-100 text-blue-800', 'בוטל': 'bg-red-100 text-red-800', 'בוטל על ידי מאמן': 'bg-red-100 text-red-800', 'לא הגיע': 'bg-orange-100 text-orange-800', 'ממתין': 'bg-yellow-100 text-yellow-800', 'ממתין לאישור': 'bg-yellow-100 text-yellow-800' };
                                 return (
                                   <div key={session.id} className="bg-gray-50 rounded-xl border border-gray-100 p-3" dir="rtl">
@@ -5136,6 +5143,9 @@ export default function TraineeProfile() {
                                         <div className="flex items-center gap-2 mb-1">
                                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: tc.bg, color: tc.text }}>{session.session_type}</span>
                                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${statusColors[displayStatus] || 'bg-gray-100 text-gray-800'}`}>{displayStatus}</span>
+                                          {linkedPkg && (
+                                            <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 999, background: '#FFF3EB', color: '#FF6F20', fontWeight: 700 }}>📦 {linkedPkg.package_name || linkedPkg.group_name || 'חבילה'}</span>
+                                          )}
                                         </div>
                                         <div className="text-sm font-bold text-gray-700">{format(new Date(session.date), 'dd/MM/yy', { locale: he })}</div>
                                         <div className="text-xs text-gray-400">{session.time} • {session.location || 'לא צוין'}</div>
