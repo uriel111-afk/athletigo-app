@@ -29,6 +29,56 @@ const SOURCE_CHIPS = [
   { key: 'אינסטגרם',  label: 'אינסטגרם' },
   { key: 'אחר',       label: 'אחר' },
 ];
+// Second-row sub-detail per source (flyer + landing page share one set).
+const FLYER_SUB_CHIPS = [
+  { key: 'תנועה בכיף', label: 'תנועה בכיף' },
+  { key: 'כללי',       label: 'כללי' },
+  { key: 'אחר',        label: 'אחר' },
+];
+const INSTAGRAM_SUB_CHIPS = [
+  { key: 'פוסט אורגני',  label: 'פוסט אורגני' },
+  { key: 'מודעה ממומנת', label: 'מודעה ממומנת' },
+];
+
+// Combine the source chip + its sub-detail into one readable `source`
+// string (e.g. "פלייר · תנועה בכיף", "המלצה · דנה כהן").
+function composeSource(f) {
+  const s = f.source;
+  if (!s) return null;
+  if (s === 'אחר') return (f.source_other || '').trim() || 'אחר';
+  if (s === 'המלצה') {
+    const who = (f.source_sub_text || '').trim();
+    return who ? `המלצה · ${who}` : 'המלצה';
+  }
+  if (s === 'פלייר' || s === 'דף נחיתה') {
+    if (f.source_sub === 'אחר') {
+      const t = (f.source_sub_text || '').trim();
+      return `${s} · ${t || 'אחר'}`;
+    }
+    return f.source_sub ? `${s} · ${f.source_sub}` : s;
+  }
+  if (s === 'אינסטגרם') return f.source_sub ? `אינסטגרם · ${f.source_sub}` : 'אינסטגרם';
+  return s;
+}
+
+// Parse a saved `source` string back into chip + sub-detail for editing.
+function parseSource(raw) {
+  if (!raw) return { source: 'אינסטגרם', source_other: '', source_sub: '', source_sub_text: '' };
+  const idx = raw.indexOf(' · ');
+  const top = idx >= 0 ? raw.slice(0, idx) : raw;
+  const detail = idx >= 0 ? raw.slice(idx + 3) : '';
+  const isPreset = SOURCE_CHIPS.some((c) => c.key === top) && top !== 'אחר';
+  if (!isPreset) return { source: 'אחר', source_other: raw, source_sub: '', source_sub_text: '' };
+  const out = { source: top, source_other: '', source_sub: '', source_sub_text: '' };
+  if (top === 'המלצה') out.source_sub_text = detail;
+  else if (top === 'פלייר' || top === 'דף נחיתה') {
+    if (detail === 'תנועה בכיף' || detail === 'כללי') out.source_sub = detail;
+    else if (detail) { out.source_sub = 'אחר'; out.source_sub_text = detail; }
+  } else if (top === 'אינסטגרם') {
+    if (detail === 'פוסט אורגני' || detail === 'מודעה ממומנת') out.source_sub = detail;
+  }
+  return out;
+}
 const BARRIER_CHIPS = [
   { key: 'זמן',    label: 'זמן' },
   { key: 'כסף',    label: 'כסף' },
@@ -82,7 +132,7 @@ const tomorrowISO = () => new Date(Date.now() + 86_400_000).toISOString().slice(
 
 const blankForm = () => ({
   for_whom: '', name: '', phone: '', email: '', trainee_name: '', age: '',
-  source: 'אינסטגרם', source_other: '',
+  source: 'אינסטגרם', source_other: '', source_sub: '', source_sub_text: '',
   why_now: '',
   objections: '', barrier_type: '',
   background_level: '', sports_experience: '', injury_level: '', injuries: '',
@@ -97,17 +147,16 @@ const blankForm = () => ({
 
 function fromLead(lead) {
   if (!lead) return blankForm();
-  // A saved source that isn't one of the preset chips is a free-text
-  // "אחר" value — show it in the reveal input and keep the chip on אחר.
-  const preset = SOURCE_CHIPS.some((c) => c.key === lead.source);
+  // Parse the saved single-string source back into chip + sub-detail.
+  const ps = parseSource(lead.source);
   return {
     ...blankForm(),
     for_whom: lead.for_whom || '',
     name: lead.name || '', phone: lead.phone || '', email: lead.email || '',
     trainee_name: lead.trainee_name || '',
     age: lead.age != null ? String(lead.age) : '',
-    source: preset ? (lead.source || 'אינסטגרם') : 'אחר',
-    source_other: preset ? '' : (lead.source || ''),
+    source: ps.source, source_other: ps.source_other,
+    source_sub: ps.source_sub, source_sub_text: ps.source_sub_text,
     why_now: lead.why_now || '',
     objections: lead.objections || '', barrier_type: lead.barrier_type || '',
     background_level: lead.background_level || '',
@@ -190,7 +239,7 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
       email: f.email.trim() || null,
       trainee_name: (f.trainee_name || '').trim() || null,
       age: f.age ? parseInt(f.age, 10) : null,
-      source: (f.source === 'אחר' ? ((f.source_other || '').trim() || 'אחר') : f.source) || null,
+      source: composeSource(f),
       why_now: f.why_now || null,
       objections: f.objections || null,
       barrier_type: f.barrier_type || null,
@@ -384,10 +433,31 @@ function Step1({ form, set }) {
         <Field label="שם המתאמן/ת (אם שונה)"><input style={inp} value={form.trainee_name} onChange={(e) => set({ trainee_name: e.target.value })} placeholder="אופציונלי" /></Field>
       </div>
       <Field label="מקור">
-        <ChipRow options={SOURCE_CHIPS} value={form.source} onPick={(k) => set({ source: k })} wrap />
+        <ChipRow options={SOURCE_CHIPS} value={form.source}
+          onPick={(k) => set({ source: k, source_sub: '', source_sub_text: '', ...(k === 'אחר' ? {} : { source_other: '' }) })} wrap />
       </Field>
+      {/* Source sub-detail (optional — never blocks Next) */}
       {form.source === 'אחר' && (
         <input style={inp} value={form.source_other} onChange={(e) => set({ source_other: e.target.value })} placeholder="מאיפה הגיע/ה?" />
+      )}
+      {(form.source === 'פלייר' || form.source === 'דף נחיתה') && (
+        <div style={{ marginInlineStart: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <ChipRow small options={FLYER_SUB_CHIPS} value={form.source_sub}
+            onPick={(k) => set({ source_sub: k, ...(k === 'אחר' ? {} : { source_sub_text: '' }) })} wrap />
+          {form.source_sub === 'אחר' && (
+            <input style={inp} value={form.source_sub_text} onChange={(e) => set({ source_sub_text: e.target.value })} placeholder={`איזה ${form.source}?`} />
+          )}
+        </div>
+      )}
+      {form.source === 'המלצה' && (
+        <div style={{ marginInlineStart: 14 }}>
+          <input style={inp} value={form.source_sub_text} onChange={(e) => set({ source_sub_text: e.target.value })} placeholder="ממי?" />
+        </div>
+      )}
+      {form.source === 'אינסטגרם' && (
+        <div style={{ marginInlineStart: 14 }}>
+          <ChipRow small options={INSTAGRAM_SUB_CHIPS} value={form.source_sub} onPick={(k) => set({ source_sub: k })} wrap />
+        </div>
       )}
     </div>
   );
@@ -669,7 +739,7 @@ function SavedSummary({ form, onDone }) {
     ['שם המתאמן/ת', form.trainee_name],
     ['טלפון', form.phone],
     ['גיל', form.age],
-    ['מקור', form.source === 'אחר' ? form.source_other : form.source],
+    ['מקור', composeSource(form)],
     ['למה עכשיו', form.why_now],
     ['החסם', form.objections],
     ['סוג חסם', form.barrier_type],
@@ -750,17 +820,17 @@ function Field({ label, children }) {
   );
 }
 
-function ChipRow({ options, value, onPick, wrap }) {
+function ChipRow({ options, value, onPick, wrap, small }) {
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: wrap ? 'wrap' : 'nowrap', overflowX: wrap ? 'visible' : 'auto', scrollbarWidth: 'none' }}>
       {options.map((o) => {
         const active = value === o.key;
         return (
           <button key={o.key} type="button" onClick={() => onPick(o.key)} style={{
-            padding: '7px 13px', borderRadius: 999, cursor: 'pointer', flexShrink: 0,
+            padding: small ? '5px 10px' : '7px 13px', borderRadius: 999, cursor: 'pointer', flexShrink: 0,
             border: active ? `2px solid ${ORANGE}` : '1px solid #F0E4D0',
             background: active ? ORANGE : '#fff', color: active ? '#fff' : '#3a3a3a',
-            fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
+            fontSize: small ? 12 : 13, fontWeight: 600, whiteSpace: 'nowrap',
           }}>{o.label}</button>
         );
       })}
