@@ -8,7 +8,20 @@ export default function NotificationBadge({ userId, onClick, inline = false }) {
     queryKey: ['notifications', userId],
     queryFn: async () => {
       try {
-        return await base44.entities.Notification.filter({ user_id: userId }, '-created_at');
+        // Same bounded fetch as the Notifications page (last 6 months,
+        // newest 200) so the bell badge counts EXACTLY what the page
+        // displays — one source of truth. They share this queryKey, so
+        // the queryFn must match to avoid a bounded-vs-unbounded skew
+        // (older/beyond-200 unread rows inflating the badge only).
+        const since = new Date();
+        since.setMonth(since.getMonth() - 6);
+        const rows = await base44.entities.Notification.filter(
+          { user_id: userId, created_at: { $gte: since.toISOString() } },
+          '-created_at',
+          200,
+        );
+        console.log('[NotificationBadge] raw rows:', rows?.length ?? 0);
+        return rows;
       } catch {
         return [];
       }
@@ -18,10 +31,10 @@ export default function NotificationBadge({ userId, onClick, inline = false }) {
     enabled: !!userId
   });
 
-  // Counter logic: live unread rows only. A reminder waiting to fire
-  // sits as is_read=false until App.jsx's polling loop pops it (which
-  // sets is_read=true), so reminders due naturally appear in this
-  // count without extra plumbing. handled / deleted rows are excluded.
+  // Counter logic: live unread rows only — identical predicate to the
+  // Notifications page (visibleNotifications + unreadCount). A reminder
+  // waiting to fire sits as is_read=false until App.jsx's polling loop
+  // pops it. handled / deleted rows are excluded.
   const unreadCount = notifications.filter(
     n => !n.is_read && n.status !== 'deleted' && n.status !== 'handled'
   ).length;

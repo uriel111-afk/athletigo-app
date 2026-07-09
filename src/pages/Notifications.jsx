@@ -319,12 +319,45 @@ export default function Notifications() {
   const [filterTrainee, setFilterTrainee] = useState('all');
   const traineeIdFromNotif = (n) => {
     if (n.data?.trainee_id) return n.data.trainee_id;
+    if (n.trainee_id) return n.trainee_id;
     if (n.link && typeof n.link === 'string' && n.link.includes('userId=')) {
       const part = n.link.split('userId=')[1] || '';
       return decodeURIComponent(part.split('&')[0] || '') || null;
     }
     return null;
   };
+
+  // Resolve real trainee names by the actual ids present in the
+  // notifications — the source of truth. The previous roster-only
+  // lookup was filtered by coach_id and missed trainees, so cards fell
+  // back to the generic "מתאמן". Selects id + full_name only (users has
+  // no avatar_url column).
+  const notifTraineeIds = useMemo(() => {
+    const s = new Set();
+    for (const n of visibleNotifications) {
+      const tid = traineeIdFromNotif(n);
+      if (tid) s.add(tid);
+    }
+    return Array.from(s);
+  }, [visibleNotifications]);
+
+  const { data: traineeNameMap = {} } = useQuery({
+    queryKey: ['notif-trainee-names', user?.id, notifTraineeIds.slice().sort().join(',')],
+    queryFn: async () => {
+      if (!notifTraineeIds.length) return {};
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, full_name')
+        .in('id', notifTraineeIds);
+      if (error) { console.warn('[Notifications] name lookup failed:', error.message); return {}; }
+      console.log('[Notifications] trainee-name lookup raw:', { ids: notifTraineeIds, rows: data });
+      const m = {};
+      for (const u of (data || [])) m[u.id] = u.full_name;
+      return m;
+    },
+    enabled: !!user?.id && notifTraineeIds.length > 0,
+    initialData: {},
+  });
 
   const filteredNotifications = useMemo(() => {
     return visibleNotifications.filter(n => {
@@ -352,6 +385,7 @@ export default function Notifications() {
       const tid = traineeIdFromNotif(n) || 'system';
       const lookupName = tid !== 'system'
         ? (n.data?.trainee_name
+            || traineeNameMap[tid]
             || coachTrainees.find(t => t.id === tid)?.full_name
             || 'מתאמן')
         : 'התראות מערכת';
@@ -366,7 +400,7 @@ export default function Notifications() {
       if (a.unreadCount !== b.unreadCount) return b.unreadCount - a.unreadCount;
       return b.notifications.length - a.notifications.length;
     });
-  }, [filteredNotifications, coachTrainees]);
+  }, [filteredNotifications, coachTrainees, traineeNameMap]);
 
   const toggleGroup = (id) => {
     setExpandedGroups(prev => {
@@ -422,14 +456,15 @@ export default function Notifications() {
   return (
     <div className="min-h-screen w-full overflow-x-hidden" style={{ backgroundColor: 'var(--cream)' }} dir="rtl">
 
-      {/* A. Page header */}
+      {/* A. Page header — wraps on narrow phones so the title never
+          gets clipped by the action links (RTL). */}
       <div style={{
         display: 'flex', justifyContent: 'space-between',
-        alignItems: 'center', padding: '16px',
+        alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: '16px',
         direction: 'rtl', background: 'white',
         borderBottom: '0.5px solid var(--ag-border)',
       }}>
-        <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--ag-text)' }}>
+        <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--ag-text)', flexShrink: 0, whiteSpace: 'nowrap' }}>
           🔔 התראות
           {unreadCount > 0 && (
             <span style={{ fontSize: '14px', color: 'var(--ag-accent)', marginRight: '6px' }}>
@@ -437,7 +472,7 @@ export default function Notifications() {
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 12, rowGap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {isCoach && (
             <button
               onClick={() => setShowSend(true)}
