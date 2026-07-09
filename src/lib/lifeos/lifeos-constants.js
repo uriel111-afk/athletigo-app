@@ -626,6 +626,29 @@ export const SALES_SUPPORT_BY_STEP = {
   8: { general: SALES_OFFER_GENERAL, byPersona: SALES_OFFER_BY_PERSONA },
   9: { general: SALES_CLOSING },
 };
+
+// Card colour language: stamp a `type` onto every phrase in
+// SALES_SUPPORT_BY_STEP. 'confirm' = a yes-gathering question; 'guide' =
+// instruction-only (no quoted line); 'speak' = everything else.
+const CONFIRM_MARKERS = [
+  'נשמע לך כמו כיוון שמתאים למה שתיארת לי?',
+  'איך זה נשמע לך עד עכשיו?',
+  'תפסתי אותך בזמן טוב לשתי דקות?',
+];
+function classifyPhraseType(p) {
+  if (!p || !p.line || !String(p.line).trim()) return 'guide';
+  if (CONFIRM_MARKERS.some((m) => p.line.includes(m))) return 'confirm';
+  return 'speak';
+}
+for (const cfg of Object.values(SALES_SUPPORT_BY_STEP)) {
+  for (const p of (cfg.general || [])) p.type = classifyPhraseType(p);
+  if (cfg.byPersona) {
+    for (const arr of Object.values(cfg.byPersona)) {
+      for (const p of arr) p.type = classifyPhraseType(p);
+    }
+  }
+}
+
 export const LEAD_PERSONAS = [
   { key: 'parent',     label: 'הורה' },
   { key: 'beginner',   label: 'מתחיל' },

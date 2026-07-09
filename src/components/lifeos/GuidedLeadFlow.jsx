@@ -916,12 +916,91 @@ function salesPhrasesFor(step, persona) {
   return out;
 }
 
-// Collapsible "משפטי עזר לשלב" card at the top of each step. Bold dark
-// spoken line + muted italic delivery note (💡) — same pattern as the
-// objection bank. Renders nothing for steps with no content (e.g. 7).
+// Card colour language (3 types). RTL: 4px accent bar on the right,
+// radius only on the left corners. Lumen-ish hex where no token exists.
+const SALES_CARD_STYLE = {
+  speak:   { bg: '#FAECE7', border: '#F0997B', accent: '#D85A30', tag: '🎤 להקריא',              tagColor: '#993C1D', lineColor: '#4A1B0C', lineWeight: 500, noteColor: '#993C1D', dot: '#D85A30' },
+  confirm: { bg: '#EAF3DE', border: '#97C459', accent: '#639922', tag: '✓ שאלת אישור — לאסוף כן', tagColor: '#3B6D11', lineColor: '#173404', lineWeight: 600, noteColor: '#3B6D11', dot: '#639922' },
+  guide:   { bg: 'var(--ag-bg, #FBF3EA)', border: '#E0DCD3', accent: '#888780', tag: 'הנחיה — לא להקריא', tagColor: '#7A756B', lineColor: '#7A756B', lineWeight: 500, noteColor: '#7A756B', dot: '#888780' },
+};
+
+function PhraseCard({ p, index, total, srcLabel, stacked }) {
+  const s = SALES_CARD_STYLE[p.type] || SALES_CARD_STYLE.speak;
+  const isGuide = p.type === 'guide' || !p.line;
+  return (
+    <div style={{
+      flex: stacked ? '0 0 auto' : '0 0 88%',
+      width: stacked ? '100%' : undefined,
+      scrollSnapAlign: stacked ? undefined : 'start',
+      boxSizing: 'border-box',
+      background: s.bg,
+      border: `0.5px solid ${s.border}`,
+      borderRight: `4px solid ${s.accent}`,
+      borderTopLeftRadius: 12, borderBottomLeftRadius: 12,
+      borderTopRightRadius: 0, borderBottomRightRadius: 0,
+      padding: '12px 14px',
+      display: 'flex', flexDirection: 'column', gap: 6,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ flex: 1, fontSize: 11, fontWeight: 800, color: s.tagColor }}>{s.tag}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: s.tagColor, opacity: 0.75 }}>{index + 1} מתוך {total}</span>
+      </div>
+      {isGuide ? (
+        <div style={{ fontSize: 13.5, fontStyle: 'italic', color: s.lineColor, lineHeight: 1.5 }}>
+          {p.note || p.line || ''}
+        </div>
+      ) : (
+        <>
+          <div style={{ fontSize: 17, fontWeight: s.lineWeight, color: s.lineColor, lineHeight: 1.5, whiteSpace: 'pre-wrap', userSelect: 'text' }}>
+            {(p.line || '').replace(/\{source\}/g, srcLabel || 'הפרסום')}
+          </div>
+          {p.note && (
+            <div style={{ fontSize: 11.5, fontStyle: 'italic', color: s.noteColor, lineHeight: 1.45 }}>💡 {p.note}</div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// Collapsible "משפטי עזר לשלב" — an effortless swipe carousel for live
+// calls: peek + scroll-snap, dots (coloured by card type), a "N מתוך N"
+// tag per card, and a 500ms long-press to toggle "מבט־על" (stacked
+// list). Native touch scroll only — no arrows, no nav click handlers.
 function SalesPanel({ step, persona, srcLabel, open, onToggle }) {
   const phrases = salesPhrasesFor(step, persona);
+  const scrollRef = useRef(null);
+  const lpTimer = useRef(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [overview, setOverview] = useState(false);
+
+  // Reset the carousel to the first card on every step change.
+  useEffect(() => {
+    setActiveIdx(0);
+    setOverview(false);
+    const el = scrollRef.current;
+    if (el) el.scrollLeft = 0;
+  }, [step]);
+
   if (phrases.length === 0) return null;
+
+  // Active card = the one whose right edge (RTL start) is nearest the
+  // container's right edge. RTL-safe regardless of scrollLeft sign.
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const cont = el.getBoundingClientRect();
+    let best = 0, bestDist = Infinity;
+    Array.from(el.children).forEach((c, i) => {
+      const dist = Math.abs(c.getBoundingClientRect().right - cont.right);
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    });
+    setActiveIdx(best);
+  };
+
+  const startLP = () => { clearTimeout(lpTimer.current); lpTimer.current = setTimeout(() => setOverview((v) => !v), 500); };
+  const cancelLP = () => clearTimeout(lpTimer.current);
+
   return (
     <div dir="rtl" style={{
       background: '#FFFFFF', border: '2px solid #FF6F20', borderRadius: 12,
@@ -936,23 +1015,52 @@ function SalesPanel({ step, persona, srcLabel, open, onToggle }) {
         <span style={{ fontSize: 14, color: '#FF6F20', fontWeight: 800 }}>{open ? '−' : '+'}</span>
       </button>
       {open && (
-        <div style={{ padding: '0 14px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {/* Fixed reminder at the top of the panel */}
-          <div style={{ fontSize: 11, fontStyle: 'italic', color: '#9A8F82', lineHeight: 1.45 }}>
-            פחות לדבר, יותר לשאול — תן לליד לדבר
-          </div>
-          {phrases.map((p, i) => (
-            <div key={i}>
-              <div style={{ fontSize: 13.5, fontWeight: 700, lineHeight: 1.55, color: '#1a1a1a', whiteSpace: 'pre-wrap', userSelect: 'text' }}>
-                {(p.line || '').replace(/\{source\}/g, srcLabel || 'הפרסום')}
-              </div>
-              {p.note && (
-                <div style={{ fontSize: 11, fontStyle: 'italic', color: '#9A8F82', lineHeight: 1.45, marginTop: 3 }}>
-                  💡 {p.note}
-                </div>
-              )}
+        <div
+          onPointerDown={startLP}
+          onPointerUp={cancelLP}
+          onPointerMove={cancelLP}
+          onPointerCancel={cancelLP}
+          onPointerLeave={cancelLP}
+          style={{ padding: '0 12px 12px' }}
+        >
+          <style>{`.sales-carousel::-webkit-scrollbar{display:none}`}</style>
+          {/* Static reminder + overview toggle chip */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 2px 8px' }}>
+            <div style={{ flex: 1, fontSize: 11, fontStyle: 'italic', color: '#9A8F82', lineHeight: 1.45 }}>
+              פחות לדבר, יותר לשאול — תן לליד לדבר
             </div>
-          ))}
+            <button type="button" onClick={() => setOverview((v) => !v)} style={{
+              flexShrink: 0, border: '1px solid #F0E4D0', background: '#fff', color: '#5C4A3A',
+              borderRadius: 999, padding: '4px 10px', fontSize: 11, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap',
+            }}>{overview ? 'קרוסלה' : 'מבט־על'}</button>
+          </div>
+
+          {overview ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {phrases.map((p, i) => (
+                <PhraseCard key={i} p={p} index={i} total={phrases.length} srcLabel={srcLabel} stacked />
+              ))}
+            </div>
+          ) : (
+            <>
+              <div ref={scrollRef} onScroll={onScroll} className="sales-carousel" style={{
+                display: 'flex', gap: 8, overflowX: 'auto', scrollSnapType: 'x mandatory',
+                WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', paddingBottom: 2,
+              }}>
+                {phrases.map((p, i) => (
+                  <PhraseCard key={i} p={p} index={i} total={phrases.length} srcLabel={srcLabel} />
+                ))}
+              </div>
+              {/* Dots — coloured by each card's type; active dot elongated. */}
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 8 }}>
+                {phrases.map((p, i) => {
+                  const s = SALES_CARD_STYLE[p.type] || SALES_CARD_STYLE.speak;
+                  const active = i === activeIdx;
+                  return <div key={i} style={{ width: active ? 18 : 7, height: 7, borderRadius: 999, background: active ? s.dot : '#E0D6C7', transition: 'all .2s' }} />;
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
