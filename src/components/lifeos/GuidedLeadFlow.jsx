@@ -12,7 +12,7 @@ const STEP_TITLES = [
   'פתיחה', 'למה עכשיו', 'החסם', 'רקע ופציעות', 'חזון',
   'מסגרת', 'שיקוף', 'מפגש היכרות', 'סגירה',
 ];
-const INTRO_PRICE = 39;
+const INTRO_PRICE = 49; // non-personal path now = the 49₪ digital product
 const PERSONAL_INTRO_PRICE = 350;
 
 // ── Chip option sets (values stored verbatim in the DB) ──────────────
@@ -663,27 +663,30 @@ function Step8({ form, set }) {
   const [copied, setCopied] = useState(false);
   const hasPhone = !!normalizePhone(form.phone);
 
-  // Dual pricing by chosen framework: personal → paid diagnostic; every
-  // other track → the low-friction 39₪ trial.
+  // Dual path: personal → 350₪ paid diagnostic (unchanged); every other
+  // track → the 49₪ digital product.
   const isPersonal = form.interested_in === 'personal';
   const amount = isPersonal ? PERSONAL_INTRO_PRICE : INTRO_PRICE;
   const payTitle = isPersonal
     ? `מפגש אבחון אישי · ${PERSONAL_INTRO_PRICE} ₪ · מתקזז במלואו בהמשך לליווי`
-    : `שיעור ניסיון · ${INTRO_PRICE} ₪ · מתקזז ברכישה`;
+    : `הדרכה דיגיטלית · ${INTRO_PRICE} ₪ · 7 ימים של תנועה ראשונה`;
   const payScript = isPersonal
     ? 'מפגש אבחון אישי מלא — נבדוק את הגוף, נבנה נקודת פתיחה ותצא/י עם תוכנית. 350 שקלים, והסכום מתקזז במלואו אם ממשיכים לליווי.'
-    : 'הצעד הראשון פשוט — שיעור ניסיון ב-39 שקלים שמתקזזים ברכישה. מתי נוח לך?';
+    : PRESCRIPTION_DIGITAL.line;
 
   const genLink = async () => {
     setPayBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke('payment-create', {
         body: {
-          amount, // matches the selected framework at click time
-          description: `${isPersonal ? 'מפגש אבחון אישי' : 'שיעור ניסיון'} · AthletiGo`,
+          amount, // matches the selected path at click time
+          // Personal path description unchanged; non-personal = digital product.
+          description: isPersonal ? 'מפגש אבחון אישי · AthletiGo' : 'הדרכה דיגיטלית — 7 ימים של תנועה ראשונה',
           trainee_name: form.name || form.trainee_name || '',
           trainee_email: form.email || '',
           trainee_phone: form.phone || '',
+          // No 'digital_product' type exists in the payments flow — every
+          // caller uses 'single_session', so we keep it here too.
           payment_type: 'single_session',
         },
       });
@@ -691,6 +694,9 @@ function Step8({ form, set }) {
       const url = data?.url || data?.checkoutUrl;
       if (!url) throw new Error(data?.error || 'לא התקבל קישור תשלום');
       setPayUrl(url);
+      // Generating a digital (non-personal) link means the digital add-on
+      // was offered — record it on the lead.
+      if (!isPersonal) set({ digital_offered: 'yes' });
       toast.success('נוצר קישור תשלום');
     } catch (e) {
       console.error('[GuidedLeadFlow] payment-create error', e);
@@ -729,7 +735,7 @@ function Step8({ form, set }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: payBusy ? 0.6 : 1,
           }}>
             {payBusy ? <Loader2 size={16} className="animate-spin" /> : <Link2 size={16} />}
-            יצירת קישור תשלום
+            {isPersonal ? 'יצירת קישור תשלום' : 'יצירת קישור תשלום — 49 ₪'}
           </button>
         ) : (
           <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
