@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Copy, Check, MessageCircle, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { statusForDetail, OBJECTION_BANK_BY_STEP } from '@/lib/lifeos/lifeos-constants';
+import { statusForDetail, OBJECTION_BANK_BY_STEP, SALES_SUPPORT_BY_STEP, LEAD_PERSONAS } from '@/lib/lifeos/lifeos-constants';
 import { addLead, updateLead } from '@/lib/lifeos/lifeos-api';
 import { waLink, normalizePhone } from '@/lib/lifeos/lead-helpers';
 import { supabase } from '@/lib/supabaseClient';
@@ -133,6 +133,7 @@ const tomorrowISO = () => new Date(Date.now() + 86_400_000).toISOString().slice(
 const blankForm = () => ({
   for_whom: '', name: '', phone: '', email: '', trainee_name: '', age: '',
   source: 'אינסטגרם', source_other: '', source_sub: '', source_sub_text: '',
+  persona: '',
   why_now: '',
   objections: '', barrier_type: '',
   background_level: '', sports_experience: '', injury_level: '', injuries: '',
@@ -157,6 +158,7 @@ function fromLead(lead) {
     age: lead.age != null ? String(lead.age) : '',
     source: ps.source, source_other: ps.source_other,
     source_sub: ps.source_sub, source_sub_text: ps.source_sub_text,
+    persona: lead.persona || '',
     why_now: lead.why_now || '',
     objections: lead.objections || '', barrier_type: lead.barrier_type || '',
     background_level: lead.background_level || '',
@@ -204,6 +206,10 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
   const [objHelp, setObjHelp] = useState(false);
   const [objOpen, setObjOpen] = useState(null);
   const [objAll, setObjAll] = useState(false);
+  // Sales-support layer: yes-counter (call-scoped, no DB) + phrases-panel
+  // expanded state (default open).
+  const [yesCount, setYesCount] = useState(0);
+  const [salesOpen, setSalesOpen] = useState(true);
   const mirroredRef = useRef(false);
 
   useEffect(() => {
@@ -214,6 +220,8 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
     setObjHelp(false);
     setObjOpen(null);
     setObjAll(false);
+    setYesCount(0);
+    setSalesOpen(true);
     mirroredRef.current = false;
   }, [isOpen, lead]);
 
@@ -242,6 +250,7 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
       trainee_name: (f.trainee_name || '').trim() || null,
       age: f.age ? parseInt(f.age, 10) : null,
       source: composeSource(f),
+      persona: f.persona || null,
       why_now: f.why_now || null,
       objections: f.objections || null,
       barrier_type: f.barrier_type || null,
@@ -338,13 +347,27 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
           <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1A1A' }}>
             {step}/{TOTAL_STEPS} · {STEP_TITLES[step - 1]}
           </div>
-          <div style={{ width: 34 }} />
+          {/* Yes-counter — tap each time the lead agrees. Call-scoped
+              only (no DB). */}
+          <button
+            type="button"
+            onClick={() => setYesCount((c) => c + 1)}
+            title="אסוף כן קטנים לאורך הדרך"
+            aria-label="מונה כן"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              border: '1.5px solid #16a34a', background: yesCount > 0 ? '#16a34a' : '#fff',
+              color: yesCount > 0 ? '#fff' : '#16a34a', borderRadius: 999,
+              padding: '4px 10px', fontSize: 13, fontWeight: 800, cursor: 'pointer',
+            }}
+          >כן ✓ {yesCount}</button>
         </div>
         <Dots step={step} />
       </div>
 
       {/* Step body */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '4px 14px 10px' }}>
+        <SalesPanel step={step} persona={form.persona} srcLabel={srcLabel} open={salesOpen} onToggle={() => setSalesOpen((v) => !v)} />
         {step === 1 && <Step1 form={form} set={set} />}
         {step === 2 && <Step2 form={form} set={set} />}
         {step === 3 && <Step3 form={form} set={set} />}
@@ -524,6 +547,11 @@ function Step3({ form, set }) {
       </Field>
       <Field label="סוג החסם">
         <ChipRow options={BARRIER_CHIPS} value={form.barrier_type} onPick={(k) => set({ barrier_type: k })} wrap />
+      </Field>
+      {/* Persona picker — drives the tailored sales phrases from here on.
+          Single-select, persists on the lead (persona column). */}
+      <Field label="פרסונה (בחר/י אחת)">
+        <ChipRow options={LEAD_PERSONAS} value={form.persona} onPick={(k) => set({ persona: form.persona === k ? '' : k })} wrap />
       </Field>
     </div>
   );
@@ -834,6 +862,59 @@ function Dots({ step }) {
           }} />
         );
       })}
+    </div>
+  );
+}
+
+// Sales-support phrases for a step = general + (if a persona is chosen)
+// that persona's phrases for the step.
+function salesPhrasesFor(step, persona) {
+  const cfg = SALES_SUPPORT_BY_STEP[step];
+  if (!cfg) return [];
+  const out = [...(cfg.general || [])];
+  if (persona && cfg.byPersona && cfg.byPersona[persona]) out.push(...cfg.byPersona[persona]);
+  return out;
+}
+
+// Collapsible "משפטי עזר לשלב" card at the top of each step. Bold dark
+// spoken line + muted italic delivery note (💡) — same pattern as the
+// objection bank. Renders nothing for steps with no content (e.g. 7).
+function SalesPanel({ step, persona, srcLabel, open, onToggle }) {
+  const phrases = salesPhrasesFor(step, persona);
+  if (phrases.length === 0) return null;
+  return (
+    <div dir="rtl" style={{
+      background: '#FFFFFF', border: '2px solid #FF6F20', borderRadius: 12,
+      marginBottom: 10, overflow: 'hidden',
+    }}>
+      <button type="button" onClick={onToggle} style={{
+        width: '100%', textAlign: 'right', border: 'none', cursor: 'pointer',
+        background: 'transparent', padding: '10px 14px',
+        display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <span style={{ flex: 1, fontSize: 13, fontWeight: 800, color: '#FF6F20' }}>משפטי עזר לשלב</span>
+        <span style={{ fontSize: 14, color: '#FF6F20', fontWeight: 800 }}>{open ? '−' : '+'}</span>
+      </button>
+      {open && (
+        <div style={{ padding: '0 14px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Fixed reminder at the top of the panel */}
+          <div style={{ fontSize: 11, fontStyle: 'italic', color: '#9A8F82', lineHeight: 1.45 }}>
+            פחות לדבר, יותר לשאול — תן לליד לדבר
+          </div>
+          {phrases.map((p, i) => (
+            <div key={i}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, lineHeight: 1.55, color: '#1a1a1a', whiteSpace: 'pre-wrap', userSelect: 'text' }}>
+                {(p.line || '').replace(/\{source\}/g, srcLabel || 'הפרסום')}
+              </div>
+              {p.note && (
+                <div style={{ fontSize: 11, fontStyle: 'italic', color: '#9A8F82', lineHeight: 1.45, marginTop: 3 }}>
+                  💡 {p.note}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

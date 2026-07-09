@@ -42,11 +42,25 @@ export default function Login() {
     navigate(destination, { replace: true });
   };
 
+  // A coordinator whose account was deactivated (client_status='inactive'
+  // via the team section) is signed out immediately with a Hebrew notice.
+  // Only affects role==='coordinator'; trainee/coach login is untouched.
+  const blockIfDeactivatedCoordinator = async (profile) => {
+    if (profile?.role === 'coordinator' && profile?.client_status === 'inactive') {
+      await supabase.auth.signOut();
+      setError('החשבון הושבת — פנה למנהל');
+      toast.error('החשבון הושבת — פנה למנהל');
+      return true;
+    }
+    return false;
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         try {
           const profile = await base44.auth.me();
+          if (await blockIfDeactivatedCoordinator(profile)) return;
           redirectAfterLogin(profile);
         } catch (error) {
           await supabase.auth.signOut();
@@ -90,6 +104,9 @@ export default function Login() {
         }
         throw profileError;
       }
+
+      // Deactivated coordinator → sign out with a Hebrew notice.
+      if (await blockIfDeactivatedCoordinator(profile)) { setIsLoading(false); return; }
 
       // Three independent completion signals — any one of them is enough.
       // The legacy `onboarding_completed` boolean is never written by the
