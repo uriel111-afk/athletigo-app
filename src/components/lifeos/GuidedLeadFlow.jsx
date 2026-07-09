@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Copy, Check, MessageCircle, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { statusForDetail, OBJECTION_BANK } from '@/lib/lifeos/lifeos-constants';
+import { statusForDetail, OBJECTION_BANK_BY_STEP } from '@/lib/lifeos/lifeos-constants';
 import { addLead, updateLead } from '@/lib/lifeos/lifeos-api';
 import { waLink, normalizePhone } from '@/lib/lifeos/lead-helpers';
 import { supabase } from '@/lib/supabaseClient';
@@ -203,6 +203,7 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
   const [busy, setBusy] = useState(false);
   const [objHelp, setObjHelp] = useState(false);
   const [objOpen, setObjOpen] = useState(null);
+  const [objAll, setObjAll] = useState(false);
   const mirroredRef = useRef(false);
 
   useEffect(() => {
@@ -212,6 +213,7 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
     setStep(1);
     setObjHelp(false);
     setObjOpen(null);
+    setObjAll(false);
     mirroredRef.current = false;
   }, [isOpen, lead]);
 
@@ -309,6 +311,16 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
   };
   const finishAll = () => { onSaved?.(); onClose(); };
 
+  // Objection helper: current step's objections by default, or the full
+  // cross-step list when "הצג הכל" is on. {source} in a line is filled
+  // with the lead's source so it reads naturally.
+  const srcLabel = form.source === 'אחר'
+    ? ((form.source_other || '').trim() || 'הפרסום')
+    : (form.source || 'הפרסום');
+  const objList = objAll
+    ? Object.entries(OBJECTION_BANK_BY_STEP).flatMap(([st, items]) => items.map((it, i) => ({ ...it, _key: `${st}-${i}` })))
+    : (OBJECTION_BANK_BY_STEP[step] || []).map((it, i) => ({ ...it, _key: `${step}-${i}` }));
+
   return (
     <div dir="rtl" style={{
       position: 'fixed', inset: 0, background: 'var(--cream, #FBF3EA)', zIndex: 1600,
@@ -355,13 +367,27 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
               boxShadow: '0 8px 24px rgba(0,0,0,0.16)', zIndex: 2,
               maxHeight: '52vh', overflowY: 'auto', padding: 10,
             }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: '#1B5E36', padding: '4px 6px 8px' }}>עזרה בהתנגדות</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px 8px' }}>
+                <div style={{ flex: 1, fontSize: 13, fontWeight: 800, color: '#1B5E36' }}>
+                  עזרה בהתנגדות{objAll ? '' : ` · שלב ${step}`}
+                </div>
+                <button type="button" onClick={() => { setObjAll((v) => !v); setObjOpen(null); }} style={{
+                  padding: '5px 12px', borderRadius: 999, cursor: 'pointer',
+                  border: `1px solid ${objAll ? '#34C759' : '#D9CDBB'}`,
+                  background: objAll ? '#34C759' : '#fff', color: objAll ? '#fff' : '#5C4A3A',
+                  fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
+                }}>{objAll ? 'רק לשלב זה' : 'הצג הכל'}</button>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {OBJECTION_BANK.map((o) => {
-                  const open = objOpen === o.key;
+                {objList.length === 0 ? (
+                  <div style={{ padding: '18px 8px', textAlign: 'center', fontSize: 13, color: '#9A8F82' }}>
+                    אין התנגדויות נפוצות לשלב זה — לחצ/י "הצג הכל"
+                  </div>
+                ) : objList.map((o) => {
+                  const open = objOpen === o._key;
                   return (
-                    <div key={o.key} style={{ background: '#F7F3EC', borderRadius: 10, overflow: 'hidden', border: '1px solid #F0E4D0' }}>
-                      <button type="button" onClick={() => setObjOpen(open ? null : o.key)} style={{
+                    <div key={o._key} style={{ background: '#F7F3EC', borderRadius: 10, overflow: 'hidden', border: '1px solid #F0E4D0' }}>
+                      <button type="button" onClick={() => setObjOpen(open ? null : o._key)} style={{
                         width: '100%', textAlign: 'right', padding: '10px 12px', border: 'none', cursor: 'pointer',
                         background: open ? '#EAF7EF' : 'transparent', display: 'flex', alignItems: 'center', gap: 8,
                       }}>
@@ -369,7 +395,22 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
                         <span style={{ fontSize: 13, color: '#34C759', fontWeight: 800 }}>{open ? '−' : '+'}</span>
                       </button>
                       {open && (
-                        <div style={{ padding: '0 12px 12px', fontSize: 13, lineHeight: 1.6, color: '#3a3a3a', whiteSpace: 'pre-wrap' }}>{o.a}</div>
+                        <div style={{ padding: '2px 12px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {o.responses.map((r, ri) => (
+                            <div key={ri}>
+                              {/* Spoken line — bold, dark, selectable */}
+                              <div style={{ fontSize: 13.5, fontWeight: 700, lineHeight: 1.55, color: '#1a1a1a', whiteSpace: 'pre-wrap', userSelect: 'text' }}>
+                                {r.line.replace(/\{source\}/g, srcLabel)}
+                              </div>
+                              {/* Delivery hint — muted italic, NOT read aloud */}
+                              {r.note && (
+                                <div style={{ fontSize: 11, fontStyle: 'italic', color: '#9A8F82', lineHeight: 1.45, marginTop: 3 }}>
+                                  💡 {r.note}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                   );
