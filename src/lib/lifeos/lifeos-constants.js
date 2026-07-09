@@ -612,13 +612,17 @@ const SALES_CLOSING = [
   { line: 'ושאלה אחרונה — מי עוד אתה מכיר שזה יכול להתאים לו? חבר של הילד, שכן, מישהו מהעבודה?',
     note: 'לשאול רק אחרי סגירה — לקוח שאמר כן עכשיו הוא הכי נדיב' },
 ];
+// Per-step phrases, split so each step shows ONLY its own (no
+// repetition). Content is moved by reference from the arrays above —
+// not rewritten. Persona picker stays in step 3; chosen-persona phrases
+// auto-show in steps 3 and 8.
 export const SALES_SUPPORT_BY_STEP = {
-  1: { general: SALES_OPENING },
-  2: { general: SALES_OPENING },
-  3: { general: SALES_NEED_GENERAL, byPersona: SALES_NEED_BY_PERSONA },
-  4: { general: SALES_NEED_GENERAL, byPersona: SALES_NEED_BY_PERSONA },
-  5: { general: SALES_VALUE_GENERAL },
-  6: { general: SALES_VALUE_GENERAL },
+  1: { general: [SALES_OPENING[0]] },                                        // "היי, אני מתקשר/ת..."
+  2: { general: [SALES_OPENING[1]] },                                        // "בשביל עצמך או מישהו אחר?"
+  3: { general: [SALES_NEED_GENERAL[0]], byPersona: SALES_NEED_BY_PERSONA }, // "מה גרם לך..." + persona
+  4: { general: [SALES_NEED_GENERAL[1], SALES_NEED_GENERAL[2]] },            // "מה היית רוצה שיקרה" + family
+  5: { general: [SALES_VALUE_GENERAL[0], SALES_VALUE_GENERAL[1]] },          // two brand-differentiation lines
+  6: { general: [SALES_VALUE_GENERAL[2]] },                                  // confirmation question
   8: { general: SALES_OFFER_GENERAL, byPersona: SALES_OFFER_BY_PERSONA },
   9: { general: SALES_CLOSING },
 };
