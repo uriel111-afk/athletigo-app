@@ -150,21 +150,30 @@ export default function Login() {
       }}
       dir="rtl"
     >
-      {/* TOP — small centered logo + welcome. Shrinkable (flexShrink:1 +
-          overflow hidden) so it collapses first when the keyboard opens;
-          the card never gets compressed. */}
-      <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        textAlign: 'center', gap: 6, flexShrink: 1, minHeight: 0,
-        overflow: 'hidden', paddingTop: 8,
-      }}>
-        <img
-          src="/logoR.png"
-          alt="AthletiGo"
-          style={{ width: 34, height: 'auto', objectFit: 'contain', filter: 'brightness(0)' }}
-        />
-        <div style={{ fontSize: 22, fontWeight: 700, color: '#111', lineHeight: 1.2 }}>ברוכים הבאים 👋</div>
-        <div style={{ fontSize: 13, fontWeight: 500, color: '#888' }}>כניסה למאמנים ומתאמנים</div>
+      {/* TOP — ORIGINAL header design (restored). Three-part row: under
+          dir="rtl" the title paints on the right, the dotted divider in
+          the middle, and the large logo on the left. Shrinkable so it
+          yields first when the keyboard opens. */}
+      <div className="w-full" style={{ maxWidth: 400, margin: '0 auto', marginTop: 8, flexShrink: 1, minHeight: 0, overflow: 'hidden' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          width: '100%', marginBottom: 10,
+        }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 20, fontWeight: 600, color: '#111', lineHeight: 1.25 }}>ברוכים הבאים 👋</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: '#888' }}>כניסה למאמנים ומתאמנים</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+            <div style={{ width: 1, height: 17, background: '#DDD3C4' }} />
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#FF6F20', margin: '3px 0' }} />
+            <div style={{ width: 1, height: 17, background: '#DDD3C4' }} />
+          </div>
+          <img
+            src="/logoR.png"
+            alt="AthletiGo"
+            style={{ width: 92, height: 'auto', objectFit: 'contain', flexShrink: 0, filter: 'brightness(0)' }}
+          />
+        </div>
       </div>
 
       {/* Flexible spacer — pushes the card to the bottom edge. */}
