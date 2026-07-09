@@ -45,7 +45,8 @@ export default function LifeOSNav() {
         backgroundColor: '#FFFFFF', borderTop: `0.5px solid ${LIFEOS_COLORS.border}`,
         boxShadow: '0 -2px 10px rgba(0,0,0,0.04)',
         display: 'flex', justifyContent: 'center', alignItems: 'center',
-        padding: '10px 8px 18px', direction: 'rtl',
+        paddingTop: 10, paddingLeft: 8, paddingRight: 8,
+        paddingBottom: 'max(env(safe-area-inset-bottom), 18px)', direction: 'rtl',
       }}>
         <Link to="/lifeos/leads" style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -138,7 +139,8 @@ export default function LifeOSNav() {
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
-        padding: '10px 8px 18px',
+        paddingTop: 10, paddingLeft: 8, paddingRight: 8,
+        paddingBottom: 'max(env(safe-area-inset-bottom), 18px)',
         direction: 'rtl',
       }}>
         {PRIMARY_TABS.map(item => {

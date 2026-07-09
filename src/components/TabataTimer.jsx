@@ -1003,7 +1003,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     : { bg: '#FFFFFF', fg: '#1A1A1A', border: '1px solid #F0E4D0' };
 
   return (
-    <div style={{ background: bg, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', direction: 'rtl', color: textPrimary, overflow: 'hidden', transition: 'background 0.3s ease, color 0.3s ease', position: 'relative' }}>
+    <div style={{ background: bg, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', paddingTop: 'max(env(safe-area-inset-top), 8px)', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', direction: 'rtl', color: textPrimary, overflow: 'hidden', transition: 'background 0.3s ease, color 0.3s ease', position: 'relative' }}>
       <button
         onClick={handleClockBack}
         onPointerDown={(e) => e.stopPropagation()}

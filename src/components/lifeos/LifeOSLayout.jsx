@@ -8,7 +8,7 @@ import GlobalSearch from './GlobalSearch';
 import { MentorChatIconButton } from './MentorChat';
 import AppSwitcher from '@/components/lifeos/AppSwitcher';
 import { AuthContext } from '@/lib/AuthContext';
-import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
+import { LIFEOS_COLORS, COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 
 // Shell around every Life OS screen.
 export default function LifeOSLayout({ title, children, rightSlot = null, onQuickSaved }) {
@@ -25,8 +25,16 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
-      {/* App switcher pills — only renders for the coach. */}
-      <AppSwitcher />
+      {/* App switcher pills — only render for the master coach. When
+          present it's the top-most element, so its wrapper carries the
+          top safe-area inset (camera cutout). For other roles the
+          AppSwitcher is null and the sticky top bar below owns the
+          inset instead (so no empty double gap). */}
+      {user?.id === COACH_USER_ID && (
+        <div className="safe-area-top" style={{ background: '#FFFFFF' }}>
+          <AppSwitcher />
+        </div>
+      )}
 
       {/* Top bar */}
       <div
@@ -37,7 +45,13 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
           zIndex: 100,
           backgroundColor: '#FFFFFF',
           borderBottom: `0.5px solid ${LIFEOS_COLORS.border}`,
-          padding: '10px 14px',
+          // Real top inset so the sticky bar clears the camera cutout
+          // even while stuck at top:0 (the class alone was overridden
+          // by this inline padding).
+          paddingTop: 'max(env(safe-area-inset-top), 10px)',
+          paddingLeft: 14,
+          paddingRight: 14,
+          paddingBottom: 10,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',

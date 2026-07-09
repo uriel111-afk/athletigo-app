@@ -227,7 +227,13 @@ export default function CoachHub() {
       className="lumen-dashboard"
       style={{
         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-        padding: '24px 16px 40px',
+        // Hub has no app-wide header/nav, so it owns its own safe-area
+        // insets: keep clear of the camera cutout (top) and the gesture
+        // bar (bottom) in the APK.
+        paddingTop: 'calc(24px + env(safe-area-inset-top, 0px))',
+        paddingLeft: 16,
+        paddingRight: 16,
+        paddingBottom: 'calc(40px + env(safe-area-inset-bottom, 0px))',
       }}
     >
       {/* Popup queue: trainee onboarding-complete + session

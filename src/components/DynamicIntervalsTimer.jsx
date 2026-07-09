@@ -858,6 +858,7 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'space-between',
       padding: '8px 14px',
+      paddingTop: 'max(env(safe-area-inset-top), 8px)',
       paddingBottom: 'max(env(safe-area-inset-bottom), 10px)',
       direction: 'rtl', color: textPrimary,
       overflow: 'hidden',

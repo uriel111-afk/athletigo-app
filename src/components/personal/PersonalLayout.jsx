@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import PersonalNav from './PersonalNav';
@@ -6,9 +6,12 @@ import AppSwitcher from '@/components/lifeos/AppSwitcher';
 import GlobalSearch from '@/components/lifeos/GlobalSearch';
 import { MentorChatIconButton } from '@/components/lifeos/MentorChat';
 import { PERSONAL_COLORS } from '@/lib/personal/personal-constants';
+import { AuthContext } from '@/lib/AuthContext';
+import { COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 
 export default function PersonalLayout({ title, children, rightSlot = null }) {
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
 
   return (
     <div
@@ -19,7 +22,13 @@ export default function PersonalLayout({ title, children, rightSlot = null }) {
         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}
     >
-      <AppSwitcher />
+      {/* AppSwitcher is the top-most element (master coach only) → its
+          wrapper carries the top safe-area inset. */}
+      {user?.id === COACH_USER_ID && (
+        <div className="safe-area-top" style={{ background: PERSONAL_COLORS.bg }}>
+          <AppSwitcher />
+        </div>
+      )}
 
       {/* Top bar */}
       <div
@@ -28,7 +37,8 @@ export default function PersonalLayout({ title, children, rightSlot = null }) {
           position: 'sticky', top: 0, zIndex: 100,
           backgroundColor: '#FFFFFF',
           borderBottom: `0.5px solid ${PERSONAL_COLORS.border}`,
-          padding: '10px 14px',
+          paddingTop: 'max(env(safe-area-inset-top), 10px)',
+          paddingLeft: 14, paddingRight: 14, paddingBottom: 10,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           gap: 12,
         }}
