@@ -470,7 +470,7 @@ function Step6({ form, set }) {
 function Step7({ form, set }) {
   return (
     <div style={col}>
-      <ScriptBox>שיקוף — קרא/י ללקוח, וערוך/כי לפי הצורך:</ScriptBox>
+      <ScriptBox label="מה להגיד">שיקוף — קרא/י ללקוח, וערוך/כי לפי הצורך:</ScriptBox>
       <Field label="שיקוף (ניתן לעריכה)">
         <textarea style={{ ...inp, height: 'auto' }} rows={10} value={form.conversation_summary} onChange={(e) => set({ conversation_summary: e.target.value })} placeholder="השיקוף נבנה אוטומטית מהתשובות..." />
       </Field>
@@ -542,7 +542,7 @@ function Step8({ form, set }) {
       {/* Intro-session payment block — dual pricing by framework */}
       <div style={{ background: '#fff', borderRadius: 14, padding: 14, border: `2px solid ${ORANGE}` }}>
         <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1A1A' }}>{payTitle}</div>
-        <ScriptBox>{payScript}</ScriptBox>
+        <ScriptBox label="מה להגיד">{payScript}</ScriptBox>
         {!payUrl ? (
           <button type="button" onClick={genLink} disabled={payBusy} style={{
             marginTop: 10, width: '100%', height: 44, borderRadius: 12, border: 'none', cursor: 'pointer',
@@ -727,14 +727,17 @@ function Dots({ step }) {
   );
 }
 
-// Orange "say this" script box — the shared visual pattern for the wizard.
-function ScriptBox({ children }) {
+// Script box — the shared "say / ask this" pattern for the wizard.
+// White card with an orange border so it stands out from the cream page.
+function ScriptBox({ children, label = 'מה לשאול' }) {
   return (
     <div dir="rtl" style={{
-      background: '#FAECE7', borderRadius: 12, padding: '13px 15px',
-      fontSize: 14, lineHeight: 1.6, color: '#5C3A28', fontWeight: 600,
-      whiteSpace: 'pre-wrap',
-    }}>{children}</div>
+      background: '#FFFFFF', border: '2px solid #FF6F20', borderRadius: 12,
+      padding: '12px 15px',
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#FF6F20', marginBottom: 5 }}>{label}</div>
+      <div style={{ fontSize: 14, lineHeight: 1.6, color: '#1a1a1a', whiteSpace: 'pre-wrap' }}>{children}</div>
+    </div>
   );
 }
 
