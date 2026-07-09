@@ -117,48 +117,49 @@ export default function Login() {
 
   return (
     <div
-      // min-h-screen (100vh) stays as the class-level fallback for
-      // browsers without dvh support; the inline minHeight: '100dvh'
-      // overrides it on modern browsers so the layout follows the
-      // visible viewport when the mobile keyboard is open. The form
-      // is compact enough to fit alongside the open keyboard without
-      // scrolling — no overflow scroll, no bottom runway needed.
-      // paddingBottom keeps the install-banner gutter intact.
-      className="min-h-screen flex flex-col items-center px-4"
+      // Full-height flex column. minHeight:100dvh follows the VISIBLE
+      // viewport, so with the activity's windowSoftInputMode=adjustResize
+      // the WebView shrinks when the keyboard opens and the bottom-
+      // anchored card rides up to sit directly on top of the keyboard.
+      // The top logo/title block is shrinkable and yields first.
+      className="min-h-screen flex flex-col px-4"
       style={{
         minHeight: '100dvh',
-        height: 'auto',
         backgroundColor: "#FFF9F0",
-        paddingTop: 8,
-        paddingBottom: isPWA ? 24 : 160,
+        // Login renders OUTSIDE the app Layout shell (it isn't wrapped by
+        // the LayoutWrapper that carries the v13.1 safe-area padding), so
+        // it needs its own top inset or it slides under the status bar.
+        paddingTop: 'calc(16px + env(safe-area-inset-top, 0px))',
       }}
       dir="rtl"
     >
-      <div className="w-full" style={{ maxWidth: 400, marginTop: 8 }}>
-        {/* Brand — three-part header row. Under dir="rtl", flex source
-            order paints right-to-left, so the title is the first child
-            (lands on the right), the dotted divider sits in the middle,
-            and the logo is the last child (lands on the left). */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          width: '100%', marginBottom: 10,
-        }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 20, fontWeight: 600, color: '#111', lineHeight: 1.25 }}>ברוכים הבאים 👋</div>
-            <div style={{ fontSize: 13, fontWeight: 500, color: '#888' }}>כניסה למאמנים ומתאמנים</div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-            <div style={{ width: 1, height: 17, background: '#DDD3C4' }} />
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#FF6F20', margin: '3px 0' }} />
-            <div style={{ width: 1, height: 17, background: '#DDD3C4' }} />
-          </div>
-          <img
-            src="/logoR.png"
-            alt="AthletiGo"
-            style={{ width: 92, height: 'auto', objectFit: 'contain', flexShrink: 0, filter: 'brightness(0)' }}
-          />
-        </div>
+      {/* TOP — small centered logo + welcome. Shrinkable (flexShrink:1 +
+          overflow hidden) so it collapses first when the keyboard opens;
+          the card never gets compressed. */}
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        textAlign: 'center', gap: 6, flexShrink: 1, minHeight: 0,
+        overflow: 'hidden', paddingTop: 8,
+      }}>
+        <img
+          src="/logoR.png"
+          alt="AthletiGo"
+          style={{ width: 34, height: 'auto', objectFit: 'contain', filter: 'brightness(0)' }}
+        />
+        <div style={{ fontSize: 22, fontWeight: 700, color: '#111', lineHeight: 1.2 }}>ברוכים הבאים 👋</div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: '#888' }}>כניסה למאמנים ומתאמנים</div>
+      </div>
 
+      {/* Flexible spacer — pushes the card to the bottom edge. */}
+      <div style={{ flex: 1, minHeight: 16 }} />
+
+      {/* BOTTOM — login card anchored to the bottom. flexShrink:0 so it
+          stays full-size and above the keyboard; paddingBottom carries
+          the bottom safe-area inset (gesture bar). */}
+      <div className="w-full" style={{
+        maxWidth: 400, margin: '0 auto', flexShrink: 0,
+        paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+      }}>
         {/* Card */}
         <div
           style={{
