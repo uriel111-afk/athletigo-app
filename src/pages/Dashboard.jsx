@@ -415,31 +415,31 @@ export default function Dashboard() {
           <div style={{
             position: 'relative',
             width: '100%',
-            // Uniform ~5% scale-up vs the approved baseline:
-            //   diamond  114 → 120     positions  0/82/164 → 0/86/172
-            //   container 305 → 320    keeps Diamond #4's visible
-            //   bottom-tip (~317) fully inside the container, so no
-            //   spill into Section 4. Same arrangement, same shape,
-            //   just bigger.
-            height: 320,
+            // Density polish (v13.2) — shrink the diamond cluster so the
+            // whole coach home fits one viewport with no scroll:
+            //   diamond  120 → 100     positions  0/86/172 → 0/72/144
+            //   container 320 → 266    still fully contains diamond #4's
+            //   bottom vertex (144 + 100·1.207 ≈ 265). Same arrangement
+            //   and shape, just tighter.
+            height: 266,
             flexShrink: 0,
             margin: '0 auto',
             overflow: 'visible',
           }}>
             {[
               // The + is a text character (not an emoji) so it stays orange.
-              { line1: 'הוסף', line2: 'מתאמן', emoji: '+',  iconSize: 34, iconWeight: 300, iconColor: 'var(--ag-accent)',
+              { line1: 'הוסף', line2: 'מתאמן', emoji: '+',  iconSize: 32, iconWeight: 300, iconColor: 'var(--ag-accent)',
                 onClick: () => setIsAddTraineeOpen(true),
-                pos: { top: 0, left: '50%', marginLeft: -60 } },
-              { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 28, iconColor: 'var(--ag-purple)',
+                pos: { top: 0, left: '50%', marginLeft: -50 } },
+              { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 26, iconColor: 'var(--ag-purple)',
                 onClick: () => setIsLeadDialogOpen(true),
-                pos: { top: 86, right: 18 } },
-              { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 28, iconColor: 'var(--ag-warning)',
+                pos: { top: 72, right: 18 } },
+              { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 26, iconColor: 'var(--ag-warning)',
                 onClick: () => setIsPlanDialogOpen(true),
-                pos: { top: 86, left: 18 } },
-              { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 28, iconColor: 'var(--ag-blue)',
+                pos: { top: 72, left: 18 } },
+              { line1: 'קבע',  line2: 'מפגש',   emoji: '📅', iconSize: 26, iconColor: 'var(--ag-blue)',
                 onClick: () => setIsSessionDialogOpen(true),
-                pos: { top: 172, left: '50%', marginLeft: -60 } },
+                pos: { top: 144, left: '50%', marginLeft: -50 } },
             ].map((btn) => (
               <button
                 key={`${btn.line1}-${btn.line2}`}
@@ -455,7 +455,7 @@ export default function Dashboard() {
                 }}
                 style={{
                   position: 'absolute',
-                  width: 120, height: 120,
+                  width: 100, height: 100,
                   background: 'var(--ag-surface)',
                   borderRadius: 'var(--ag-radius-icon-btn)',
                   // Lumen: white surface + soft layered shadow over the
@@ -481,11 +481,11 @@ export default function Dashboard() {
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 5,
+                  gap: 4,
                   overflow: 'visible',
                 }}>
                   <div style={{
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: 700,
                     color: 'var(--ag-text-primary)',
                     lineHeight: 1.15,
@@ -670,7 +670,7 @@ export default function Dashboard() {
                       // fallback for older iOS Safari where aspectRatio
                       // inside a grid cell doesn't kick in.
                       aspectRatio: '1 / 1',
-                      height: 78,
+                      height: 70,
                       // Lumen: secondary card → white surface + med
                       // shadow + hairline for a subtle floating feel.
                       background: 'var(--ag-surface)',

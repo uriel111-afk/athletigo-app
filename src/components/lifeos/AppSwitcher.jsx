@@ -60,13 +60,17 @@ export default function AppSwitcher({ wide = false }) {
             key={t.key}
             onClick={() => navigate(t.href)}
             style={{
-              // grow to fill, never shrink below 64px → all 5 fit on
-              // normal phones, scroll on very narrow ones. The whole
-              // button (icon + label + padding) is the tap target.
-              flex: "1 0 auto", minWidth: 64, flexShrink: 0,
+              // Non-wide: grow to fill, never shrink below 64px (scroll
+              // on very narrow rows). Wide (coach dashboard): shrink to
+              // fit so all 5 tabs always fit the row width — no
+              // horizontal overflow that would clip the active (orange)
+              // tab at the right edge.
+              flex: wide ? "1 1 0" : "1 0 auto",
+              minWidth: wide ? 0 : 64,
               scrollSnapAlign: "start",
-              // 12px vertical padding keeps the touch target ≥44px tall.
-              padding: "12px 8px",
+              // Trim vertical padding in wide mode to compress the
+              // dashboard's top rhythm; still a comfortable tap target.
+              padding: wide ? "9px 6px" : "12px 8px",
               borderRadius: 12,
               fontSize: wide ? 16 : 15, fontWeight: t.active ? 700 : 500,
               cursor: "pointer",
