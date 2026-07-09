@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Copy, Check, MessageCircle, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { statusForDetail, OBJECTION_BANK_BY_STEP, SALES_SUPPORT_BY_STEP, LEAD_PERSONAS } from '@/lib/lifeos/lifeos-constants';
+import { statusForDetail, OBJECTION_BANK_BY_STEP, SALES_SUPPORT_BY_STEP, LEAD_PERSONAS, PRESCRIPTION_TRACKS, OBJECTION_PREAMBLE } from '@/lib/lifeos/lifeos-constants';
 import { addLead, updateLead } from '@/lib/lifeos/lifeos-api';
 import { waLink, normalizePhone } from '@/lib/lifeos/lead-helpers';
 import { supabase } from '@/lib/supabaseClient';
@@ -134,6 +134,8 @@ const blankForm = () => ({
   for_whom: '', name: '', phone: '', email: '', trainee_name: '', age: '',
   source: 'אינסטגרם', source_other: '', source_sub: '', source_sub_text: '',
   persona: '',
+  recommended_track: '',
+  referrals: [], // call-scoped list; each becomes a NEW lead on save
   why_now: '',
   objections: '', barrier_type: '',
   background_level: '', sports_experience: '', injury_level: '', injuries: '',
@@ -159,6 +161,7 @@ function fromLead(lead) {
     source: ps.source, source_other: ps.source_other,
     source_sub: ps.source_sub, source_sub_text: ps.source_sub_text,
     persona: lead.persona || '',
+    recommended_track: lead.recommended_track || '',
     why_now: lead.why_now || '',
     objections: lead.objections || '', barrier_type: lead.barrier_type || '',
     background_level: lead.background_level || '',
@@ -251,6 +254,7 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
       age: f.age ? parseInt(f.age, 10) : null,
       source: composeSource(f),
       persona: f.persona || null,
+      recommended_track: f.recommended_track || null,
       why_now: f.why_now || null,
       objections: f.objections || null,
       barrier_type: f.barrier_type || null,
@@ -309,12 +313,37 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
 
   const handleClose = () => { if (leadId) onSaved?.(); onClose(); };
 
-  // Step-9 outcome: merge a close patch, persist with status mapping.
+  // Create one NEW lead per captured referral (step 9). Source is
+  // tagged back to the referring lead; status = 'new'. Best-effort:
+  // a single failure never blocks the close. Runs once at close.
+  const createReferralLeads = async (f) => {
+    const refs = Array.isArray(f.referrals) ? f.referrals : [];
+    const fromName = (f.name || '').trim() || 'ליד';
+    for (const r of refs) {
+      const name = (r?.name || '').trim();
+      if (!name) continue;
+      try {
+        await addLead(userId, {
+          name,
+          phone: (r?.phone || '').trim() || null,
+          source: `הפניה מ-${fromName}`,
+          status: 'new',
+        });
+      } catch (e) { console.warn('[GuidedLeadFlow] referral lead failed:', e?.message); }
+    }
+  };
+
+  // Step-9 outcome: merge a close patch, persist with status mapping,
+  // then spin up any referral leads.
   const applyOutcome = async (patch) => {
     const merged = { ...form, ...patch };
     setForm(merged);
     setBusy(true);
-    try { await persist(true, merged); return merged; }
+    try {
+      await persist(true, merged);
+      await createReferralLeads(merged);
+      return merged;
+    }
     catch (e) { toast.error('שגיאה בשמירה: ' + (e?.message || '')); return null; }
     finally { setBusy(false); }
   };
@@ -367,6 +396,7 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
 
       {/* Step body */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '4px 14px 10px' }}>
+        {step === 8 && <PrescriptionCard form={form} set={set} />}
         <SalesPanel step={step} persona={form.persona} srcLabel={srcLabel} open={salesOpen} onToggle={() => setSalesOpen((v) => !v)} />
         {step === 1 && <Step1 form={form} set={set} />}
         {step === 2 && <Step2 form={form} set={set} />}
@@ -400,6 +430,13 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
                   background: objAll ? '#34C759' : '#fff', color: objAll ? '#fff' : '#5C4A3A',
                   fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
                 }}>{objAll ? 'רק לשלב זה' : 'הצג הכל'}</button>
+              </div>
+              {/* Always-visible instruction — diagnose the objection first */}
+              <div style={{
+                fontSize: 11, fontStyle: 'italic', color: '#9A8F82', lineHeight: 1.45,
+                padding: '0 6px 8px', marginBottom: 4, borderBottom: '1px solid #F0E4D0',
+              }}>
+                💡 {OBJECTION_PREAMBLE}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {objList.length === 0 ? (
@@ -776,6 +813,9 @@ function Step9({ form, set, busy, onOutcome, onDone }) {
         </Field>
       )}
 
+      {/* Referral capture — each becomes a NEW lead on save. */}
+      <ReferralSection form={form} set={set} />
+
       <button type="button" onClick={closeWon} disabled={busy} style={outcomeBtn('#16a34a', '#fff')}>
         ✅ נסגר — נקבע מפגש היכרות
       </button>
@@ -912,6 +952,79 @@ function SalesPanel({ step, persona, srcLabel, open, onToggle }) {
                 </div>
               )}
             </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Prescription card (offer step) — pick a recommended track and read
+// the composed line aloud. Persists to leads.recommended_track.
+function PrescriptionCard({ form, set }) {
+  const track = form.recommended_track;
+  return (
+    <div dir="rtl" style={{
+      background: '#FFFFFF', border: '2px solid #FF6F20', borderRadius: 12,
+      padding: '12px 14px', marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8,
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: '#FF6F20' }}>בניית המלצה</div>
+      <Field label="מסלול מומלץ">
+        <ChipRow options={PRESCRIPTION_TRACKS} value={track}
+          onPick={(k) => set({ recommended_track: track === k ? '' : k })} wrap />
+      </Field>
+      {track && (
+        <div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, lineHeight: 1.55, color: '#1a1a1a', whiteSpace: 'pre-wrap', userSelect: 'text' }}>
+            לפי מה שסיפרת לי — הכי מתאים לך להתחיל עם {track}
+          </div>
+          <div style={{ fontSize: 11, fontStyle: 'italic', color: '#9A8F82', lineHeight: 1.45, marginTop: 3 }}>
+            💡 להוסיף את הסיבה במילים של הליד עצמו — מהתשובות שרשמת בשלב הבירור
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Referral capture (closing step) — name + phone, add to a chip list.
+// The list lives on form.referrals; each entry becomes a new lead on
+// save (see createReferralLeads).
+function ReferralSection({ form, set }) {
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const list = Array.isArray(form.referrals) ? form.referrals : [];
+  const add = () => {
+    const n = name.trim();
+    if (!n) return;
+    set({ referrals: [...list, { name: n, phone: phone.trim() }] });
+    setName(''); setPhone('');
+  };
+  const remove = (i) => set({ referrals: list.filter((_, idx) => idx !== i) });
+  return (
+    <div dir="rtl" style={{ background: '#fff', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: '#1A1A1A' }}>הפניות</div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input style={{ ...inp, flex: 2 }} value={name} onChange={(e) => setName(e.target.value)} placeholder="שם" />
+        <input style={{ ...inp, flex: 2, direction: 'ltr', textAlign: 'left' }} type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="טלפון" />
+        <button type="button" onClick={add} style={{
+          flexShrink: 0, minWidth: 44, borderRadius: 10, border: 'none', cursor: 'pointer',
+          background: ORANGE, color: '#fff', fontSize: 20, fontWeight: 800,
+        }}>+</button>
+      </div>
+      {list.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {list.map((r, i) => (
+            <span key={i} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700,
+              background: '#F7F3EC', border: '1px solid #F0E4D0', color: '#5C4A3A',
+              borderRadius: 999, padding: '4px 6px 4px 10px',
+            }}>
+              {r.name}{r.phone ? ` · ${r.phone}` : ''}
+              <button type="button" onClick={() => remove(i)} aria-label="הסר" style={{
+                border: 'none', background: 'transparent', cursor: 'pointer', color: '#9A8F82', fontSize: 15, lineHeight: 1, padding: 0,
+              }}>×</button>
+            </span>
           ))}
         </div>
       )}

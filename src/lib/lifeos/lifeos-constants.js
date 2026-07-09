@@ -536,6 +536,8 @@ const SALES_NEED_GENERAL = [
     note: 'התשובה שלו היא הזהב של השיחה — לרשום מילה במילה' },
   { line: 'ומה בעצם היית רוצה שיקרה? מה התוצאה שאתה מחפש?',
     note: 'שאלת תוצאה — המילים שלו ישמשו אותך בשיקוף ובהצעה' },
+  { line: 'אגב, יש לנו מסלול משפחתי — כל אחד בקבוצה שמתאימה לגיל שלו, וההרשמה המשפחתית משתלמת יותר. רוצה שנסתכל על זה ביחד?',
+    note: 'לשאול כשעולה שיש עוד ילדים או שההורה מתעניין גם לעצמו. משפחה שנרשמת יחד — נשארת יחד' },
 ];
 const SALES_NEED_BY_PERSONA = {
   parent: [
@@ -590,6 +592,10 @@ const SALES_VALUE_GENERAL = [
 const SALES_OFFER_GENERAL = [
   { line: 'בהתחלה הכי כדאי פשוט לבוא להרגיש — מפגש היכרות ב-39 שקלים, ואם זה מתאים ממשיכים משם',
     note: 'לנקוב במחיר בביטחון ולשתוק. מי שמדבר ראשון אחרי המחיר — מפסיד' },
+  { line: 'איך זה נשמע לך עד עכשיו?',
+    note: 'אם התגובה חיובית — ממשיכים מיד: אז למה שלא תיתן לזה ניסיון?' },
+  { line: 'אז למה שלא תיתן לזה ניסיון?',
+    note: 'סגירת ההזמנה — עדינה וכמעט בלתי אפשרי לסרב לה' },
 ];
 const SALES_OFFER_BY_PERSONA = {
   parent:     [{ line: 'במפגש הראשון את כבר תראי איך הוא מתחבר — הורים בדרך כלל יודעים תוך רבע שעה', note: 'מוריד סיכון להורה' }],
@@ -603,6 +609,8 @@ const SALES_CLOSING = [
     note: 'לא לשאול אם — לשאול מתי. שתי התשובות הן כן' },
   { line: 'מעולה, שלחתי לך עכשיו הודעה עם כל הפרטים — תשמור את המספר שלי, אני זמינה לכל שאלה',
     note: 'לסגור תאריך בתוך השיחה. ליד שסוגר תאריך מגיע' },
+  { line: 'ושאלה אחרונה — מי עוד אתה מכיר שזה יכול להתאים לו? חבר של הילד, שכן, מישהו מהעבודה?',
+    note: 'לשאול רק אחרי סגירה — לקוח שאמר כן עכשיו הוא הכי נדיב' },
 ];
 export const SALES_SUPPORT_BY_STEP = {
   1: { general: SALES_OPENING },
@@ -621,6 +629,16 @@ export const LEAD_PERSONAS = [
   { key: 'confidence', label: 'ביטחון' },
   { key: 'status',     label: 'סטטוס' },
 ];
+// Prescription-step recommended tracks (offer step). Value stored on
+// leads.recommended_track.
+export const PRESCRIPTION_TRACKS = [
+  { key: 'קבוצת ילדים', label: 'קבוצת ילדים' },
+  { key: 'תנועה בכיף',  label: 'תנועה בכיף' },
+  { key: 'אימון אישי',  label: 'אימון אישי' },
+  { key: 'מפגש היכרות', label: 'מפגש היכרות' },
+];
+// Always-visible instruction at the top of the objection panel.
+export const OBJECTION_PREAMBLE = 'לפני שעונים על התנגדות — לשאול: למה אתה מתכוון בדיוק? הרבה פעמים הליד מפרק אותה בעצמו';
 
 // lead_status_detail → lead.status (drives the converted income sync).
 export function statusForDetail(detail) {
