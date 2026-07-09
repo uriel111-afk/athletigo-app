@@ -296,7 +296,7 @@ export const DOCUMENT_TEMPLATES = {
   // with document_type 'doctor_approval', status 'signed', file_url set.
   doctor_approval: {
     key: 'doctor_approval',
-    title: 'אישור רופא לפעילות גופנית',
+    title: 'אישור רופא',
     icon: '🩺',
     isUpload: true,
   },

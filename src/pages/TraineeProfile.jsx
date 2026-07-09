@@ -43,6 +43,7 @@ import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { DraftBanner } from "@/components/DraftBanner";
 import { base44 } from "@/api/base44Client";
 import { supabase, SUPABASE_URL } from "@/lib/supabaseClient";
+import { ATHLETIGO_ADMIN_UUID } from "@/constants/admin";
 import { isHiddenFromSelection } from "@/lib/clientStatusHelpers";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -1373,6 +1374,8 @@ function PersonalTab({
   user,
   isCoach,
   userIdParam,
+  isMasterCoach,
+  onSendResetEmail,
   currentStatusOpt,
   onEdit,
   onResetPassword,
@@ -1752,6 +1755,12 @@ function PersonalTab({
             <AccountActionRow icon="🔑" label="איפוס סיסמה למתאמן" onClick={onResetPassword} />
           ) : (
             <AccountActionRow icon="🔑" label="שינוי סיסמה" onClick={onChangePassword} />
+          )}
+
+          {/* Master coach only: send a Supabase password-reset email to
+              the trainee. Gated on the logged-in id === admin uuid. */}
+          {isMasterCoach && userIdParam && (
+            <AccountActionRow icon="✉️" label="שליחת מייל לאיפוס סיסמה" onClick={onSendResetEmail} />
           )}
 
           {/* Status changer — coach-only when viewing a trainee. */}
@@ -4168,6 +4177,14 @@ export default function TraineeProfile() {
                   user={user}
                   isCoach={isCoach}
                   userIdParam={userIdParam}
+                  isMasterCoach={currentUser?.id === ATHLETIGO_ADMIN_UUID}
+                  onSendResetEmail={async () => {
+                    const email = user?.email || effectiveUser?.email;
+                    if (!email) { toast.error('אין כתובת אימייל למתאמן'); return; }
+                    const { error } = await supabase.auth.resetPasswordForEmail(email);
+                    if (error) toast.error('שליחת המייל נכשלה: ' + (error.message || ''));
+                    else toast.success('נשלח מייל לאיפוס סיסמה אל ' + email);
+                  }}
                   currentStatusOpt={currentStatusOpt}
                   onEdit={() => setShowEdit(true)}
                   onResetPassword={() => setShowResetPw(true)}

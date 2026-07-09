@@ -134,12 +134,17 @@ export default function Reports() {
       (err) => { console.warn('[Reports] query failed:', err); return { data: [] }; }
     );
     const [sRes, pRes, lRes, iRes, eRes] = await Promise.all([
+      // NOTE: no PostgREST embed (e.g. trainee:trainee_id(...)) — this DB
+      // has no foreign keys, so an embed 400s the whole query and
+      // safeQuery would swallow it to [] → the Reports "מפגשים" card
+      // showed 0/0. The trainee roster is resolved by a separate users
+      // lookup below (explicitIds).
       safeQuery(supabase.from('sessions')
-        .select('id, date, time, status, session_type, trainee_id, service_id, participants, created_at, trainee:trainee_id(id, full_name, phone)')
+        .select('id, date, time, status, session_type, trainee_id, service_id, participants, created_at')
         .eq('coach_id', user.id)
         .order('date', { ascending: false })),
       safeQuery(supabase.from('client_services')
-        .select('id, trainee_id, package_name, package_type, service_type, total_sessions, used_sessions, sessions_remaining, final_price, payment_method, status, start_date, end_date, expires_at, created_at, trainee:trainee_id(id, full_name, phone)')
+        .select('id, trainee_id, package_name, package_type, service_type, total_sessions, used_sessions, sessions_remaining, final_price, payment_method, status, start_date, end_date, expires_at, created_at')
         .eq('coach_id', user.id)),
       safeQuery(supabase.from('leads')
         .select('id, name, phone, email, status, source, notes, created_at')
@@ -159,22 +164,26 @@ export default function Reports() {
     if (lRes.error) console.warn('[Reports] leads error:', lRes.error);
     if (iRes.error) console.warn('[Reports] income error:', iRes.error);
     if (eRes.error) console.warn('[Reports] expenses error:', eRes.error);
+    // RAW query result (before processing) — diagnostic for the 0/0 bug.
+    console.log('[Reports] RAW sessions result:', { rows: sRes.data?.length ?? 0, error: sRes.error || null });
+    console.log('[Reports] RAW packages result:', { rows: pRes.data?.length ?? 0, error: pRes.error || null });
     const sessionRows = sRes.data || [];
     const pkgRows = pRes.data || [];
-    // Build the trainee roster from joined data + participants[].
+    // Build the trainee roster from trainee_id + participants[]. Names are
+    // filled from a separate users lookup below (no embed — see note above).
     const traineeMap = new Map();
     for (const row of sessionRows) {
-      if (row.trainee?.id) traineeMap.set(row.trainee.id, row.trainee);
+      if (row.trainee_id) traineeMap.set(row.trainee_id, { id: row.trainee_id, ...(traineeMap.get(row.trainee_id) || {}) });
       if (Array.isArray(row.participants)) {
         for (const p of row.participants) {
-          if (p?.trainee_id && p?.trainee_name && !traineeMap.has(p.trainee_id)) {
+          if (p?.trainee_id && !traineeMap.has(p.trainee_id)) {
             traineeMap.set(p.trainee_id, { id: p.trainee_id, full_name: p.trainee_name });
           }
         }
       }
     }
     for (const row of pkgRows) {
-      if (row.trainee?.id) traineeMap.set(row.trainee.id, row.trainee);
+      if (row.trainee_id) traineeMap.set(row.trainee_id, { id: row.trainee_id, ...(traineeMap.get(row.trainee_id) || {}) });
     }
     // Top up with explicit roster (so trainees with no sessions/packages still appear)
     const explicitIds = Array.from(traineeMap.keys());
