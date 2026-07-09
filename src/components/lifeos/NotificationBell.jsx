@@ -4,7 +4,11 @@ import { Bell } from 'lucide-react';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 import { generateNotifications, dismissNotification } from '@/lib/lifeos/notification-engine';
 
-export default function NotificationBell({ userId }) {
+// Coordinator sees lead-related notifications only (new lead waiting /
+// follow-up due) — every lead notification targets the leads screen.
+const isLeadNotif = (n) => n?.href === '/lifeos/leads' || String(n?.id || '').startsWith('lead');
+
+export default function NotificationBell({ userId, leadsOnly = false }) {
   const navigate = useNavigate();
   const [notifs, setNotifs] = useState([]);
   const [open, setOpen] = useState(false);
@@ -14,11 +18,11 @@ export default function NotificationBell({ userId }) {
     if (!userId) return;
     try {
       const list = await generateNotifications(userId);
-      setNotifs(list);
+      setNotifs(leadsOnly ? list.filter(isLeadNotif) : list);
     } catch (err) {
       console.error('[NotificationBell] load error:', err);
     }
-  }, [userId]);
+  }, [userId, leadsOnly]);
 
   useEffect(() => { load(); }, [load]);
 

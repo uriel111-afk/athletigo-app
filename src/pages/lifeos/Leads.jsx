@@ -68,6 +68,7 @@ function scoreBadge(s) {
 export default function Leads() {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
+  const isCoordinator = user?.role === 'coordinator';
   const navigate = useNavigate();
   const qc = useQueryClient();
 
@@ -168,22 +169,15 @@ export default function Leads() {
 
   return (
     <LifeOSLayout title="לידים" onQuickSaved={load} rightSlot={
-      <div style={{ display: 'flex', gap: 4 }}>
-        <button onClick={() => navigate('/leads/scripts')} aria-label="עריכת סקריפטים" title="עריכת סקריפטים" style={{
-          width: 32, height: 32, borderRadius: 10, border: 'none',
-          background: 'transparent', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: LIFEOS_COLORS.textSecondary,
-        }}>
-          <Pencil size={16} />
-        </button>
-        <button onClick={load} aria-label="רענן" title="רענן" style={{
-          width: 32, height: 32, borderRadius: 10, border: 'none',
-          background: 'transparent', cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: LIFEOS_COLORS.textSecondary,
-        }}>
-          <RefreshCw size={16} />
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {/* Coach-only tool: script editor. Hidden for the coordinator. */}
+        {!isCoordinator && (
+          <button onClick={() => navigate('/leads/scripts')} aria-label="עריכת סקריפטים" title="עריכת סקריפטים" style={headerIconBtn}>
+            <Pencil size={18} />
+          </button>
+        )}
+        <button onClick={load} aria-label="רענן" title="רענן" style={headerIconBtn}>
+          <RefreshCw size={18} />
         </button>
       </div>
     }>
@@ -292,7 +286,11 @@ export default function Leads() {
 function ListView({ rows, counts, filter, setFilter, overdueIds, onView, onDelete, onCreateTrainee }) {
   return (
     <>
-      <div style={{ display: 'flex', gap: 6, marginBottom: 10, overflowX: 'auto', scrollbarWidth: 'none' }}>
+      <div style={{
+        display: 'flex', gap: 6, marginBottom: 10, overflowX: 'auto',
+        scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
+        paddingInline: 2, paddingBottom: 2,
+      }}>
         {LEAD_FILTERS.map(f => {
           const danger = f.danger && (counts[f.key] || 0) > 0;
           return (
@@ -514,7 +512,10 @@ function FilterChip({ active, onClick, label, activeColor = LIFEOS_COLORS.primar
 
 function MiniStat({ label, value }) {
   return (
-    <div style={{ ...LIFEOS_CARD, textAlign: 'center', padding: 10 }}>
+    <div style={{
+      ...LIFEOS_CARD, textAlign: 'center', padding: 10, minHeight: 64,
+      height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center',
+    }}>
       <div style={{ fontSize: 10, fontWeight: 600, color: LIFEOS_COLORS.textSecondary }}>{label}</div>
       <div style={{ fontSize: 20, fontWeight: 800, marginTop: 2 }}>{value}</div>
     </div>
@@ -528,6 +529,15 @@ function Empty({ text }) {
 const iconBtn = {
   width: 28, height: 28, borderRadius: 8, border: 'none',
   background: 'transparent', cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  color: LIFEOS_COLORS.textSecondary,
+};
+
+// Uniform 40px circular header action buttons (refresh / edit) so the
+// left-side cluster reads as one evenly-spaced group.
+const headerIconBtn = {
+  width: 40, height: 40, borderRadius: 999, border: 'none',
+  background: '#F7F3EC', cursor: 'pointer', flexShrink: 0,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   color: LIFEOS_COLORS.textSecondary,
 };

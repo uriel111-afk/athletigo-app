@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Copy, Check, MessageCircle, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { statusForDetail } from '@/lib/lifeos/lifeos-constants';
+import { statusForDetail, OBJECTION_BANK } from '@/lib/lifeos/lifeos-constants';
 import { addLead, updateLead } from '@/lib/lifeos/lifeos-api';
 import { waLink, normalizePhone } from '@/lib/lifeos/lead-helpers';
 import { supabase } from '@/lib/supabaseClient';
@@ -13,6 +13,7 @@ const STEP_TITLES = [
   'מסגרת', 'שיקוף', 'מפגש היכרות', 'סגירה',
 ];
 const INTRO_PRICE = 39;
+const PERSONAL_INTRO_PRICE = 350;
 
 // ── Chip option sets (values stored verbatim in the DB) ──────────────
 const FOR_WHOM = [
@@ -52,6 +53,18 @@ const FORMAT_CHIPS = [
   { key: 'online',   label: 'אונליין' },
   { key: 'unsure',   label: 'לא בטוח — שנתאים יחד' },
 ];
+const PAST_FRAMEWORK_CHIPS = [
+  { key: 'לא ניסיתי',      label: 'לא ניסיתי' },
+  { key: 'חדר כושר',       label: 'חדר כושר' },
+  { key: 'סטודיו או חוג',  label: 'סטודיו או חוג' },
+  { key: 'מאמן אישי',      label: 'מאמן אישי' },
+  { key: 'אונליין',        label: 'אונליין' },
+];
+const ENERGY_CHIPS = [
+  { key: 'נשארה גבוהה', label: 'נשארה גבוהה' },
+  { key: 'ירדה באמצע',  label: 'ירדה באמצע' },
+  { key: 'ירדה בסוף',   label: 'ירדה בסוף' },
+];
 const DAY_CHIPS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי'].map((d) => ({ key: d, label: d }));
 const HOUR_CHIPS = ['בוקר', 'צהריים', 'ערב'].map((h) => ({ key: h, label: h }));
 
@@ -74,9 +87,11 @@ const blankForm = () => ({
   objections: '', barrier_type: '',
   background_level: '', sports_experience: '', injury_level: '', injuries: '',
   fitness_goal: '',
+  past_framework: '', past_framework_gap: '',
   interested_in: '',
   conversation_summary: '',
   meeting_day: '', meeting_hour: '',
+  call_energy: '', energy_drop_note: '',
   close_result: '', lead_status_detail: '', next_follow_up: '', notes: '',
 });
 
@@ -99,9 +114,11 @@ function fromLead(lead) {
     sports_experience: lead.sports_experience || '',
     injury_level: lead.injury_level || '', injuries: lead.injuries || '',
     fitness_goal: lead.fitness_goal || '',
+    past_framework: lead.past_framework || '', past_framework_gap: lead.past_framework_gap || '',
     interested_in: lead.interested_in || '',
     conversation_summary: lead.conversation_summary || '',
     meeting_day: lead.meeting_day || '', meeting_hour: lead.meeting_hour || '',
+    call_energy: lead.call_energy || '', energy_drop_note: lead.energy_drop_note || '',
     close_result: lead.close_result || '', lead_status_detail: lead.lead_status_detail || '',
     next_follow_up: lead.next_follow_up || '', notes: lead.notes || '',
   };
@@ -116,6 +133,9 @@ export function composeMirror(f) {
   if ((f.objections || '').trim()) {
     out += `סיפרת שמה שעצר עד עכשיו זה ${f.objections.trim()}`;
     out += BARRIER_NEUTRALIZER[f.barrier_type] || '. ';
+  }
+  if ((f.past_framework_gap || '').trim()) {
+    out += `סיפרת שב${f.past_framework || 'מסגרת קודמת'} הרגשת ש${f.past_framework_gap.trim()} — אצלנו בנינו את זה בדיוק הפוך. `;
   }
   if ((f.injury_level && f.injury_level !== 'אין') || (f.injuries || '').trim()) {
     out += 'נעבוד בצורה שמכבדת את הגוף ומתחשבת במה שסיפרת. ';
@@ -132,7 +152,8 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
   const [form, setForm] = useState(blankForm());
   const [leadId, setLeadId] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [priceHelp, setPriceHelp] = useState(false);
+  const [objHelp, setObjHelp] = useState(false);
+  const [objOpen, setObjOpen] = useState(null);
   const mirroredRef = useRef(false);
 
   useEffect(() => {
@@ -140,7 +161,8 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
     setForm(fromLead(lead));
     setLeadId(lead?.id || null);
     setStep(1);
-    setPriceHelp(false);
+    setObjHelp(false);
+    setObjOpen(null);
     mirroredRef.current = false;
   }, [isOpen, lead]);
 
@@ -177,10 +199,14 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
       injury_level: f.injury_level || null,
       injuries: f.injuries || null,
       fitness_goal: f.fitness_goal || null,
+      past_framework: f.past_framework || null,
+      past_framework_gap: f.past_framework_gap || null,
       interested_in: f.interested_in || null,
       conversation_summary: f.conversation_summary || null,
       meeting_day: f.meeting_day || null,
       meeting_hour: f.meeting_hour || null,
+      call_energy: f.call_energy || null,
+      energy_drop_note: f.energy_drop_note || null,
       close_result: f.close_result || null,
       lead_status_detail: f.lead_status_detail || null,
       next_follow_up: f.next_follow_up ? String(f.next_follow_up).slice(0, 10) : null,
@@ -269,25 +295,47 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
         {step === 9 && <Step9 form={form} set={set} busy={busy} onOutcome={applyOutcome} onDone={finishAll} />}
       </div>
 
-      {/* Floating price-question helper — visible on every step */}
+      {/* Floating objection-handling helper — visible on every step */}
       <div style={{ position: 'relative' }}>
-        {priceHelp && (
-          <div dir="rtl" style={{
-            position: 'absolute', bottom: 52, insetInlineStart: 14, insetInlineEnd: 14,
-            background: '#E8F7EE', border: '1px solid #34C759', borderRadius: 12,
-            padding: '12px 14px', fontSize: 13, lineHeight: 1.6, color: '#1B5E36',
-            boxShadow: '0 6px 20px rgba(0,0,0,0.12)', zIndex: 2,
-          }}>
-            תלוי במסגרת שנתאים לך — בדיוק בשביל זה אני שואלת כמה שאלות קצרות, בסדר?
-          </div>
+        {objHelp && (
+          <>
+            <div onClick={() => setObjHelp(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 1 }} />
+            <div dir="rtl" style={{
+              position: 'absolute', bottom: 52, insetInlineStart: 14, insetInlineEnd: 14,
+              background: '#fff', border: '1px solid #34C759', borderRadius: 14,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.16)', zIndex: 2,
+              maxHeight: '52vh', overflowY: 'auto', padding: 10,
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#1B5E36', padding: '4px 6px 8px' }}>עזרה בהתנגדות</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {OBJECTION_BANK.map((o) => {
+                  const open = objOpen === o.key;
+                  return (
+                    <div key={o.key} style={{ background: '#F7F3EC', borderRadius: 10, overflow: 'hidden', border: '1px solid #F0E4D0' }}>
+                      <button type="button" onClick={() => setObjOpen(open ? null : o.key)} style={{
+                        width: '100%', textAlign: 'right', padding: '10px 12px', border: 'none', cursor: 'pointer',
+                        background: open ? '#EAF7EF' : 'transparent', display: 'flex', alignItems: 'center', gap: 8,
+                      }}>
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: 800, color: '#1A1A1A' }}>{o.q}</span>
+                        <span style={{ fontSize: 13, color: '#34C759', fontWeight: 800 }}>{open ? '−' : '+'}</span>
+                      </button>
+                      {open && (
+                        <div style={{ padding: '0 12px 12px', fontSize: 13, lineHeight: 1.6, color: '#3a3a3a', whiteSpace: 'pre-wrap' }}>{o.a}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
         )}
-        <button type="button" onClick={() => setPriceHelp((v) => !v)} style={{
+        <button type="button" onClick={() => setObjHelp((v) => !v)} style={{
           position: 'absolute', bottom: 8, insetInlineStart: 14, zIndex: 2,
           padding: '7px 14px', borderRadius: 999, cursor: 'pointer',
-          border: '1px solid #34C759', background: priceHelp ? '#34C759' : '#fff',
-          color: priceHelp ? '#fff' : '#1B5E36', fontSize: 12, fontWeight: 800,
+          border: '1px solid #34C759', background: objHelp ? '#34C759' : '#fff',
+          color: objHelp ? '#fff' : '#1B5E36', fontSize: 12, fontWeight: 800,
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-        }}>💬 שאל על מחיר?</button>
+        }}>🛟 עזרה בהתנגדות</button>
       </div>
 
       {/* Footer nav */}
@@ -404,6 +452,13 @@ function Step5({ form, set }) {
 function Step6({ form, set }) {
   return (
     <div style={col}>
+      <ScriptBox>ניסית בעבר איזושהי מסגרת — חדר כושר, סטודיו, מאמן? ומה היה חסר לך שם?</ScriptBox>
+      <Field label="מסגרת בעבר">
+        <ChipRow options={PAST_FRAMEWORK_CHIPS} value={form.past_framework} onPick={(k) => set({ past_framework: k })} wrap />
+      </Field>
+      <Field label="מה לא עבד שם">
+        <textarea style={{ ...inp, height: 'auto' }} rows={2} value={form.past_framework_gap} onChange={(e) => set({ past_framework_gap: e.target.value })} placeholder="מה לא עבד שם — במילים שלו..." />
+      </Field>
       <ScriptBox>איזו מסגרת הכי מדברת אליך — אישית, קבוצתית או אונליין?</ScriptBox>
       <Field label="מסגרת מועדפת">
         <ChipRow options={FORMAT_CHIPS} value={form.interested_in} onPick={(k) => set({ interested_in: k })} wrap />
@@ -429,13 +484,24 @@ function Step8({ form, set }) {
   const [copied, setCopied] = useState(false);
   const hasPhone = !!normalizePhone(form.phone);
 
+  // Dual pricing by chosen framework: personal → paid diagnostic; every
+  // other track → the low-friction 39₪ trial.
+  const isPersonal = form.interested_in === 'personal';
+  const amount = isPersonal ? PERSONAL_INTRO_PRICE : INTRO_PRICE;
+  const payTitle = isPersonal
+    ? `מפגש אבחון אישי · ${PERSONAL_INTRO_PRICE} ₪ · מתקזז במלואו בהמשך לליווי`
+    : `שיעור ניסיון · ${INTRO_PRICE} ₪ · מתקזז ברכישה`;
+  const payScript = isPersonal
+    ? 'מפגש אבחון אישי מלא — נבדוק את הגוף, נבנה נקודת פתיחה ותצא/י עם תוכנית. 350 שקלים, והסכום מתקזז במלואו אם ממשיכים לליווי.'
+    : 'הצעד הראשון פשוט — שיעור ניסיון ב-39 שקלים שמתקזזים ברכישה. מתי נוח לך?';
+
   const genLink = async () => {
     setPayBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke('payment-create', {
         body: {
-          amount: INTRO_PRICE,
-          description: 'מפגש היכרות · AthletiGo',
+          amount, // matches the selected framework at click time
+          description: `${isPersonal ? 'מפגש אבחון אישי' : 'שיעור ניסיון'} · AthletiGo`,
           trainee_name: form.name || form.trainee_name || '',
           trainee_email: form.email || '',
           trainee_phone: form.phone || '',
@@ -458,23 +524,25 @@ function Step8({ form, set }) {
     catch { toast.error('לא ניתן להעתיק'); }
   };
   const waShare = () => {
-    const msg = `היי! הנה הקישור לתשלום על מפגש ההיכרות (${INTRO_PRICE} ₪, מתקזז ברכישה):\n${payUrl}`;
+    const msg = `היי! הנה הקישור לתשלום (${amount} ₪):\n${payUrl}`;
     window.open(waLink(form.phone, msg), '_blank');
   };
 
   return (
     <div style={col}>
-      <ScriptBox>מתי נוח לך השבוע?</ScriptBox>
-      <Field label="יום">
-        <ChipRow options={DAY_CHIPS} value={form.meeting_day} onPick={(k) => set({ meeting_day: k })} wrap />
-      </Field>
+      <ScriptBox>מתי בדרך כלל נוח לך להתאמן — בוקר או ערב?</ScriptBox>
       <Field label="שעה">
         <ChipRow options={HOUR_CHIPS} value={form.meeting_hour} onPick={(k) => set({ meeting_hour: k })} wrap />
       </Field>
+      <ScriptBox>ואיזה יום הכי מסתדר השבוע?</ScriptBox>
+      <Field label="יום">
+        <ChipRow options={DAY_CHIPS} value={form.meeting_day} onPick={(k) => set({ meeting_day: k })} wrap />
+      </Field>
 
-      {/* Intro-session payment block */}
+      {/* Intro-session payment block — dual pricing by framework */}
       <div style={{ background: '#fff', borderRadius: 14, padding: 14, border: `2px solid ${ORANGE}` }}>
-        <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1A1A' }}>מפגש היכרות · {INTRO_PRICE} ₪ · מתקזז ברכישה</div>
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1A1A' }}>{payTitle}</div>
+        <ScriptBox>{payScript}</ScriptBox>
         {!payUrl ? (
           <button type="button" onClick={genLink} disabled={payBusy} style={{
             marginTop: 10, width: '100%', height: 44, borderRadius: 12, border: 'none', cursor: 'pointer',
@@ -558,6 +626,17 @@ function Step9({ form, set, busy, onOutcome, onDone }) {
   return (
     <div style={col}>
       <ScriptBox>סיכום השיחה — איך נסגר?</ScriptBox>
+
+      {/* Call-energy read — optional, never blocks the outcome. */}
+      <Field label="אנרגיית השיחה">
+        <ChipRow options={ENERGY_CHIPS} value={form.call_energy} onPick={(k) => set({ call_energy: k })} wrap />
+      </Field>
+      {(form.call_energy === 'ירדה באמצע' || form.call_energy === 'ירדה בסוף') && (
+        <Field label="איפה ירדה ולמה">
+          <textarea style={{ ...inp, height: 'auto' }} rows={2} value={form.energy_drop_note} onChange={(e) => set({ energy_drop_note: e.target.value })} placeholder="איפה ירדה ולמה, לדעתך..." />
+        </Field>
+      )}
+
       <button type="button" onClick={closeWon} disabled={busy} style={outcomeBtn('#16a34a', '#fff')}>
         ✅ נסגר — נקבע מפגש היכרות
       </button>
@@ -599,8 +678,12 @@ function SavedSummary({ form, onDone }) {
     ['פציעות', form.injury_level],
     ['פירוט פציעות', form.injuries],
     ['חזון', form.fitness_goal],
+    ['מסגרת בעבר', form.past_framework],
+    ['מה לא עבד', form.past_framework_gap],
     ['מסגרת', (FORMAT_CHIPS.find((x) => x.key === form.interested_in) || {}).label],
     ['מפגש', [form.meeting_day, form.meeting_hour].filter(Boolean).join(' · ')],
+    ['אנרגיית שיחה', form.call_energy],
+    ['ירידת אנרגיה', form.energy_drop_note],
     ['שיקוף', form.conversation_summary],
     ['מעקב הבא', form.next_follow_up ? String(form.next_follow_up).slice(0, 10) : ''],
     ['הערות', form.notes],

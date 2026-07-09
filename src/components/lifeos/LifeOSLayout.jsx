@@ -84,8 +84,9 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
         <div style={{ minWidth: 60, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
           {rightSlot}
           <GlobalSearch />
-          <MentorChatIconButton />
-          <NotificationBell userId={user?.id} />
+          {/* Mentor chat is a coach tool — hidden for the coordinator. */}
+          {!isCoordinator && <MentorChatIconButton />}
+          <NotificationBell userId={user?.id} leadsOnly={isCoordinator} />
         </div>
       </div>
 

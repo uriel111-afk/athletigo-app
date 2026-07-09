@@ -352,6 +352,17 @@ export const LEAD_STATUS_DETAIL = {
   lost:                { label: 'אבוד',             color: '#4b5563' },
 };
 
+// Objection-handling bank for the guided intake wizard's floating
+// helper. Edit here in one place. `q` = objection, `a` = suggested reply.
+export const OBJECTION_BANK = [
+  { key: 'price',    q: 'כמה זה עולה?',            a: 'תלוי במסגרת שנתאים לך — בדיוק בשביל זה אני שואלת כמה שאלות קצרות, בסדר?' },
+  { key: 'expensive', q: 'יקר לי',                  a: 'לגמרי מבינה. בדיוק בגלל זה מתחילים בצעד קטן שמתקזז ברכישה — ככה בודקים התאמה בלי סיכון.' },
+  { key: 'no_time',  q: 'אין לי זמן',              a: 'רוב המתאמנים שלנו אמרו את זה בהתחלה. המסגרת קצרה וקבועה — נכנסת ללוז, לא הופכת אותו.' },
+  { key: 'think',    q: 'אני צריך/ה לחשוב',        a: 'ברור, החלטה חשובה. מה בעיקר מעסיק אותך — הזמן, הכסף או משהו אחר? (ואז: בוא/י נשריין בינתיים מועד — אפשר תמיד לשנות.)' },
+  { key: 'call_back', q: 'אחזור אליך',              a: 'מעולה. מתי נוח שאתקשר אני — מחר בבוקר או בערב? (קובעים מועד מדויק למעקב.)' },
+  { key: 'consult',  q: 'צריך/ה להתייעץ עם בן/בת הזוג', a: 'רעיון טוב — ואפשר גם שתבואו יחד לשיעור הניסיון, ככה מחליטים ביחד אחרי שמרגישים.' },
+];
+
 // lead_status_detail → lead.status (drives the converted income sync).
 export function statusForDetail(detail) {
   if (!detail) return undefined;
