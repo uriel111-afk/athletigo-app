@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Copy, Check, MessageCircle, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { statusForDetail, OBJECTION_BANK_BY_STEP, SALES_SUPPORT_BY_STEP, LEAD_PERSONAS, PRESCRIPTION_TRACKS, OBJECTION_PREAMBLE } from '@/lib/lifeos/lifeos-constants';
+import { statusForDetail, OBJECTION_BANK_BY_STEP, SALES_SUPPORT_BY_STEP, LEAD_PERSONAS, PRESCRIPTION_TRACKS, PRESCRIPTION_LINES, PRESCRIPTION_DIGITAL, OBJECTION_PREAMBLE } from '@/lib/lifeos/lifeos-constants';
 import { addLead, updateLead } from '@/lib/lifeos/lifeos-api';
 import { waLink, normalizePhone } from '@/lib/lifeos/lead-helpers';
 import { supabase } from '@/lib/supabaseClient';
@@ -135,6 +135,7 @@ const blankForm = () => ({
   source: 'אינסטגרם', source_other: '', source_sub: '', source_sub_text: '',
   persona: '',
   recommended_track: '',
+  digital_offered: '',
   referrals: [], // call-scoped list; each becomes a NEW lead on save
   why_now: '',
   objections: '', barrier_type: '',
@@ -162,6 +163,7 @@ function fromLead(lead) {
     source_sub: ps.source_sub, source_sub_text: ps.source_sub_text,
     persona: lead.persona || '',
     recommended_track: lead.recommended_track || '',
+    digital_offered: lead.digital_offered || '',
     why_now: lead.why_now || '',
     objections: lead.objections || '', barrier_type: lead.barrier_type || '',
     background_level: lead.background_level || '',
@@ -255,6 +257,7 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
       source: composeSource(f),
       persona: f.persona || null,
       recommended_track: f.recommended_track || null,
+      digital_offered: f.digital_offered || null,
       why_now: f.why_now || null,
       objections: f.objections || null,
       barrier_type: f.barrier_type || null,
@@ -1067,10 +1070,31 @@ function SalesPanel({ step, persona, srcLabel, open, onToggle }) {
   );
 }
 
-// Prescription card (offer step) — pick a recommended track and read
-// the composed line aloud. Persists to leads.recommended_track.
+// A 'speak'-styled block (color language) for the prescription card's
+// composed line + the digital add-on.
+function SpeakBlock({ tagSuffix, line, note }) {
+  const s = SALES_CARD_STYLE.speak;
+  return (
+    <div style={{
+      background: s.bg, border: `0.5px solid ${s.border}`, borderRight: `4px solid ${s.accent}`,
+      borderTopLeftRadius: 12, borderBottomLeftRadius: 12, padding: '12px 14px',
+      display: 'flex', flexDirection: 'column', gap: 6,
+    }}>
+      <span style={{ fontSize: 11, fontWeight: 800, color: s.tagColor }}>{s.tag}{tagSuffix || ''}</span>
+      <div style={{ fontSize: 17, fontWeight: s.lineWeight, color: s.lineColor, lineHeight: 1.5, whiteSpace: 'pre-wrap', userSelect: 'text' }}>{line}</div>
+      {note && <div style={{ fontSize: 11.5, fontStyle: 'italic', color: s.noteColor, lineHeight: 1.45 }}>💡 {note}</div>}
+    </div>
+  );
+}
+
+// Prescription card (offer step) — pick one of the four-offer ladder
+// options and read the composed line aloud; a fixed digital add-on
+// shown to everyone with a "הוצעה?" checkbox. Persists
+// recommended_track (offer key) + digital_offered ('yes').
 function PrescriptionCard({ form, set }) {
   const track = form.recommended_track;
+  const composed = PRESCRIPTION_LINES[track];
+  const digitalOn = form.digital_offered === 'yes';
   return (
     <div dir="rtl" style={{
       background: '#FFFFFF', border: '2px solid #FF6F20', borderRadius: 12,
@@ -1081,16 +1105,22 @@ function PrescriptionCard({ form, set }) {
         <ChipRow options={PRESCRIPTION_TRACKS} value={track}
           onPick={(k) => set({ recommended_track: track === k ? '' : k })} wrap />
       </Field>
-      {track && (
-        <div>
-          <div style={{ fontSize: 13.5, fontWeight: 700, lineHeight: 1.55, color: '#1a1a1a', whiteSpace: 'pre-wrap', userSelect: 'text' }}>
-            לפי מה שסיפרת לי — הכי מתאים לך להתחיל עם {track}
-          </div>
-          <div style={{ fontSize: 11, fontStyle: 'italic', color: '#9A8F82', lineHeight: 1.45, marginTop: 3 }}>
-            💡 להוסיף את הסיבה במילים של הליד עצמו — מהתשובות שרשמת בשלב הבירור
-          </div>
-        </div>
+      {composed && (
+        <SpeakBlock line={composed} note="להוסיף את הסיבה במילים של הליד עצמו" />
       )}
+
+      {/* Digital add-on — always visible, applies to everyone. */}
+      <SpeakBlock tagSuffix=" · תוספת דיגיטלית" line={PRESCRIPTION_DIGITAL.line} note={PRESCRIPTION_DIGITAL.note} />
+      <button type="button" onClick={() => set({ digital_offered: digitalOn ? '' : 'yes' })} style={{
+        display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 'none',
+        cursor: 'pointer', padding: '2px 0', textAlign: 'right',
+      }}>
+        <span style={{
+          width: 22, height: 22, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: digitalOn ? 'none' : '2px solid #D9CDBB', background: digitalOn ? '#639922' : '#fff', color: '#fff', fontSize: 14, fontWeight: 800,
+        }}>{digitalOn ? '✓' : ''}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#4A1B0C' }}>הוצעה הדרכה דיגיטלית</span>
+      </button>
     </div>
   );
 }

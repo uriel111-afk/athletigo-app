@@ -590,8 +590,8 @@ const SALES_VALUE_GENERAL = [
     note: 'שאלת אישור — עוד כן קטן. אחרי כל הצגת ערך' },
 ];
 const SALES_OFFER_GENERAL = [
-  { line: 'בהתחלה הכי כדאי פשוט לבוא להרגיש — מפגש היכרות ב-39 שקלים, ואם זה מתאים ממשיכים משם',
-    note: 'לנקוב במחיר בביטחון ולשתוק. מי שמדבר ראשון אחרי המחיר — מפסיד' },
+  { line: 'השיעור הראשון בקבוצה הוא עלינו — באים, מרגישים, ורק אז מחליטים',
+    note: 'הצעה שאי אפשר לסרב לה — המטרה היא רגל בדלת' },
   { line: 'איך זה נשמע לך עד עכשיו?',
     note: 'אם התגובה חיובית — ממשיכים מיד: אז למה שלא תיתן לזה ניסיון?' },
   { line: 'אז למה שלא תיתן לזה ניסיון?',
@@ -658,12 +658,23 @@ export const LEAD_PERSONAS = [
 ];
 // Prescription-step recommended tracks (offer step). Value stored on
 // leads.recommended_track.
+// Four-offer ladder (offer step). recommended_track stores the key.
 export const PRESCRIPTION_TRACKS = [
-  { key: 'קבוצת ילדים', label: 'קבוצת ילדים' },
-  { key: 'תנועה בכיף',  label: 'תנועה בכיף' },
-  { key: 'אימון אישי',  label: 'אימון אישי' },
-  { key: 'מפגש היכרות', label: 'מפגש היכרות' },
+  { key: 'group_trial', label: 'שיעור ניסיון בקבוצה — חינם' },
+  { key: 'personal',    label: 'מפגש אישי — 350 ₪' },
+  { key: 'program_90',  label: 'ליווי בזק 90 יום — 1,200 ₪ לחודש' },
 ];
+// Composed read-aloud line per selected offer.
+export const PRESCRIPTION_LINES = {
+  group_trial: 'לפי מה שסיפרת לי — הכי מתאים לך להתחיל עם שיעור ניסיון בקבוצה, והראשון עלינו',
+  personal:    'לפי מה שסיפרת לי — הכי שווה לך מפגש אישי אחד על אחד, שממנו תצא עם נקודת פתיחה מדויקת',
+  program_90:  'לפי מה שסיפרת לי — אתה בשל לליווי של 90 יום, אונליין ומפגש שבועי — שם רואים שינוי אמיתי',
+};
+// Digital add-on — always shown, applies to everyone (49 ₪).
+export const PRESCRIPTION_DIGITAL = {
+  line: 'ולפני שמתחילים — יש לנו הדרכה דיגיטלית ב-49 שקלים שנותנת לך את הבסיס של השיטה ומכינה את הגוף לפעילות. רוב המתאמנים מתחילים איתה',
+  note: 'מוצע לכולם, על כל מסלול — מכירה ראשונה כבר בשיחה',
+};
 // Always-visible instruction at the top of the objection panel.
 export const OBJECTION_PREAMBLE = 'לפני שעונים על התנגדות — לשאול: למה אתה מתכוון בדיוק? הרבה פעמים הליד מפרק אותה בעצמו';
 
