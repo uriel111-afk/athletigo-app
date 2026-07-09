@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import RenameUserDialog from "../components/forms/RenameUserDialog";
 import AddTraineeDialog from "../components/forms/AddTraineeDialog";
+import TeamManagementSection from "../components/TeamManagementSection";
 import AddCoachDialog from "../components/forms/AddCoachDialog";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "sonner";
@@ -1029,6 +1030,12 @@ export default function AllUsers() {
           )}
         </div>
         </>
+        )}
+
+        {/* Team management (צוות) — master coach only: create/manage
+            coordinators (רכזות). */}
+        {view === 'list' && isOwnerAdmin && (
+          <TeamManagementSection currentUser={currentUser} />
         )}
 
         {/* Row C — Service-type tabs. Three pills in RTL reading order:
