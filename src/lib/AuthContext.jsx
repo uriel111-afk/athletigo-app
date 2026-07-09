@@ -147,6 +147,7 @@ export const AuthProvider = ({ children }) => {
 
     const path = window.location.pathname;
     const isCoach = user.role === 'coach' || user.is_coach === true || user.role === 'admin';
+    const isCoordinator = user.role === 'coordinator';
     const LIFE_OS_COACH_ID = '67b0093d-d4ca-4059-8572-26f020bef1eb';
     const isLifeOSCoach = user.id === LIFE_OS_COACH_ID;
 
@@ -159,10 +160,20 @@ export const AuthProvider = ({ children }) => {
 
     if (path === '/login') {
       routingDoneRef.current = true;
-      const dest = isCoach
-        ? (isLifeOSCoach ? '/hub' : '/dashboard')
-        : (isOnboardingComplete ? '/trainee-home' : '/onboarding');
+      const dest = isCoordinator
+        ? '/lifeos/leads'
+        : isCoach
+          ? (isLifeOSCoach ? '/hub' : '/dashboard')
+          : (isOnboardingComplete ? '/trainee-home' : '/onboarding');
       navigate(dest, { replace: true });
+      return;
+    }
+
+    // Coordinator is a leads-only staff role — never routed through the
+    // trainee onboarding flow; always parked on the leads screen.
+    if (isCoordinator) {
+      routingDoneRef.current = true;
+      if (!path.startsWith('/lifeos/leads')) navigate('/lifeos/leads', { replace: true });
       return;
     }
 

@@ -28,14 +28,17 @@ export default function Login() {
   const redirectAfterLogin = (profile) => {
     const isCoach = profile?.role === 'coach' || profile?.isCoach === true || profile?.role === 'admin';
     const isTrainee = profile?.role === 'trainee' || profile?.role === 'user';
+    const isCoordinator = profile?.role === 'coordinator';
     const isLifeOSCoach = profile?.id === COACH_USER_ID;
-    const destination = isTrainee
-      ? '/trainee-home'
-      : isLifeOSCoach
-        ? '/hub'
-        : isCoach
-          ? createPageUrl('Dashboard')
-          : createPageUrl('Dashboard');
+    const destination = isCoordinator
+      ? '/lifeos/leads'
+      : isTrainee
+        ? '/trainee-home'
+        : isLifeOSCoach
+          ? '/hub'
+          : isCoach
+            ? createPageUrl('Dashboard')
+            : createPageUrl('Dashboard');
     navigate(destination, { replace: true });
   };
 
@@ -94,7 +97,10 @@ export default function Login() {
       const onboardingDone = profile?.onboarding_completed === true
         || profile?.onboarding_completed_at != null
         || (profile?.client_status && profile.client_status !== 'onboarding');
-      if (!onboardingDone) {
+      // Staff roles (coach / admin / coordinator) never go through the
+      // trainee onboarding questionnaire.
+      const isStaff = profile?.role === 'coach' || profile?.role === 'admin' || profile?.role === 'coordinator';
+      if (!isStaff && !onboardingDone) {
         navigate('/onboarding', { replace: true });
         return;
       }

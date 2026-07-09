@@ -290,6 +290,16 @@ export const DOCUMENT_TEMPLATES = {
 תאריך חתימה: {{signed_date}}
 `,
   },
+
+  // Upload-only type (65+ medical clearance). NOT a signing flow — the
+  // picker opens a native file upload and writes a signed_documents row
+  // with document_type 'doctor_approval', status 'signed', file_url set.
+  doctor_approval: {
+    key: 'doctor_approval',
+    title: 'אישור רופא לפעילות גופנית',
+    icon: '🩺',
+    isUpload: true,
+  },
 };
 
 export const DOCUMENT_TYPES_LIST = Object.values(DOCUMENT_TEMPLATES);

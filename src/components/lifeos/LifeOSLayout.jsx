@@ -14,6 +14,7 @@ import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 export default function LifeOSLayout({ title, children, rightSlot = null, onQuickSaved }) {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
+  const isCoordinator = user?.role === 'coordinator';
 
   return (
     <div
@@ -43,25 +44,30 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
           gap: 12,
         }}
       >
-        <button
-          onClick={() => navigate('/hub')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            background: 'transparent',
-            border: 'none',
-            padding: '6px 8px',
-            borderRadius: 10,
-            color: LIFEOS_COLORS.textPrimary,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          <ChevronRight size={18} />
-          <span>Hub</span>
-        </button>
+        {/* Coordinator is leads-only — no Hub to return to. */}
+        {isCoordinator ? (
+          <div style={{ width: 60 }} />
+        ) : (
+          <button
+            onClick={() => navigate('/hub')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              background: 'transparent',
+              border: 'none',
+              padding: '6px 8px',
+              borderRadius: 10,
+              color: LIFEOS_COLORS.textPrimary,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <ChevronRight size={18} />
+            <span>Hub</span>
+          </button>
+        )}
 
         <div
           style={{
@@ -89,7 +95,8 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
       </div>
 
       <LifeOSNav />
-      <QuickActionFAB onSaved={onQuickSaved} />
+      {/* Coordinator can't create finance/quick items — hide the FAB. */}
+      {!isCoordinator && <QuickActionFAB onSaved={onQuickSaved} />}
       {/* MentorChat sheet is mounted globally in App.jsx — the
           header's MentorChatIconButton triggers it via window event. */}
     </div>

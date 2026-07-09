@@ -1,154 +1,202 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { X, Loader2, Send } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Loader2, Copy, Check, MessageCircle, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  LEAD_SOURCE_CHIPS, SPORTS_EXPERIENCE, LADDER_MATCHES, ladderForExperience,
-  LADDER_CORE_MESSAGES, LADDER_CONTENT, LADDER_EQUIPMENT, LADDER_COURSE_OPTIONS,
-  LEAD_CLOSE_RESULTS, LEAD_PAYMENT_METHODS, statusForDetail, closedDetailForLadder, productNameForLadder,
-} from '@/lib/lifeos/lifeos-constants';
+import { statusForDetail } from '@/lib/lifeos/lifeos-constants';
 import { addLead, updateLead } from '@/lib/lifeos/lifeos-api';
-import { waLink } from '@/lib/lifeos/lead-helpers';
-import { useSalesScripts } from '@/lib/lifeos/sales-scripts-api';
+import { waLink, normalizePhone } from '@/lib/lifeos/lead-helpers';
+import { supabase } from '@/lib/supabaseClient';
 
 const ORANGE = '#FF6F20';
-const TOTAL_STEPS = 8;
-const STEP_TITLES = ['היכרות', 'הבנת הצורך', 'שאלות הכן', 'ההתאמה', 'ההצעה', 'התנגדויות', 'סגירה ותשלום', 'סיכום'];
+const TOTAL_STEPS = 9;
+const STEP_TITLES = [
+  'פתיחה', 'למה עכשיו', 'החסם', 'רקע ופציעות', 'חזון',
+  'מסגרת', 'שיקוף', 'מפגש היכרות', 'סגירה',
+];
+const INTRO_PRICE = 39;
+
+// ── Chip option sets (values stored verbatim in the DB) ──────────────
+const FOR_WHOM = [
+  { key: 'self',   label: 'לעצמי' },
+  { key: 'child',  label: 'לילד/ה שלי' },
+  { key: 'parent', label: 'להורה שלי' },
+  { key: 'other',  label: 'אחר' },
+];
+const SOURCE_CHIPS = [
+  { key: 'פלייר',     label: 'פלייר' },
+  { key: 'דף נחיתה',  label: 'דף נחיתה' },
+  { key: 'המלצה',     label: 'המלצה' },
+  { key: 'אינסטגרם',  label: 'אינסטגרם' },
+  { key: 'אחר',       label: 'אחר' },
+];
+const BARRIER_CHIPS = [
+  { key: 'זמן',    label: 'זמן' },
+  { key: 'כסף',    label: 'כסף' },
+  { key: 'ביטחון', label: 'ביטחון' },
+  { key: 'פציעה',  label: 'פציעה' },
+  { key: 'לא ידע מאיפה להתחיל', label: 'לא ידע מאיפה להתחיל' },
+];
+const BACKGROUND_CHIPS = [
+  { key: 'אין רקע',      label: 'אין רקע' },
+  { key: 'התאמן בעבר',   label: 'התאמן בעבר' },
+  { key: 'מתאמן כיום',   label: 'מתאמן כיום' },
+  { key: 'ספורטאי רציני', label: 'ספורטאי רציני' },
+];
+const INJURY_CHIPS = [
+  { key: 'אין',       label: 'אין' },
+  { key: 'פציעת עבר', label: 'פציעת עבר' },
+  { key: 'כאב פעיל',  label: 'כאב פעיל' },
+];
+const FORMAT_CHIPS = [
+  { key: 'personal', label: 'אישית' },
+  { key: 'group',    label: 'קבוצתית' },
+  { key: 'online',   label: 'אונליין' },
+  { key: 'unsure',   label: 'לא בטוח — שנתאים יחד' },
+];
+const DAY_CHIPS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי'].map((d) => ({ key: d, label: d }));
+const HOUR_CHIPS = ['בוקר', 'צהריים', 'ערב'].map((h) => ({ key: h, label: h }));
+
+// Neutralizer sentence appended to the mirror per barrier type (step 7).
+const BARRIER_NEUTRALIZER = {
+  'זמן':    ' — ולכן בנינו מסגרת קצרה וקבועה שנכנסת ללוז בלי להפוך את השבוע. ',
+  'כסף':    ' — ולכן מתחילים בקטן, מפגש היכרות בלי התחייבות גדולה מראש. ',
+  'ביטחון': ' — ולכן מתחילים בדיוק מנקודת הפתיחה שלך, צעד אחרי צעד. ',
+  'פציעה':  ' — וזה בדיוק הסיפור שלנו: אנחנו מלמדים להתאמן נכון כדי שלא נפצעים מלכתחילה. ',
+  'לא ידע מאיפה להתחיל': ' — ולכן יש לנו מסלול מסודר, לא צריך לנחש, רק להגיע. ',
+};
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
-const deriveLadder = (f) => f.ladder_match || ladderForExperience(f.sports_experience);
+const tomorrowISO = () => new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
 
 const blankForm = () => ({
-  name: '', phone: '', email: '', age: '', source: 'instagram',
-  sports_experience: '', current_training: '', fitness_goal: '', fear_barrier: '',
-  ladder_match: '',
-  yes_answers: [], yes_map: {},
-  session_price: '', package_sessions: '', package_price: '',
-  offered_discount: false, discount_deadline: '', family_deal: false,
-  equipment: [], course: '',
-  objections: '', close_result: '',
-  payment_method: '', payment_amount: '', product_sold: '', receipt_issued: false,
-  lead_status_detail: '',
-  conversation_summary: '', next_follow_up: '', notes: '',
-  content_sent: [],
+  for_whom: '', name: '', phone: '', email: '', trainee_name: '', age: '',
+  source: 'אינסטגרם', source_other: '',
+  why_now: '',
+  objections: '', barrier_type: '',
+  background_level: '', sports_experience: '', injury_level: '', injuries: '',
+  fitness_goal: '',
+  interested_in: '',
+  conversation_summary: '',
+  meeting_day: '', meeting_hour: '',
+  close_result: '', lead_status_detail: '', next_follow_up: '', notes: '',
 });
 
 function fromLead(lead) {
   if (!lead) return blankForm();
-  const yesAns = Array.isArray(lead.yes_answers) ? lead.yes_answers : [];
+  // A saved source that isn't one of the preset chips is a free-text
+  // "אחר" value — show it in the reveal input and keep the chip on אחר.
+  const preset = SOURCE_CHIPS.some((c) => c.key === lead.source);
   return {
     ...blankForm(),
+    for_whom: lead.for_whom || '',
     name: lead.name || '', phone: lead.phone || '', email: lead.email || '',
-    age: lead.age ? String(lead.age) : '', source: lead.source || 'instagram',
+    trainee_name: lead.trainee_name || '',
+    age: lead.age != null ? String(lead.age) : '',
+    source: preset ? (lead.source || 'אינסטגרם') : 'אחר',
+    source_other: preset ? '' : (lead.source || ''),
+    why_now: lead.why_now || '',
+    objections: lead.objections || '', barrier_type: lead.barrier_type || '',
+    background_level: lead.background_level || '',
     sports_experience: lead.sports_experience || '',
-    current_training: lead.current_training || '', fitness_goal: lead.fitness_goal || '',
-    fear_barrier: lead.fear_barrier || '', ladder_match: lead.ladder_match || '',
-    yes_answers: yesAns, yes_map: Object.fromEntries(yesAns.map((k) => [k, 'yes'])),
-    session_price: lead.session_price != null ? String(lead.session_price) : '',
-    package_sessions: lead.package_sessions != null ? String(lead.package_sessions) : '',
-    package_price: lead.package_price != null ? String(lead.package_price) : '',
-    offered_discount: !!lead.offered_discount, discount_deadline: lead.discount_deadline || '',
-    objections: lead.objections || '', close_result: lead.close_result || '',
-    payment_method: lead.payment_method || '', payment_amount: lead.payment_amount != null ? String(lead.payment_amount) : '',
-    product_sold: lead.product_sold || '', receipt_issued: !!lead.receipt_issued,
-    lead_status_detail: lead.lead_status_detail || '',
+    injury_level: lead.injury_level || '', injuries: lead.injuries || '',
+    fitness_goal: lead.fitness_goal || '',
+    interested_in: lead.interested_in || '',
     conversation_summary: lead.conversation_summary || '',
+    meeting_day: lead.meeting_day || '', meeting_hour: lead.meeting_hour || '',
+    close_result: lead.close_result || '', lead_status_detail: lead.lead_status_detail || '',
     next_follow_up: lead.next_follow_up || '', notes: lead.notes || '',
-    content_sent: Array.isArray(lead.content_sent) ? lead.content_sent : [],
   };
 }
 
-// Full-screen 6-step guided sales flow. Each step is one no-scroll
-// screen; advancing auto-saves the lead.
+// Compose the editable "mirror" text (step 7) from the captured answers.
+export function composeMirror(f) {
+  const thirdPerson = (f.for_whom === 'child' || f.for_whom === 'parent') && (f.trainee_name || '').trim();
+  const who = thirdPerson ? f.trainee_name.trim() : null;
+  let out = '';
+  if ((f.why_now || '').trim()) out += `אמרת ש${f.why_now.trim()} — בדיוק בשביל זה אנחנו כאן. `;
+  if ((f.objections || '').trim()) {
+    out += `סיפרת שמה שעצר עד עכשיו זה ${f.objections.trim()}`;
+    out += BARRIER_NEUTRALIZER[f.barrier_type] || '. ';
+  }
+  if ((f.injury_level && f.injury_level !== 'אין') || (f.injuries || '').trim()) {
+    out += 'נעבוד בצורה שמכבדת את הגוף ומתחשבת במה שסיפרת. ';
+  }
+  out += who
+    ? `ואני אגיד לך משהו — אנחנו מכירים את הנקודה הזאת מצוין. אנשים שהתחילו בדיוק מאיפה ש${who} נמצא/ת היום כבר עושים אצלנו דברים שלא האמינו שיעשו. יש לנו דרך סדורה, והצעד הראשון פשוט: מפגש היכרות. נבדוק יחד את נקודת הפתיחה, ותצאו ממנו עם תוכנית ברורה ותחושה שסוף סוף יש כיוון.`
+    : 'ואני אגיד לך משהו — אנחנו מכירים את הנקודה הזאת מצוין. אנשים שהתחילו בדיוק מאיפה שאת/ה נמצא/ת היום כבר עושים אצלנו דברים שלא האמינו שיעשו. יש לנו דרך סדורה, והצעד הראשון פשוט: מפגש היכרות. נבדוק יחד את נקודת הפתיחה, ותצא/י ממנו עם תוכנית ברורה ותחושה שסוף סוף יש כיוון.';
+  return out;
+}
+
+// Full-screen 9-step guided intake wizard. Each "next" auto-saves the lead.
 export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved }) {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(blankForm());
   const [leadId, setLeadId] = useState(null);
   const [busy, setBusy] = useState(false);
-  const sc = useSalesScripts(userId);
+  const [priceHelp, setPriceHelp] = useState(false);
+  const mirroredRef = useRef(false);
 
   useEffect(() => {
     if (!isOpen) return;
     setForm(fromLead(lead));
     setLeadId(lead?.id || null);
     setStep(1);
+    setPriceHelp(false);
+    mirroredRef.current = false;
   }, [isOpen, lead]);
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
-  const ladder = useMemo(
-    () => form.ladder_match || ladderForExperience(form.sports_experience),
-    [form.ladder_match, form.sports_experience],
-  );
+  // Auto-compose the mirror once, when the user first reaches step 7 and
+  // hasn't already got a summary (existing edit / prior compose).
+  useEffect(() => {
+    if (!isOpen) return;
+    if (step === 7 && !mirroredRef.current && !(form.conversation_summary || '').trim()) {
+      setForm((f) => ({ ...f, conversation_summary: composeMirror(f) }));
+      mirroredRef.current = true;
+    }
+  }, [step, isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isOpen) return null;
 
-  // ── Build the DB payload from a form snapshot. applyStatus maps
-  //    lead_status_detail → lead.status (+ income) and is set ONLY by
-  //    the step-7 close actions so the converted income sync fires once. ──
+  // Map the form snapshot → DB columns. applyStatus flips lead.status
+  // (only the step-9 close actions pass true).
   const buildPayload = (f, applyStatus) => {
-    const num = (v) => (v === '' || v == null ? null : Number(v));
-    const lad = deriveLadder(f);
-    const advancedTotal = (f.equipment || []).reduce((s, k) => {
-      const e = LADDER_EQUIPMENT.find((x) => x.key === k); return s + (e ? e.price : 0);
-    }, 0);
-
     const payload = {
+      for_whom: f.for_whom || null,
       name: f.name.trim(),
       phone: f.phone.trim() || null,
       email: f.email.trim() || null,
+      trainee_name: (f.trainee_name || '').trim() || null,
       age: f.age ? parseInt(f.age, 10) : null,
-      source: f.source || null,
-      sports_experience: f.sports_experience || null,
-      current_training: f.current_training || null,
-      fitness_goal: f.fitness_goal || null,
-      fear_barrier: f.fear_barrier || null,
-      ladder_match: lad || null,
-      yes_answers: Array.isArray(f.yes_answers) ? f.yes_answers : [],
-      session_price: num(f.session_price),
-      package_sessions: num(f.package_sessions),
-      package_price: lad === 'advanced' ? (advancedTotal || null) : num(f.package_price),
-      offered_discount: !!f.offered_discount,
-      discount_deadline: f.offered_discount ? (String(f.discount_deadline).slice(0, 10) || todayISO()) : null,
+      source: (f.source === 'אחר' ? ((f.source_other || '').trim() || 'אחר') : f.source) || null,
+      why_now: f.why_now || null,
       objections: f.objections || null,
-      close_result: f.close_result || null,
-      payment_method: f.payment_method || null,
-      payment_amount: num(f.payment_amount),
-      product_sold: f.product_sold || null,
-      receipt_issued: !!f.receipt_issued,
-      lead_status_detail: f.lead_status_detail || null,
+      barrier_type: f.barrier_type || null,
+      background_level: f.background_level || null,
+      sports_experience: f.sports_experience || null,
+      injury_level: f.injury_level || null,
+      injuries: f.injuries || null,
+      fitness_goal: f.fitness_goal || null,
+      interested_in: f.interested_in || null,
       conversation_summary: f.conversation_summary || null,
-      next_follow_up: f.next_follow_up || null,
+      meeting_day: f.meeting_day || null,
+      meeting_hour: f.meeting_hour || null,
+      close_result: f.close_result || null,
+      lead_status_detail: f.lead_status_detail || null,
+      next_follow_up: f.next_follow_up ? String(f.next_follow_up).slice(0, 10) : null,
       notes: f.notes || null,
-      content_sent: f.content_sent,
       last_contact_date: new Date().toISOString(),
     };
-    // Derive interested_in so the legacy list/score + income sync stay useful.
-    if (lad === 'advanced') {
-      payload.interested_in = (f.equipment || []).includes('dream_machine') ? 'dream_machine'
-        : f.course ? 'course' : ((f.equipment || [])[0] || 'other');
-    } else if (lad === '3month') {
-      payload.interested_in = 'online_coaching';
-    } else {
-      payload.interested_in = 'workshop';
-    }
     if (applyStatus && f.lead_status_detail) {
       const st = statusForDetail(f.lead_status_detail);
       if (st) payload.status = st;
-      const amount = num(f.payment_amount);
-      if (st === 'converted' && amount > 0) {
-        payload.revenue_if_converted = amount;
-        payload.converted_at = new Date().toISOString();
-      }
+      if (st === 'converted') payload.converted_at = new Date().toISOString();
     }
     return payload;
   };
 
-  // Save and return the lead id (creating on first save).
   const persist = async (applyStatus = false, f = form) => {
     const payload = buildPayload(f, applyStatus);
-    console.log('[GuidedLeadFlow] persist —', leadId ? 'UPDATE' : 'CREATE',
-      { userId, leadId, payloadKeys: Object.keys(payload) });
-    console.log('[GuidedLeadFlow] persist payload:', JSON.stringify(payload));
     if (leadId) {
       await updateLead(leadId, payload);
       return leadId;
@@ -159,77 +207,39 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
   };
 
   const next = async () => {
-    console.log('[GuidedLeadFlow] Next clicked — step:', step, 'of', TOTAL_STEPS);
-    console.log('[GuidedLeadFlow] name:', form.name, '| userId:', userId, '| leadId:', leadId);
-    const step1Valid = !(step === 1 && !form.name.trim());
-    console.log('[GuidedLeadFlow] step-1 validation passed:', step1Valid);
     if (step === 1 && !form.name.trim()) { toast.error('הכנס שם'); return; }
     setBusy(true);
     try {
       await persist(false, form);
-      console.log('[GuidedLeadFlow] persist OK — advancing from step', step);
-      if (step === TOTAL_STEPS) {
-        toast.success(lead ? 'הליד עודכן' : 'הליד נשמר');
-        onSaved?.();
-        onClose();
-      } else {
-        setStep((s) => s + 1);
-      }
+      if (step === TOTAL_STEPS) { toast.success(lead ? 'הליד עודכן' : 'הליד נשמר'); onSaved?.(); onClose(); }
+      else setStep((s) => s + 1);
     } catch (e) {
       console.error('[GuidedLeadFlow] save error', e);
-      console.error('[GuidedLeadFlow] save error (full):', JSON.stringify(e, Object.getOwnPropertyNames(e || {})));
       toast.error('שגיאה בשמירה: ' + (e?.message || ''));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // Step 7 → step 8 with a close/not-close patch. Persists with status
-  // mapping applied so a closed deal records income exactly once.
-  const finishStep7 = async (patch) => {
-    const merged = { ...form, ...patch };
-    setForm(merged);
-    setBusy(true);
-    try {
-      await persist(true, merged);
-      setStep(8);
-    } catch (e) {
-      console.error('[GuidedLeadFlow] close save error', e);
-      toast.error('שגיאה בשמירה: ' + (e?.message || ''));
-    } finally {
-      setBusy(false);
-    }
+    } finally { setBusy(false); }
   };
 
   const back = () => setStep((s) => Math.max(1, s - 1));
 
-  // Closing via the X (or backdrop) after any step advance means a lead
-  // was already created/updated (leadId is set). Tell the parent to
-  // refresh its list so the new/edited lead shows without a remount.
-  const handleClose = () => {
-    if (leadId) onSaved?.();
-    onClose();
-  };
+  const handleClose = () => { if (leadId) onSaved?.(); onClose(); };
 
-  // Send a content item over WhatsApp + record it on the lead.
-  const sendContent = async (item) => {
-    const url = waLink(form.phone, `${item.message}\n${item.url}`);
-    window.open(url, '_blank');
-    if (form.content_sent.includes(item.label)) return;
-    const nextSent = [...form.content_sent, item.label];
-    set({ content_sent: nextSent });
-    try {
-      const id = leadId || await persist(false);
-      await updateLead(id, { content_sent: nextSent });
-    } catch (e) { console.warn('[GuidedLeadFlow] content_sent save failed', e); }
+  // Step-9 outcome: merge a close patch, persist with status mapping.
+  const applyOutcome = async (patch) => {
+    const merged = { ...form, ...patch };
+    setForm(merged);
+    setBusy(true);
+    try { await persist(true, merged); return merged; }
+    catch (e) { toast.error('שגיאה בשמירה: ' + (e?.message || '')); return null; }
+    finally { setBusy(false); }
   };
+  const finishAll = () => { onSaved?.(); onClose(); };
 
   return (
     <div dir="rtl" style={{
       position: 'fixed', inset: 0, background: 'var(--cream, #FBF3EA)', zIndex: 1600,
       display: 'flex', flexDirection: 'column',
     }}>
-      {/* Header — close + progress dots + step title */}
+      {/* Header — close + progress + step title */}
       <div style={{
         paddingTop: 'max(env(safe-area-inset-top), 12px)', paddingInline: 14, paddingBottom: 8,
         display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0,
@@ -246,16 +256,38 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
         <Dots step={step} />
       </div>
 
-      {/* Step body — compact, single safety scroll if a device is tiny */}
+      {/* Step body */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '4px 14px 10px' }}>
-        {step === 1 && <Step1 form={form} set={set} sc={sc} />}
-        {step === 2 && <Step2 form={form} set={set} sc={sc} />}
-        {step === 3 && <StepYesLadder form={form} set={set} ladder={ladder} sc={sc} />}
-        {step === 4 && <Step3 form={form} ladder={ladder} onSend={sendContent} sc={sc} />}
-        {step === 5 && <Step4 form={form} set={set} ladder={ladder} sc={sc} />}
-        {step === 6 && <Step5 form={form} set={set} ladder={ladder} sc={sc} />}
-        {step === 7 && <StepPayment form={form} set={set} ladder={ladder} sc={sc} busy={busy} onFinish={finishStep7} />}
-        {step === 8 && <Step6 form={form} set={set} ladder={ladder} sc={sc} />}
+        {step === 1 && <Step1 form={form} set={set} />}
+        {step === 2 && <Step2 form={form} set={set} />}
+        {step === 3 && <Step3 form={form} set={set} />}
+        {step === 4 && <Step4 form={form} set={set} />}
+        {step === 5 && <Step5 form={form} set={set} />}
+        {step === 6 && <Step6 form={form} set={set} />}
+        {step === 7 && <Step7 form={form} set={set} />}
+        {step === 8 && <Step8 form={form} set={set} />}
+        {step === 9 && <Step9 form={form} set={set} busy={busy} onOutcome={applyOutcome} onDone={finishAll} />}
+      </div>
+
+      {/* Floating price-question helper — visible on every step */}
+      <div style={{ position: 'relative' }}>
+        {priceHelp && (
+          <div dir="rtl" style={{
+            position: 'absolute', bottom: 52, insetInlineStart: 14, insetInlineEnd: 14,
+            background: '#E8F7EE', border: '1px solid #34C759', borderRadius: 12,
+            padding: '12px 14px', fontSize: 13, lineHeight: 1.6, color: '#1B5E36',
+            boxShadow: '0 6px 20px rgba(0,0,0,0.12)', zIndex: 2,
+          }}>
+            תלוי במסגרת שנתאים לך — בדיוק בשביל זה אני שואלת כמה שאלות קצרות, בסדר?
+          </div>
+        )}
+        <button type="button" onClick={() => setPriceHelp((v) => !v)} style={{
+          position: 'absolute', bottom: 8, insetInlineStart: 14, zIndex: 2,
+          padding: '7px 14px', borderRadius: 999, cursor: 'pointer',
+          border: '1px solid #34C759', background: priceHelp ? '#34C759' : '#fff',
+          color: priceHelp ? '#fff' : '#1B5E36', fontSize: 12, fontWeight: 800,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+        }}>💬 שאל על מחיר?</button>
       </div>
 
       {/* Footer nav */}
@@ -263,8 +295,8 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
         flexShrink: 0, padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)',
         display: 'flex', flexDirection: 'column', gap: 6, borderTop: '1px solid #F0E4D0', background: '#fff',
       }}>
-        {/* Step 7 (payment) drives its own advance via close/not-close. */}
-        {step !== 7 && (
+        {/* Step 9 (close) drives its own advance via the outcome buttons. */}
+        {step !== 9 && (
           <button type="button" onClick={next} disabled={busy} style={{
             width: '100%', height: 48, borderRadius: 14, border: 'none', cursor: 'pointer',
             background: ORANGE, color: '#fff', fontSize: 16, fontWeight: 800,
@@ -272,7 +304,7 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
             opacity: busy ? 0.6 : 1,
           }}>
             {busy && <Loader2 size={18} className="animate-spin" />}
-            {step === TOTAL_STEPS ? 'שמור' : 'הבא →'}
+            הבא →
           </button>
         )}
         {step > 1 && (
@@ -288,470 +320,307 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
 
 // ─── Steps ──────────────────────────────────────────────────────────
 
-function Step1({ form, set, sc }) {
+function Step1({ form, set }) {
   return (
     <div style={col}>
+      <ScriptBox>היי, איזה כיף שהתקשרת! ספר/י לי — האימון בשבילך או בשביל מישהו קרוב?</ScriptBox>
+      <Field label="בשביל מי">
+        <ChipRow options={FOR_WHOM} value={form.for_whom} onPick={(k) => set({ for_whom: k })} wrap />
+      </Field>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <Field label="שם *"><input style={inp} value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="שם מלא" autoFocus /></Field>
+        <Field label="שם *"><input style={inp} value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="שם המתקשר/ת" autoFocus /></Field>
         <Field label="גיל"><input style={inp} type="number" inputMode="numeric" value={form.age} onChange={(e) => set({ age: e.target.value })} placeholder="גיל" /></Field>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <Field label="טלפון"><input style={inp} type="tel" value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="050-0000000" /></Field>
-        <Field label="אימייל"><input style={inp} type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="אופציונלי" /></Field>
+        <Field label="שם המתאמן/ת (אם שונה)"><input style={inp} value={form.trainee_name} onChange={(e) => set({ trainee_name: e.target.value })} placeholder="אופציונלי" /></Field>
       </div>
       <Field label="מקור">
-        <ChipRow options={LEAD_SOURCE_CHIPS} value={form.source} onPick={(k) => set({ source: k })} />
+        <ChipRow options={SOURCE_CHIPS} value={form.source} onPick={(k) => set({ source: k })} wrap />
       </Field>
-      <SmartTip>{sc.getScript('step1_tip', 'first_impression')}</SmartTip>
+      {form.source === 'אחר' && (
+        <input style={inp} value={form.source_other} onChange={(e) => set({ source_other: e.target.value })} placeholder="מאיפה הגיע/ה?" />
+      )}
     </div>
   );
 }
 
-function Step2({ form, set, sc }) {
+function Step2({ form, set }) {
   return (
     <div style={col}>
-      <Field label="ניסיון ספורטיבי">
-        <ChipRow options={SPORTS_EXPERIENCE} value={form.sports_experience} onPick={(k) => set({ sports_experience: k })} wrap />
+      <ScriptBox>ספר/י לי, מה גרם לך להתקשר דווקא עכשיו?</ScriptBox>
+      <Field label="במילים שלו/ה">
+        <textarea style={{ ...inp, height: 'auto' }} rows={4} value={form.why_now} onChange={(e) => set({ why_now: e.target.value })} placeholder="מה גרם להתקשר עכשיו..." />
       </Field>
-      <Field label="מה אתה עושה היום?">
-        <textarea style={{ ...inp, height: 'auto' }} rows={2} value={form.current_training} onChange={(e) => set({ current_training: e.target.value })} placeholder="האימון הנוכחי..." />
-      </Field>
-      <Field label="מה היית רוצה להשיג?">
-        <textarea style={{ ...inp, height: 'auto' }} rows={2} value={form.fitness_goal} onChange={(e) => set({ fitness_goal: e.target.value })} placeholder="המטרה..." />
-      </Field>
-      <Field label="מה עצר אותך עד עכשיו?">
-        <textarea style={{ ...inp, height: 'auto' }} rows={2} value={form.fear_barrier} onChange={(e) => set({ fear_barrier: e.target.value })} placeholder="החסם..." />
-      </Field>
-      <SmartTip small>{sc.getScript('step2_tip', 'deep_listening')}</SmartTip>
     </div>
   );
 }
 
-function Step3({ form, ladder, onSend, sc }) {
-  const m = LADDER_MATCHES[ladder];
-  const content = LADDER_CONTENT[ladder] || [];
-  const body = sc.getScript(`pitch_${ladder}`, 'main') || m.body;
-  const recommended = sc.getScript(`pitch_${ladder}`, 'recommended') || m.recommended;
-  const coreRows = sc.getSection('core_messages');
-  const core = coreRows.length ? coreRows.map((r) => `✦ ${r.content}`) : LADDER_CORE_MESSAGES;
+function Step3({ form, set }) {
   return (
     <div style={col}>
-      <div style={{ fontSize: 16, fontWeight: 800, color: '#1A1A1A' }}>ככה אתלטיגו יכול לעזור לך</div>
-      <div style={{ background: '#fff', borderRadius: 14, padding: 14, border: `2px solid ${m.color}` }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: m.color, marginBottom: 6 }}>{m.title}</div>
-        <div style={{ fontSize: 13, lineHeight: 1.55, color: '#3a3a3a', whiteSpace: 'pre-wrap' }}>{body}</div>
-        <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 10, background: m.color, color: '#fff', fontSize: 13, fontWeight: 800, whiteSpace: 'pre-wrap' }}>
-          {recommended}
-        </div>
+      <ScriptBox>ומה עצר אותך עד עכשיו?</ScriptBox>
+      <Field label="במילים שלו/ה">
+        <textarea style={{ ...inp, height: 'auto' }} rows={3} value={form.objections} onChange={(e) => set({ objections: e.target.value })} placeholder="מה עצר עד עכשיו..." />
+      </Field>
+      <Field label="סוג החסם">
+        <ChipRow options={BARRIER_CHIPS} value={form.barrier_type} onPick={(k) => set({ barrier_type: k })} wrap />
+      </Field>
+    </div>
+  );
+}
+
+function Step4({ form, set }) {
+  return (
+    <div style={col}>
+      <ScriptBox>מה עשית בעבר מבחינת ספורט? ויש משהו שחשוב שנדע, כמו פציעות או כאבים?</ScriptBox>
+      <Field label="רקע ספורטיבי">
+        <ChipRow options={BACKGROUND_CHIPS} value={form.background_level} onPick={(k) => set({ background_level: k })} wrap />
+      </Field>
+      <Field label="פירוט הרקע">
+        <textarea style={{ ...inp, height: 'auto' }} rows={2} value={form.sports_experience} onChange={(e) => set({ sports_experience: e.target.value })} placeholder="מה עשה/תה בעבר..." />
+      </Field>
+      <Field label="פציעות / כאבים">
+        <ChipRow options={INJURY_CHIPS} value={form.injury_level} onPick={(k) => set({ injury_level: k })} wrap />
+      </Field>
+      <Field label="פירוט פציעות">
+        <textarea style={{ ...inp, height: 'auto' }} rows={2} value={form.injuries} onChange={(e) => set({ injuries: e.target.value })} placeholder="פירוט (אופציונלי)..." />
+      </Field>
+    </div>
+  );
+}
+
+function Step5({ form, set }) {
+  return (
+    <div style={col}>
+      <ScriptBox>מה היית רוצה שיקרה בעוד חצי שנה?</ScriptBox>
+      <Field label="החזון">
+        <textarea style={{ ...inp, height: 'auto' }} rows={4} value={form.fitness_goal} onChange={(e) => set({ fitness_goal: e.target.value })} placeholder="החזון לחצי שנה..." />
+      </Field>
+    </div>
+  );
+}
+
+function Step6({ form, set }) {
+  return (
+    <div style={col}>
+      <ScriptBox>איזו מסגרת הכי מדברת אליך — אישית, קבוצתית או אונליין?</ScriptBox>
+      <Field label="מסגרת מועדפת">
+        <ChipRow options={FORMAT_CHIPS} value={form.interested_in} onPick={(k) => set({ interested_in: k })} wrap />
+      </Field>
+    </div>
+  );
+}
+
+function Step7({ form, set }) {
+  return (
+    <div style={col}>
+      <ScriptBox>שיקוף — קרא/י ללקוח, וערוך/כי לפי הצורך:</ScriptBox>
+      <Field label="שיקוף (ניתן לעריכה)">
+        <textarea style={{ ...inp, height: 'auto' }} rows={10} value={form.conversation_summary} onChange={(e) => set({ conversation_summary: e.target.value })} placeholder="השיקוף נבנה אוטומטית מהתשובות..." />
+      </Field>
+    </div>
+  );
+}
+
+function Step8({ form, set }) {
+  const [payBusy, setPayBusy] = useState(false);
+  const [payUrl, setPayUrl] = useState('');
+  const [copied, setCopied] = useState(false);
+  const hasPhone = !!normalizePhone(form.phone);
+
+  const genLink = async () => {
+    setPayBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('payment-create', {
+        body: {
+          amount: INTRO_PRICE,
+          description: 'מפגש היכרות · AthletiGo',
+          trainee_name: form.name || form.trainee_name || '',
+          trainee_email: form.email || '',
+          trainee_phone: form.phone || '',
+          payment_type: 'single_session',
+        },
+      });
+      if (error) throw error;
+      const url = data?.url || data?.checkoutUrl;
+      if (!url) throw new Error(data?.error || 'לא התקבל קישור תשלום');
+      setPayUrl(url);
+      toast.success('נוצר קישור תשלום');
+    } catch (e) {
+      console.error('[GuidedLeadFlow] payment-create error', e);
+      toast.error('שגיאה ביצירת קישור: ' + (e?.message || ''));
+    } finally { setPayBusy(false); }
+  };
+
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(payUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); }
+    catch { toast.error('לא ניתן להעתיק'); }
+  };
+  const waShare = () => {
+    const msg = `היי! הנה הקישור לתשלום על מפגש ההיכרות (${INTRO_PRICE} ₪, מתקזז ברכישה):\n${payUrl}`;
+    window.open(waLink(form.phone, msg), '_blank');
+  };
+
+  return (
+    <div style={col}>
+      <ScriptBox>מתי נוח לך השבוע?</ScriptBox>
+      <Field label="יום">
+        <ChipRow options={DAY_CHIPS} value={form.meeting_day} onPick={(k) => set({ meeting_day: k })} wrap />
+      </Field>
+      <Field label="שעה">
+        <ChipRow options={HOUR_CHIPS} value={form.meeting_hour} onPick={(k) => set({ meeting_hour: k })} wrap />
+      </Field>
+
+      {/* Intro-session payment block */}
+      <div style={{ background: '#fff', borderRadius: 14, padding: 14, border: `2px solid ${ORANGE}` }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1A1A' }}>מפגש היכרות · {INTRO_PRICE} ₪ · מתקזז ברכישה</div>
+        {!payUrl ? (
+          <button type="button" onClick={genLink} disabled={payBusy} style={{
+            marginTop: 10, width: '100%', height: 44, borderRadius: 12, border: 'none', cursor: 'pointer',
+            background: ORANGE, color: '#fff', fontSize: 14, fontWeight: 800,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: payBusy ? 0.6 : 1,
+          }}>
+            {payBusy ? <Loader2 size={16} className="animate-spin" /> : <Link2 size={16} />}
+            יצירת קישור תשלום
+          </button>
+        ) : (
+          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{
+              fontSize: 12, color: '#3a3a3a', background: '#FBF3EA', borderRadius: 8, padding: '8px 10px',
+              wordBreak: 'break-all', border: '1px solid #F0E4D0',
+            }}>{payUrl}</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={copy} style={{
+                flex: 1, height: 40, borderRadius: 10, cursor: 'pointer', border: '1px solid #F0E4D0', background: '#fff',
+                color: '#3a3a3a', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}>
+                {copied ? <Check size={15} color="#16a34a" /> : <Copy size={15} />} {copied ? 'הועתק' : 'העתק'}
+              </button>
+              <button type="button" onClick={waShare} disabled={!hasPhone} title={hasPhone ? '' : 'אין מספר טלפון'} style={{
+                flex: 1, height: 40, borderRadius: 10, cursor: hasPhone ? 'pointer' : 'not-allowed', border: 'none',
+                background: hasPhone ? '#25D366' : '#C7E9D2', color: '#fff', fontSize: 13, fontWeight: 800,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}>
+                <MessageCircle size={15} /> וואטסאפ
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {core.map((t, i) => (
-          <div key={i} style={{ fontSize: 12, color: '#9A8F82' }}>{t}</div>
+    </div>
+  );
+}
+
+function Step9({ form, set, busy, onOutcome, onDone }) {
+  const [done, setDone] = useState(false);
+  const [reasonOpen, setReasonOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [savedForm, setSavedForm] = useState(null);
+
+  const finish = async (patch) => {
+    const merged = await onOutcome(patch);
+    if (merged) { setSavedForm(merged); setDone(true); }
+  };
+
+  const closeWon = () => finish({
+    close_result: 'closed_now',
+    lead_status_detail: 'closed_intro',
+  });
+  const undecided = async () => {
+    const merged = await onOutcome({
+      close_result: 'needs_followup',
+      lead_status_detail: 'thinking',
+      next_follow_up: tomorrowISO(),
+    });
+    if (merged) {
+      setSavedForm(merged); setDone(true);
+      const msg = `סיכום שיחה:\n${merged.conversation_summary || ''}\nנדבר מחר להמשך :)`;
+      window.open(waLink(merged.phone, msg), '_blank');
+    }
+  };
+  const wantsCoach = () => finish({
+    close_result: 'needs_followup',
+    lead_status_detail: 'wants_coach',
+  });
+  const notRelevant = () => {
+    const note = (reason || '').trim();
+    const mergedNotes = [form.notes, note ? `לא רלוונטי: ${note}` : ''].filter(Boolean).join(' · ');
+    finish({
+      close_result: 'not_now',
+      lead_status_detail: 'refused',
+      notes: mergedNotes,
+    });
+  };
+
+  if (done && savedForm) return <SavedSummary form={savedForm} onDone={onDone} />;
+
+  return (
+    <div style={col}>
+      <ScriptBox>סיכום השיחה — איך נסגר?</ScriptBox>
+      <button type="button" onClick={closeWon} disabled={busy} style={outcomeBtn('#16a34a', '#fff')}>
+        ✅ נסגר — נקבע מפגש היכרות
+      </button>
+      <button type="button" onClick={undecided} disabled={busy} style={outcomeBtn('#fff', '#1A1A1A', '#EAB308')}>
+        🤔 מתלבט — סיכום ותזכורת מחר
+      </button>
+      <button type="button" onClick={wantsCoach} disabled={busy} style={outcomeBtn('#fff', '#1A1A1A', '#3B82F6')}>
+        📞 ביקש לדבר עם המאמן
+      </button>
+      {!reasonOpen ? (
+        <button type="button" onClick={() => setReasonOpen(true)} disabled={busy} style={outcomeBtn('#fff', '#9A8F82', '#E0C9A8')}>
+          ✖️ לא רלוונטי
+        </button>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: '#fff', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12 }}>
+          <input style={inp} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="סיבה קצרה (אופציונלי)" autoFocus />
+          <button type="button" onClick={notRelevant} disabled={busy} style={outcomeBtn('#4b5563', '#fff')}>
+            {busy && <Loader2 size={16} className="animate-spin" />} שמור כלא רלוונטי
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SavedSummary({ form, onDone }) {
+  const rows = [
+    ['בשביל מי', (FOR_WHOM.find((x) => x.key === form.for_whom) || {}).label],
+    ['שם', form.name],
+    ['שם המתאמן/ת', form.trainee_name],
+    ['טלפון', form.phone],
+    ['גיל', form.age],
+    ['מקור', form.source === 'אחר' ? form.source_other : form.source],
+    ['למה עכשיו', form.why_now],
+    ['החסם', form.objections],
+    ['סוג חסם', form.barrier_type],
+    ['רקע', form.background_level],
+    ['פירוט רקע', form.sports_experience],
+    ['פציעות', form.injury_level],
+    ['פירוט פציעות', form.injuries],
+    ['חזון', form.fitness_goal],
+    ['מסגרת', (FORMAT_CHIPS.find((x) => x.key === form.interested_in) || {}).label],
+    ['מפגש', [form.meeting_day, form.meeting_hour].filter(Boolean).join(' · ')],
+    ['שיקוף', form.conversation_summary],
+    ['מעקב הבא', form.next_follow_up ? String(form.next_follow_up).slice(0, 10) : ''],
+    ['הערות', form.notes],
+  ].filter(([, v]) => v != null && String(v).trim() !== '');
+
+  return (
+    <div style={col}>
+      <div style={{ fontSize: 18, fontWeight: 900, color: '#16a34a', textAlign: 'center', padding: '6px 0' }}>✓ הליד נשמר</div>
+      <div style={{ background: '#fff', borderRadius: 12, padding: 14, border: '1px solid #F0E4D0' }}>
+        {rows.map(([label, value]) => (
+          <div key={label} style={{ display: 'flex', gap: 10, padding: '5px 0', borderBottom: '0.5px solid #F5EFE5', fontSize: 13 }}>
+            <span style={{ color: '#9A8F82', fontWeight: 700, minWidth: 92, flexShrink: 0 }}>{label}</span>
+            <span style={{ color: '#1A1A1A', whiteSpace: 'pre-wrap' }}>{String(value)}</span>
+          </div>
         ))}
       </div>
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#1A1A1A', marginBottom: 6 }}>שלח תוכן רלוונטי</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {content.map((c) => {
-            const sent = form.content_sent.includes(c.label);
-            return (
-              <div key={c.label} style={{
-                display: 'flex', alignItems: 'center', gap: 8, background: '#fff',
-                borderRadius: 10, padding: '8px 10px', border: '1px solid #F0E4D0',
-              }}>
-                <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: '#3a3a3a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {sent ? '✓ ' : ''}{c.label}
-                </div>
-                <button type="button" onClick={() => onSend(c)} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 12px',
-                  borderRadius: 999, border: 'none', cursor: 'pointer',
-                  background: sent ? '#E7E0D5' : '#25D366', color: sent ? '#5C4A3A' : '#fff',
-                  fontSize: 12, fontWeight: 700,
-                }}>
-                  <Send size={12} /> {sent ? 'נשלח' : 'שלח בוואטסאפ'}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      <SmartTip small>{sc.getScript('step3_tip', 'matching')}</SmartTip>
-    </div>
-  );
-}
-
-function Step4({ form, set, ladder, sc }) {
-  const m = LADDER_MATCHES[ladder];
-  const advancedTotal = form.equipment.reduce((s, k) => {
-    const e = LADDER_EQUIPMENT.find((x) => x.key === k); return s + (e ? e.price : 0);
-  }, 0);
-  const base = ladder === 'advanced' ? advancedTotal : Number(form.package_price || 0);
-  const discounted = Math.max(0, base - (form.offered_discount ? 50 : 0));
-  const perSession = (Number(form.package_price) && Number(form.package_sessions))
-    ? Math.round(Number(form.package_price) / Number(form.package_sessions)) : null;
-
-  const toggleEquip = (k) => set({
-    equipment: form.equipment.includes(k) ? form.equipment.filter((x) => x !== k) : [...form.equipment, k],
-  });
-  const toggleDiscount = () => set({
-    offered_discount: !form.offered_discount,
-    discount_deadline: !form.offered_discount ? `${todayISO()}T23:59:00` : '',
-  });
-
-  return (
-    <div style={col}>
-      <div style={{ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 999, background: m.color, color: '#fff', fontSize: 13, fontWeight: 800 }}>
-        {m.title}
-      </div>
-
-      {ladder === 'breakthrough' && (
-        <>
-          <Field label="מחיר מוצר פריצה (₪)">
-            <input style={inp} type="number" inputMode="decimal"
-              value={form.package_price || (form.family_deal ? '79' : '49')}
-              onChange={(e) => set({ package_price: e.target.value })} placeholder="49" />
-          </Field>
-          <Toggle on={form.family_deal} onClick={() => set({ family_deal: !form.family_deal, package_price: !form.family_deal ? '79' : '49' })}
-            label="חבילה משפחתית — 79₪ לשניים" />
-        </>
-      )}
-
-      {ladder === '3month' && (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <Field label="מחיר למפגש (₪)"><input style={inp} type="number" inputMode="decimal" value={form.session_price} onChange={(e) => set({ session_price: e.target.value })} placeholder="₪" /></Field>
-            <Field label="מס׳ מפגשים"><input style={inp} type="number" inputMode="numeric" value={form.package_sessions} onChange={(e) => set({ package_sessions: e.target.value })} placeholder="12" /></Field>
-          </div>
-          <Field label="מחיר חבילה (₪)"><input style={inp} type="number" inputMode="decimal" value={form.package_price} onChange={(e) => set({ package_price: e.target.value })} placeholder="900" /></Field>
-          {perSession != null && <div style={{ fontSize: 12, color: '#9A8F82' }}>≈ {perSession}₪ למפגש</div>}
-        </>
-      )}
-
-      {ladder === 'advanced' && (
-        <>
-          <Field label="ציוד">
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {LADDER_EQUIPMENT.map((e) => {
-                const on = form.equipment.includes(e.key);
-                return (
-                  <button key={e.key} type="button" onClick={() => toggleEquip(e.key)} style={{
-                    padding: '6px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                    border: on ? `2px solid ${ORANGE}` : '1px solid #F0E4D0',
-                    background: on ? ORANGE : '#fff', color: on ? '#fff' : '#3a3a3a',
-                  }}>{e.label} · {e.price}₪</button>
-                );
-              })}
-            </div>
-          </Field>
-          <Field label="קורס">
-            <select style={inp} value={form.course} onChange={(e) => set({ course: e.target.value })}>
-              <option value="">— ללא —</option>
-              {LADDER_COURSE_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </Field>
-        </>
-      )}
-
-      <Toggle on={form.offered_discount} onClick={toggleDiscount} label="הטבת סגירה — 50₪ הנחה אם סוגר היום" />
-
-      <div style={{ background: '#fff', borderRadius: 12, padding: 12, border: '1px solid #F0E4D0', textAlign: 'center' }}>
-        {form.offered_discount && base > 0 && (
-          <span style={{ fontSize: 14, color: '#9A8F82', textDecoration: 'line-through', marginInlineEnd: 8 }}>{base}₪</span>
-        )}
-        <span style={{ fontSize: 24, fontWeight: 900, color: ORANGE }}>{discounted || base || 0}₪</span>
-      </div>
-
-      <SmartTip small>{sc.getScript('step4_tip', 'pricing')}</SmartTip>
-    </div>
-  );
-}
-
-function Step5({ form, set, ladder, sc }) {
-  const objections = sc.getSection(`objections_${ladder}`);
-  const [open, setOpen] = useState(null);
-  return (
-    <div style={col}>
-      <Field label="תוצאת סגירה">
-        <ChipRow options={LEAD_CLOSE_RESULTS} value={form.close_result} onPick={(k) => set({ close_result: k })} wrap colored />
-      </Field>
-      <Field label="התנגדויות שעלו">
-        <textarea style={{ ...inp, height: 'auto' }} rows={2} value={form.objections} onChange={(e) => set({ objections: e.target.value })} placeholder="מה עצר אותו מלסגור..." />
-      </Field>
-
-      {/* Scenario-specific objection scripts for this ladder match. */}
-      {objections.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {objections.map((o) => {
-            const expanded = open === o.key;
-            const title = (o.content || '').split('\n')[0];
-            const rest = (o.content || '').split('\n').slice(1).join('\n');
-            return (
-              <div key={o.id || o.key} style={{ background: '#fff', borderRadius: 12, border: '1px solid #F0E4D0', overflow: 'hidden' }}>
-                <button type="button" onClick={() => setOpen(expanded ? null : o.key)} style={{
-                  width: '100%', textAlign: 'right', padding: '10px 12px', border: 'none', cursor: 'pointer',
-                  background: expanded ? '#FFF8F0' : '#fff', display: 'flex', alignItems: 'center', gap: 8,
-                }}>
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 800, color: '#1A1A1A' }}>{title}</span>
-                  <span style={{ fontSize: 12, color: '#FF6F20', fontWeight: 700 }}>{expanded ? '−' : '+'}</span>
-                </button>
-                {expanded && (
-                  <div style={{ padding: '0 12px 12px', fontSize: 13, lineHeight: 1.6, color: '#5C4A3A', whiteSpace: 'pre-wrap' }}>{rest}</div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <SmartTip small>{sc.getScript('step5_tip', 'general')}</SmartTip>
-    </div>
-  );
-}
-
-function Step6({ form, set, ladder, sc }) {
-  const closed = (form.lead_status_detail || '').startsWith('closed');
-  const questions = sc.getSection(`yes_ladder_${ladder}`);
-  const yesCount = (form.yes_answers || []).length;
-  const methodLabel = (LEAD_PAYMENT_METHODS.find((m) => m.key === form.payment_method) || {}).label;
-  return (
-    <div style={col}>
-      {/* Deal outcome summary */}
-      {(closed || form.product_sold || form.payment_amount) && (
-        <div style={{ background: '#fff', borderRadius: 12, padding: 12, border: '1px solid #F0E4D0' }}>
-          {form.product_sold && <SumRow label="מוצר" value={form.product_sold} />}
-          {form.payment_amount && <SumRow label="שולם" value={`${form.payment_amount}₪`} />}
-          {methodLabel && <SumRow label="אמצעי תשלום" value={methodLabel} />}
-          <SumRow label="קבלה" value={form.receipt_issued
-            ? <span style={{ color: '#16a34a', fontWeight: 700 }}>✓ הוצאה</span>
-            : <span style={{ color: '#dc2626', fontWeight: 800 }}>⚠️ לא הוצאה קבלה!</span>} />
-        </div>
-      )}
-
-      {questions.length > 0 && (
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#5C4A3A' }}>
-          ענה כן על {yesCount}/{questions.length} שאלות
-        </div>
-      )}
-
-      <Field label="סיכום השיחה">
-        <textarea style={{ ...inp, height: 'auto' }} rows={4} value={form.conversation_summary} onChange={(e) => set({ conversation_summary: e.target.value })} placeholder="ספר לעצמך מה קרה בשיחה..." />
-      </Field>
-      {form.content_sent.length > 0 && (
-        <Field label="תוכן שנשלח">
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {form.content_sent.map((c) => (
-              <span key={c} style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 999, background: '#E7E0D5', color: '#5C4A3A' }}>✓ {c}</span>
-            ))}
-          </div>
-        </Field>
-      )}
-      {!closed && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <Field label="מעקב הבא"><input style={inp} type="date" value={form.next_follow_up ? String(form.next_follow_up).slice(0, 10) : ''} onChange={(e) => set({ next_follow_up: e.target.value })} /></Field>
-          <Field label="הערות"><input style={inp} value={form.notes} onChange={(e) => set({ notes: e.target.value })} placeholder="הערות..." /></Field>
-        </div>
-      )}
-      <SmartTip small>{sc.getScript('step6_tip', 'summary')}</SmartTip>
-    </div>
-  );
-}
-
-// ── Step 3: Yes-ladder ──
-function StepYesLadder({ form, set, ladder, sc }) {
-  const questions = sc.getSection(`yes_ladder_${ladder}`);
-  const map = form.yes_map || {};
-  const answer = (key, val) => {
-    const nm = { ...map, [key]: val };
-    const yes = Object.keys(nm).filter((k) => nm[k] === 'yes');
-    set({ yes_map: nm, yes_answers: yes });
-  };
-  const total = questions.length;
-  const yesCount = questions.filter((q) => map[q.key] === 'yes').length;
-  return (
-    <div style={col}>
-      <div style={{ fontSize: 16, fontWeight: 800, color: '#1A1A1A' }}>בוא נוודא שאנחנו מבינים אותך</div>
-      {questions.map((q) => {
-        const a = map[q.key];
-        return (
-          <div key={q.key} style={{ background: '#fff', borderRadius: 12, padding: 12, border: '1px solid #F0E4D0' }}>
-            <div style={{ fontSize: 14, lineHeight: 1.5, color: '#1A1A1A', marginBottom: 8 }}>{q.content}</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" onClick={() => answer(q.key, 'yes')} style={{
-                flex: 1, padding: '9px 0', borderRadius: 10, cursor: 'pointer', fontSize: 14, fontWeight: 800,
-                border: a === 'yes' ? '2px solid #16a34a' : '1px solid #F0E4D0',
-                background: a === 'yes' ? '#16a34a' : '#fff', color: a === 'yes' ? '#fff' : '#16a34a',
-              }}>כן ✓</button>
-              <button type="button" onClick={() => answer(q.key, 'no')} style={{
-                flex: 1, padding: '9px 0', borderRadius: 10, cursor: 'pointer', fontSize: 14, fontWeight: 800,
-                border: a === 'no' ? '2px solid #9ca3af' : '1px solid #F0E4D0',
-                background: a === 'no' ? '#9ca3af' : '#fff', color: a === 'no' ? '#fff' : '#9ca3af',
-              }}>לא ✗</button>
-            </div>
-          </div>
-        );
-      })}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
-        <Ring value={yesCount} total={total} />
-        <div style={{ fontSize: 14, fontWeight: 800, color: yesCount >= 3 ? '#16a34a' : '#5C4A3A' }}>
-          {yesCount}/{total} שאלות — כן
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Ring({ value, total }) {
-  const r = 16, c = 2 * Math.PI * r;
-  const pct = total ? value / total : 0;
-  return (
-    <svg width="40" height="40" viewBox="0 0 40 40">
-      <circle cx="20" cy="20" r={r} fill="none" stroke="#E7E0D5" strokeWidth="4" />
-      <circle cx="20" cy="20" r={r} fill="none" stroke={value >= 3 ? '#16a34a' : ORANGE} strokeWidth="4"
-        strokeDasharray={c} strokeDashoffset={c * (1 - pct)} strokeLinecap="round"
-        transform="rotate(-90 20 20)" />
-      <text x="20" y="24" textAnchor="middle" fontSize="13" fontWeight="800" fill="#1A1A1A">{value}</text>
-    </svg>
-  );
-}
-
-// ── Step 7: Closing + payment ──
-function StepPayment({ form, set, ladder, sc, busy, onFinish }) {
-  const num = (v) => (v === '' || v == null ? 0 : Number(v));
-  const advancedTotal = (form.equipment || []).reduce((s, k) => {
-    const e = LADDER_EQUIPMENT.find((x) => x.key === k); return s + (e ? e.price : 0);
-  }, 0);
-  const base = ladder === 'advanced' ? advancedTotal : num(form.package_price);
-  const discounted = Math.max(0, base - (form.offered_discount ? 50 : 0));
-  const productName = form.product_sold || productNameForLadder(ladder, form);
-
-  // Local, NEVER-persisted card fields.
-  const [card, setCard] = useState({ number: '', exp: '', cvv: '' });
-  const [cashAmount, setCashAmount] = useState(form.payment_amount || String(discounted || ''));
-  const [paid, setPaid] = useState(false);
-
-  const method = form.payment_method;
-  const pick = (k) => set({ payment_method: k });
-  const amount = method === 'cash' ? num(cashAmount) : discounted;
-
-  const bitMsg = (sc.getScript('payment', 'bit_message') || 'AthletiGo — [product]').replace('[product]', productName);
-  const bankDetails = sc.getScript('payment', 'bank_details');
-
-  const closeDeal = () => onFinish({
-    product_sold: productName,
-    payment_amount: amount,
-    payment_method: method || null,
-    receipt_issued: !!form.receipt_issued,
-    lead_status_detail: closedDetailForLadder(ladder, form),
-  });
-  const notClose = (detail) => onFinish({ lead_status_detail: detail });
-
-  return (
-    <div style={col}>
-      <div style={{ fontSize: 16, fontWeight: 800, color: '#1A1A1A' }}>סגירת עסקה</div>
-
-      {/* Summary card */}
-      <div style={{ background: ORANGE, color: '#fff', borderRadius: 12, padding: 14 }}>
-        <div style={{ fontSize: 15, fontWeight: 800 }}>{productName}</div>
-        <div style={{ marginTop: 4 }}>
-          {form.offered_discount && base > 0 && (
-            <span style={{ fontSize: 14, opacity: 0.8, textDecoration: 'line-through', marginInlineEnd: 8 }}>{base}₪</span>
-          )}
-          <span style={{ fontSize: 22, fontWeight: 900 }}>{discounted || base || 0}₪</span>
-        </div>
-      </div>
-
-      {/* Payment method */}
-      <ChipRow options={LEAD_PAYMENT_METHODS} value={method} onPick={pick} wrap />
-
-      {method === 'credit' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <input style={inp} inputMode="numeric" placeholder="מספר כרטיס" value={card.number} onChange={(e) => setCard({ ...card, number: e.target.value })} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <input style={inp} placeholder="תוקף MM/YY" value={card.exp} onChange={(e) => setCard({ ...card, exp: e.target.value })} />
-            <input style={inp} inputMode="numeric" maxLength={3} placeholder="CVV" value={card.cvv} onChange={(e) => setCard({ ...card, cvv: e.target.value })} />
-          </div>
-          <div style={{ fontSize: 12, color: '#9A8F82' }}>הקלד את פרטי הכרטיס תוך כדי שהלקוח מכתיב</div>
-        </div>
-      )}
-      {method === 'bit' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <button type="button" onClick={() => window.open(waLink(form.phone, `${bitMsg}\nסכום: ${amount}₪`), '_blank')} style={greenBtn}>
-            <Send size={16} /> שלח בקשת ביט
-          </button>
-          <Toggle on={paid} onClick={() => setPaid(!paid)} label="הלקוח שילם?" />
-        </div>
-      )}
-      {method === 'cash' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <Field label="סכום שהתקבל"><input style={inp} type="number" inputMode="decimal" value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} placeholder="₪" /></Field>
-          <Toggle on={paid} onClick={() => setPaid(!paid)} label="שולם במלואו?" />
-        </div>
-      )}
-      {method === 'transfer' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ background: '#fff', border: '1px solid #F0E4D0', borderRadius: 10, padding: 10, fontSize: 13, lineHeight: 1.6, color: '#3a3a3a', whiteSpace: 'pre-wrap' }}>{bankDetails}</div>
-          <Toggle on={paid} onClick={() => setPaid(!paid)} label="הלקוח העביר?" />
-        </div>
-      )}
-
-      {/* Receipt */}
-      <button type="button" onClick={() => set({ receipt_issued: !form.receipt_issued })} style={{
-        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
-        border: form.receipt_issued ? '2px solid #16a34a' : '1px solid #F0E4D0', background: form.receipt_issued ? '#ECFDF3' : '#fff', textAlign: 'right',
-      }}>
-        <span style={{
-          width: 22, height: 22, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          border: form.receipt_issued ? 'none' : '2px solid #D9CDBB', background: form.receipt_issued ? '#16a34a' : '#fff', color: '#fff', fontSize: 14, fontWeight: 800,
-        }}>{form.receipt_issued ? '✓' : ''}</span>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A' }}>הוצאתי קבלה</div>
-          <div style={{ fontSize: 11, color: '#dc2626' }}>חובה להוציא קבלה לכל תשלום</div>
-        </div>
-      </button>
-
-      <button type="button" onClick={closeDeal} disabled={busy} style={{ ...greenBtn, height: 48, fontSize: 16, background: '#16a34a', opacity: busy ? 0.6 : 1 }}>
-        {busy && <Loader2 size={18} className="animate-spin" />} סגור עסקה
-      </button>
-
-      <NotClosedSection onPick={notClose} />
-
-      <SmartTip small>{sc.getScript('step7_tip', 'closing')}</SmartTip>
-    </div>
-  );
-}
-
-function NotClosedSection({ onPick }) {
-  const [open, setOpen] = useState(false);
-  const OPTS = [
-    { key: 'thinking', label: 'צריך לחשוב' },
-    { key: 'thinking', label: 'יקר' },
-    { key: 'thinking', label: 'לא עכשיו' },
-    { key: 'refused', label: 'סירוב' },
-  ];
-  if (!open) {
-    return (
-      <button type="button" onClick={() => setOpen(true)} style={{
-        background: 'transparent', border: 'none', cursor: 'pointer', color: '#9A8F82', fontSize: 13, fontWeight: 700,
-      }}>הלקוח לא סגר</button>
-    );
-  }
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-      {OPTS.map((o) => (
-        <button key={o.label} type="button" onClick={() => onPick(o.key)} style={{
-          padding: '7px 14px', borderRadius: 999, cursor: 'pointer', fontSize: 13, fontWeight: 700,
-          border: '1px solid #F0E4D0', background: '#fff', color: '#3a3a3a',
-        }}>{o.label}</button>
-      ))}
-    </div>
-  );
-}
-
-function SumRow({ label, value }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', fontSize: 13 }}>
-      <span style={{ color: '#9A8F82', fontWeight: 700 }}>{label}</span>
-      <span style={{ color: '#1A1A1A', fontWeight: 600 }}>{value}</span>
+      <button type="button" onClick={onDone} style={{
+        width: '100%', height: 48, borderRadius: 14, border: 'none', cursor: 'pointer',
+        background: ORANGE, color: '#fff', fontSize: 16, fontWeight: 800,
+      }}>סיום</button>
     </div>
   );
 }
@@ -760,15 +629,14 @@ function SumRow({ label, value }) {
 
 function Dots({ step }) {
   return (
-    <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+    <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
       {Array.from({ length: TOTAL_STEPS }).map((_, i) => {
         const n = i + 1;
         const filled = n < step, current = n === step;
         return (
           <div key={i} style={{
             width: current ? 20 : 8, height: 8, borderRadius: 999,
-            background: filled || current ? ORANGE : '#E7E0D5',
-            transition: 'all .2s',
+            background: filled || current ? ORANGE : '#E7E0D5', transition: 'all .2s',
           }} />
         );
       })}
@@ -776,12 +644,13 @@ function Dots({ step }) {
   );
 }
 
-function SmartTip({ children, small }) {
+// Orange "say this" script box — the shared visual pattern for the wizard.
+function ScriptBox({ children }) {
   return (
     <div dir="rtl" style={{
-      background: '#FFF8F0', borderRight: '3px solid #FF6F20', borderRadius: 12,
-      padding: '12px 14px', fontSize: small ? 12 : 13, lineHeight: 1.6,
-      color: '#5C4A3A', margin: '8px 0', whiteSpace: 'pre-wrap',
+      background: '#FAECE7', borderRadius: 12, padding: '13px 15px',
+      fontSize: 14, lineHeight: 1.6, color: '#5C3A28', fontWeight: 600,
+      whiteSpace: 'pre-wrap',
     }}>{children}</div>
   );
 }
@@ -795,17 +664,16 @@ function Field({ label, children }) {
   );
 }
 
-function ChipRow({ options, value, onPick, wrap, colored }) {
+function ChipRow({ options, value, onPick, wrap }) {
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: wrap ? 'wrap' : 'nowrap', overflowX: wrap ? 'visible' : 'auto', scrollbarWidth: 'none' }}>
       {options.map((o) => {
         const active = value === o.key;
-        const c = colored && o.color ? o.color : ORANGE;
         return (
           <button key={o.key} type="button" onClick={() => onPick(o.key)} style={{
-            padding: '6px 12px', borderRadius: 8, cursor: 'pointer', flexShrink: 0,
-            border: active ? `2px solid ${c}` : '1px solid #F0E4D0',
-            background: active ? c : '#fff', color: active ? '#fff' : '#3a3a3a',
+            padding: '7px 13px', borderRadius: 999, cursor: 'pointer', flexShrink: 0,
+            border: active ? `2px solid ${ORANGE}` : '1px solid #F0E4D0',
+            background: active ? ORANGE : '#fff', color: active ? '#fff' : '#3a3a3a',
             fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
           }}>{o.label}</button>
         );
@@ -814,38 +682,18 @@ function ChipRow({ options, value, onPick, wrap, colored }) {
   );
 }
 
-function Toggle({ on, onClick, label }) {
-  return (
-    <button type="button" onClick={onClick} style={{
-      display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-      padding: '10px 12px', borderRadius: 12, cursor: 'pointer', textAlign: 'right',
-      border: on ? `2px solid ${ORANGE}` : '1px solid #F0E4D0',
-      background: on ? '#FFF0E4' : '#fff',
-    }}>
-      <span style={{
-        width: 40, height: 24, borderRadius: 999, flexShrink: 0, position: 'relative',
-        background: on ? ORANGE : '#D9CDBB', transition: 'background .2s',
-      }}>
-        <span style={{
-          position: 'absolute', top: 2, insetInlineStart: on ? 18 : 2, width: 20, height: 20,
-          borderRadius: 999, background: '#fff', transition: 'inset-inline-start .2s',
-        }} />
-      </span>
-      <span style={{ fontSize: 13, fontWeight: 700, color: '#3a3a3a' }}>{label}</span>
-    </button>
-  );
-}
-
 const col = { display: 'flex', flexDirection: 'column', gap: 10 };
 const iconBtn = { background: 'transparent', border: 'none', cursor: 'pointer', padding: 6, display: 'flex' };
-const greenBtn = {
-  width: '100%', height: 44, borderRadius: 12, border: 'none', cursor: 'pointer',
-  background: '#25D366', color: '#fff', fontSize: 14, fontWeight: 800,
-  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-};
 const inp = {
-  width: '100%', height: 36, padding: '6px 10px', borderRadius: 10,
+  width: '100%', minHeight: 40, padding: '9px 11px', borderRadius: 10,
   border: '1px solid #F0E4D0', background: '#fff', fontSize: 14, color: '#1A1A1A',
   outline: 'none', boxSizing: 'border-box', resize: 'none',
   fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
 };
+function outcomeBtn(bg, color, border) {
+  return {
+    width: '100%', minHeight: 50, borderRadius: 14, cursor: 'pointer',
+    border: border ? `2px solid ${border}` : 'none', background: bg, color,
+    fontSize: 15, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+  };
+}

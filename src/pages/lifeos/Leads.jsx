@@ -161,6 +161,8 @@ export default function Leads() {
       fullName: lead.name || lead.full_name || '',
       phone: lead.phone || '',
       email: lead.email || '',
+      // Converted from a lead → system-acquired client.
+      clientOrigin: 'system',
     });
   };
 

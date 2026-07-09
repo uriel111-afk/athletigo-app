@@ -378,6 +378,7 @@ const AuthenticatedApp = () => {
 
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
   const isTrainee = user?.role === 'trainee' || user?.role === 'user';
+  const isCoordinator = user?.role === 'coordinator';
   const traineeOnlyPages = new Set(['TraineeHome', 'TraineeSessions', 'MyPlan', 'MyWorkoutLog', 'Workouts', 'Progress', 'MyAttendance', 'Forms']);
   const sharedPages = new Set(['Notifications', 'Onboarding', 'Home', 'TraineeProfile', 'Clocks', 'Journal', 'Course']);
 
@@ -397,6 +398,12 @@ const AuthenticatedApp = () => {
 
     if (authError?.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
+    }
+
+    // Coordinator is a leads-only staff role — every route except the
+    // guided leads screen bounces back to it.
+    if (isCoordinator && !location.pathname.startsWith('/lifeos/leads')) {
+      return <Navigate to="/lifeos/leads" replace />;
     }
 
     if (isCoach && traineeOnlyPages.has(pageKey)) {

@@ -341,6 +341,8 @@ export const LEAD_STATUS_DETAIL = {
   interested:          { label: 'מעוניין',          color: '#EAB308' },
   offered:             { label: 'קיבל הצעה',        color: '#3B82F6' },
   thinking:            { label: 'צריך לחשוב',       color: '#EAB308' },
+  wants_coach:         { label: 'ביקש מאמן',        color: '#3B82F6' },
+  closed_intro:        { label: 'נקבע מפגש היכרות', color: '#16a34a' },
   closed_breakthrough: { label: 'סגר — מוצר פריצה', color: '#16a34a' },
   closed_3month:       { label: 'סגר — 3 חודשים',   color: '#16a34a' },
   closed_annual:       { label: 'סגר — שנתי',       color: '#16a34a' },

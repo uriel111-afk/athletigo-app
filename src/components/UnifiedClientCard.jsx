@@ -125,7 +125,8 @@ export default function UnifiedClientCard({
     future_vision: client.future_vision || "",
     health_issues: client.health_issues || "",
     emergency_contact_name: client.emergency_contact_name || "",
-    emergency_contact_phone: client.emergency_contact_phone || ""
+    emergency_contact_phone: client.emergency_contact_phone || "",
+    client_origin: client.client_origin || "personal"
   });
 
   const [showEditOverview, setShowEditOverview] = useState(false);
@@ -145,7 +146,8 @@ export default function UnifiedClientCard({
       future_vision: client.future_vision || "",
       health_issues: client.health_issues || "",
       emergency_contact_name: client.emergency_contact_name || "",
-      emergency_contact_phone: client.emergency_contact_phone || ""
+      emergency_contact_phone: client.emergency_contact_phone || "",
+      client_origin: client.client_origin || "personal"
     });
   }, [client]);
 
@@ -1545,6 +1547,27 @@ export default function UnifiedClientCard({
             <div><Label className="text-xs md:text-sm">מצב רפואי</Label><Textarea value={editFormOverview.health_issues} onChange={(e) => setEditFormOverview({...editFormOverview, health_issues: e.target.value})} className="rounded-xl min-h-[60px] md:min-h-[80px] text-sm md:text-base" /></div>
             <div><Label className="text-xs md:text-sm">איש קשר לחירום</Label><Input value={editFormOverview.emergency_contact_name} onChange={(e) => setEditFormOverview({...editFormOverview, emergency_contact_name: e.target.value})} className="rounded-xl text-sm md:text-base" /></div>
             <div><Label className="text-xs md:text-sm">טלפון איש קשר</Label><Input value={editFormOverview.emergency_contact_phone} onChange={(e) => setEditFormOverview({...editFormOverview, emergency_contact_phone: e.target.value})} className="rounded-xl text-sm md:text-base" /></div>
+            <div>
+              <Label className="text-xs md:text-sm">מקור הלקוח</Label>
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                {[{ key: 'system', label: 'מערכת' }, { key: 'personal', label: 'אישי' }].map((o) => {
+                  const active = (editFormOverview.client_origin || 'personal') === o.key;
+                  return (
+                    <button
+                      key={o.key}
+                      type="button"
+                      onClick={() => setEditFormOverview({ ...editFormOverview, client_origin: o.key })}
+                      className="rounded-xl text-sm md:text-base"
+                      style={{
+                        flex: 1, padding: '10px 0', cursor: 'pointer', fontWeight: 700,
+                        border: active ? '2px solid #FF6F20' : '1px solid #F0E4D0',
+                        background: active ? '#FF6F20' : '#FFFFFF', color: active ? '#FFFFFF' : '#3a3a3a',
+                      }}
+                    >{o.label}</button>
+                  );
+                })}
+              </div>
+            </div>
             <Button onClick={handleSaveOverview} disabled={updateClientMutation.isPending} className="w-full rounded-xl py-3 md:py-4 text-white text-sm md:text-base" style={{ backgroundColor: '#FF6F20' }}>
               {updateClientMutation.isPending ? <Loader2 className="w-4 h-4 ml-2 animate-spin" /> : null}
               שמור

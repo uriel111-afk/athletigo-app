@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
+import { AuthContext } from '@/lib/AuthContext';
 
 // Bottom navigation for Life OS screens. Five primary tabs; the last
 // one is a "more" sheet that exposes the secondary screens.
@@ -26,12 +27,36 @@ const MORE_ITEMS = [
 
 export default function LifeOSNav() {
   const location = useLocation();
+  const { user } = useContext(AuthContext);
   const [moreOpen, setMoreOpen] = useState(false);
+  const isCoordinator = user?.role === 'coordinator';
 
   const isActive = (to) => {
     if (to === '/lifeos') return location.pathname === '/lifeos';
     return location.pathname === to || location.pathname.startsWith(to + '/');
   };
+
+  // Coordinator is a leads-only role — render a single-item nav so no
+  // other Life OS screen is reachable from the bar.
+  if (isCoordinator) {
+    return (
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1050,
+        backgroundColor: '#FFFFFF', borderTop: `0.5px solid ${LIFEOS_COLORS.border}`,
+        boxShadow: '0 -2px 10px rgba(0,0,0,0.04)',
+        display: 'flex', justifyContent: 'center', alignItems: 'center',
+        padding: '10px 8px 18px', direction: 'rtl',
+      }}>
+        <Link to="/lifeos/leads" style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: 2, minWidth: 56, textDecoration: 'none',
+        }}>
+          <span style={{ fontSize: 26, lineHeight: 1, height: 32, display: 'flex', alignItems: 'center' }}>👥</span>
+          <span style={{ fontSize: 12, marginTop: 3, color: LIFEOS_COLORS.primary, fontWeight: 700 }}>לידים</span>
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <>

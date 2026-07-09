@@ -158,6 +158,9 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
         coach_id: coach?.id || null,
         onboarding_completed: false,
         onboarding_track: track,
+        // Origin marker: 'system' when spun out of a converted lead,
+        // otherwise a coach-added personal client.
+        client_origin: initialData?.clientOrigin || 'personal',
         created_at: new Date().toISOString(),
       };
       console.log('[AddTrainee] upserting users row:', upsertPayload);
