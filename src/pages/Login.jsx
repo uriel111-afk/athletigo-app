@@ -154,7 +154,7 @@ export default function Login() {
           dir="rtl" the title paints on the right, the dotted divider in
           the middle, and the large logo on the left. Shrinkable so it
           yields first when the keyboard opens. */}
-      <div className="w-full" style={{ maxWidth: 400, margin: '0 auto', marginTop: 8, flexShrink: 1, minHeight: 0, overflow: 'hidden' }}>
+      <div className="w-full" style={{ maxWidth: 400, margin: '0 auto', marginTop: 8, flexShrink: 0 }}>
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           width: '100%', marginBottom: 10,
@@ -176,16 +176,18 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Flexible spacer — pushes the card to the bottom edge. */}
-      <div style={{ flex: 1, minHeight: 16 }} />
-
-      {/* BOTTOM — login card anchored to the bottom. flexShrink:0 so it
-          stays full-size and above the keyboard; paddingBottom carries
-          the bottom safe-area inset (gesture bar). */}
-      <div className="w-full" style={{
-        maxWidth: 400, margin: '0 auto', flexShrink: 0,
+      {/* Content area — the login card is vertically CENTERED in the
+          space below the header (margin:auto centers it), NOT pinned to
+          the bottom. overflowY:auto so when the keyboard opens
+          (adjustResize shrinks the viewport) the auto margins collapse
+          and the card scrolls into view — inputs are never covered. */}
+      <div style={{
+        flex: 1, minHeight: 0, overflowY: 'auto',
+        display: 'flex', flexDirection: 'column',
+        paddingTop: 16,
         paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
       }}>
+        <div className="w-full" style={{ maxWidth: 400, width: '100%', margin: 'auto', flexShrink: 0 }}>
         {/* Card */}
         <div
           style={{
@@ -281,6 +283,7 @@ export default function Login() {
               שכחת סיסמה? פנה למאמן שלך
             </div>
           </form>
+        </div>
         </div>
       </div>
       {/* Install banner — only on the unauthenticated login screen,
