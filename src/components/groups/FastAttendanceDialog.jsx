@@ -72,8 +72,16 @@ export default function FastAttendanceDialog({
   coachId,
   onClose,
   onCreated,
+  // Edit mode: pass an existing 'קבוצתי' sessions row to MARK attendance
+  // on it (UPDATE in place) instead of creating a new session. When set,
+  // date/time/location/notes prefill from the row and the roster is the
+  // session's own participants[].
+  session = null,
 }) {
   const queryClient = useQueryClient();
+  const isEdit = !!session;
+  const activeGroupId = group?.id ?? session?.group_id ?? null;
+  const activeGroupName = group?.name ?? session?.group_name ?? '';
 
   // Local state — re-initialized whenever a new group opens so a second
   // open never resurfaces the previous group's typed values.
@@ -87,6 +95,22 @@ export default function FastAttendanceDialog({
   // on each `group.id` change so reopening with a different group
   // doesn't keep stale per-member ticks from the prior dialog.
   useEffect(() => {
+    // Edit mode — prefill from the scheduled session; seed attendance
+    // from stored statuses (default any 'ממתין'/unmarked member to
+    // 'הגיע' so the coach only taps the exceptions).
+    if (session) {
+      setDate(session.date || new Date().toISOString().split('T')[0]);
+      setTime(session.time || '');
+      setLocation(session.location || 'סטודיו');
+      setNotes(session.coach_notes || '');
+      const att = {};
+      for (const p of (session.participants || [])) {
+        att[p.trainee_id] = (p.attendance_status && p.attendance_status !== 'ממתין')
+          ? p.attendance_status : 'הגיע';
+      }
+      setAttendance(att);
+      return;
+    }
     if (!group) return;
     const members = (groupMembers || []).filter((m) => m.group_id === group.id);
     const now = new Date();
@@ -97,11 +121,26 @@ export default function FastAttendanceDialog({
     setLocation('סטודיו');
     setNotes('');
     setAttendance(Object.fromEntries(members.map((m) => [m.trainee_id, 'הגיע'])));
-  }, [group?.id]);
+  }, [group?.id, session?.id]);
 
-  const members = group
-    ? (groupMembers || []).filter((m) => m.group_id === group.id)
-    : [];
+  // Edit mode roster = the session's own participants (enriched with
+  // group-membership fields for the eligibility tags); create mode =
+  // the current group members.
+  const members = useMemo(() => {
+    if (session) {
+      const byId = new Map((groupMembers || [])
+        .filter((m) => m.group_id === session.group_id)
+        .map((m) => [m.trainee_id, m]));
+      return (session.participants || []).map((p) => ({
+        trainee_id: p.trainee_id,
+        trainee_name: p.trainee_name,
+        group_id: session.group_id,
+        allowed_days: byId.get(p.trainee_id)?.allowed_days,
+        weekly_quota: byId.get(p.trainee_id)?.weekly_quota,
+      }));
+    }
+    return group ? (groupMembers || []).filter((m) => m.group_id === group.id) : [];
+  }, [session, group, groupMembers]);
 
   // ── Eligibility — informational only ──────────────────────────
   // Fetch every past session for this group so we can count how many
@@ -109,20 +148,20 @@ export default function FastAttendanceDialog({
   // week as the date being marked. One round-trip per group; the
   // group_id filter keeps it small. Skipped when no group is mounted.
   const { data: groupSessions = [] } = useQuery({
-    queryKey: ['group-session-history', group?.id],
+    queryKey: ['group-session-history', activeGroupId],
     queryFn: async () => {
-      if (!group?.id) return [];
+      if (!activeGroupId) return [];
       const { data, error } = await supabase
         .from('sessions')
         .select('id, date, participants')
-        .eq('group_id', group.id);
+        .eq('group_id', activeGroupId);
       if (error) {
         console.warn('[FastAttendance] history fetch failed:', error.message);
         return [];
       }
       return data || [];
     },
-    enabled: !!group?.id,
+    enabled: !!activeGroupId,
     staleTime: 30_000,
   });
 
@@ -198,33 +237,43 @@ export default function FastAttendanceDialog({
   };
 
   const createMutation = useMutation({
-    mutationFn: async ({ groupRow, participants }) => {
-      // Status derivation kept identical to the original mutation in
-      // Sessions.jsx — any present marks the row as 'התקיים' so it
-      // counts as a completed workout in the trainee's surface.
-      const sessionStatus = participants.some(p => p.attendance_status === 'הגיע')
-        ? 'התקיים'
-        : 'מתוכנן';
+    mutationFn: async ({ participants }) => {
+      // Any present marks the row 'התקיים' so it counts as a completed
+      // workout in the trainee's surface.
+      const anyPresent = participants.some(p => p.attendance_status === 'הגיע');
+      if (isEdit) {
+        // Edit mode — UPDATE the existing scheduled session in place;
+        // never create a new sessions row.
+        return base44.entities.Session.update(session.id, {
+          date,
+          time,
+          location,
+          coach_notes: notes,
+          participants,
+          status: anyPresent ? 'התקיים' : (session.status || 'מתוכנן'),
+        });
+      }
       return base44.entities.Session.create({
         date,
         time,
         session_type: 'קבוצתי',
         location,
         coach_id: coachId,
-        status: sessionStatus,
+        status: anyPresent ? 'התקיים' : 'מתוכנן',
         coach_notes: notes,
         participants,
-        group_id: groupRow.id,
-        group_name: groupRow.name,
+        group_id: group.id,
+        group_name: group.name,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
       queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['trainee-home'] });
       // This dialog's own weekly-quota / eligibility history query.
-      queryClient.invalidateQueries({ queryKey: ['group-session-history', group?.id] });
-      toast.success('✅ הנוכחות נשמרה והאימון נוצר');
+      queryClient.invalidateQueries({ queryKey: ['group-session-history', activeGroupId] });
+      toast.success(isEdit ? '✅ הנוכחות עודכנה' : '✅ הנוכחות נשמרה והאימון נוצר');
       if (typeof onCreated === 'function') onCreated();
       onClose && onClose();
     },
@@ -246,21 +295,21 @@ export default function FastAttendanceDialog({
       trainee_name: m.trainee_name,
       attendance_status: attendance[m.trainee_id] || 'הגיע',
     }));
-    createMutation.mutate({ groupRow: group, participants });
+    createMutation.mutate({ participants });
   };
 
   return (
     <Dialog
-      open={!!group}
+      open={!!group || !!session}
       onOpenChange={(o) => {
         if (!o && !createMutation.isPending) onClose && onClose();
       }}
     >
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>סימון נוכחות: {group?.name || ''}</DialogTitle>
+          <DialogTitle>סימון נוכחות: {activeGroupName}</DialogTitle>
         </DialogHeader>
-        {group && (
+        {(group || session) && (
           <div className="space-y-4">
             {/* Date + time + location + notes */}
             <div className="grid grid-cols-2 gap-3">
@@ -430,7 +479,7 @@ export default function FastAttendanceDialog({
             >
               {createMutation.isPending
                 ? <><Loader2 className="w-4 h-4 ml-2 animate-spin" />שומר...</>
-                : 'שמור נוכחות וצור אימון'}
+                : (isEdit ? 'שמור נוכחות' : 'שמור נוכחות וצור אימון')}
             </Button>
           </div>
         )}

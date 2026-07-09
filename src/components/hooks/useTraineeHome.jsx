@@ -104,6 +104,33 @@ export function useTraineeHome(traineeId, traineeEmail) {
         console.error("Error fetching sessions", err);
       }
 
+      // Merge upcoming GROUP sessions from the trainee's group
+      // memberships (read-only). Uses group_id so a member sees the
+      // session even if they were added to the group after it was
+      // created (not yet in participants[]). Deduped by id, RLS-gated.
+      try {
+        const { data: memberships } = await supabase
+          .from('training_group_members')
+          .select('group_id')
+          .eq('trainee_id', traineeId);
+        const groupIds = [...new Set((memberships || []).map(m => m.group_id).filter(Boolean))];
+        if (groupIds.length) {
+          const today = new Date().toISOString().split('T')[0];
+          const { data: groupSessions } = await supabase
+            .from('sessions')
+            .select('*')
+            .in('group_id', groupIds)
+            .gte('date', today);
+          const seen = new Set(mySessions.map(s => s.id));
+          for (const gs of (groupSessions || [])) {
+            if (!seen.has(gs.id)) { mySessions.push(gs); seen.add(gs.id); }
+          }
+          mySessions.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+        }
+      } catch (e) {
+        console.warn('[useTraineeHome] group sessions merge failed:', e?.message);
+      }
+
       return {
         coach,
         activeServices,

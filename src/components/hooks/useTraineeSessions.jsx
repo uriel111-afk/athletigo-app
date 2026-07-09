@@ -49,6 +49,29 @@ export function useTraineeSessions(traineeId, traineeEmail) {
         s.participants?.some(p => p.trainee_id === traineeId)
       );
 
+      // Merge GROUP sessions from the trainee's group memberships
+      // (read-only). group_id-based so a member added after a session was
+      // created still sees it. Deduped by id; RLS-gated.
+      try {
+        const { data: memberships } = await supabase
+          .from('training_group_members')
+          .select('group_id')
+          .eq('trainee_id', traineeId);
+        const groupIds = [...new Set((memberships || []).map(m => m.group_id).filter(Boolean))];
+        if (groupIds.length) {
+          const { data: groupSessions } = await supabase
+            .from('sessions')
+            .select('*')
+            .in('group_id', groupIds);
+          const seen = new Set(sessions.map(s => s.id));
+          for (const gs of (groupSessions || [])) {
+            if (!seen.has(gs.id)) { sessions.push(gs); seen.add(gs.id); }
+          }
+        }
+      } catch (e) {
+        console.warn('[TraineeSessions] group sessions merge failed:', e?.message);
+      }
+
       return { coach, activePackages, sessions };
     },
   });

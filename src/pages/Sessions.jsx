@@ -116,6 +116,8 @@ export default function Sessions() {
   // We only track which group's dialog is open here; the dialog itself
   // owns its form state + the Session.create call.
   const [fastAttendanceGroup, setFastAttendanceGroup] = useState(null);
+  // Edit-mode attendance: a scheduled 'קבוצתי' session to mark in place.
+  const [attendanceSession, setAttendanceSession] = useState(null);
 
   const queryClient = useQueryClient();
 
@@ -1220,6 +1222,17 @@ export default function Sessions() {
 
               {/* Coach Action Buttons */}
               <div className="space-y-3">
+                {/* Group session → mark attendance on THIS scheduled row
+                    (updates participants in place, no new session). */}
+                {session.session_type === 'קבוצתי' && session.group_id && (
+                  <Button
+                    onClick={(e) => { e.stopPropagation(); setAttendanceSession(session); }}
+                    className="rounded-xl py-3 font-bold text-white w-full"
+                    style={{ backgroundColor: '#4CAF50' }}>
+                    <CheckSquare className="w-4 h-4 ml-1" />
+                    סימון נוכחות
+                  </Button>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     onClick={(e) => {
@@ -2116,6 +2129,16 @@ export default function Sessions() {
             groupMembers={groupMembers}
             coachId={user?.id}
             onClose={() => setFastAttendanceGroup(null)}
+          />
+
+          {/* Edit-mode: mark attendance on an already-scheduled group
+              session — same UI, UPDATEs the existing sessions row. */}
+          <FastAttendanceDialog
+            session={attendanceSession}
+            group={null}
+            groupMembers={groupMembers}
+            coachId={user?.id}
+            onClose={() => setAttendanceSession(null)}
           />
 
           {/* ── Mark Group Attendance Dialog ── */}
