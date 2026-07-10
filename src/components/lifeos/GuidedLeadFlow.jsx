@@ -212,9 +212,11 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
   const [objOpen, setObjOpen] = useState(null);
   const [objAll, setObjAll] = useState(false);
   // Sales-support layer: yes-counter (call-scoped, no DB) + phrases-panel
-  // expanded state (default open).
+  // expanded state. Quiet by default — collapsed on open; the open/closed
+  // choice is ONE shared state for the whole wizard session (persists
+  // across steps, not per-step).
   const [yesCount, setYesCount] = useState(0);
-  const [salesOpen, setSalesOpen] = useState(true);
+  const [salesOpen, setSalesOpen] = useState(false);
   const mirroredRef = useRef(false);
 
   useEffect(() => {
@@ -226,7 +228,7 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
     setObjOpen(null);
     setObjAll(false);
     setYesCount(0);
-    setSalesOpen(true);
+    setSalesOpen(false);
     mirroredRef.current = false;
   }, [isOpen, lead]);
 
@@ -925,6 +927,35 @@ function salesPhrasesFor(step, persona) {
   return out;
 }
 
+// Quiet-by-default carousel: fold every 'guide' card INTO the preceding
+// speak/confirm card as a small muted hint line (they no longer stand
+// alone). A step that has ONLY guide content keeps one compact card so
+// the guidance isn't lost. Phrase CONTENT is untouched — guide text is
+// just re-hosted as a `_hints` line on the neighbouring card.
+const isGuideCard = (p) => p.type === 'guide' || !p.line;
+function buildDisplayCards(phrases) {
+  if (!phrases.length) return [];
+  if (phrases.every(isGuideCard)) {
+    // Only-guide step → one compact card combining the guide text.
+    const note = phrases.map((p) => p.note || p.line || '').filter(Boolean).join('\n');
+    return [{ type: 'guide', note }];
+  }
+  const out = [];
+  let pending = []; // leading guides before any speak/confirm card
+  for (const p of phrases) {
+    if (isGuideCard(p)) {
+      const text = p.note || p.line || '';
+      if (!text) continue;
+      if (out.length) out[out.length - 1]._hints = [...(out[out.length - 1]._hints || []), text];
+      else pending.push(text);
+    } else {
+      out.push({ ...p, _hints: pending.slice() });
+      pending = [];
+    }
+  }
+  return out;
+}
+
 // Card colour language (3 types). RTL: 4px accent bar on the right,
 // radius only on the left corners. Lumen-ish hex where no token exists.
 const SALES_CARD_STYLE = {
@@ -955,7 +986,7 @@ function PhraseCard({ p, index, total, srcLabel, stacked }) {
         <span style={{ fontSize: 11, fontWeight: 700, color: s.tagColor, opacity: 0.75 }}>{index + 1} מתוך {total}</span>
       </div>
       {isGuide ? (
-        <div style={{ fontSize: 13.5, fontStyle: 'italic', color: s.lineColor, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 13.5, fontStyle: 'italic', color: s.lineColor, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
           {p.note || p.line || ''}
         </div>
       ) : (
@@ -968,6 +999,10 @@ function PhraseCard({ p, index, total, srcLabel, stacked }) {
           )}
         </>
       )}
+      {/* Folded-in guide cards — small muted hint lines below the note. */}
+      {Array.isArray(p._hints) && p._hints.map((h, hi) => (
+        <div key={hi} style={{ fontSize: 11, fontStyle: 'italic', color: '#7A756B', lineHeight: 1.4 }}>· {h}</div>
+      ))}
     </div>
   );
 }
@@ -978,6 +1013,7 @@ function PhraseCard({ p, index, total, srcLabel, stacked }) {
 // list). Native touch scroll only — no arrows, no nav click handlers.
 function SalesPanel({ step, persona, srcLabel, open, onToggle }) {
   const phrases = salesPhrasesFor(step, persona);
+  const cards = buildDisplayCards(phrases); // guide cards folded into neighbours
   const scrollRef = useRef(null);
   const lpTimer = useRef(null);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -991,7 +1027,7 @@ function SalesPanel({ step, persona, srcLabel, open, onToggle }) {
     if (el) el.scrollLeft = 0;
   }, [step]);
 
-  if (phrases.length === 0) return null;
+  if (cards.length === 0) return null;
 
   // Active card = the one whose right edge (RTL start) is nearest the
   // container's right edge. RTL-safe regardless of scrollLeft sign.
@@ -1020,8 +1056,8 @@ function SalesPanel({ step, persona, srcLabel, open, onToggle }) {
         background: 'transparent', padding: '10px 14px',
         display: 'flex', alignItems: 'center', gap: 8,
       }}>
-        <span style={{ flex: 1, fontSize: 13, fontWeight: 800, color: '#FF6F20' }}>משפטי עזר לשלב</span>
-        <span style={{ fontSize: 14, color: '#FF6F20', fontWeight: 800 }}>{open ? '−' : '+'}</span>
+        <span style={{ flex: 1, fontSize: 13, fontWeight: 800, color: '#FF6F20' }}>משפטי עזר ({cards.length})</span>
+        <span style={{ fontSize: 13, color: '#FF6F20', fontWeight: 800, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>⌄</span>
       </button>
       {open && (
         <div
@@ -1033,10 +1069,11 @@ function SalesPanel({ step, persona, srcLabel, open, onToggle }) {
           style={{ padding: '0 12px 12px' }}
         >
           <style>{`.sales-carousel::-webkit-scrollbar{display:none}`}</style>
-          {/* Static reminder + overview toggle chip */}
+          {/* Reminder (step 1 only) + overview toggle chip. On later
+              steps only the toggle chip remains (right-aligned). */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 2px 8px' }}>
             <div style={{ flex: 1, fontSize: 11, fontStyle: 'italic', color: '#9A8F82', lineHeight: 1.45 }}>
-              פחות לדבר, יותר לשאול — תן לליד לדבר
+              {step === 1 ? 'פחות לדבר, יותר לשאול — תן לליד לדבר' : ''}
             </div>
             <button type="button" onClick={() => setOverview((v) => !v)} style={{
               flexShrink: 0, border: '1px solid #F0E4D0', background: '#fff', color: '#5C4A3A',
@@ -1046,8 +1083,8 @@ function SalesPanel({ step, persona, srcLabel, open, onToggle }) {
 
           {overview ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {phrases.map((p, i) => (
-                <PhraseCard key={i} p={p} index={i} total={phrases.length} srcLabel={srcLabel} stacked />
+              {cards.map((p, i) => (
+                <PhraseCard key={i} p={p} index={i} total={cards.length} srcLabel={srcLabel} stacked />
               ))}
             </div>
           ) : (
@@ -1056,13 +1093,13 @@ function SalesPanel({ step, persona, srcLabel, open, onToggle }) {
                 display: 'flex', gap: 8, overflowX: 'auto', scrollSnapType: 'x mandatory',
                 WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', paddingBottom: 2,
               }}>
-                {phrases.map((p, i) => (
-                  <PhraseCard key={i} p={p} index={i} total={phrases.length} srcLabel={srcLabel} />
+                {cards.map((p, i) => (
+                  <PhraseCard key={i} p={p} index={i} total={cards.length} srcLabel={srcLabel} />
                 ))}
               </div>
               {/* Dots — coloured by each card's type; active dot elongated. */}
               <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 8 }}>
-                {phrases.map((p, i) => {
+                {cards.map((p, i) => {
                   const s = SALES_CARD_STYLE[p.type] || SALES_CARD_STYLE.speak;
                   const active = i === activeIdx;
                   return <div key={i} style={{ width: active ? 18 : 7, height: 7, borderRadius: 999, background: active ? s.dot : '#E0D6C7', transition: 'all .2s' }} />;
@@ -1115,18 +1152,24 @@ function PrescriptionCard({ form, set }) {
         <SpeakBlock line={composed} note="להוסיף את הסיבה במילים של הליד עצמו" />
       )}
 
-      {/* Digital add-on — always visible, applies to everyone. */}
-      <SpeakBlock tagSuffix=" · תוספת דיגיטלית" line={PRESCRIPTION_DIGITAL.line} note={PRESCRIPTION_DIGITAL.note} />
-      <button type="button" onClick={() => set({ digital_offered: digitalOn ? '' : 'yes' })} style={{
-        display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 'none',
-        cursor: 'pointer', padding: '2px 0', textAlign: 'right',
-      }}>
-        <span style={{
-          width: 22, height: 22, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          border: digitalOn ? 'none' : '2px solid #D9CDBB', background: digitalOn ? '#639922' : '#fff', color: '#fff', fontSize: 14, fontWeight: 800,
-        }}>{digitalOn ? '✓' : ''}</span>
-        <span style={{ fontSize: 13, fontWeight: 700, color: '#4A1B0C' }}>הוצעה הדרכה דיגיטלית</span>
-      </button>
+      {/* Digital add-on — compact, folded into this card (was a full
+          always-open speak block). Content (line + note) unchanged. */}
+      <div style={{ border: '1px solid #F0E4D0', background: '#FBF3EA', borderRadius: 10, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ flex: 1, fontSize: 11.5, fontWeight: 800, color: '#7A756B' }}>תוספת דיגיטלית · {INTRO_PRICE} ₪</span>
+          <button type="button" onClick={() => set({ digital_offered: digitalOn ? '' : 'yes' })} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0,
+          }}>
+            <span style={{
+              width: 18, height: 18, borderRadius: 5, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: digitalOn ? 'none' : '2px solid #D9CDBB', background: digitalOn ? '#639922' : '#fff', color: '#fff', fontSize: 12, fontWeight: 800,
+            }}>{digitalOn ? '✓' : ''}</span>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: '#4A1B0C' }}>הוצעה?</span>
+          </button>
+        </div>
+        <div style={{ fontSize: 12.5, color: '#4A1B0C', lineHeight: 1.45, whiteSpace: 'pre-wrap', userSelect: 'text' }}>{PRESCRIPTION_DIGITAL.line}</div>
+        {PRESCRIPTION_DIGITAL.note && <div style={{ fontSize: 11, fontStyle: 'italic', color: '#7A756B', lineHeight: 1.4 }}>💡 {PRESCRIPTION_DIGITAL.note}</div>}
+      </div>
     </div>
   );
 }
