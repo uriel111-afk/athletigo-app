@@ -159,6 +159,55 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
 
   const step = (d) => setBpm((v) => clamp(v + d, MIN_BPM, MAX_BPM));
 
+  // ── Drag-to-set BPM ──────────────────────────────────────────────
+  // Swipe UP on the wheel to increase, DOWN to decrease (~8px = 1 BPM,
+  // live). On release, a short decelerating glide adds up to ~40 BPM of
+  // momentum. Pointer events cover mouse + touch; touch-action:none on
+  // the wheel keeps the page from scrolling under the gesture. bpmRef is
+  // read at grab/release so the scheduler retimes smoothly mid-run.
+  const PX_PER_BPM = 8;
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef({ active: false, startY: 0, startBpm: 120, lastY: 0, lastT: 0, v: 0 });
+  const momentumRef = useRef(null);
+  const stopMomentum = () => { if (momentumRef.current) { cancelAnimationFrame(momentumRef.current); momentumRef.current = null; } };
+
+  const onWheelDown = (e) => {
+    stopMomentum();
+    const d = dragRef.current;
+    d.active = true; d.startY = e.clientY; d.startBpm = bpmRef.current;
+    d.lastY = e.clientY; d.lastT = performance.now(); d.v = 0;
+    setDragging(true);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+  };
+  const onWheelMove = (e) => {
+    const d = dragRef.current; if (!d.active) return;
+    const dy = d.startY - e.clientY;                 // up = positive
+    setBpm(clamp(d.startBpm + Math.round(dy / PX_PER_BPM), MIN_BPM, MAX_BPM));
+    const now = performance.now(), dt = now - d.lastT;
+    if (dt > 0) { d.v = (d.lastY - e.clientY) / dt; d.lastY = e.clientY; d.lastT = now; } // px/ms, up = +
+  };
+  const onWheelUp = () => {
+    const d = dragRef.current; if (!d.active) return;
+    d.active = false; setDragging(false);
+    let vb = d.v / PX_PER_BPM;                        // BPM per ms
+    if (Math.abs(vb) < 0.003) return;                // too slow → no glide
+    const base = bpmRef.current;
+    let acc = 0, travelled = 0, last = performance.now();
+    const MAX_EXTRA = 40;
+    const glide = () => {
+      const now = performance.now(), dt = Math.min(48, now - last); last = now;
+      let inc = vb * dt;
+      if (travelled + Math.abs(inc) >= MAX_EXTRA) inc = Math.sign(inc) * (MAX_EXTRA - travelled);
+      acc += inc; travelled += Math.abs(inc);
+      setBpm(clamp(Math.round(base + acc), MIN_BPM, MAX_BPM));
+      vb *= Math.pow(0.94, dt / 16);                 // ease-out decay
+      if (travelled >= MAX_EXTRA || Math.abs(vb) < 0.0015) { momentumRef.current = null; return; }
+      momentumRef.current = requestAnimationFrame(glide);
+    };
+    momentumRef.current = requestAnimationFrame(glide);
+  };
+  useEffect(() => () => stopMomentum(), []);
+
   const tap = () => {
     const t = performance.now();
     tapsRef.current = tapsRef.current.filter((x) => t - x < 3000);
@@ -218,9 +267,19 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
           {stepBtn('+1', () => step(1), 'warm')}
           {stepBtn('+5', () => step(5), 'warm')}
         </div>
-        <div style={{ minWidth: 130, textAlign: 'center', lineHeight: 1 }}>
+        <div
+          onPointerDown={onWheelDown}
+          onPointerMove={onWheelMove}
+          onPointerUp={onWheelUp}
+          onPointerCancel={onWheelUp}
+          style={{
+            minWidth: 130, textAlign: 'center', lineHeight: 1,
+            touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none',
+            cursor: dragging ? 'grabbing' : 'ns-resize',
+          }}
+        >
           <div style={{ fontSize: 15, fontWeight: 700, color: '#D9C7B4' }}>{bpm < MAX_BPM ? bpm + 1 : ''}</div>
-          <div style={{ fontSize: 'clamp(55px, 11vh, 78px)', fontWeight: 900, color: '#1A1A1A', letterSpacing: -1 }}>{bpm}</div>
+          <div style={{ fontSize: 'clamp(55px, 11vh, 78px)', fontWeight: 900, color: '#1A1A1A', letterSpacing: -1, transform: dragging ? 'scale(1.12)' : 'scale(1)', transition: 'transform 0.12s ease' }}>{bpm}</div>
           <div style={{ fontSize: 12, fontWeight: 700, color: ORANGE, marginTop: -2 }}>BPM</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#D9C7B4' }}>{bpm > MIN_BPM ? bpm - 1 : ''}</div>
         </div>

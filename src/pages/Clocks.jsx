@@ -277,15 +277,18 @@ function TimerView({ onMinimize }) {
           {isPrep ? 'הכנה' : 'ספירה לאחור'}
         </div>
       </div>
-      <div className="relative flex-shrink-0" style={{ width: 280, height: 280 }}>
-        <svg width="280" height="280" viewBox="0 0 280 280">
+      {/* Ring fills ~88% of the viewport width (capped 460px for tablets).
+          The SVG keeps its 0 0 280 280 viewBox, so cx/cy/r and the 10-unit
+          stroke all scale proportionally with the rendered size. */}
+      <div className="relative flex-shrink-0" style={{ width: 'min(88vw, 460px)', aspectRatio: '1 / 1' }}>
+        <svg width="100%" height="100%" viewBox="0 0 280 280">
           <circle cx="140" cy="140" r={R} fill="none" stroke="#FFF0E8" strokeWidth="10" />
           <circle cx="140" cy="140" r={R} fill="none" stroke={isPrep ? '#BBBBBB' : BRAND} strokeWidth="10" strokeLinecap="round"
             strokeDasharray={circ} strokeDashoffset={offset} transform="rotate(-90 140 140)"
             className="transition-colors duration-300" style={{ transition: 'stroke-dashoffset 0.15s linear, stroke 0.3s ease' }} />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="tabular-nums leading-none" style={{ fontSize: 88, fontWeight: 900, fontFamily: FN, color: C1, letterSpacing: -4 }}>{fmtMMSS(display)}</span>
+          <span className="tabular-nums leading-none" style={{ fontSize: 'clamp(64px, 18vw, 120px)', fontWeight: 900, fontFamily: FN, color: C1, letterSpacing: -4 }}>{fmtMMSS(display)}</span>
         </div>
       </div>
       <div className="flex w-full" style={{ gap: 10 }}>
@@ -354,7 +357,16 @@ export default function Clocks() {
   // arrived via a deep-link / with a running clock.
   const [focused, setFocused] = useState(() => {
     const fromNav = location.state?.openTimer;
-    if (fromNav === 'tabata' || fromNav === 'timer' || fromNav === 'stopwatch' || fromNav === 'dynamic' || fromNav === 'metronome' || fromNav === 'breathing') return fromNav;
+    const VALID = ['tabata', 'dynamic', 'metronome', 'breathing', 'timer', 'stopwatch'];
+    // Explicit deep-link (dashboard/footer/exercise shortcuts) → land
+    // INSIDE that mode immediately, skipping the STATE A grid.
+    if (VALID.includes(fromNav)) return fromNav;
+    // No explicit mode, but an engine is ALREADY live (e.g. a shortcut
+    // that calls startTabata()/startTimer() then navigates here with no
+    // openTimer) → focus that running mode instead of the bare grid.
+    if (showTabata) return 'tabata';
+    if (showDynamic) return 'dynamic';
+    if (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch') return clock.activeClock;
     return null;
   });
   const focus = useCallback((id) => { setFocused(id); setActiveTab(id); }, []);
@@ -383,8 +395,12 @@ export default function Clocks() {
       if (t === 'tabata' || t === 'timer' || t === 'stopwatch' || t === 'dynamic' || t === 'metronome' || t === 'breathing') { setActiveTab(t); setFocused(t); }
       try { window.history.replaceState({}, ''); } catch {}
     }
-    // Fallback: if clock is currently running but no nav state,
-    // auto-focus the matching mode so expand always lands on the running timer.
+    // Fallback: no nav state, but an engine/overlay is already live —
+    // sync activeTab so we land inside it (the focused initializer above
+    // already picked the mode; activeTab defaults to 'tabata' so the
+    // dynamic/timer/stopwatch cases need this to match).
+    else if (showTabata) { setActiveTab('tabata'); setFocused('tabata'); }
+    else if (showDynamic) { setActiveTab('dynamic'); setFocused('dynamic'); }
     else if (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch') {
       setActiveTab(clock.activeClock); setFocused(clock.activeClock);
     }
