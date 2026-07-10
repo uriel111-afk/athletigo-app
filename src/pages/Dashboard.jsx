@@ -400,15 +400,16 @@ export default function Dashboard() {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            // No fixed minHeight — the earlier `calc(100vh - 116px)`
-            // assumed a fixed 116 px of outer chrome, but Layout.jsx's
-            // page-container now consumes header + safe-area-top and
-            // bottom-nav + safe-area-bottom, so the old value
-            // overshot the available space and forced a phantom
-            // scroll with the top diamond clipped. Letting the column
-            // size to its content removes the dead area; if content
-            // ever overflows on a short viewport the parent's
-            // overflow-y:auto still scrolls cleanly.
+            // Fill the available content box (parent .lumen-dashboard is
+            // flex:1/minHeight:0) and DISTRIBUTE the sections top-to-bottom
+            // with balanced gaps via space-between — this removes the dead
+            // area at the bottom without reintroducing scroll. On a short
+            // viewport where content would overflow, minHeight:0 lets the
+            // parent's overflow-y:auto scroll cleanly. (Earlier the column
+            // sized to content and clustered everything at the top.)
+            flex: 1,
+            minHeight: 0,
+            justifyContent: 'space-between',
             padding: '0 6px 0',
           }}
         >
@@ -693,7 +694,10 @@ export default function Dashboard() {
                       // fallback for older iOS Safari where aspectRatio
                       // inside a grid cell doesn't kick in.
                       aspectRatio: '1 / 1',
-                      height: 70,
+                      // Grow gently on tall screens to help fill the
+                      // available height (space-between distributes the
+                      // rest). Floors at the original 70 on short viewports.
+                      height: 'clamp(70px, 10.5vh, 84px)',
                       // Lumen: secondary card → white surface + med
                       // shadow + hairline for a subtle floating feel.
                       background: 'var(--ag-surface)',
