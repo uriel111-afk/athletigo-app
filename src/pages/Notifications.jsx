@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/lib/supabaseClient";
+import { countUnread, isUnread } from "@/lib/notificationCounts";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -332,8 +333,10 @@ export default function Notifications() {
     [notifications]
   );
 
+  // Shared with the bell badge via countUnread() — one definition of
+  // "unread" so the header total and the badge can never diverge.
   const unreadCount = useMemo(
-    () => visibleNotifications.filter(n => !n.is_read && n.status !== 'handled').length,
+    () => countUnread(visibleNotifications),
     [visibleNotifications]
   );
 
@@ -417,7 +420,7 @@ export default function Notifications() {
       if (!acc.has(tid)) acc.set(tid, { id: tid, notifications: [], unreadCount: 0 });
       const g = acc.get(tid);
       g.notifications.push(n);
-      if (!n.is_read && n.status !== 'handled') g.unreadCount += 1;
+      if (isUnread(n)) g.unreadCount += 1;   // same "unread" definition as the badge
     }
     // Resolve each group's title AFTER collecting its rows so the whole
     // fallback chain has the full group to work with:

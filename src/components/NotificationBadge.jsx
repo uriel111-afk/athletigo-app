@@ -2,6 +2,7 @@ import React from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
+import { countUnread, formatBadge } from "@/lib/notificationCounts";
 
 export default function NotificationBadge({ userId, onClick, inline = false }) {
   const { data: notifications = [] } = useQuery({
@@ -31,21 +32,17 @@ export default function NotificationBadge({ userId, onClick, inline = false }) {
     enabled: !!userId
   });
 
-  // Counter logic: live unread rows only — identical predicate to the
-  // Notifications page (visibleNotifications + unreadCount). A reminder
-  // waiting to fire sits as is_read=false until App.jsx's polling loop
-  // pops it. handled / deleted rows are excluded.
-  const unreadCount = notifications.filter(
-    n => !n.is_read && n.status !== 'deleted' && n.status !== 'handled'
-  ).length;
+  // Counter logic: shared with the Notifications page via
+  // countUnread() so the badge and the page header can never diverge.
+  const unreadCount = countUnread(notifications);
 
   if (inline) {
     return unreadCount > 0 ? (
       <span
-        className="absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
+        className="absolute -top-1 -left-1 h-5 min-w-5 px-1 rounded-full flex items-center justify-center text-[10px] font-bold"
         style={{ backgroundColor: '#FF3B30', color: 'white', boxShadow: '0 2px 4px rgba(255, 59, 48, 0.3)' }}
       >
-        {unreadCount > 9 ? '9+' : unreadCount}
+        {formatBadge(unreadCount)}
       </span>
     ) : null;
   }
@@ -70,8 +67,8 @@ export default function NotificationBadge({ userId, onClick, inline = false }) {
           style={{
             position: 'absolute',
             top: -2, right: -2,
-            width: 16, height: 16,
-            borderRadius: '50%',
+            minWidth: 16, height: 16,
+            borderRadius: 8,
             background: '#dc2626',
             color: 'white',
             fontSize: 9,
@@ -79,10 +76,10 @@ export default function NotificationBadge({ userId, onClick, inline = false }) {
             lineHeight: '16px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             border: '1.5px solid white',
-            padding: 0,
+            padding: '0 3px',
           }}
         >
-          {unreadCount > 9 ? '9+' : unreadCount}
+          {formatBadge(unreadCount)}
         </span>
       )}
     </button>
