@@ -64,7 +64,7 @@ function createEngine() {
   };
 }
 
-export default function MetronomeMode({ active, onRunningChange }) {
+export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 }) { // eslint-disable-line no-unused-vars
   const [bpm, setBpm] = useState(120);
   const [running, setRunning] = useState(false);
   const [beatsPerBar, setBeatsPerBar] = useState(4);
@@ -142,15 +142,19 @@ export default function MetronomeMode({ active, onRunningChange }) {
     setCurrentBeat(-1);
     runningRef.current = true;
     setRunning(true);
-    onRunningChange && onRunningChange(true);
+    onRunningChange && onRunningChange(true, effectiveBpm);
     schedIdRef.current = setInterval(scheduler, LOOKAHEAD_MS);
     rafRef.current = requestAnimationFrame(drawLoop);
   };
 
   const toggle = () => { runningRef.current ? stop() : start(); };
 
-  // Stop when the tab is deselected; full cleanup on unmount.
-  useEffect(() => { if (!active && runningRef.current) stop(); /* eslint-disable-next-line */ }, [active]);
+  // Keeps running across focus switches (parallel-clocks). Reports live
+  // BPM so the floating bar stays current; full cleanup on unmount
+  // (leaving /clocks stops it).
+  useEffect(() => { if (runningRef.current) onRunningChange && onRunningChange(true, effectiveBpm); /* eslint-disable-next-line */ }, [effectiveBpm]);
+  // External stop request (from a floating bar).
+  useEffect(() => { if (stopSignal > 0 && runningRef.current) stop(); /* eslint-disable-next-line */ }, [stopSignal]);
   useEffect(() => () => { if (runningRef.current) stop(); engineRef.current && engineRef.current.close(); /* eslint-disable-next-line */ }, []);
 
   const step = (d) => setBpm((v) => clamp(v + d, MIN_BPM, MAX_BPM));

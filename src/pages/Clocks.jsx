@@ -330,7 +330,7 @@ export default function Clocks() {
     return 'tabata';
   });
   const clock = useClock();
-  const { setLiveTimer, setShowTabata, setShowDynamic, setIsMinimized, activeTimers, showTabata } = useActiveTimer();
+  const { setLiveTimer, setShowTabata, setShowDynamic, setIsMinimized, activeTimers, showTabata, showDynamic } = useActiveTimer();
   const { user } = React.useContext(AuthContext);
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
@@ -338,21 +338,46 @@ export default function Clocks() {
   const timerOrStopwatchRunning = clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch');
   const anyRunning = timerOrStopwatchRunning;
   // Metronome shares the timers' screen wake-lock while it's running.
-  const keepAwake = anyRunning || metronomeRunning;
+  const keepAwake = anyRunning || metronomeRunning || showTabata || showDynamic;
   const lastBackPress = useRef(0);
+
+  // Two-state selection: focused === null → mode grid (STATE A); a mode
+  // id → that mode focused (STATE B). Default is the grid unless we
+  // arrived via a deep-link / with a running clock.
+  const [focused, setFocused] = useState(() => {
+    const fromNav = location.state?.openTimer;
+    if (fromNav === 'tabata' || fromNav === 'timer' || fromNav === 'stopwatch' || fromNav === 'dynamic' || fromNav === 'metronome') return fromNav;
+    return null;
+  });
+  const focus = useCallback((id) => { setFocused(id); setActiveTab(id); }, []);
+  const [metronomeBpm, setMetronomeBpm] = useState(120);
+  const [metroStopSignal, setMetroStopSignal] = useState(0);
+
+  // Running clocks (for the leave-confirm; timer+stopwatch share one
+  // engine so at most one of them). Metronome + the two overlays add up.
+  const runningCount =
+    (clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch') ? 1 : 0) +
+    (metronomeRunning ? 1 : 0) + (showTabata ? 1 : 0) + (showDynamic ? 1 : 0);
+
+  const leaveClocks = useCallback(() => {
+    if (runningCount > 1 && !window.confirm('לעזוב? כל השעונים ייעצרו')) return;
+    try { clock?.stop && clock.stop(); } catch {}   // timer / stopwatch
+    setMetroStopSignal((x) => x + 1);               // metronome
+    navigate(isCoach ? '/dashboard' : '/trainee-home');
+  }, [runningCount, navigate, isCoach, clock]);
 
   // Apply nav-state tab selection once, then scrub state so reloading
   // the page doesn't re-apply.
   useEffect(() => {
     if (location.state?.openTimer) {
       const t = location.state.openTimer;
-      if (t === 'tabata' || t === 'timer' || t === 'stopwatch' || t === 'dynamic' || t === 'metronome') setActiveTab(t);
+      if (t === 'tabata' || t === 'timer' || t === 'stopwatch' || t === 'dynamic' || t === 'metronome') { setActiveTab(t); setFocused(t); }
       try { window.history.replaceState({}, ''); } catch {}
     }
     // Fallback: if clock is currently running but no nav state,
-    // auto-open the matching tab so expand always lands on the running timer.
+    // auto-focus the matching mode so expand always lands on the running timer.
     else if (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch') {
-      setActiveTab(clock.activeClock);
+      setActiveTab(clock.activeClock); setFocused(clock.activeClock);
     }
   }, []);
 
@@ -446,43 +471,102 @@ export default function Clocks() {
   }, [keepAwake]);
   useEffect(() => () => { globalWakeLockRef.current?.release().catch(() => {}); globalWakeLockRef.current = null; }, []);
 
+  const isModeRunning = (id) => {
+    if (id === 'timer' || id === 'stopwatch') return !!(clock?.isRunning && clock?.activeClock === id);
+    if (id === 'metronome') return metronomeRunning;
+    if (id === 'tabata') return showTabata;
+    if (id === 'dynamic') return showDynamic;
+    return false;
+  };
+  // Floating bars for running clocks that AREN'T focused. The
+  // timer/stopwatch engine is single-instance, so at most one of them;
+  // the metronome runs independently. (Tabata/interval keep their
+  // existing fullscreen overlay + global minimized bar.)
+  const bars = [];
+  if (clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch') && focused !== clock.activeClock) {
+    const isT = clock.activeClock === 'timer';
+    bars.push({ id: clock.activeClock, icon: isT ? Timer : Clock, name: isT ? 'טיימר' : 'סטופר',
+      value: isT ? fmtMMSS(clock.display) : fmtStopwatch(clock.display), onStop: () => clock.stop && clock.stop() });
+  }
+  if (metronomeRunning && focused !== 'metronome') {
+    bars.push({ id: 'metronome', icon: Music, name: 'מטרונום', value: `${metronomeBpm} BPM`, onStop: () => setMetroStopSignal((x) => x + 1) });
+  }
+
   return (
-    <div dir="rtl" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: activeTab === 'tabata' ? '#FF6F20' : '#FFFFFF', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none', boxSizing: 'border-box', overflowX: 'hidden' }}>
-      <div style={{ backgroundColor: '#FFFFFF', borderBottom: `0.5px solid ${BRD}`, flexShrink: 0, position: 'relative' }}>
-        {/* Selection-screen back chevron. Uses the same role-derived
-            destination as the in-clock minimize button (minimizeTimer
-            above) so the two stay in lockstep. */}
-        <button
-          onClick={() => navigate(isCoach ? '/dashboard' : '/trainee-home')}
-          onPointerDown={(e) => e.stopPropagation()}
-          onTouchStart={(e) => e.stopPropagation()}
-          aria-label="חזרה"
-          style={{
-            position: 'absolute', top: 16, left: 16, zIndex: 5,
-            width: 44, height: 44, borderRadius: 12,
-            background: '#FFFFFF', border: '1px solid #F0E4D0',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer',
-          }}
-        >
-          <ChevronRight size={24} color="#1a1a1a" />
-        </button>
-        <div className="flex" style={{ padding: '10px 12px 8px 72px', gap: 8 }}>
-          {MODES.map(m => {
-            const on = activeTab === m.id; const Icon = m.icon;
+    <div dir="rtl" style={{
+      height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      background: '#FFF9F0', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none',
+      boxSizing: 'border-box', overflowX: 'hidden',
+      // PART 1 — Clocks renders outside the Layout shell (isClocks → the
+      // page-container gives it 0 padding), so it needs its own insets.
+      paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))',
+      paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))',
+    }}>
+      {/* STATE A — mode grid (nothing focused) */}
+      {focused === null && (
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '8px 14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={leaveClocks} aria-label="חזרה" style={{ width: 44, height: 44, borderRadius: 12, background: '#fff', border: '1px solid #F0E4D0', boxShadow: '0 2px 6px rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+              <ChevronRight size={24} color="#1a1a1a" />
+            </button>
+            <div style={{ fontSize: 24, fontWeight: 900, color: '#1a1a1a', fontFamily: FN }}>שעונים</div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {MODES.map(m => {
+              const Icon = m.icon; const run = isModeRunning(m.id);
+              return (
+                <button key={m.id} onClick={() => focus(m.id)} style={{ minHeight: 118, borderRadius: 18, border: `1px solid ${run ? '#FF6F20' : '#F0E4D0'}`, background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, cursor: 'pointer', position: 'relative' }}>
+                  <Icon style={{ width: 40, height: 40, color: '#FF6F20' }} />
+                  <span style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a' }}>{m.label}</span>
+                  {run && <span style={{ position: 'absolute', top: 10, insetInlineEnd: 12, fontSize: 11, fontWeight: 800, color: '#16a34a' }}>● פועל</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* STATE B — compact top row (a mode is focused) */}
+      {focused !== null && (
+        <div style={{ backgroundColor: '#fff', borderBottom: `0.5px solid ${BRD}`, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px' }}>
+          <button onClick={() => setFocused(null)} aria-label="חזרה לרשימה" style={{ width: 40, height: 40, borderRadius: 10, background: '#FFF9F0', border: `1px solid ${BRD}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+            <ChevronRight size={22} color="#1a1a1a" />
+          </button>
+          <div style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a', fontFamily: FN, whiteSpace: 'nowrap' }}>{MODES.find(m => m.id === focused)?.label}</div>
+          <div style={{ flex: 1 }} />
+          <div style={{ display: 'flex', gap: 6 }}>
+            {MODES.filter(m => m.id !== focused).map(m => {
+              const Icon = m.icon; const run = isModeRunning(m.id);
+              return (
+                <button key={m.id} onClick={() => focus(m.id)} aria-label={m.label} style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${run ? '#FF6F20' : BRD}`, background: run ? '#FFF0E5' : '#FFF9F0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                  <Icon className="w-4 h-4" style={{ color: run ? '#FF6F20' : '#8A6A52' }} />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Floating bars — running clocks that aren't focused */}
+      {focused !== null && bars.length > 0 && (
+        <div style={{ padding: '6px 12px 0', display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+          {bars.map(b => {
+            const Icon = b.icon;
             return (
-              <button key={m.id} onClick={() => setActiveTab(m.id)}
-                className="flex-1 flex items-center justify-center gap-1 active:scale-95 transition-all"
-                style={{ height: 42, borderRadius: 10, minWidth: 0, overflow: 'hidden', backgroundColor: on ? BRAND : BG2, color: on ? '#FFF' : C2, fontWeight: 700, fontSize: 15, fontFamily: FN, border: on ? 'none' : `0.5px solid ${BRD}`, position: 'relative' }}>
-                <Icon className="w-4 h-4" style={{ flexShrink: 0 }} />
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{m.label}</span>
-              </button>
+              <div key={b.id} onClick={() => focus(b.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FFF4ED', border: '1px solid #F0D9C6', borderRadius: 12, padding: '8px 10px', cursor: 'pointer' }}>
+                <Icon className="w-4 h-4" style={{ color: '#FF6F20', flexShrink: 0 }} />
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#5C3A28' }}>{b.name}</span>
+                <span style={{ flex: 1, fontSize: 15, fontWeight: 800, color: '#1a1a1a', fontFamily: FN }}>{b.value}</span>
+                <button onClick={(e) => { e.stopPropagation(); b.onStop(); }} aria-label="עצור" style={{ border: 'none', background: '#fff', borderRadius: 8, padding: '4px 12px', fontSize: 12, fontWeight: 800, color: '#dc2626', cursor: 'pointer' }}>עצור</button>
+              </div>
             );
           })}
         </div>
-      </div>
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: activeTab === 'tabata' ? '#FF6F20' : '#FFFFFF' }}>
+      )}
+
+      {/* Content — ALWAYS mounted so running engines survive focus
+          switches; hidden entirely while the grid (STATE A) is showing. */}
+      <div style={{ flex: 1, overflow: 'hidden', display: focused === null ? 'none' : 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={{ display: activeTab === 'tabata' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0, background: '#FF6F20', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
           <div style={{ fontSize: '60px' }}>⏱</div>
           <button onPointerDown={() => setShowTabata(true)} style={{ background: 'white', color: '#FF6F20', border: 'none', borderRadius: '12px', padding: '16px 40px', fontSize: '22px', fontWeight: '900', cursor: 'pointer', touchAction: 'manipulation' }}>▶ טבטה</button>
@@ -496,7 +580,8 @@ export default function Clocks() {
           <button onPointerDown={() => setShowDynamic && setShowDynamic(true)} style={{ background: '#FF6F20', color: 'white', border: 'none', borderRadius: '12px', padding: '16px 40px', fontSize: '22px', fontWeight: '900', cursor: 'pointer', touchAction: 'manipulation', boxShadow: '0 4px 14px rgba(255,111,32,0.3)' }}>▶ אינטרוולים</button>
         </div>
         <div style={{ display: activeTab === 'metronome' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <MetronomeMode active={activeTab === 'metronome'} onRunningChange={setMetronomeRunning} />
+          <MetronomeMode active={activeTab === 'metronome'} stopSignal={metroStopSignal}
+            onRunningChange={(r, b) => { setMetronomeRunning(r); if (b != null) setMetronomeBpm(b); }} />
         </div>
         <div style={{ display: activeTab === 'timer' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <TimerView onMinimize={minimizeTimer} />
