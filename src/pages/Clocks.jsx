@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag, ListOrdered, ChevronRight } from "lucide-react";
+import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag, ListOrdered, ChevronRight, Music } from "lucide-react";
+import MetronomeMode from "@/components/MetronomeMode";
 import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 import { AuthContext } from "@/lib/AuthContext";
@@ -311,6 +312,7 @@ function TimerView({ onMinimize }) {
 const MODES = [
   { id: 'tabata', label: 'טבטה', icon: Zap },
   { id: 'dynamic', label: 'אינטרוולים', icon: ListOrdered },
+  { id: 'metronome', label: 'מטרונום', icon: Music },
   { id: 'timer', label: 'טיימר', icon: Timer },
   { id: 'stopwatch', label: 'סטופר', icon: Clock },
 ];
@@ -324,7 +326,7 @@ export default function Clocks() {
   //   3. fallback 'tabata'
   const [activeTab, setActiveTab] = useState(() => {
     const fromNav = location.state?.openTimer;
-    if (fromNav === 'tabata' || fromNav === 'timer' || fromNav === 'stopwatch' || fromNav === 'dynamic') return fromNav;
+    if (fromNav === 'tabata' || fromNav === 'timer' || fromNav === 'stopwatch' || fromNav === 'dynamic' || fromNav === 'metronome') return fromNav;
     return 'tabata';
   });
   const clock = useClock();
@@ -332,8 +334,11 @@ export default function Clocks() {
   const { user } = React.useContext(AuthContext);
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
+  const [metronomeRunning, setMetronomeRunning] = useState(false);
   const timerOrStopwatchRunning = clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch');
   const anyRunning = timerOrStopwatchRunning;
+  // Metronome shares the timers' screen wake-lock while it's running.
+  const keepAwake = anyRunning || metronomeRunning;
   const lastBackPress = useRef(0);
 
   // Apply nav-state tab selection once, then scrub state so reloading
@@ -341,7 +346,7 @@ export default function Clocks() {
   useEffect(() => {
     if (location.state?.openTimer) {
       const t = location.state.openTimer;
-      if (t === 'tabata' || t === 'timer' || t === 'stopwatch' || t === 'dynamic') setActiveTab(t);
+      if (t === 'tabata' || t === 'timer' || t === 'stopwatch' || t === 'dynamic' || t === 'metronome') setActiveTab(t);
       try { window.history.replaceState({}, ''); } catch {}
     }
     // Fallback: if clock is currently running but no nav state,
@@ -431,14 +436,14 @@ export default function Clocks() {
   const globalWakeLockRef = useRef(null);
   useEffect(() => {
     const acquire = async () => { try { if ('wakeLock' in navigator && !globalWakeLockRef.current) globalWakeLockRef.current = await navigator.wakeLock.request('screen'); } catch {} };
-    if (anyRunning) acquire();
+    if (keepAwake) acquire();
     else if (globalWakeLockRef.current) { globalWakeLockRef.current.release().catch(() => {}); globalWakeLockRef.current = null; }
-  }, [anyRunning]);
+  }, [keepAwake]);
   useEffect(() => {
-    const onVis = async () => { if (document.visibilityState === 'visible' && anyRunning) { try { if ('wakeLock' in navigator) globalWakeLockRef.current = await navigator.wakeLock.request('screen'); } catch {} } };
+    const onVis = async () => { if (document.visibilityState === 'visible' && keepAwake) { try { if ('wakeLock' in navigator) globalWakeLockRef.current = await navigator.wakeLock.request('screen'); } catch {} } };
     document.addEventListener('visibilitychange', onVis);
     return () => document.removeEventListener('visibilitychange', onVis);
-  }, [anyRunning]);
+  }, [keepAwake]);
   useEffect(() => () => { globalWakeLockRef.current?.release().catch(() => {}); globalWakeLockRef.current = null; }, []);
 
   return (
@@ -468,9 +473,10 @@ export default function Clocks() {
             const on = activeTab === m.id; const Icon = m.icon;
             return (
               <button key={m.id} onClick={() => setActiveTab(m.id)}
-                className="flex-1 flex items-center justify-center gap-1.5 active:scale-95 transition-all"
-                style={{ height: 42, borderRadius: 10, backgroundColor: on ? BRAND : BG2, color: on ? '#FFF' : C2, fontWeight: 700, fontSize: 16, fontFamily: FN, border: on ? 'none' : `0.5px solid ${BRD}`, position: 'relative' }}>
-                <Icon className="w-4 h-4" />{m.label}
+                className="flex-1 flex items-center justify-center gap-1 active:scale-95 transition-all"
+                style={{ height: 42, borderRadius: 10, minWidth: 0, overflow: 'hidden', backgroundColor: on ? BRAND : BG2, color: on ? '#FFF' : C2, fontWeight: 700, fontSize: 15, fontFamily: FN, border: on ? 'none' : `0.5px solid ${BRD}`, position: 'relative' }}>
+                <Icon className="w-4 h-4" style={{ flexShrink: 0 }} />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{m.label}</span>
               </button>
             );
           })}
@@ -488,6 +494,9 @@ export default function Clocks() {
             כל סט מקבל זמן עבודה ומנוחה משלו
           </div>
           <button onPointerDown={() => setShowDynamic && setShowDynamic(true)} style={{ background: '#FF6F20', color: 'white', border: 'none', borderRadius: '12px', padding: '16px 40px', fontSize: '22px', fontWeight: '900', cursor: 'pointer', touchAction: 'manipulation', boxShadow: '0 4px 14px rgba(255,111,32,0.3)' }}>▶ אינטרוולים</button>
+        </div>
+        <div style={{ display: activeTab === 'metronome' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <MetronomeMode active={activeTab === 'metronome'} onRunningChange={setMetronomeRunning} />
         </div>
         <div style={{ display: activeTab === 'timer' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <TimerView onMinimize={minimizeTimer} />
