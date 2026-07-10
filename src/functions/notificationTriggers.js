@@ -72,7 +72,7 @@ export async function schedulePlanFollowUp({ coachId, traineeId, traineeName, pl
     title: 'תזכורת מעקב תוכנית',
     message: `⏰ עברו 48 שעות מאז ששלחת את התוכנית "${planName}" ל${traineeName || 'המתאמן'}. כדאי לבדוק אם התחיל/ה!`,
     scheduled_at: followUpAt.toISOString(),
-    data: { trainee_id: traineeId || null, plan_name: planName || null },
+    data: { trainee_id: traineeId || null, trainee_name: traineeName || null, plan_name: planName || null },
   });
 }
 
@@ -131,7 +131,7 @@ export async function notifySessionRequest({ coachId, traineeId, traineeName, se
     type: 'session_request',
     title: 'בקשת מפגש חדשה',
     message: `${traineeName} ביקש מפגש חדש בתאריך ${sessionDate} בשעה ${sessionTime}`,
-    data: { session_id: sessionId, trainee_id: traineeId },
+    data: { session_id: sessionId, trainee_id: traineeId, trainee_name: traineeName },
     action_label: 'אשר',
     related_id: sessionId,
   });
@@ -143,7 +143,7 @@ export async function notifySessionConfirmed({ coachId, traineeName, sessionId, 
     type: 'session_confirmed',
     title: 'מפגש אושר על ידי מתאמן',
     message: `${traineeName} אישר את המפגש בתאריך ${sessionDate}`,
-    data: { session_id: sessionId },
+    data: { session_id: sessionId, trainee_name: traineeName },
   });
 }
 
@@ -153,7 +153,7 @@ export async function notifyNewRecord({ coachId, traineeId, traineeName, recordN
     type: 'new_record',
     title: 'שיא חדש',
     message: `${traineeName} הוסיף שיא חדש: ${recordName}`,
-    data: { trainee_id: traineeId },
+    data: { trainee_id: traineeId, trainee_name: traineeName },
   });
 }
 
@@ -163,7 +163,7 @@ export async function notifyNewBaseline({ coachId, traineeId, traineeName }) {
     type: 'new_baseline',
     title: 'בייסליין חדש',
     message: `${traineeName} הוסיף בייסליין חדש`,
-    data: { trainee_id: traineeId },
+    data: { trainee_id: traineeId, trainee_name: traineeName },
   });
 }
 
@@ -173,6 +173,7 @@ export async function notifyExerciseCompleted({ coachId, traineeName, traineeId,
     type: 'exercise_completed',
     message: `${traineeName} השלים את התרגיל: ${exerciseName}`,
     traineeId: traineeId || null,
+    traineeName: traineeName || null,
   });
 }
 
@@ -182,6 +183,7 @@ export async function notifyMetricsUpdated({ coachId, traineeName, traineeId }) 
     type: 'metrics_updated',
     message: `${traineeName} עדכן מדידות גוף`,
     traineeId: traineeId || null,
+    traineeName: traineeName || null,
   });
 }
 

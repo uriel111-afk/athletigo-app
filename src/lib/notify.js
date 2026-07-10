@@ -49,6 +49,7 @@ export async function notifyServiceCompletedOnce({ coachId, packageId, packageNa
         title: 'חבילה הסתיימה',
         message: `חבילה "${packageName || 'חבילה'}" של ${traineeName || 'מתאמן'} הסתיימה`,
         related_id: packageId || null,
+        data: traineeName ? { trainee_name: traineeName } : {},
         is_read: false,
       })
       .select()
@@ -61,7 +62,7 @@ export async function notifyServiceCompletedOnce({ coachId, packageId, packageNa
   }
 }
 
-export async function createNotification({ userId, type, message, data = {}, traineeId = null }) {
+export async function createNotification({ userId, type, message, data = {}, traineeId = null, traineeName = null }) {
   try {
     const { data: u } = await supabase
       .from('users')
@@ -72,9 +73,18 @@ export async function createNotification({ userId, type, message, data = {}, tra
       console.log('[notify] skipped:', type);
       return null;
     }
+    // Denormalize trainee id + name into data so the coach's
+    // notifications page can title each group WITHOUT a users lookup
+    // (that lookup is fragile — one bad id 400s the whole batch — and
+    // old rows carry no name at all).
+    const enrichedData = {
+      ...data,
+      ...(traineeId ? { trainee_id: data.trainee_id || traineeId } : {}),
+      ...(traineeName ? { trainee_name: data.trainee_name || traineeName } : {}),
+    };
     const { data: row, error } = await supabase
       .from('notifications')
-      .insert({ user_id: userId, type, message, data, trainee_id: traineeId, is_read: false })
+      .insert({ user_id: userId, type, message, data: enrichedData, trainee_id: traineeId, is_read: false })
       .select()
       .single();
     if (error) { console.error('[notify] error:', error); return null; }

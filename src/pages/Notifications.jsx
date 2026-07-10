@@ -60,6 +60,31 @@ const formatRelativeTime = (iso) => {
   return d.toLocaleDateString('he-IL');
 };
 
+// Guards the users .in('id', …) lookup: a single non-UUID value (e.g.
+// a legacy id or a garbled ?userId= parsed from a link) makes PostgREST
+// 400 the WHOLE batch against the uuid column, so every group falls back
+// to the generic name. Only valid UUIDs are sent to the query.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Short type labels — appended to the generic "מתאמן" for old rows that
+// carry no trainee name anywhere, so distinct unnamed groups stay
+// distinguishable (e.g. "מתאמן · אישור מפגש").
+const TYPE_LABEL = {
+  session_request: 'בקשת מפגש',
+  session_confirmed: 'אישור מפגש',
+  session_status_changed: 'סטטוס מפגש',
+  new_record: 'שיא חדש',
+  new_baseline: 'בייסליין',
+  exercise_completed: 'סיום תרגיל',
+  workout_completion: 'סיום אימון',
+  metrics_updated: 'עדכון מדדים',
+  plan_followup: 'מעקב תוכנית',
+  service_completed: 'סיום חבילה',
+  package_expiring: 'חבילה נגמרת',
+  new_lead: 'ליד חדש',
+  coach_message: 'הודעה',
+};
+
 export default function Notifications() {
   const [user, setUser] = useState(null);
   const queryClient = useQueryClient();
@@ -336,7 +361,8 @@ export default function Notifications() {
     const s = new Set();
     for (const n of visibleNotifications) {
       const tid = traineeIdFromNotif(n);
-      if (tid) s.add(tid);
+      // Only valid UUIDs — a bad id would 400 the whole .in() batch.
+      if (tid && UUID_RE.test(tid)) s.add(tid);
     }
     return Array.from(s);
   }, [visibleNotifications]);
@@ -349,8 +375,13 @@ export default function Notifications() {
         .from('users')
         .select('id, full_name')
         .in('id', notifTraineeIds);
-      if (error) { console.warn('[Notifications] name lookup failed:', error.message); return {}; }
-      console.log('[Notifications] trainee-name lookup raw:', { ids: notifTraineeIds, rows: data });
+      if (error) {
+        // Diagnostic: on a silent 400 (e.g. a non-UUID id reached .in()),
+        // dump the exact ids we sent so the failure is visible on device.
+        console.warn('[Notifications] name lookup failed:', error.message, { idsSent: notifTraineeIds });
+        return {};
+      }
+      console.log('[Notifications] trainee-name lookup raw:', { idsSent: notifTraineeIds, rowsReturned: (data || []).map(u => ({ id: u.id, full_name: u.full_name })) });
       const m = {};
       for (const u of (data || [])) m[u.id] = u.full_name;
       return m;
@@ -383,18 +414,32 @@ export default function Notifications() {
     const acc = new Map();
     for (const n of filteredNotifications) {
       const tid = traineeIdFromNotif(n) || 'system';
-      const lookupName = tid !== 'system'
-        ? (n.data?.trainee_name
-            || traineeNameMap[tid]
-            || coachTrainees.find(t => t.id === tid)?.full_name
-            || 'מתאמן')
-        : 'התראות מערכת';
-      if (!acc.has(tid)) {
-        acc.set(tid, { id: tid, name: lookupName, notifications: [], unreadCount: 0 });
-      }
+      if (!acc.has(tid)) acc.set(tid, { id: tid, notifications: [], unreadCount: 0 });
       const g = acc.get(tid);
       g.notifications.push(n);
       if (!n.is_read && n.status !== 'handled') g.unreadCount += 1;
+    }
+    // Resolve each group's title AFTER collecting its rows so the whole
+    // fallback chain has the full group to work with:
+    //   data.trainee_name (denormalized at creation, preferred) →
+    //   users lookup by id → coach roster → generic "מתאמן · <type>".
+    for (const g of acc.values()) {
+      if (g.id === 'system') { g.name = 'התראות מערכת'; continue; }
+      const denormName = g.notifications.map(n => n.data?.trainee_name).find(Boolean);
+      const resolved = denormName
+        || traineeNameMap[g.id]
+        || coachTrainees.find(t => t.id === g.id)?.full_name;
+      if (resolved) {
+        g.name = resolved;
+      } else {
+        // Old row with no name anywhere — keep generic but append the
+        // dominant notification type so unnamed groups stay distinct.
+        const counts = {};
+        for (const n of g.notifications) counts[n.type] = (counts[n.type] || 0) + 1;
+        const domType = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+        const label = TYPE_LABEL[domType];
+        g.name = label ? `מתאמן · ${label}` : 'מתאמן';
+      }
     }
     return Array.from(acc.values()).sort((a, b) => {
       if (a.unreadCount !== b.unreadCount) return b.unreadCount - a.unreadCount;
