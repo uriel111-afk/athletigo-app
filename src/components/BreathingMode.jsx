@@ -49,7 +49,7 @@ function createBreathAudio() {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(from, t);
       osc.frequency.linearRampToValueAtTime(to, t + dur);
-      const peak = 0.06, fade = Math.min(0.9, dur * 0.35);
+      const peak = 0.17, fade = Math.min(0.9, dur * 0.35); // ~2.8x louder; same smooth attack/release
       g.gain.setValueAtTime(0.0001, t);
       g.gain.linearRampToValueAtTime(peak, t + fade);
       g.gain.setValueAtTime(peak, t + Math.max(fade, dur - 0.6));
@@ -61,7 +61,7 @@ function createBreathAudio() {
       const osc = c.createOscillator(); const g = c.createGain();
       osc.type = 'sine'; osc.frequency.value = freq;
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.linearRampToValueAtTime(0.045, t + 0.03);
+      g.gain.linearRampToValueAtTime(0.13, t + 0.03); // louder transition chime, same soft envelope
       g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
       osc.connect(g); g.connect(bus()); osc.start(t); osc.stop(t + 0.6);
     },
@@ -72,7 +72,7 @@ function createBreathAudio() {
         const osc = c.createOscillator(); const g = c.createGain();
         osc.type = 'sine'; osc.frequency.value = f;
         g.gain.setValueAtTime(0.0001, t);
-        g.gain.linearRampToValueAtTime(0.07, t + 0.04);
+        g.gain.linearRampToValueAtTime(0.18, t + 0.04); // louder finish chimes, same gentle decay
         g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
         osc.connect(g); g.connect(bus()); osc.start(t); osc.stop(t + 0.95);
       });
@@ -87,10 +87,25 @@ const PRESETS = {
   calm: { label: 'הרגעה 4-7-8',   v: { inhale: 4, hold: 7, exhale: 8, holdEmpty: 0 } },
 };
 const ROUND_OPTS = [5, 10, 15, 'inf'];
+const CHIP_VALUES = [5, 10, 15];
+
+// Remember the last chosen rounds across sessions. The stored value
+// (a number or 'inf') fully encodes the mode: 5/10/15 → chip, 'inf' →
+// infinity, any other number → custom.
+const ROUNDS_KEY = 'ag_breathing_rounds';
+const loadRounds = () => {
+  try {
+    const raw = localStorage.getItem(ROUNDS_KEY);
+    if (raw == null) return 10;
+    if (raw === 'inf') return 'inf';
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) ? clamp(n, 1, 99) : 10;
+  } catch { return 10; }
+};
 
 export default function BreathingMode({ active, onRunningChange, stopSignal = 0 }) { // eslint-disable-line no-unused-vars
   const [cfg, setCfg] = useState({ inhale: 4, hold: 4, exhale: 4, holdEmpty: 4 });
-  const [rounds, setRounds] = useState(10);
+  const [rounds, setRounds] = useState(loadRounds);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
   const [phaseName, setPhaseName] = useState('');
@@ -111,6 +126,8 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const roundsRef = useRef(rounds);
   useEffect(() => { cfgRef.current = cfg; }, [cfg]);
   useEffect(() => { roundsRef.current = rounds; }, [rounds]);
+  // Persist the chosen rounds (value encodes chip/custom/infinity mode).
+  useEffect(() => { try { localStorage.setItem(ROUNDS_KEY, String(rounds)); } catch {} }, [rounds]);
 
   const activePreset = (() => {
     for (const k of Object.keys(PRESETS)) {
@@ -259,6 +276,8 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
 
   // ── Config full-screen ──
   const seqValid = (Number(cfg.inhale) || 0) > 0 && (Number(cfg.exhale) || 0) > 0;
+  const roundsNum = typeof rounds === 'number' ? rounds : 10;           // number shown in the stepper
+  const roundsIsCustom = typeof rounds === 'number' && !CHIP_VALUES.includes(rounds);
   const card = { background: '#fff', border: '1px solid #F0E4D0', borderRadius: 16, padding: 12 };
   return (
     <div dir="rtl" style={{
@@ -300,7 +319,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
         }}>מותאם אישית</div>
       </div>
 
-      {/* Rounds */}
+      {/* Rounds — quick chips + a free 1-99 custom stepper */}
       <div style={{ ...card }}>
         <div style={{ fontSize: 12, fontWeight: 800, color: '#8A6A52', marginBottom: 8, textAlign: 'center' }}>מספר סבבים</div>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -313,6 +332,19 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
               }}>{r === 'inf' ? 'אינסוף' : r}</button>
             );
           })}
+        </div>
+        {/* Custom stepper — tapping +/- switches selection to this number
+            (chips deselect); tapping a chip above snaps back to its value. */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginTop: 12,
+          paddingTop: 12, borderTop: '1px solid #F5ECE0',
+        }}>
+          {stepBtn(() => setRounds((r) => clamp((typeof r === 'number' ? r : 10) - 1, 1, 99)), '−')}
+          <div style={{ minWidth: 64, textAlign: 'center' }}>
+            <div style={{ fontSize: 30, fontWeight: 900, color: roundsIsCustom ? ORANGE : '#1a1a1a', lineHeight: 1 }}>{roundsNum}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: roundsIsCustom ? ORANGE : '#8A6A52', marginTop: 2 }}>מותאם אישית</div>
+          </div>
+          {stepBtn(() => setRounds((r) => clamp((typeof r === 'number' ? r : 10) + 1, 1, 99)), '+')}
         </div>
       </div>
 

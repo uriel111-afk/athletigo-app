@@ -107,7 +107,7 @@ function StopwatchView({ onMinimize }) {
           <MinimizeBtn onClick={onMinimize} />
           <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: 'rgba(255,255,255,0.7)', letterSpacing: 2, textTransform: 'uppercase' }}>STOPWATCH</div>
         </div>
-        <div className="tabular-nums leading-none" style={{ fontSize: 96, fontWeight: 900, fontFamily: FN, color: '#FFF', letterSpacing: -2 }}>{fmtStopwatch(display)}</div>
+        <div className="tabular-nums leading-none" style={{ fontSize: 'clamp(52px, 15vw, 96px)', fontWeight: 800, fontVariantNumeric: 'tabular-nums', fontFamily: FN, color: '#FFF', letterSpacing: -2, lineHeight: 1 }}>{fmtStopwatch(display)}</div>
         {laps.length > 0 && (
           <div className="w-full rounded-xl p-3 max-h-28 overflow-y-auto" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}>
             {laps.map((l, i) => (
@@ -288,7 +288,10 @@ function TimerView({ onMinimize }) {
             className="transition-colors duration-300" style={{ transition: 'stroke-dashoffset 0.15s linear, stroke 0.3s ease' }} />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="tabular-nums leading-none" style={{ fontSize: 'clamp(64px, 18vw, 120px)', fontWeight: 900, fontFamily: FN, color: C1, letterSpacing: -4 }}>{fmtMMSS(display)}</span>
+          {/* Digits styled to match the Tabata running screen: Barlow
+              Condensed (FN), weight 800, tabular-nums, letterSpacing -2,
+              lineHeight 1 — clamp sized to fit the MM:SS inside the ring. */}
+          <span className="tabular-nums leading-none" style={{ fontSize: 'clamp(64px, 18vw, 116px)', fontWeight: 800, fontVariantNumeric: 'tabular-nums', fontFamily: FN, color: C1, letterSpacing: -2, lineHeight: 1 }}>{fmtMMSS(display)}</span>
         </div>
       </div>
       <div className="flex w-full" style={{ gap: 10 }}>

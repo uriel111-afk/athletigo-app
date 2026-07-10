@@ -7,8 +7,19 @@ function getCtx() {
     const AC = window.AudioContext || window.webkitAudioContext;
     ctx = new AC();
     masterGain = ctx.createGain();
-    masterGain.gain.value = 0.9;
-    masterGain.connect(ctx.destination);
+    // Louder overall: push harder into a brick-wall limiter so the
+    // per-tone envelopes stay intact but the perceived loudness rises
+    // ~1.5-2x without clipping. (Timing/scheduling untouched — a
+    // compressor doesn't shift when notes fire.)
+    masterGain.gain.value = 1.6;                       // was 0.9
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.setValueAtTime(-4, ctx.currentTime);
+    limiter.knee.setValueAtTime(6, ctx.currentTime);
+    limiter.ratio.setValueAtTime(20, ctx.currentTime);
+    limiter.attack.setValueAtTime(0.002, ctx.currentTime);
+    limiter.release.setValueAtTime(0.15, ctx.currentTime);
+    masterGain.connect(limiter);
+    limiter.connect(ctx.destination);
   }
   return ctx;
 }

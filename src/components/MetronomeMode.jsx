@@ -54,7 +54,9 @@ function createEngine() {
       osc.frequency.value = accent ? 1600 : 1000; // accent = higher pitch
       const dur = 0.03;
       gain.gain.setValueAtTime(0.0001, time);
-      gain.gain.linearRampToValueAtTime(accent ? 0.9 : 0.55, time + 0.001);
+      // Louder click — accent sits at the 0.9 safety cap, regular raised
+      // from 0.55 → 0.78. Same short exponential decay (no clipping).
+      gain.gain.linearRampToValueAtTime(accent ? 0.9 : 0.78, time + 0.001);
       gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
       osc.connect(gain); gain.connect(c.destination);
       osc.start(time); osc.stop(time + dur + 0.02);
