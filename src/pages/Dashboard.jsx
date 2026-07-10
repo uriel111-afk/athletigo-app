@@ -50,9 +50,16 @@ const SectionHeader = ({ title }) => (
 );
 
 // The cream halo background + soft orange ambient glows now live in
-// the `.lumen-dashboard` CSS scope (index.css). The empty BG object
-// is kept so any leftover style spreads (none currently) stay safe.
-const BG = {};
+// the `.lumen-dashboard` CSS scope (index.css).
+//
+// flex:1 + minHeight:0 OVERRIDE the shared `.lumen-dashboard`
+// min-height:100dvh (inline beats the class). Inside Layout's
+// `.page-container` (a flex column that already pads for the fixed
+// header + bottom nav), a 100dvh child is taller than the padded
+// content box by exactly header+nav+insets → guaranteed scroll + a
+// big empty gap below the grid. flex:1 makes this fill the content box
+// exactly (no overflow) and still full-bleed the background.
+const BG = { flex: 1, minHeight: 0 };
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -162,6 +169,22 @@ export default function Dashboard() {
     }
     setReminders(data || []);
   }, [coach?.id]);
+
+  // ── Overflow diagnostic (one-shot) — proves the scroll math on
+  // device. If overflow ≈ 0, the coach home no longer scrolls. ──
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const root = document.querySelector('.lumen-dashboard');
+      const pc = root?.closest('.page-container');
+      console.log('[Dashboard measure]', {
+        innerHeight: window.innerHeight,
+        pageContainer: pc ? { scrollHeight: pc.scrollHeight, clientHeight: pc.clientHeight, overflow: pc.scrollHeight - pc.clientHeight } : null,
+        lumenDashboardHeight: root?.offsetHeight ?? null,
+        appSwitcherHeight: document.querySelector('.ag-tabrow-scroll')?.offsetHeight ?? null,
+      });
+    }, 500);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     if (!coach?.id) return;
