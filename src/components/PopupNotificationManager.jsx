@@ -57,17 +57,28 @@ export default function PopupNotificationManager() {
       try {
         const today = new Date().toISOString().split('T')[0];
         const cutoff = new Date(Date.now() - 3 * 86400000).toISOString().split('T')[0];
+        // NO PostgREST embed: sessions has no FK to users, so
+        // `trainee:trainee_id(full_name)` 400s the whole query (that was
+        // the "…&order=date.asc&limit=5" console 400). Fetch flat, then
+        // hydrate names by id in a second step.
         const { data: sessions } = await supabase
           .from('sessions')
-          .select('id, date, time, trainee_id, service_id, status, trainee:trainee_id(full_name)')
+          .select('id, date, time, trainee_id, service_id, status')
           .eq('coach_id', user.id)
           .eq('status', 'confirmed')
           .gte('date', cutoff)
           .lt('date', today)
           .order('date', { ascending: true })
           .limit(5);
+        const sessTraineeIds = [...new Set((sessions || []).map(s => s.trainee_id).filter(Boolean))];
+        let namesById = {};
+        if (sessTraineeIds.length) {
+          const { data: us } = await supabase.from('users').select('id, full_name').in('id', sessTraineeIds);
+          for (const u of (us || [])) namesById[u.id] = u.full_name;
+        }
         for (const s of (sessions || [])) {
-          items.push({ kind: 'session_followup', key: `sess-${s.id}`, session: s });
+          // Preserve the { trainee: { full_name } } shape SessionFollowupDialog reads.
+          items.push({ kind: 'session_followup', key: `sess-${s.id}`, session: { ...s, trainee: { full_name: namesById[s.trainee_id] || null } } });
         }
       } catch (e) {
         console.warn('[PopupManager] session followup fetch failed:', e?.message);

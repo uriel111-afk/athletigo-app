@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell } from 'lucide-react';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
-import { generateNotifications, dismissNotification } from '@/lib/lifeos/notification-engine';
+import { generateNotifications } from '@/lib/lifeos/notification-engine';
 
 // Coordinator sees lead-related notifications only (new lead waiting /
 // follow-up due) — every lead notification targets the leads screen.
@@ -10,15 +10,19 @@ const isLeadNotif = (n) => n?.href === '/lifeos/leads' || String(n?.id || '').st
 
 export default function NotificationBell({ userId, leadsOnly = false }) {
   const navigate = useNavigate();
-  const [notifs, setNotifs] = useState([]);
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
+  const [count, setCount] = useState(0);
 
+  // Count only — used for the badge. The bell now navigates straight to
+  // the full notifications view instead of opening an in-header dropdown
+  // (which could render empty/clipped inside the hub header and felt like
+  // a dead click). The load is best-effort: a failure just leaves the
+  // badge at 0, never blocks the click.
   const load = useCallback(async () => {
     if (!userId) return;
     try {
       const list = await generateNotifications(userId);
-      setNotifs(leadsOnly ? list.filter(isLeadNotif) : list);
+      const filtered = leadsOnly ? list.filter(isLeadNotif) : list;
+      setCount(filtered.length);
     } catch (err) {
       console.error('[NotificationBell] load error:', err);
     }
@@ -26,127 +30,32 @@ export default function NotificationBell({ userId, leadsOnly = false }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Close on outside click.
-  useEffect(() => {
-    const handler = (e) => {
-      if (!open) return;
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  const handleTap = (n) => {
-    dismissNotification(n.id);
-    setNotifs(prev => prev.filter(x => x.id !== n.id));
-    setOpen(false);
-    navigate(n.href);
-  };
-
-  const handleDismiss = (e, n) => {
-    e.stopPropagation();
-    dismissNotification(n.id);
-    setNotifs(prev => prev.filter(x => x.id !== n.id));
-  };
-
-  const count = notifs.length;
-
+  // Navigation is synchronous and independent of the count fetch, so the
+  // click always works even while data loads — the notifications page
+  // shows its own skeleton until its data arrives.
   return (
-    <div ref={wrapRef} style={{ position: 'relative' }}>
-      <button
-        onClick={() => setOpen(v => !v)}
-        style={{
-          width: 36, height: 36, borderRadius: 10, border: 'none',
-          background: 'transparent', cursor: 'pointer',
+    <button
+      onClick={() => navigate('/notifications')}
+      style={{
+        width: 36, height: 36, borderRadius: 10, border: 'none',
+        background: 'transparent', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'relative',
+      }}
+      aria-label="התראות"
+    >
+      <Bell size={20} color={LIFEOS_COLORS.textPrimary} />
+      {count > 0 && (
+        <span style={{
+          position: 'absolute', top: 4, right: 4,
+          minWidth: 16, height: 16, padding: '0 4px',
+          borderRadius: 999, backgroundColor: LIFEOS_COLORS.error, color: '#FFFFFF',
+          fontSize: 10, fontWeight: 800,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          position: 'relative',
-        }}
-        aria-label="התראות"
-      >
-        <Bell size={20} color={LIFEOS_COLORS.textPrimary} />
-        {count > 0 && (
-          <span style={{
-            position: 'absolute', top: 4, right: 4,
-            minWidth: 16, height: 16, padding: '0 4px',
-            borderRadius: 999, backgroundColor: LIFEOS_COLORS.error, color: '#FFFFFF',
-            fontSize: 10, fontWeight: 800,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            {count > 9 ? '9+' : count}
-          </span>
-        )}
-      </button>
-
-      {open && (
-        <div style={{
-          position: 'absolute', top: 44, left: 0, minWidth: 280, maxWidth: 340,
-          zIndex: 200, borderRadius: 12,
-          backgroundColor: '#FFFFFF', border: `1px solid ${LIFEOS_COLORS.border}`,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-          maxHeight: 420, overflowY: 'auto',
         }}>
-          <div style={{
-            padding: '10px 14px', borderBottom: `1px solid ${LIFEOS_COLORS.border}`,
-            fontSize: 13, fontWeight: 700, color: LIFEOS_COLORS.textPrimary,
-          }}>
-            התראות {count > 0 ? `(${count})` : ''}
-          </div>
-          {count === 0 ? (
-            <div style={{ padding: '24px 14px', textAlign: 'center', fontSize: 13, color: LIFEOS_COLORS.textSecondary }}>
-              אין התראות חדשות 🎉
-            </div>
-          ) : notifs.map(n => (
-            <div
-              key={n.id}
-              onClick={() => handleTap(n)}
-              style={{
-                padding: '10px 14px',
-                borderBottom: `0.5px solid ${LIFEOS_COLORS.border}`,
-                cursor: 'pointer',
-                display: 'flex', alignItems: 'flex-start', gap: 10,
-              }}
-            >
-              <span style={{ fontSize: 18, flexShrink: 0 }}>{n.icon}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, color: LIFEOS_COLORS.textPrimary, lineHeight: 1.45 }}>
-                  {n.text}
-                </div>
-              </div>
-              <button
-                onClick={(e) => handleDismiss(e, n)}
-                style={{
-                  background: 'transparent', border: 'none', cursor: 'pointer',
-                  color: LIFEOS_COLORS.textSecondary, fontSize: 16,
-                }}
-                aria-label="סגור"
-              >×</button>
-            </div>
-          ))}
-
-          {/* Footer — always present so the user can jump to the
-              full Notifications page (filters, history, more detail)
-              regardless of whether the dropdown shows real items or
-              the empty-state message. */}
-          <button
-            onClick={() => { setOpen(false); navigate('/notifications'); }}
-            style={{
-              width: '100%',
-              padding: 12,
-              textAlign: 'center',
-              border: 'none',
-              borderTop: `1px solid ${LIFEOS_COLORS.border}`,
-              background: '#FFFFFF',
-              fontSize: 13,
-              fontWeight: 700,
-              color: LIFEOS_COLORS.primary,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            תוארתה לכל →
-          </button>
-        </div>
+          {count > 99 ? '99+' : count}
+        </span>
       )}
-    </div>
+    </button>
   );
 }
