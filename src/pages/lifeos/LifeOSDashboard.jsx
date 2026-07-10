@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import MentorCard from '@/components/lifeos/MentorCard';
-import GoalProgress from '@/components/lifeos/GoalProgress';
+import GoalProgress, { GoalProgressSkeleton } from '@/components/lifeos/GoalProgress';
 import WinCard from '@/components/lifeos/WinCard';
 import ExpenseForm from '@/components/lifeos/ExpenseForm';
 import IncomeForm from '@/components/lifeos/IncomeForm';
@@ -38,7 +38,7 @@ export default function LifeOSDashboard() {
   // annual goal target, read from users.goals_hierarchy. Falls back to
   // YEARLY_GOAL for users who never opened /lifeos/goals so the
   // progress bar isn't meaningless.
-  const [annualTarget, setAnnualTarget] = useState(YEARLY_GOAL);
+  const [annualTarget, setAnnualTarget] = useState(null); // null → skeleton, not the 10M default
   const [summary, setSummary] = useState({ income: 0, expenses: 0, net: 0 });
   const [mentor, setMentor] = useState(null);
   const [recentWins, setRecentWins] = useState([]);
@@ -112,7 +112,9 @@ export default function LifeOSDashboard() {
 
       {/* Goal progress */}
       <div style={{ marginBottom: 14 }}>
-        <GoalProgress current={annualIncome} target={annualTarget} />
+        {loaded && annualTarget != null
+          ? <GoalProgress current={annualIncome} target={annualTarget} />
+          : <GoalProgressSkeleton />}
       </div>
 
       {/* Goal breakdown — yearly → daily + Year 1/2 simulation */}

@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import FinanceTabBar from '@/components/lifeos/FinanceTabBar';
-import GoalProgress from '@/components/lifeos/GoalProgress';
+import GoalProgress, { GoalProgressSkeleton } from '@/components/lifeos/GoalProgress';
 import {
   LIFEOS_COLORS, LIFEOS_CARD, YEARLY_GOAL,
 } from '@/lib/lifeos/lifeos-constants';
@@ -46,9 +46,11 @@ export default function FinanceDashboard() {
 
   const [chart,        setChart]        = useState([]);
   // Annual headline figures — kept in sync with LifeOSDashboard +
-  // BusinessPlan via users.goals_hierarchy.annual_target. Defaults
-  // to YEARLY_GOAL so a brand-new user still sees a progress bar.
-  const [annualTarget, setAnnualTarget] = useState(YEARLY_GOAL);
+  // BusinessPlan via users.goals_hierarchy.annual_target. Starts null so
+  // we render a skeleton (not the hardcoded 10M default) until the real
+  // target loads; getAnnualTarget still falls back to YEARLY_GOAL for
+  // brand-new users, so they get 10M as their *actual* target post-load.
+  const [annualTarget, setAnnualTarget] = useState(null);
   const [annualIncome, setAnnualIncome] = useState(0);
   const [loaded,       setLoaded]       = useState(false);
 
@@ -109,7 +111,9 @@ export default function FinanceDashboard() {
 
         {/* ─── Annual goal progress ─────────────────────────── */}
         <div style={{ marginBottom: 20 }}>
-          <GoalProgress current={annualIncome} target={annualTarget} />
+          {loaded && annualTarget != null
+            ? <GoalProgress current={annualIncome} target={annualTarget} />
+            : <GoalProgressSkeleton />}
         </div>
 
         {/* ─── Nav tiles — each drills into its own page ─────── */}

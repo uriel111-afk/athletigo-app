@@ -3,6 +3,26 @@ import { LIFEOS_COLORS, LIFEOS_CARD, YEARLY_GOAL } from '@/lib/lifeos/lifeos-con
 
 const fmt = (n) => Math.round(n).toLocaleString('he-IL');
 
+// Loading placeholder — same card footprint as GoalProgress, shown until
+// the real annual target/income arrive so no stale/hardcoded number
+// (e.g. the 10M default) ever flashes.
+export function GoalProgressSkeleton() {
+  const bar = (w, h = 14) => (
+    <div style={{ width: w, height: h, borderRadius: 6, background: '#EDE4D6', animation: 'ag-goal-pulse 1.2s ease-in-out infinite' }} />
+  );
+  return (
+    <div style={{ ...LIFEOS_CARD }} aria-busy="true">
+      <style>{`@keyframes ag-goal-pulse{0%,100%{opacity:1}50%{opacity:.45}}`}</style>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        {bar(64)}{bar(38)}
+      </div>
+      <div style={{ marginBottom: 12 }}>{bar(150, 26)}</div>
+      <div style={{ backgroundColor: '#F0E4D0', borderRadius: 999, height: 10, marginBottom: 8 }} />
+      {bar(120, 12)}
+    </div>
+  );
+}
+
 export default function GoalProgress({ current = 0, target = YEARLY_GOAL }) {
   const pct = target > 0 ? Math.min(100, Math.max(0, (current / target) * 100)) : 0;
   const remaining = Math.max(0, target - current);

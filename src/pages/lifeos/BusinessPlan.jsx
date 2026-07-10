@@ -23,9 +23,10 @@ export default function BusinessPlan() {
   const [plan, setPlan] = useState(null);
   const [courses, setCourses] = useState([]);
   const [monthlyIncome, setMonthlyIncome] = useState(0);
-  // Real annual goal from users.goals_hierarchy. Falls back to
-  // YEARLY_GOAL so first-time users aren't staring at 0.
-  const [annualTarget, setAnnualTarget] = useState(YEARLY_GOAL);
+  // Real annual goal from users.goals_hierarchy. Starts null → a
+  // skeleton renders until it loads, so the hardcoded 10M default never
+  // flashes. getAnnualTarget still falls back to YEARLY_GOAL post-load.
+  const [annualTarget, setAnnualTarget] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState('streams'); // streams | simulator | courses | opportunities | milestones | risks
   const [confettiFire, setConfettiFire] = useState(false);
@@ -58,7 +59,7 @@ export default function BusinessPlan() {
   const milestones = plan?.milestones || [];
   const risks = plan?.risks || [];
 
-  const monthlyRequired = Math.round(annualTarget / 12);
+  const monthlyRequired = annualTarget ? Math.round(annualTarget / 12) : 0;
   const gap = Math.max(0, monthlyRequired - monthlyIncome);
 
   // Course Launch Tracker — advances to the next status. Confetti
@@ -107,8 +108,11 @@ export default function BusinessPlan() {
           יעד שנתי
         </div>
         <div style={{ fontSize: 24, fontWeight: 800, color: LIFEOS_COLORS.textPrimary }}>
-          {fmt(annualTarget)}₪
+          {loaded && annualTarget != null
+            ? `${fmt(annualTarget)}₪`
+            : <span style={{ display: 'inline-block', width: 150, height: 26, borderRadius: 6, background: '#EDE4D6', animation: 'ag-goal-pulse 1.2s ease-in-out infinite' }} />}
         </div>
+        <style>{`@keyframes ag-goal-pulse{0%,100%{opacity:1}50%{opacity:.45}}`}</style>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
           <MiniStat label="חודשי נדרש" value={monthlyRequired} color={LIFEOS_COLORS.primary} />
           <MiniStat label="חודשי בפועל" value={monthlyIncome}
