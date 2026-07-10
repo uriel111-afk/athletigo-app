@@ -8,7 +8,7 @@ import { Loader2, Calendar, Clock as ClockIcon } from "lucide-react";
 import { toast } from "sonner";
 import { syncPackageStatus } from "@/lib/packageStatus";
 import BookingModal from "../components/BookingModal";
-import PageLoader from "@/components/PageLoader";
+import PageSkeleton from "@/components/PageSkeleton";
 import PermGate from "@/components/PermGate";
 
 const STATUS_MAP = {
@@ -274,7 +274,7 @@ function TraineeSessionsInner() {
   };
 
   if (isLoading) {
-    return <PageLoader />;
+    return <PageSkeleton rows={5} />;
   }
 
   return (

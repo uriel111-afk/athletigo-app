@@ -12,7 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { openPlanEditor } from "@/utils/openPlanEditor";
 import { AuthContext } from "@/lib/AuthContext";
-import PageLoader from "@/components/PageLoader";
+import PageSkeleton from "@/components/PageSkeleton";
 import RemindersPanel from "@/components/RemindersPanel";
 import NotificationPopup from "@/components/NotificationPopup";
 import ChallengeBank from "@/components/ChallengeBank";
@@ -374,7 +374,7 @@ export default function Dashboard() {
   if (!coach) {
     return (
       <ProtectedCoachPage>
-        <PageLoader />
+        <PageSkeleton rows={5} />
       </ProtectedCoachPage>
     );
   }

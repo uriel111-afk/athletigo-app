@@ -26,7 +26,7 @@ import { format, isToday, isTomorrow, isPast, isFuture } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "sonner";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
-import PageLoader from "@/components/PageLoader";
+import PageSkeleton from "@/components/PageSkeleton";
 import SessionFormDialog from "../components/forms/SessionFormDialog";
 import SessionEditModal from "../components/SessionEditModal";
 import { notifySessionScheduled, notifySessionCompleted } from "@/functions/notificationTriggers";
@@ -1340,7 +1340,7 @@ export default function Sessions() {
   if (isLoading || coachLoading) {
     return (
       <ProtectedCoachPage>
-        <PageLoader fullHeight />
+        <PageSkeleton rows={6} />
       </ProtectedCoachPage>
     );
   }
@@ -1713,7 +1713,7 @@ export default function Sessions() {
           )}
 
           {/* ═══ SESSIONS VIEW ═══ */}
-          {activeView === 'sessions' && isLoading && <PageLoader />}
+          {activeView === 'sessions' && isLoading && <PageSkeleton rows={4} header={false} />}
 
           {/* Redesigned grouped collapsible cards — default view.
               The legacy 4-section layout is still rendered below

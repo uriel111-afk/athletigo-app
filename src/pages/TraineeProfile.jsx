@@ -72,7 +72,7 @@ import ResultFormDialog from "../components/forms/ResultFormDialog";
 import VisionFormDialog from "../components/forms/VisionFormDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import PageLoader from "@/components/PageLoader";
+import PageSkeleton from "@/components/PageSkeleton";
 import InlineLoader from "@/components/InlineLoader";
 import PlanCard from "@/components/plans/PlanCard";
 import PlanEditorDialog from "@/components/plans/PlanEditorDialog";
@@ -3756,7 +3756,7 @@ export default function TraineeProfile() {
   const coreDataLoading = profileLoading || !user || coachLoading;
 
   if (coreDataLoading) {
-    return <PageLoader />;
+    return <PageSkeleton rows={6} />;
   }
 
   const isUrielsAccount = user.email === 'uriel111@gmail.com';

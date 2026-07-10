@@ -12,7 +12,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { toast } from "sonner";
 import { useClientStats } from "../components/hooks/useClientStats";
 import { useSessionStats } from "../components/hooks/useSessionStats";
-import PageLoader from "../components/PageLoader";
+import PageSkeleton from "../components/PageSkeleton";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
@@ -937,7 +937,7 @@ export default function AllUsers() {
   if (traineesLoading) {
     return (
       <ProtectedCoachPage>
-        <PageLoader fullHeight />
+        <PageSkeleton rows={6} />
       </ProtectedCoachPage>
     );
   }
@@ -1338,7 +1338,7 @@ export default function AllUsers() {
 
         {/* D. User cards or empty state */}
         {traineesLoading ? (
-          <PageLoader />
+          <PageSkeleton rows={4} header={false} />
         ) : filteredTrainees.length === 0 ? (
           <div style={{
             textAlign: 'center', padding: '40px 20px',
