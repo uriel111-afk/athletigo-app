@@ -176,7 +176,7 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
   const ledStyle = (i) => {
     const beyond = i >= beatsPerBar;
     const base = {
-      width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+      width: 'clamp(28px, 4.6vh, 40px)', height: 'clamp(28px, 4.6vh, 40px)', borderRadius: '50%', flexShrink: 0,
       transition: 'transform .08s ease, background .06s, box-shadow .06s',
       border: '2px solid #F0D9C6', background: '#FFF4ED', transform: 'scale(1)',
     };
@@ -203,8 +203,8 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
   return (
     <div dir="rtl" style={{
       height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch',
-      background: '#FFF9F0', padding: '14px 14px 22px',
-      display: 'flex', flexDirection: 'column', gap: 14,
+      background: '#FFF9F0', padding: '14px 14px calc(18px + env(safe-area-inset-bottom,0px))',
+      display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 12,
       fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
     }}>
       {/* 1. BEAT LEDS */}
@@ -220,7 +220,7 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
         </div>
         <div style={{ minWidth: 130, textAlign: 'center', lineHeight: 1 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#D9C7B4' }}>{bpm < MAX_BPM ? bpm + 1 : ''}</div>
-          <div style={{ fontSize: 55, fontWeight: 900, color: '#1A1A1A', letterSpacing: -1 }}>{bpm}</div>
+          <div style={{ fontSize: 'clamp(55px, 11vh, 78px)', fontWeight: 900, color: '#1A1A1A', letterSpacing: -1 }}>{bpm}</div>
           <div style={{ fontSize: 12, fontWeight: 700, color: ORANGE, marginTop: -2 }}>BPM</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#D9C7B4' }}>{bpm > MIN_BPM ? bpm - 1 : ''}</div>
         </div>

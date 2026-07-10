@@ -1,7 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag, ListOrdered, ChevronRight, Music } from "lucide-react";
+import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag, ListOrdered, ChevronRight, Music, Wind } from "lucide-react";
 import MetronomeMode from "@/components/MetronomeMode";
+import BreathingMode from "@/components/BreathingMode";
 import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 import { AuthContext } from "@/lib/AuthContext";
@@ -313,6 +314,7 @@ const MODES = [
   { id: 'tabata', label: 'טבטה', icon: Zap },
   { id: 'dynamic', label: 'אינטרוולים', icon: ListOrdered },
   { id: 'metronome', label: 'מטרונום', icon: Music },
+  { id: 'breathing', label: 'נשימות', icon: Wind },
   { id: 'timer', label: 'טיימר', icon: Timer },
   { id: 'stopwatch', label: 'סטופר', icon: Clock },
 ];
@@ -326,7 +328,7 @@ export default function Clocks() {
   //   3. fallback 'tabata'
   const [activeTab, setActiveTab] = useState(() => {
     const fromNav = location.state?.openTimer;
-    if (fromNav === 'tabata' || fromNav === 'timer' || fromNav === 'stopwatch' || fromNav === 'dynamic' || fromNav === 'metronome') return fromNav;
+    if (fromNav === 'tabata' || fromNav === 'timer' || fromNav === 'stopwatch' || fromNav === 'dynamic' || fromNav === 'metronome' || fromNav === 'breathing') return fromNav;
     return 'tabata';
   });
   const clock = useClock();
@@ -338,7 +340,7 @@ export default function Clocks() {
   const timerOrStopwatchRunning = clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch');
   const anyRunning = timerOrStopwatchRunning;
   // Metronome shares the timers' screen wake-lock while it's running.
-  const keepAwake = anyRunning || metronomeRunning || showTabata || showDynamic;
+  const keepAwake = anyRunning || metronomeRunning || breathingRunning || showTabata || showDynamic;
   const lastBackPress = useRef(0);
 
   // Two-state selection: focused === null → mode grid (STATE A); a mode
@@ -346,23 +348,27 @@ export default function Clocks() {
   // arrived via a deep-link / with a running clock.
   const [focused, setFocused] = useState(() => {
     const fromNav = location.state?.openTimer;
-    if (fromNav === 'tabata' || fromNav === 'timer' || fromNav === 'stopwatch' || fromNav === 'dynamic' || fromNav === 'metronome') return fromNav;
+    if (fromNav === 'tabata' || fromNav === 'timer' || fromNav === 'stopwatch' || fromNav === 'dynamic' || fromNav === 'metronome' || fromNav === 'breathing') return fromNav;
     return null;
   });
   const focus = useCallback((id) => { setFocused(id); setActiveTab(id); }, []);
   const [metronomeBpm, setMetronomeBpm] = useState(120);
   const [metroStopSignal, setMetroStopSignal] = useState(0);
+  const [breathingRunning, setBreathingRunning] = useState(false);
+  const [breathingInfo, setBreathingInfo] = useState({ phase: '', roundsLeft: '' });
+  const [breathStopSignal, setBreathStopSignal] = useState(0);
 
   // Running clocks (for the leave-confirm; timer+stopwatch share one
   // engine so at most one of them). Metronome + the two overlays add up.
   const runningCount =
     (clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch') ? 1 : 0) +
-    (metronomeRunning ? 1 : 0) + (showTabata ? 1 : 0) + (showDynamic ? 1 : 0);
+    (metronomeRunning ? 1 : 0) + (breathingRunning ? 1 : 0) + (showTabata ? 1 : 0) + (showDynamic ? 1 : 0);
 
   const leaveClocks = useCallback(() => {
     if (runningCount > 1 && !window.confirm('לעזוב? כל השעונים ייעצרו')) return;
     try { clock?.stop && clock.stop(); } catch {}   // timer / stopwatch
     setMetroStopSignal((x) => x + 1);               // metronome
+    setBreathStopSignal((x) => x + 1);              // breathing
     navigate(isCoach ? '/dashboard' : '/trainee-home');
   }, [runningCount, navigate, isCoach, clock]);
 
@@ -371,7 +377,7 @@ export default function Clocks() {
   useEffect(() => {
     if (location.state?.openTimer) {
       const t = location.state.openTimer;
-      if (t === 'tabata' || t === 'timer' || t === 'stopwatch' || t === 'dynamic' || t === 'metronome') { setActiveTab(t); setFocused(t); }
+      if (t === 'tabata' || t === 'timer' || t === 'stopwatch' || t === 'dynamic' || t === 'metronome' || t === 'breathing') { setActiveTab(t); setFocused(t); }
       try { window.history.replaceState({}, ''); } catch {}
     }
     // Fallback: if clock is currently running but no nav state,
@@ -474,6 +480,7 @@ export default function Clocks() {
   const isModeRunning = (id) => {
     if (id === 'timer' || id === 'stopwatch') return !!(clock?.isRunning && clock?.activeClock === id);
     if (id === 'metronome') return metronomeRunning;
+    if (id === 'breathing') return breathingRunning;
     if (id === 'tabata') return showTabata;
     if (id === 'dynamic') return showDynamic;
     return false;
@@ -490,6 +497,11 @@ export default function Clocks() {
   }
   if (metronomeRunning && focused !== 'metronome') {
     bars.push({ id: 'metronome', icon: Music, name: 'מטרונום', value: `${metronomeBpm} BPM`, onStop: () => setMetroStopSignal((x) => x + 1) });
+  }
+  if (breathingRunning && focused !== 'breathing') {
+    bars.push({ id: 'breathing', icon: Wind, name: 'נשימות',
+      value: `${breathingInfo.phase || ''}${breathingInfo.roundsLeft !== '' ? ` · ${breathingInfo.roundsLeft} סבבים` : ''}`.trim(),
+      onStop: () => setBreathStopSignal((x) => x + 1) });
   }
 
   return (
@@ -582,6 +594,10 @@ export default function Clocks() {
         <div style={{ display: activeTab === 'metronome' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <MetronomeMode active={activeTab === 'metronome'} stopSignal={metroStopSignal}
             onRunningChange={(r, b) => { setMetronomeRunning(r); if (b != null) setMetronomeBpm(b); }} />
+        </div>
+        <div style={{ display: activeTab === 'breathing' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <BreathingMode active={activeTab === 'breathing'} stopSignal={breathStopSignal}
+            onRunningChange={(r, info) => { setBreathingRunning(r); if (info) setBreathingInfo(info); }} />
         </div>
         <div style={{ display: activeTab === 'timer' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <TimerView onMinimize={minimizeTimer} />
