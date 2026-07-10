@@ -337,9 +337,15 @@ export default function Clocks() {
   const isCoach = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
   const [metronomeRunning, setMetronomeRunning] = useState(false);
+  // Breathing state is declared HERE (before keepAwake/runningCount read
+  // it) — moving it below caused a TDZ crash on Clocks entry ("Cannot
+  // access 'breathingRunning' before initialization").
+  const [breathingRunning, setBreathingRunning] = useState(false);
+  const [breathingInfo, setBreathingInfo] = useState({ phase: '', roundsLeft: '' });
+  const [breathStopSignal, setBreathStopSignal] = useState(0);
   const timerOrStopwatchRunning = clock?.isRunning && (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch');
   const anyRunning = timerOrStopwatchRunning;
-  // Metronome shares the timers' screen wake-lock while it's running.
+  // Metronome + breathing share the timers' screen wake-lock while running.
   const keepAwake = anyRunning || metronomeRunning || breathingRunning || showTabata || showDynamic;
   const lastBackPress = useRef(0);
 
@@ -354,9 +360,6 @@ export default function Clocks() {
   const focus = useCallback((id) => { setFocused(id); setActiveTab(id); }, []);
   const [metronomeBpm, setMetronomeBpm] = useState(120);
   const [metroStopSignal, setMetroStopSignal] = useState(0);
-  const [breathingRunning, setBreathingRunning] = useState(false);
-  const [breathingInfo, setBreathingInfo] = useState({ phase: '', roundsLeft: '' });
-  const [breathStopSignal, setBreathStopSignal] = useState(0);
 
   // Running clocks (for the leave-confirm; timer+stopwatch share one
   // engine so at most one of them). Metronome + the two overlays add up.
