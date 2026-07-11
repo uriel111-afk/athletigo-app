@@ -528,7 +528,7 @@ function Step1({ form, set }) {
     <div style={col}>
       <ScriptBox>היי, איזה כיף שהתקשרת! ספר/י לי — האימון בשבילך או בשביל מישהו קרוב?</ScriptBox>
       <Field label="בשביל מי">
-        <ChipRow options={FOR_WHOM} value={form.for_whom} onPick={(k) => set({ for_whom: k })} wrap />
+        <ChipRow options={FOR_WHOM} value={form.for_whom} onPick={(k) => set({ for_whom: k })} cols={2} />
       </Field>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: GAP }}>
         <Field label="שם *"><input style={inp} value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="שם המתקשר/ת" autoFocus /></Field>
@@ -548,8 +548,8 @@ function Step1({ form, set }) {
       )}
       {(form.source === 'פלייר' || form.source === 'דף נחיתה') && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: GAP }}>
-          <ChipRow small options={FLYER_SUB_CHIPS} value={form.source_sub}
-            onPick={(k) => set({ source_sub: k, ...(k === 'אחר' ? {} : { source_sub_text: '' }) })} wrap />
+          <ChipRow small even options={FLYER_SUB_CHIPS} value={form.source_sub}
+            onPick={(k) => set({ source_sub: k, ...(k === 'אחר' ? {} : { source_sub_text: '' }) })} />
           {form.source_sub === 'אחר' && (
             <input style={inp} value={form.source_sub_text} onChange={(e) => set({ source_sub_text: e.target.value })} placeholder={`איזה ${form.source}?`} />
           )}
@@ -559,7 +559,7 @@ function Step1({ form, set }) {
         <input style={inp} value={form.source_sub_text} onChange={(e) => set({ source_sub_text: e.target.value })} placeholder="ממי?" />
       )}
       {form.source === 'אינסטגרם' && (
-        <ChipRow small options={INSTAGRAM_SUB_CHIPS} value={form.source_sub} onPick={(k) => set({ source_sub: k })} wrap />
+        <ChipRow small even options={INSTAGRAM_SUB_CHIPS} value={form.source_sub} onPick={(k) => set({ source_sub: k })} />
       )}
     </div>
   );
@@ -584,12 +584,12 @@ function Step3({ form, set }) {
         <textarea style={{ ...inp, height: 'auto' }} rows={3} value={form.objections} onChange={(e) => set({ objections: e.target.value })} placeholder="מה עצר עד עכשיו..." />
       </Field>
       <Field label="סוג החסם">
-        <ChipRow options={BARRIER_CHIPS} value={form.barrier_type} onPick={(k) => set({ barrier_type: k })} wrap />
+        <ChipRow options={BARRIER_CHIPS} value={form.barrier_type} onPick={(k) => set({ barrier_type: k })} cols={2} />
       </Field>
       {/* Persona picker — drives the tailored sales phrases from here on.
           Single-select, persists on the lead (persona column). */}
       <Field label="פרסונה (בחר/י אחת)">
-        <ChipRow options={LEAD_PERSONAS} value={form.persona} onPick={(k) => set({ persona: form.persona === k ? '' : k })} wrap />
+        <ChipRow options={LEAD_PERSONAS} value={form.persona} onPick={(k) => set({ persona: form.persona === k ? '' : k })} cols={3} />
       </Field>
     </div>
   );
@@ -600,13 +600,13 @@ function Step4({ form, set }) {
     <div style={col}>
       <ScriptBox>מה עשית בעבר מבחינת ספורט? ויש משהו שחשוב שנדע, כמו פציעות או כאבים?</ScriptBox>
       <Field label="רקע ספורטיבי">
-        <ChipRow options={BACKGROUND_CHIPS} value={form.background_level} onPick={(k) => set({ background_level: k })} wrap />
+        <ChipRow options={BACKGROUND_CHIPS} value={form.background_level} onPick={(k) => set({ background_level: k })} cols={2} />
       </Field>
       <Field label="פירוט הרקע">
         <textarea style={{ ...inp, height: 'auto' }} rows={2} value={form.sports_experience} onChange={(e) => set({ sports_experience: e.target.value })} placeholder="מה עשה/תה בעבר..." />
       </Field>
       <Field label="פציעות / כאבים">
-        <ChipRow options={INJURY_CHIPS} value={form.injury_level} onPick={(k) => set({ injury_level: k })} wrap />
+        <ChipRow options={INJURY_CHIPS} value={form.injury_level} onPick={(k) => set({ injury_level: k })} even />
       </Field>
       <Field label="פירוט פציעות">
         <textarea style={{ ...inp, height: 'auto' }} rows={2} value={form.injuries} onChange={(e) => set({ injuries: e.target.value })} placeholder="פירוט (אופציונלי)..." />
@@ -638,7 +638,7 @@ function Step6({ form, set }) {
       </Field>
       <ScriptBox>איזו מסגרת הכי מדברת אליך — אישית, קבוצתית או אונליין?</ScriptBox>
       <Field label="מסגרת מועדפת">
-        <ChipRow options={FORMAT_CHIPS} value={form.interested_in} onPick={(k) => set({ interested_in: k })} wrap />
+        <ChipRow options={FORMAT_CHIPS} value={form.interested_in} onPick={(k) => set({ interested_in: k })} cols={2} />
       </Field>
     </div>
   );
@@ -715,11 +715,11 @@ function Step8({ form, set }) {
     <div style={col}>
       <ScriptBox>מתי בדרך כלל נוח לך להתאמן — בוקר או ערב?</ScriptBox>
       <Field label="שעה">
-        <ChipRow options={HOUR_CHIPS} value={form.meeting_hour} onPick={(k) => set({ meeting_hour: k })} wrap />
+        <ChipRow options={HOUR_CHIPS} value={form.meeting_hour} onPick={(k) => set({ meeting_hour: k })} even />
       </Field>
       <ScriptBox>ואיזה יום הכי מסתדר השבוע?</ScriptBox>
       <Field label="יום">
-        <ChipRow options={DAY_CHIPS} value={form.meeting_day} onPick={(k) => set({ meeting_day: k })} wrap />
+        <ChipRow options={DAY_CHIPS} value={form.meeting_day} onPick={(k) => set({ meeting_day: k })} cols={3} />
       </Field>
 
       {/* Intro-session payment block — dual pricing by framework */}
@@ -812,7 +812,7 @@ function Step9({ form, set, busy, onOutcome, onDone }) {
 
       {/* Call-energy read — optional, never blocks the outcome. */}
       <Field label="אנרגיית השיחה">
-        <ChipRow options={ENERGY_CHIPS} value={form.call_energy} onPick={(k) => set({ call_energy: k })} wrap />
+        <ChipRow options={ENERGY_CHIPS} value={form.call_energy} onPick={(k) => set({ call_energy: k })} even />
       </Field>
       {(form.call_energy === 'ירדה באמצע' || form.call_energy === 'ירדה בסוף') && (
         <Field label="איפה ירדה ולמה">
@@ -1234,25 +1234,39 @@ function Field({ label, children }) {
   );
 }
 
-function ChipRow({ options, value, onPick, wrap, small, grid }) {
-  // `grid` → fixed 3-column layout (RTL: first chip top-right) so groups
-  // with uneven label widths line up cleanly instead of a ragged wrap.
-  // Same chip recipe; only the container + per-cell fill change.
-  const containerStyle = grid
-    ? { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, direction: 'rtl' }
-    : { display: 'flex', gap: 6, flexWrap: wrap ? 'wrap' : 'nowrap', overflowX: wrap ? 'visible' : 'auto', scrollbarWidth: 'none' };
+function ChipRow({ options, value, onPick, wrap, small, grid, cols, even }) {
+  // Layout modes (chip recipe identical in all three — only the
+  // container + per-cell fill change):
+  //   cols=N / grid → fixed N-column grid (grid defaults to 3), RTL so
+  //                    the first chip sits top-right. For 5+ / 4-option
+  //                    groups with uneven label widths.
+  //   even          → single flex row, every chip flex:1 (equal widths)
+  //                    for short 2-3(-5) groups that share one row.
+  //   default       → the original wrap / scroll flex.
+  const nCols = cols || (grid ? 3 : 0);
+  let containerStyle;
+  if (nCols) {
+    containerStyle = { display: 'grid', gridTemplateColumns: `repeat(${nCols}, 1fr)`, gap: 8, direction: 'rtl' };
+  } else if (even) {
+    containerStyle = { display: 'flex', gap: 8, direction: 'rtl' };
+  } else {
+    containerStyle = { display: 'flex', gap: 6, flexWrap: wrap ? 'wrap' : 'nowrap', overflowX: wrap ? 'visible' : 'auto', scrollbarWidth: 'none' };
+  }
+  const fills = !!nCols || even;
   return (
     <div style={containerStyle}>
       {options.map((o) => {
         const active = value === o.key;
         // Long labels (e.g. "מודעה ממומנת") step the font down 1px rather
         // than overflow their cell.
-        const longLabel = grid && (o.label || '').length >= 10;
+        const longLabel = fills && (o.label || '').length >= 10;
         return (
           <button key={o.key} type="button" onClick={() => onPick(o.key)} style={{
-            minHeight: small ? 30 : 36, padding: grid ? '0 8px' : (small ? '0 10px' : '0 13px'),
-            width: grid ? '100%' : undefined, boxSizing: 'border-box',
-            borderRadius: 999, cursor: 'pointer', flexShrink: 0,
+            minHeight: small ? 30 : 36, padding: fills ? '0 8px' : (small ? '0 10px' : '0 13px'),
+            width: nCols ? '100%' : undefined,
+            flex: even ? '1 1 0' : undefined, minWidth: even ? 0 : undefined,
+            flexShrink: even ? undefined : 0, boxSizing: 'border-box',
+            borderRadius: 999, cursor: 'pointer',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             border: active ? `2px solid ${ORANGE}` : '1px solid #F0E4D0',
             background: active ? ORANGE : '#fff', color: active ? '#fff' : '#3a3a3a',
