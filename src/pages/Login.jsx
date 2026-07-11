@@ -176,18 +176,19 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Content area — the login card is vertically CENTERED in the
-          space below the header (margin:auto centers it), NOT pinned to
-          the bottom. overflowY:auto so when the keyboard opens
-          (adjustResize shrinks the viewport) the auto margins collapse
-          and the card scrolls into view — inputs are never covered. */}
+      {/* Content area — the login card is TOP-ANCHORED (fixed position
+          right below the header, ~24px gap), NOT vertically centered.
+          All the flexible empty space lives BELOW the card, so when the
+          keyboard opens (adjustResize shrinks the viewport) only that
+          empty space shrinks — the card doesn't move at all: zero jump.
+          overflowY:auto is a safety net for very short viewports. */}
       <div style={{
         flex: 1, minHeight: 0, overflowY: 'auto',
         display: 'flex', flexDirection: 'column',
-        paddingTop: 16,
+        paddingTop: 24,
         paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
       }}>
-        <div className="w-full" style={{ maxWidth: 400, width: '100%', margin: 'auto', flexShrink: 0 }}>
+        <div className="w-full" style={{ maxWidth: 400, width: '100%', margin: '0 auto', flexShrink: 0 }}>
         {/* Card */}
         <div
           style={{
