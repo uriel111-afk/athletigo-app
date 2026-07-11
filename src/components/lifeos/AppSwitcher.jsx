@@ -1,6 +1,6 @@
 import React, { useContext } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Briefcase, Coins, Sprout, User, Clapperboard } from "lucide-react";
+import { Briefcase, Coins, Sprout, HeartHandshake, Clapperboard } from "lucide-react";
 import { AuthContext } from "@/lib/AuthContext";
 import { COACH_USER_ID } from "@/lib/lifeos/lifeos-constants";
 
@@ -31,7 +31,7 @@ export default function AppSwitcher({ wide = false }) {
     { key: "pro",      label: "מקצועי", href: "/dashboard",    active: isPro,      Icon: Briefcase },
     { key: "fin",      label: "פיננסי", href: "/lifeos/finance-dashboard", active: isFin,      Icon: Coins     },
     { key: "growth",   label: "לידים",  href: "/lifeos/leads", active: isGrowth,   Icon: Sprout    },
-    { key: "personal", label: "אישי",   href: "/personal",     active: isPersonal, Icon: User      },
+    { key: "personal", label: "אישי",   href: "/personal",     active: isPersonal, Icon: HeartHandshake },
     { key: "content",  label: "תוכן",   href: "/content",      active: isContent,  Icon: Clapperboard },
   ];
 
