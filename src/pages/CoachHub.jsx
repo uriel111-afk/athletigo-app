@@ -10,7 +10,7 @@ import DailyStreak from '@/components/lifeos/DailyStreak';
 import PageLoader from '@/components/PageLoader';
 import { MentorChatIconButton } from '@/components/lifeos/MentorChat';
 import PopupNotificationManager from '@/components/PopupNotificationManager';
-import { Briefcase, Coins, Sprout, User, Clapperboard } from 'lucide-react';
+import { Briefcase, Coins, Sprout, HeartHandshake, Clapperboard } from 'lucide-react';
 
 const weekRangeFromOffset = (weeksAgo) => {
   const end = new Date();
@@ -301,11 +301,11 @@ export default function CoachHub() {
           scrollSnapType: 'x proximity',
         }}>
           {[
-            { label: 'מקצועי', path: '/dashboard',    Icon: Briefcase },
-            { label: 'פיננסי', path: '/lifeos/finance-dashboard', Icon: Coins     },
-            { label: 'לידים', path: '/lifeos/leads',  Icon: Sprout    },
-            { label: 'אישי',  path: '/personal',      Icon: User      },
-            { label: 'תוכן',  path: '/content',       Icon: Clapperboard },
+            { label: 'מקצועי', path: '/dashboard',    Icon: Briefcase,     iconColor: '#7F47B5' },
+            { label: 'פיננסי', path: '/lifeos/finance-dashboard', Icon: Coins,     iconColor: '#16a34a' },
+            { label: 'לידים', path: '/lifeos/leads',  Icon: Sprout,    iconColor: '#FF6F20' },
+            { label: 'אישי',  path: '/personal',      Icon: HeartHandshake, iconColor: '#3B82F6' },
+            { label: 'תוכן',  path: '/content',       Icon: Clapperboard, iconColor: '#B48A08' },
           ].map((tab) => {
             const isActive = location.pathname === tab.path
               || (tab.path === '/dashboard' && location.pathname === '/')
@@ -344,7 +344,7 @@ export default function CoachHub() {
                   lineHeight: 1,
                 }}
               >
-                <Icon size={17} aria-hidden style={{ display: 'block', color: isActive ? 'white' : '#9A6A3A', pointerEvents: 'none' }} />
+                <Icon size={17} aria-hidden style={{ display: 'block', color: isActive ? 'white' : tab.iconColor, pointerEvents: 'none' }} />
                 <span style={{ pointerEvents: 'none' }}>{tab.label}</span>
               </button>
             );
