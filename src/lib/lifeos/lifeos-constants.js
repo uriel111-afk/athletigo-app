@@ -357,6 +357,16 @@ export const LEAD_STATUS_DETAIL = {
 // `responses`, and every response carries `line` (what to say aloud)
 // plus `note` (a delivery hint — tone/pace — shown muted, NOT read out).
 // The {source} placeholder is interpolated with the lead's source.
+// Early price question — reframe cost → value before we've earned the
+// right to talk numbers. Attached to the early steps (1-2 and 3-4); the
+// step-8 price objections handle price at the right moment.
+const PRICE_EARLY_OBJECTION = { q: 'כמה זה עולה? (מוקדם בשיחה)', responses: [
+  { line: 'לפני המחיר, חשוב לי שתבין מה אנחנו — אנחנו תהליך של הצלחה והתקדמות ספורטיבית, לא עוד מנוי. זה מתאים למי שרוצה להשתפר ומבין שמדובר בתהליך',
+    note: 'לא מתחמקים מהמחיר — ממסגרים אותו' },
+  { line: 'מהניסיון שלנו — ככל שמבינים את זה מהר יותר, השיפור מהיר יותר. בוא נראה קודם מה מתאים לך, ואז נדבר מחירים',
+    note: 'מעביר את השיחה מעלות לערך — המחיר יגיע בשלב ההצעה עם ההמלצה המותאמת' },
+] };
+
 export const OBJECTION_BANK_BY_STEP = {
   1: [
     { q: 'מאיפה השגתם את המספר שלי?', responses: [
@@ -379,6 +389,7 @@ export const OBJECTION_BANK_BY_STEP = {
       { line: 'יכול להיות שראית פוסט או פלייר — ספר/י לי מה תפס אותך שם.',
         note: 'מעביר את הכדור אליו במקום להתווכח על העובדות' },
     ] },
+    PRICE_EARLY_OBJECTION,
   ],
   2: [
     { q: 'סתם רציתי מידע, לא לגמרי החלטתי', responses: [
@@ -393,6 +404,7 @@ export const OBJECTION_BANK_BY_STEP = {
       { line: 'גם זו התחלה טובה — מה בפרסום תפס אותך?',
         note: 'שאלה סקרנית, לא ביקורתית — פותחת אותו לדבר' },
     ] },
+    PRICE_EARLY_OBJECTION,
   ],
   3: [
     { q: 'כבר ניסיתי הכל ולא הצליח', responses: [
@@ -413,6 +425,7 @@ export const OBJECTION_BANK_BY_STEP = {
       { line: 'בדיוק בגלל זה — אנחנו מלמדים להתאמן נכון כדי שלא נפצעים מלכתחילה.',
         note: 'זה משפט הליבה של המותג — לומר באיטיות ובביטחון מלא, לא ממהרים עליו' },
     ] },
+    PRICE_EARLY_OBJECTION,
   ],
   4: [
     { q: 'אין לי שום רקע, מרגיש/ה מביך', responses: [
@@ -427,6 +440,7 @@ export const OBJECTION_BANK_BY_STEP = {
       { line: 'כל מה שיעזור לנו להתאים לך נכון — גם דברים קטנים.',
         note: 'להזמין, לא לדרוש — משאיר לו לבחור כמה לשתף' },
     ] },
+    PRICE_EARLY_OBJECTION,
   ],
   5: [
     { q: 'לא יודע/ת מה בדיוק אני רוצה', responses: [

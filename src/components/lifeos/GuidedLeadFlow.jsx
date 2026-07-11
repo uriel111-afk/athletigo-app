@@ -12,6 +12,20 @@ const STEP_TITLES = [
   'פתיחה', 'למה עכשיו', 'החסם', 'רקע ופציעות', 'חזון',
   'מסגרת', 'שיקוף', 'מפגש היכרות', 'סגירה',
 ];
+// "Client over sale" compass — one short north-star line per phase,
+// shown muted-warm at the top of each step (replaces the old
+// step-1-only reminder).
+const COMPASS_BY_STEP = {
+  1: 'הלקוח מעניין אותנו, לא המכירה — קודם להקשיב',
+  2: 'הלקוח מעניין אותנו, לא המכירה — קודם להקשיב',
+  3: 'אנחנו מוכרים תהליך של התקדמות — תבין מה הוא באמת צריך',
+  4: 'אנחנו מוכרים תהליך של התקדמות — תבין מה הוא באמת צריך',
+  5: 'מי שמבין שזה תהליך — משתפר מהר. עזור לו להבין',
+  6: 'מי שמבין שזה תהליך — משתפר מהר. עזור לו להבין',
+  7: 'שיקוף במילים שלו — שירגיש שראו אותו',
+  8: 'ההמלצה נובעת ממה שהוא סיפר — לא ממה שאנחנו רוצים למכור',
+  9: 'ליד שסגר תאריך — התחיל תהליך',
+};
 const INTRO_PRICE = 49; // non-personal path now = the 49₪ digital product
 const PERSONAL_INTRO_PRICE = 350;
 
@@ -401,6 +415,13 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
 
       {/* Step body */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '4px 14px 10px' }}>
+        {/* Compass — per-phase north-star line ("client over sale").
+            Muted-warm, italic, orange-tinted — a line, not a card. */}
+        {COMPASS_BY_STEP[step] && (
+          <div style={{ fontSize: 12, fontStyle: 'italic', color: '#C2743A', lineHeight: 1.45, textAlign: 'right', padding: '2px 4px 8px' }}>
+            {COMPASS_BY_STEP[step]}
+          </div>
+        )}
         {step === 8 && <PrescriptionCard form={form} set={set} />}
         <SalesPanel step={step} persona={form.persona} srcLabel={srcLabel} open={salesOpen} onToggle={() => setSalesOpen((v) => !v)} />
         {step === 1 && <Step1 form={form} set={set} />}
@@ -1065,12 +1086,10 @@ function SalesPanel({ step, persona, srcLabel, open, onToggle }) {
           style={{ padding: '0 12px 12px' }}
         >
           <style>{`.sales-carousel::-webkit-scrollbar{display:none}`}</style>
-          {/* Reminder (step 1 only) + overview toggle chip. On later
-              steps only the toggle chip remains (right-aligned). */}
+          {/* Overview toggle chip (the old step-1 reminder moved to the
+              per-phase compass line at the top of the step). */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 2px 8px' }}>
-            <div style={{ flex: 1, fontSize: 11, fontStyle: 'italic', color: '#9A8F82', lineHeight: 1.45 }}>
-              {step === 1 ? 'פחות לדבר, יותר לשאול — תן לליד לדבר' : ''}
-            </div>
+            <div style={{ flex: 1 }} />
             <button type="button" onClick={() => setOverview((v) => !v)} style={{
               flexShrink: 0, border: '1px solid #F0E4D0', background: '#fff', color: '#5C4A3A',
               borderRadius: 999, padding: '4px 10px', fontSize: 11, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap',
