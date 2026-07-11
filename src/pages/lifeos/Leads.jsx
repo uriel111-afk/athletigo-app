@@ -1,7 +1,7 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Pencil, Trash2, ChevronLeft, ChevronRight, RefreshCw, UserPlus, Phone, MessageCircle, AlertTriangle } from 'lucide-react';
+import { Pencil, Trash2, ChevronLeft, ChevronRight, RefreshCw, UserPlus, Phone, MessageCircle, AlertTriangle, List, Columns } from 'lucide-react';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import GuidedLeadFlow from '@/components/lifeos/GuidedLeadFlow';
@@ -188,10 +188,31 @@ export default function Leads() {
         boxShadow: '0 2px 8px rgba(255,111,32,0.2)',
       }}>+ ליד חדש</button>
 
-      {/* View toggle */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-        <button onClick={() => setView('list')} style={viewBtn(view === 'list')}>📋 רשימה</button>
-        <button onClick={() => setView('kanban')} style={viewBtn(view === 'kanban')}>📊 Kanban</button>
+      {/* View switcher — one compact segmented control (centered) */}
+      <div style={{
+        display: 'flex', alignItems: 'center', width: 'fit-content', margin: '0 auto 12px',
+        background: '#FFFFFF', border: `1px solid ${LIFEOS_COLORS.border}`, borderRadius: 14,
+        padding: 3, gap: 2, height: 38, boxSizing: 'border-box',
+      }}>
+        {[
+          { key: 'list', label: 'רשימה', Icon: List },
+          { key: 'kanban', label: 'לוח תהליך', Icon: Columns },
+        ].map((seg) => {
+          const active = view === seg.key;
+          const SegIcon = seg.Icon;
+          return (
+            <button key={seg.key} type="button" onClick={() => setView(seg.key)} style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              height: '100%', padding: '0 16px', borderRadius: 11, border: 'none', cursor: 'pointer',
+              background: active ? LIFEOS_COLORS.primary : 'transparent',
+              color: active ? '#FFFFFF' : LIFEOS_COLORS.textSecondary,
+              fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
+              transition: 'background .18s ease, color .18s ease',
+            }}>
+              <SegIcon size={15} />{seg.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Summary */}
@@ -425,19 +446,26 @@ function KanbanView({ rows, onTap, onMove, overdueIds }) {
             backgroundColor: '#F7F3EC', borderRadius: 12, padding: 8,
           }}>
             <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '4px 6px', marginBottom: 6,
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '4px 6px', marginBottom: 8,
             }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: col.color }}>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 800, color: col.color, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {col.label}
               </div>
-              <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary, fontWeight: 600 }}>
-                {items.length}
-              </div>
+              <span style={{
+                minWidth: 20, height: 20, padding: '0 6px', flexShrink: 0,
+                borderRadius: 999, background: col.color, color: '#FFFFFF',
+                fontSize: 11, fontWeight: 800,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}>{items.length}</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {items.length === 0 ? (
-                <div style={{ padding: 8, fontSize: 11, color: LIFEOS_COLORS.textSecondary, textAlign: 'center' }}>—</div>
+                <div style={{
+                  border: `1px dashed ${LIFEOS_COLORS.border}`, borderRadius: 14,
+                  padding: '16px 8px', textAlign: 'center',
+                  fontSize: 11, color: LIFEOS_COLORS.textSecondary,
+                }}>אין לידים בשלב זה</div>
               ) : items.map(r => (
                 <KanbanCard key={r.id} lead={r} columns={LEAD_STATUS}
                             onTap={() => onTap(r)} onMove={onMove}
@@ -461,14 +489,14 @@ function KanbanCard({ lead, columns, onTap, onMove, overdue }) {
 
   return (
     <div style={{
-      backgroundColor: '#FFFFFF', borderRadius: 10, padding: 8,
+      backgroundColor: '#FFFFFF', borderRadius: 14, padding: 12,
       border: overdue ? `1px solid ${LIFEOS_COLORS.error}` : `1px solid ${LIFEOS_COLORS.border}`,
     }}>
       <div onClick={onTap} style={{ cursor: 'pointer' }}>
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6,
         }}>
-          <div style={{ fontSize: 12, fontWeight: 700, flex: 1, minWidth: 0 }}>{lead.name}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, flex: 1, minWidth: 0 }}>{lead.name}</div>
           <span style={{
             padding: '1px 5px', borderRadius: 999,
             backgroundColor: sb.bg, color: sb.color,
@@ -479,14 +507,14 @@ function KanbanCard({ lead, columns, onTap, onMove, overdue }) {
           <div style={{ fontSize: 10, color: LIFEOS_COLORS.textSecondary, marginTop: 2 }}>{interest.label}</div>
         )}
       </div>
-      <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+      <div style={{ display: 'flex', gap: 6, marginTop: 10, alignItems: 'center' }}>
         <button onClick={(e) => { e.stopPropagation(); next && onMove(lead, next.key); }}
                 disabled={!next} style={kanbanArrowBtn(!next)} aria-label="הבא">
-          <ChevronLeft size={12} />
+          <ChevronLeft size={14} />
         </button>
         <button onClick={(e) => { e.stopPropagation(); prev && onMove(lead, prev.key); }}
                 disabled={!prev} style={kanbanArrowBtn(!prev)} aria-label="קודם">
-          <ChevronRight size={12} />
+          <ChevronRight size={14} />
         </button>
       </div>
     </div>
@@ -542,19 +570,9 @@ const headerIconBtn = {
   color: LIFEOS_COLORS.textSecondary,
 };
 
-function viewBtn(active) {
-  return {
-    flex: 1, padding: '8px 12px', borderRadius: 10,
-    border: `1px solid ${active ? LIFEOS_COLORS.primary : LIFEOS_COLORS.border}`,
-    backgroundColor: active ? LIFEOS_COLORS.primary : '#FFFFFF',
-    color: active ? '#FFFFFF' : LIFEOS_COLORS.textPrimary,
-    fontSize: 12, fontWeight: 700, cursor: 'pointer',
-  };
-}
-
 function kanbanArrowBtn(disabled) {
   return {
-    flex: 1, padding: '4px 0', borderRadius: 6, border: 'none',
+    width: 32, height: 26, flexShrink: 0, padding: 0, borderRadius: 8, border: 'none',
     backgroundColor: disabled ? '#F0E4D0' : LIFEOS_COLORS.primary,
     color: '#FFFFFF', cursor: disabled ? 'default' : 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
