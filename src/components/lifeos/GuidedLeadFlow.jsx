@@ -530,11 +530,11 @@ function Step1({ form, set }) {
       <Field label="בשביל מי">
         <ChipRow options={FOR_WHOM} value={form.for_whom} onPick={(k) => set({ for_whom: k })} wrap />
       </Field>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: GAP }}>
         <Field label="שם *"><input style={inp} value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="שם המתקשר/ת" autoFocus /></Field>
         <Field label="גיל"><input style={inp} type="number" inputMode="numeric" value={form.age} onChange={(e) => set({ age: e.target.value })} placeholder="גיל" /></Field>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: GAP }}>
         <Field label="טלפון"><input style={inp} type="tel" value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="050-0000000" /></Field>
         <Field label="שם המתאמן/ת (אם שונה)"><input style={inp} value={form.trainee_name} onChange={(e) => set({ trainee_name: e.target.value })} placeholder="אופציונלי" /></Field>
       </div>
@@ -547,7 +547,7 @@ function Step1({ form, set }) {
         <input style={inp} value={form.source_other} onChange={(e) => set({ source_other: e.target.value })} placeholder="מאיפה הגיע/ה?" />
       )}
       {(form.source === 'פלייר' || form.source === 'דף נחיתה') && (
-        <div style={{ marginInlineStart: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: GAP }}>
           <ChipRow small options={FLYER_SUB_CHIPS} value={form.source_sub}
             onPick={(k) => set({ source_sub: k, ...(k === 'אחר' ? {} : { source_sub_text: '' }) })} wrap />
           {form.source_sub === 'אחר' && (
@@ -556,14 +556,10 @@ function Step1({ form, set }) {
         </div>
       )}
       {form.source === 'המלצה' && (
-        <div style={{ marginInlineStart: 14 }}>
-          <input style={inp} value={form.source_sub_text} onChange={(e) => set({ source_sub_text: e.target.value })} placeholder="ממי?" />
-        </div>
+        <input style={inp} value={form.source_sub_text} onChange={(e) => set({ source_sub_text: e.target.value })} placeholder="ממי?" />
       )}
       {form.source === 'אינסטגרם' && (
-        <div style={{ marginInlineStart: 14 }}>
-          <ChipRow small options={INSTAGRAM_SUB_CHIPS} value={form.source_sub} onPick={(k) => set({ source_sub: k })} wrap />
-        </div>
+        <ChipRow small options={INSTAGRAM_SUB_CHIPS} value={form.source_sub} onPick={(k) => set({ source_sub: k })} wrap />
       )}
     </div>
   );
@@ -727,12 +723,12 @@ function Step8({ form, set }) {
       </Field>
 
       {/* Intro-session payment block — dual pricing by framework */}
-      <div style={{ background: '#fff', borderRadius: 14, padding: 14, border: `2px solid ${ORANGE}` }}>
+      <div style={{ ...CARD_PROMPT, display: 'flex', flexDirection: 'column', gap: GAP }}>
         <div style={{ fontSize: 15, fontWeight: 800, color: '#1A1A1A' }}>{payTitle}</div>
         <ScriptBox label="מה להגיד">{payScript}</ScriptBox>
         {!payUrl ? (
           <button type="button" onClick={genLink} disabled={payBusy} style={{
-            marginTop: 10, width: '100%', height: 44, borderRadius: 12, border: 'none', cursor: 'pointer',
+            width: '100%', height: 44, borderRadius: 12, border: 'none', cursor: 'pointer',
             background: ORANGE, color: '#fff', fontSize: 14, fontWeight: 800,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: payBusy ? 0.6 : 1,
           }}>
@@ -740,7 +736,7 @@ function Step8({ form, set }) {
             {isPersonal ? 'יצירת קישור תשלום' : 'יצירת קישור תשלום — 49 ₪'}
           </button>
         ) : (
-          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{
               fontSize: 12, color: '#3a3a3a', background: '#FBF3EA', borderRadius: 8, padding: '8px 10px',
               wordBreak: 'break-all', border: '1px solid #F0E4D0',
@@ -841,7 +837,7 @@ function Step9({ form, set, busy, onOutcome, onDone }) {
           ✖️ לא רלוונטי
         </button>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: '#fff', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12 }}>
+        <div style={{ ...CARD, display: 'flex', flexDirection: 'column', gap: GAP }}>
           <input style={inp} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="סיבה קצרה (אופציונלי)" autoFocus />
           <button type="button" onClick={notRelevant} disabled={busy} style={outcomeBtn('#4b5563', '#fff')}>
             {busy && <Loader2 size={16} className="animate-spin" />} שמור כלא רלוונטי
@@ -882,7 +878,7 @@ function SavedSummary({ form, onDone }) {
   return (
     <div style={col}>
       <div style={{ fontSize: 18, fontWeight: 900, color: '#16a34a', textAlign: 'center', padding: '6px 0' }}>✓ הליד נשמר</div>
-      <div style={{ background: '#fff', borderRadius: 12, padding: 14, border: '1px solid #F0E4D0' }}>
+      <div style={{ ...CARD }}>
         {rows.map(([label, value]) => (
           <div key={label} style={{ display: 'flex', gap: 10, padding: '5px 0', borderBottom: '0.5px solid #F5EFE5', fontSize: 13 }}>
             <span style={{ color: '#9A8F82', fontWeight: 700, minWidth: 92, flexShrink: 0 }}>{label}</span>
@@ -1048,8 +1044,8 @@ function SalesPanel({ step, persona, srcLabel, open, onToggle }) {
 
   return (
     <div dir="rtl" style={{
-      background: '#FFFFFF', border: '2px solid #FF6F20', borderRadius: 12,
-      marginBottom: 10, overflow: 'hidden',
+      background: '#FFFFFF', border: `2px solid ${ORANGE}`, borderRadius: 14,
+      marginBottom: GAP, overflow: 'hidden',
     }}>
       <button type="button" onClick={onToggle} style={{
         width: '100%', textAlign: 'right', border: 'none', cursor: 'pointer',
@@ -1140,8 +1136,7 @@ function PrescriptionCard({ form, set }) {
   const digitalOn = form.digital_offered === 'yes';
   return (
     <div dir="rtl" style={{
-      background: '#FFFFFF', border: '2px solid #FF6F20', borderRadius: 12,
-      padding: '12px 14px', marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8,
+      ...CARD_PROMPT, marginBottom: GAP, display: 'flex', flexDirection: 'column', gap: GAP,
     }}>
       <div style={{ fontSize: 13, fontWeight: 800, color: '#FF6F20' }}>בניית המלצה</div>
       <Field label="מסלול מומלץ">
@@ -1189,7 +1184,7 @@ function ReferralSection({ form, set }) {
   };
   const remove = (i) => set({ referrals: list.filter((_, idx) => idx !== i) });
   return (
-    <div dir="rtl" style={{ background: '#fff', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div dir="rtl" style={{ ...CARD, display: 'flex', flexDirection: 'column', gap: GAP }}>
       <div style={{ fontSize: 13, fontWeight: 800, color: '#1A1A1A' }}>הפניות</div>
       <div style={{ display: 'flex', gap: 6 }}>
         <input style={{ ...inp, flex: 2 }} value={name} onChange={(e) => setName(e.target.value)} placeholder="שם" />
@@ -1223,10 +1218,7 @@ function ReferralSection({ form, set }) {
 // White card with an orange border so it stands out from the cream page.
 function ScriptBox({ children, label = 'מה לשאול' }) {
   return (
-    <div dir="rtl" style={{
-      background: '#FFFFFF', border: '2px solid #FF6F20', borderRadius: 12,
-      padding: '12px 15px',
-    }}>
+    <div dir="rtl" style={{ ...CARD_PROMPT }}>
       <div style={{ fontSize: 12, fontWeight: 600, color: '#FF6F20', marginBottom: 5 }}>{label}</div>
       <div style={{ fontSize: 14, lineHeight: 1.6, color: '#1a1a1a', whiteSpace: 'pre-wrap' }}>{children}</div>
     </div>
@@ -1249,7 +1241,8 @@ function ChipRow({ options, value, onPick, wrap, small }) {
         const active = value === o.key;
         return (
           <button key={o.key} type="button" onClick={() => onPick(o.key)} style={{
-            padding: small ? '5px 10px' : '7px 13px', borderRadius: 999, cursor: 'pointer', flexShrink: 0,
+            minHeight: small ? 30 : 36, padding: small ? '0 10px' : '0 13px', borderRadius: 999, cursor: 'pointer', flexShrink: 0,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             border: active ? `2px solid ${ORANGE}` : '1px solid #F0E4D0',
             background: active ? ORANGE : '#fff', color: active ? '#fff' : '#3a3a3a',
             fontSize: small ? 12 : 13, fontWeight: 600, whiteSpace: 'nowrap',
@@ -1260,7 +1253,14 @@ function ChipRow({ options, value, onPick, wrap, small }) {
   );
 }
 
-const col = { display: 'flex', flexDirection: 'column', gap: 10 };
+// ── Unified grid tokens (symmetry pass) ──────────────────────────────
+// GAP is the single vertical rhythm between blocks on every step.
+// CARD (neutral) / CARD_PROMPT (orange-branded) share one geometry —
+// same radius + padding — so every card feels built on the same grid.
+const GAP = 12;
+const CARD = { background: '#FFFFFF', border: '1px solid #F0E4D0', borderRadius: 14, padding: 14 };
+const CARD_PROMPT = { background: '#FFFFFF', border: `2px solid ${ORANGE}`, borderRadius: 14, padding: 14 };
+const col = { display: 'flex', flexDirection: 'column', gap: GAP };
 const iconBtn = { background: 'transparent', border: 'none', cursor: 'pointer', padding: 6, display: 'flex' };
 const inp = {
   width: '100%', minHeight: 40, padding: '9px 11px', borderRadius: 10,
