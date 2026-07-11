@@ -438,15 +438,22 @@ export default function Dashboard() {
             </h3>
           <div style={{
             position: 'relative',
-            width: '100%',
-            // Density polish (v13.2) — shrink the diamond cluster so the
-            // whole coach home fits one viewport with no scroll:
-            //   diamond  120 → 100     positions  0/86/172 → 0/72/144
-            //   container 320 → 266    still fully contains diamond #4's
-            //   bottom vertex (144 + 100·1.207 ≈ 265). Same arrangement
-            //   and shape, just tighter.
+            // FIXED width — the cluster is internally rigid. The middle
+            // tiles are pinned by right:18 / left:18, so a flexible
+            // (100%) width would push them out to the container edges as
+            // the column widens, drifting the diamond apart. 280 keeps
+            // the tight symmetric diamond: tile centers land at 68 / 212
+            // (±72 from the 140 centreline) — matching the 72px vertical
+            // spacing. The full-height spread lives on the PARENT column
+            // (space-between between sections), never inside the cluster.
+            width: 280,
+            // Density polish (v13.2): diamond 100px, positions 0/72/144,
+            // container height 266 still contains tile #4's bottom vertex
+            // (144 + 100·1.207 ≈ 265).
             height: 266,
             flexShrink: 0,
+            flexGrow: 0,
+            maxWidth: '100%',
             margin: '0 auto',
             overflow: 'visible',
           }}>
