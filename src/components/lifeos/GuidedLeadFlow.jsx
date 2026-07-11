@@ -540,7 +540,7 @@ function Step1({ form, set }) {
       </div>
       <Field label="מקור">
         <ChipRow options={SOURCE_CHIPS} value={form.source}
-          onPick={(k) => set({ source: k, source_sub: '', source_sub_text: '', ...(k === 'אחר' ? {} : { source_other: '' }) })} wrap />
+          onPick={(k) => set({ source: k, source_sub: '', source_sub_text: '', ...(k === 'אחר' ? {} : { source_other: '' }) })} grid />
       </Field>
       {/* Source sub-detail (optional — never blocks Next) */}
       {form.source === 'אחר' && (
@@ -631,7 +631,7 @@ function Step6({ form, set }) {
     <div style={col}>
       <ScriptBox>ניסית בעבר איזושהי מסגרת — חדר כושר, סטודיו, מאמן? ומה היה חסר לך שם?</ScriptBox>
       <Field label="מסגרת בעבר">
-        <ChipRow options={PAST_FRAMEWORK_CHIPS} value={form.past_framework} onPick={(k) => set({ past_framework: k })} wrap />
+        <ChipRow options={PAST_FRAMEWORK_CHIPS} value={form.past_framework} onPick={(k) => set({ past_framework: k })} grid />
       </Field>
       <Field label="מה לא עבד שם">
         <textarea style={{ ...inp, height: 'auto' }} rows={2} value={form.past_framework_gap} onChange={(e) => set({ past_framework_gap: e.target.value })} placeholder="מה לא עבד שם — במילים שלו..." />
@@ -1234,18 +1234,29 @@ function Field({ label, children }) {
   );
 }
 
-function ChipRow({ options, value, onPick, wrap, small }) {
+function ChipRow({ options, value, onPick, wrap, small, grid }) {
+  // `grid` → fixed 3-column layout (RTL: first chip top-right) so groups
+  // with uneven label widths line up cleanly instead of a ragged wrap.
+  // Same chip recipe; only the container + per-cell fill change.
+  const containerStyle = grid
+    ? { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, direction: 'rtl' }
+    : { display: 'flex', gap: 6, flexWrap: wrap ? 'wrap' : 'nowrap', overflowX: wrap ? 'visible' : 'auto', scrollbarWidth: 'none' };
   return (
-    <div style={{ display: 'flex', gap: 6, flexWrap: wrap ? 'wrap' : 'nowrap', overflowX: wrap ? 'visible' : 'auto', scrollbarWidth: 'none' }}>
+    <div style={containerStyle}>
       {options.map((o) => {
         const active = value === o.key;
+        // Long labels (e.g. "מודעה ממומנת") step the font down 1px rather
+        // than overflow their cell.
+        const longLabel = grid && (o.label || '').length >= 10;
         return (
           <button key={o.key} type="button" onClick={() => onPick(o.key)} style={{
-            minHeight: small ? 30 : 36, padding: small ? '0 10px' : '0 13px', borderRadius: 999, cursor: 'pointer', flexShrink: 0,
+            minHeight: small ? 30 : 36, padding: grid ? '0 8px' : (small ? '0 10px' : '0 13px'),
+            width: grid ? '100%' : undefined, boxSizing: 'border-box',
+            borderRadius: 999, cursor: 'pointer', flexShrink: 0,
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             border: active ? `2px solid ${ORANGE}` : '1px solid #F0E4D0',
             background: active ? ORANGE : '#fff', color: active ? '#fff' : '#3a3a3a',
-            fontSize: small ? 12 : 13, fontWeight: 600, whiteSpace: 'nowrap',
+            fontSize: (small ? 12 : 13) - (longLabel ? 1 : 0), fontWeight: 600, whiteSpace: 'nowrap',
           }}>{o.label}</button>
         );
       })}
