@@ -28,11 +28,11 @@ export default function AppSwitcher({ wide = false }) {
   const isContent  = path.startsWith("/content");
 
   const tabs = [
-    { key: "pro",      label: "מקצועי", href: "/dashboard",    active: isPro,      Icon: Briefcase },
-    { key: "fin",      label: "פיננסי", href: "/lifeos/finance-dashboard", active: isFin,      Icon: Coins     },
-    { key: "growth",   label: "לידים",  href: "/lifeos/leads", active: isGrowth,   Icon: Sprout    },
-    { key: "personal", label: "אישי",   href: "/personal",     active: isPersonal, Icon: HeartHandshake },
-    { key: "content",  label: "תוכן",   href: "/content",      active: isContent,  Icon: Clapperboard },
+    { key: "pro",      label: "מקצועי", href: "/dashboard",    active: isPro,      Icon: Briefcase,     iconColor: "#7F47B5" },
+    { key: "fin",      label: "פיננסי", href: "/lifeos/finance-dashboard", active: isFin,      Icon: Coins,     iconColor: "#16a34a" },
+    { key: "growth",   label: "לידים",  href: "/lifeos/leads", active: isGrowth,   Icon: Sprout,    iconColor: "#FF6F20" },
+    { key: "personal", label: "אישי",   href: "/personal",     active: isPersonal, Icon: HeartHandshake, iconColor: "#3B82F6" },
+    { key: "content",  label: "תוכן",   href: "/content",      active: isContent,  Icon: Clapperboard, iconColor: "#B48A08" },
   ];
 
   return (
@@ -90,7 +90,7 @@ export default function AppSwitcher({ wide = false }) {
               fontFamily: "'Rubik', system-ui, sans-serif",
             }}
           >
-            <Icon size={wide ? 19 : 17} aria-hidden style={{ display: "block", color: t.active ? "#FFFFFF" : "#9A6A3A", pointerEvents: "none" }} />
+            <Icon size={wide ? 19 : 17} aria-hidden style={{ display: "block", color: t.active ? "#FFFFFF" : t.iconColor, pointerEvents: "none" }} />
             <span style={{ pointerEvents: "none" }}>{t.label}</span>
           </button>
         );
