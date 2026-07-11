@@ -26,6 +26,28 @@ const COMPASS_BY_STEP = {
   8: 'ההמלצה נובעת ממה שהוא סיפר — לא ממה שאנחנו רוצים למכור',
   9: 'ליד שסגר תאריך — התחיל תהליך',
 };
+
+// ── Conversation-energy meter (header) — cold / warm / hot ───────────
+// Reuses the existing `call_energy` lead column. Values stored verbatim.
+const ENERGY_METER = [
+  { key: 'קר',   label: '🧊 קר',   onBg: '#DBEAFE', onColor: '#1E40AF' },
+  { key: 'פושר', label: '🌤 פושר', onBg: '#FEF3C7', onColor: '#92400E' },
+  { key: 'חם',   label: '🔥 חם',   onBg: ORANGE,    onColor: '#FFFFFF' },
+];
+// One energy-raising prompt per phase (shown when energy = cold/warm).
+const RAISE_BY_STEP = {
+  1: { line: 'רגע לפני שנמשיך — מה גרם לך בכלל להתעניין בספורט דווקא עכשיו?', note: 'אנרגיה נמוכה = הליד לא מדבר. שאלה פתוחה מחזירה אותו לדבר' },
+  2: { line: 'רגע לפני שנמשיך — מה גרם לך בכלל להתעניין בספורט דווקא עכשיו?', note: 'אנרגיה נמוכה = הליד לא מדבר. שאלה פתוחה מחזירה אותו לדבר' },
+  3: { line: 'תספר לי — איך היה נראה יום מושלם מבחינתך מבחינת הגוף והכושר?', note: 'חלום מעלה אנרגיה. תן לו לדמיין ותשתוק' },
+  4: { line: 'תספר לי — איך היה נראה יום מושלם מבחינתך מבחינת הגוף והכושר?', note: 'חלום מעלה אנרגיה. תן לו לדמיין ותשתוק' },
+  5: { line: 'מה הדבר הראשון שהיית רוצה להצליח לעשות — משהו שהיום נראה לך רחוק?', note: 'מטרה מוחשית מדליקה — רשום את התשובה, היא תשמש בהצעה' },
+  6: { line: 'מה הדבר הראשון שהיית רוצה להצליח לעשות — משהו שהיום נראה לך רחוק?', note: 'מטרה מוחשית מדליקה — רשום את התשובה, היא תשמש בהצעה' },
+  7: { line: 'מכל מה שדיברנו — מה הכי מדבר אליך?', note: 'נותן לו לבחור את הסיבה שלו לקנות — חזק ממאה משפטי מכירה' },
+  8: { line: 'מכל מה שדיברנו — מה הכי מדבר אליך?', note: 'נותן לו לבחור את הסיבה שלו לקנות — חזק ממאה משפטי מכירה' },
+  9: { line: 'בוא נתחיל בקטן — מה הצעד שהכי קל לך להתחייב אליו עכשיו?', note: 'ליד קר בסגירה = להקטין את הצעד, לא לדחוף' },
+};
+const HOT = 'חם';
+const COOL_ENERGIES = ['קר', 'פושר'];
 const INTRO_PRICE = 49; // non-personal path now = the 49₪ digital product
 const PERSONAL_INTRO_PRICE = 350;
 
@@ -159,7 +181,7 @@ const blankForm = () => ({
   interested_in: '',
   conversation_summary: '',
   meeting_day: '', meeting_hour: '',
-  call_energy: '', energy_drop_note: '',
+  call_energy: '', energy_trend: '', energy_drop_note: '',
   close_result: '', lead_status_detail: '', next_follow_up: '', notes: '',
 });
 
@@ -188,7 +210,7 @@ function fromLead(lead) {
     interested_in: lead.interested_in || '',
     conversation_summary: lead.conversation_summary || '',
     meeting_day: lead.meeting_day || '', meeting_hour: lead.meeting_hour || '',
-    call_energy: lead.call_energy || '', energy_drop_note: lead.energy_drop_note || '',
+    call_energy: lead.call_energy || '', energy_trend: lead.energy_trend || '', energy_drop_note: lead.energy_drop_note || '',
     close_result: lead.close_result || '', lead_status_detail: lead.lead_status_detail || '',
     next_follow_up: lead.next_follow_up || '', notes: lead.notes || '',
   };
@@ -231,6 +253,12 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
   // across steps, not per-step).
   const [yesCount, setYesCount] = useState(0);
   const [salesOpen, setSalesOpen] = useState(false);
+  // Conversation-energy system: live meter (call_energy) + a lightweight
+  // history, a hot-lead fast-track, and dismissible raise/hot cards.
+  const [energyHistory, setEnergyHistory] = useState([]);   // [{ step, energy }]
+  const [fastTrackFrom, setFastTrackFrom] = useState(null); // step jumped FROM, or null
+  const [raiseDismissed, setRaiseDismissed] = useState(false);
+  const [hotDismissed, setHotDismissed] = useState(false);
   const mirroredRef = useRef(false);
 
   useEffect(() => {
@@ -243,10 +271,42 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
     setObjAll(false);
     setYesCount(0);
     setSalesOpen(false);
+    setEnergyHistory([]);
+    setFastTrackFrom(null);
+    setRaiseDismissed(false);
+    setHotDismissed(false);
     mirroredRef.current = false;
   }, [isOpen, lead]);
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+
+  // Set the live energy meter (persists to call_energy), log the change
+  // to the history, and un-dismiss the contextual cards so they re-show.
+  const setEnergy = (e) => {
+    set({ call_energy: e });
+    setEnergyHistory((h) => [...h, { step, energy: e }]);
+    setRaiseDismissed(false);
+    setHotDismissed(false);
+  };
+
+  // Machine-readable footer appended to conversation_summary on close so
+  // a future insights board can read energy history, fast-track use, and
+  // the yes-counter without new columns. Strips any prior footer first
+  // (idempotent across re-closes / edits).
+  const CALL_META_MARK = '— מטא שיחה —';
+  const withCallMeta = (summary, energyFinal) => {
+    const clean = String(summary || '').split(`\n\n${CALL_META_MARK}`)[0].replace(/\s+$/, '');
+    const hist = energyHistory.map((h) => `${h.step}:${h.energy}`).join(', ');
+    const lines = [
+      CALL_META_MARK,
+      `אנרגיה סופית: ${energyFinal || '—'}`,
+      hist ? `היסטוריית אנרגיה: ${hist}` : null,
+      `דילוג מהיר: ${fastTrackFrom ? `כן (משלב ${fastTrackFrom})` : 'לא'}`,
+      `כן-קטנים: ${yesCount}`,
+      fastTrackFrom ? `דילוג מהיר משלב ${fastTrackFrom} — ליד חם` : null,
+    ].filter(Boolean);
+    return `${clean}\n\n${lines.join('\n')}`;
+  };
 
   // Auto-compose the mirror once, when the user first reaches step 7 and
   // hasn't already got a summary (existing edit / prior compose).
@@ -289,6 +349,7 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
       meeting_day: f.meeting_day || null,
       meeting_hour: f.meeting_hour || null,
       call_energy: f.call_energy || null,
+      energy_trend: f.energy_trend || null,
       energy_drop_note: f.energy_drop_note || null,
       close_result: f.close_result || null,
       lead_status_detail: f.lead_status_detail || null,
@@ -330,6 +391,18 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
 
   const back = () => setStep((s) => Math.max(1, s - 1));
 
+  // Hot-lead fast-track: remember which step we jumped FROM, save
+  // progress, then land on the offer (step 8).
+  const jumpToOffer = async () => {
+    setFastTrackFrom(step);
+    setHotDismissed(true);
+    setBusy(true);
+    try { await persist(false, form); }
+    catch (e) { console.warn('[GuidedLeadFlow] fast-track save', e?.message); }
+    finally { setBusy(false); }
+    setStep(8);
+  };
+
   const handleClose = () => { if (leadId) onSaved?.(); onClose(); };
 
   // Create one NEW lead per captured referral (step 9). Source is
@@ -355,7 +428,10 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
   // Step-9 outcome: merge a close patch, persist with status mapping,
   // then spin up any referral leads.
   const applyOutcome = async (patch) => {
-    const merged = { ...form, ...patch };
+    const base = { ...form, ...patch };
+    // Stamp the conversation-energy meta (history / fast-track / yes-counter)
+    // into the summary at close for the future insights board.
+    const merged = { ...base, conversation_summary: withCallMeta(base.conversation_summary, base.call_energy) };
     setForm(merged);
     setBusy(true);
     try {
@@ -411,6 +487,62 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
           >כן ✓ {yesCount}</button>
         </div>
         <Dots step={step} />
+
+        {/* ── Conversation-energy meter — tappable on any step ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#7A756B', flexShrink: 0 }}>אנרגיית שיחה:</span>
+          {ENERGY_METER.map((e) => {
+            const on = form.call_energy === e.key;
+            return (
+              <button key={e.key} type="button" onClick={() => setEnergy(e.key)} style={{
+                flex: 1, minHeight: 30, borderRadius: 999, cursor: 'pointer',
+                border: on ? `1px solid ${e.onBg === ORANGE ? ORANGE : e.onColor}` : '1px solid #F0E4D0',
+                background: on ? e.onBg : '#fff', color: on ? e.onColor : '#8A6A52',
+                fontSize: 12.5, fontWeight: 800, whiteSpace: 'nowrap',
+              }}>{e.label}</button>
+            );
+          })}
+        </div>
+
+        {/* Raise-energy card — cold/warm only, dismissible (re-shows when
+            energy is set again). */}
+        {COOL_ENERGIES.includes(form.call_energy) && !raiseDismissed && RAISE_BY_STEP[step] && (
+          <div style={{
+            marginTop: 8, background: '#FFF4EC', border: '1px solid #F5C9A8', borderRadius: 12,
+            padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4, position: 'relative',
+          }}>
+            <button type="button" onClick={() => setRaiseDismissed(true)} aria-label="סגור" style={{
+              position: 'absolute', insetInlineStart: 8, top: 8, border: 'none', background: 'transparent',
+              cursor: 'pointer', color: '#B08A6A', fontSize: 16, lineHeight: 1, padding: 0,
+            }}>×</button>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#C24A0A' }}>להעלות את האנרגיה 🔥</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#4A1B0C', lineHeight: 1.5, whiteSpace: 'pre-wrap', userSelect: 'text' }}>
+              {RAISE_BY_STEP[step].line}
+            </div>
+            <div style={{ fontSize: 11.5, fontStyle: 'italic', color: '#9A6A3A', lineHeight: 1.45 }}>💡 {RAISE_BY_STEP[step].note}</div>
+          </div>
+        )}
+
+        {/* Hot fast-track banner — hot lead, before the offer step. */}
+        {form.call_energy === HOT && step < 8 && !hotDismissed && (
+          <div style={{
+            marginTop: 8, borderRadius: 12, padding: '10px 12px',
+            background: 'linear-gradient(135deg, #FF6F20, #FF8A42)', color: '#fff',
+            display: 'flex', flexDirection: 'column', gap: 8,
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 900 }}>🔥 הליד חם — רוצה לדלג ישר להצעה?</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={jumpToOffer} disabled={busy} style={{
+                flex: 1, minHeight: 38, borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: '#fff', color: '#C24A0A', fontSize: 13, fontWeight: 900,
+              }}>קפוץ לשלב 8 ←</button>
+              <button type="button" onClick={() => setHotDismissed(true)} style={{
+                flex: 1, minHeight: 38, borderRadius: 10, cursor: 'pointer',
+                border: '1px solid rgba(255,255,255,0.7)', background: 'transparent', color: '#fff', fontSize: 13, fontWeight: 800,
+              }}>להמשיך רגיל</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Step body */}
@@ -420,6 +552,11 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
         {COMPASS_BY_STEP[step] && (
           <div style={{ fontSize: 12, fontStyle: 'italic', color: '#C2743A', lineHeight: 1.45, textAlign: 'right', padding: '2px 4px 8px' }}>
             {COMPASS_BY_STEP[step]}
+          </div>
+        )}
+        {step === 8 && fastTrackFrom && (
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#16803D', background: '#EAF7EF', border: '1px solid #BFE6CD', borderRadius: 10, padding: '7px 10px', marginBottom: 10 }}>
+            ✓ שלבים {fastTrackFrom}-7 סומנו כלא נדונו
           </div>
         )}
         {step === 8 && <PrescriptionCard form={form} set={set} />}
@@ -833,9 +970,9 @@ function Step9({ form, set, busy, onOutcome, onDone }) {
 
       {/* Call-energy read — optional, never blocks the outcome. */}
       <Field label="אנרגיית השיחה">
-        <ChipRow options={ENERGY_CHIPS} value={form.call_energy} onPick={(k) => set({ call_energy: k })} even />
+        <ChipRow options={ENERGY_CHIPS} value={form.energy_trend} onPick={(k) => set({ energy_trend: k })} even />
       </Field>
-      {(form.call_energy === 'ירדה באמצע' || form.call_energy === 'ירדה בסוף') && (
+      {(form.energy_trend === 'ירדה באמצע' || form.energy_trend === 'ירדה בסוף') && (
         <Field label="איפה ירדה ולמה">
           <textarea style={{ ...inp, height: 'auto' }} rows={2} value={form.energy_drop_note} onChange={(e) => set({ energy_drop_note: e.target.value })} placeholder="איפה ירדה ולמה, לדעתך..." />
         </Field>
