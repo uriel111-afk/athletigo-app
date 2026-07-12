@@ -655,17 +655,23 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
             layout. Hidden on the done screen. */}
         {!done && (
           <div style={{
-            minHeight: 30, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 'clamp(18px,2.8vh,22px)', fontWeight: 700, color: 'var(--brand-amber-soft)',
-            lineHeight: 1, transition: 'color 0.3s ease', textAlign: 'center',
+            minHeight: 64, marginTop: 'clamp(6px,1.5vh,14px)', marginBottom: 'clamp(6px,1.5vh,14px)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+            textAlign: 'center', flexShrink: 0,
           }}>
-            {nextInfo && (nextInfo.finishing
-              ? <span>סיום מתקרב</span>
-              : <span>
-                  {'הבא: '}
-                  <span style={{ color: PHASE_COLOR[nextInfo.key] || 'var(--brand-amber-soft)', fontWeight: 800 }}>{nextInfo.name}</span>
-                  {` · ${nextInfo.dur} ${nextInfo.dur === 1 ? 'שנייה' : 'שניות'}`}
-                </span>)}
+            {nextInfo && (nextInfo.finishing ? (
+              <span style={{ fontSize: 34, fontWeight: 800, lineHeight: 1, color: 'var(--brand-amber-soft)' }}>סיום מתקרב</span>
+            ) : (
+              <>
+                {/* Small, refined lead word */}
+                <span style={{ fontSize: 20, fontWeight: 700, lineHeight: 1, color: 'var(--brand-amber-soft)' }}>הבא:</span>
+                {/* Title-level line — phase name in its earth/sea token, seconds neutral */}
+                <span style={{ fontSize: 34, fontWeight: 800, lineHeight: 1, whiteSpace: 'nowrap' }}>
+                  <span style={{ color: PHASE_COLOR[nextInfo.key] || 'var(--brand-amber-soft)', transition: 'color 0.3s ease' }}>{nextInfo.name}</span>
+                  <span style={{ color: 'var(--breath-ink-soft)' }}>{` · ${nextInfo.dur} ${nextInfo.dur === 1 ? 'שנייה' : 'שניות'}`}</span>
+                </span>
+              </>
+            ))}
           </div>
         )}
 
