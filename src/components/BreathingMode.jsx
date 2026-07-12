@@ -12,7 +12,10 @@ import { loadSoundVolume, saveSoundVolume, SOUND_VOL_MAX } from '@/lib/soundVolu
 // ────────────────────────────────────────────────────────────────────
 
 const ORANGE = '#FF6F20';
-const SMALL = 0.42; // contracted circle scale
+// Min contraction — kept at 66% (≥65%) so the FIXED white number stays
+// fully inside the circle even at its most contracted (end of exhale).
+const SMALL = 0.66;
+const PREP_PULSE = SMALL + 0.08; // gentle one-beat pulse during prep
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
 const PHASE_DEFS = [
@@ -150,6 +153,14 @@ const loadRounds = () => {
   } catch { return 10; }
 };
 
+// Prep countdown length before the exercise (seconds). Persisted.
+const PREP_OPTS = [0, 3, 5, 10];
+const PREP_KEY = 'ag_breathing_prep';
+const loadPrep = () => {
+  try { const n = parseInt(localStorage.getItem(PREP_KEY), 10); return PREP_OPTS.includes(n) ? n : 3; }
+  catch { return 3; }
+};
+
 export default function BreathingMode({ active, onRunningChange, stopSignal = 0 }) { // eslint-disable-line no-unused-vars
   const [cfg, setCfg] = useState({ inhale: 4, hold: 4, exhale: 4, holdEmpty: 4 });
   const [rounds, setRounds] = useState(loadRounds);
@@ -161,7 +172,8 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const [scale, setScale] = useState(SMALL);
   const [transDur, setTransDur] = useState(0.4);
   const [mode, setMode] = useState('run');    // 'prep' | 'run'
-  const [prepLeft, setPrepLeft] = useState(0); // 3,2,1 during prep
+  const [prepLeft, setPrepLeft] = useState(0); // countdown number during prep
+  const [prepSec, setPrepSec] = useState(loadPrep); // 0/3/5/10, persisted
   const [meterFrac, setMeterFrac] = useState(1); // 1 = full ring, 0 = empty
   const [volume, setVolume] = useState(loadSoundVolume); // 0..3, shared pref
 
@@ -170,6 +182,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const prepIntervalRef = useRef(null);
   const exerciseStartRef = useRef(0);
   const totalMsRef = useRef(0);
+  const isInfRef = useRef(false);
   const seqRef = useRef([]);
   const idxRef = useRef(0);
   const roundRef = useRef(1);
@@ -184,6 +197,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   useEffect(() => { roundsRef.current = rounds; }, [rounds]);
   // Persist the chosen rounds (value encodes chip/custom/infinity mode).
   useEffect(() => { try { localStorage.setItem(ROUNDS_KEY, String(rounds)); } catch {} }, [rounds]);
+  useEffect(() => { try { localStorage.setItem(PREP_KEY, String(prepSec)); } catch {} }, [prepSec]);
 
   const activePreset = (() => {
     for (const k of Object.keys(PRESETS)) {
@@ -196,9 +210,20 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const roundsLeft = () => (roundsRef.current === 'inf' ? '∞' : Math.max(0, roundsRef.current - roundRef.current + 1));
   const report = (r) => onRunningChange && onRunningChange(r, { phase: curRef.current?.name || '', roundsLeft: roundsLeft() });
 
-  const buildSeq = () => {
+  // One breathing cycle: enabled phases in order (starts on inhale).
+  const buildCycle = () => {
     const c = cfgRef.current;
     return PHASE_DEFS.map((p) => ({ ...p, dur: Number(c[p.key]) || 0 })).filter((p) => p.dur > 0);
+  };
+
+  // Finite exercise → one flat, linear sequence tagged by round, then
+  // TRIM trailing non-exhale phases so it always ENDS on a full exhale
+  // (never mid-inhale/hold). Each entry: { ...phase, round }.
+  const buildFlat = (cycle, n) => {
+    const flat = [];
+    for (let r = 1; r <= n; r++) for (const p of cycle) flat.push({ ...p, round: r });
+    while (flat.length && flat[flat.length - 1].key !== 'exhale') flat.pop();
+    return flat;
   };
 
   const enterPhase = (p) => {
@@ -227,15 +252,20 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
 
   const nextPhase = () => {
     const seq = seqRef.current;
-    let idx = idxRef.current + 1;
-    if (idx >= seq.length) {
-      idx = 0;
-      const nr = roundRef.current + 1;
-      if (roundsRef.current !== 'inf' && nr > roundsRef.current) { finish(); return; }
-      roundRef.current = nr; setRoundCur(nr);
+    if (isInfRef.current) {
+      // Infinity: loop the cycle forever, counting rounds.
+      let idx = idxRef.current + 1;
+      if (idx >= seq.length) { idx = 0; roundRef.current += 1; setRoundCur(roundRef.current); }
+      idxRef.current = idx;
+      enterPhase(seq[idx]);
+    } else {
+      // Finite flat sequence: end after the last (exhale) phase.
+      const idx = idxRef.current + 1;
+      if (idx >= seq.length) { finish(); return; }
+      idxRef.current = idx;
+      if (seq[idx].round !== roundRef.current) { roundRef.current = seq[idx].round; setRoundCur(roundRef.current); }
+      enterPhase(seq[idx]);
     }
-    idxRef.current = idx;
-    enterPhase(seq[idx]);
   };
 
   const loop = () => {
@@ -252,40 +282,52 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
     if (elapsed >= p.dur) nextPhase();
   };
 
-  // Gentle one-beat pulse of the circle during the prep countdown.
+  // Gentle one-beat pulse of the circle during the prep countdown —
+  // around the SMALL baseline so the fixed number always fits.
   const prepPulse = () => {
-    setTransDur(0.32); setScale(0.6);
-    setTimeout(() => { if (runningRef.current) { setTransDur(0.32); setScale(0.5); } }, 340);
+    setTransDur(0.32); setScale(PREP_PULSE);
+    setTimeout(() => { if (runningRef.current) { setTransDur(0.32); setScale(SMALL); } }, 340);
   };
 
   // The actual breathing begins (after prep): distinct cue, start the
-  // meter + phase loop.
+  // meter (depletes over the WHOLE exercise) + phase loop.
   const beginExercise = (a) => {
     setMode('run');
     a.startCue();
     exerciseStartRef.current = performance.now();
-    totalMsRef.current = roundsRef.current === 'inf' ? 0 : cycleMs(seqRef.current) * roundsRef.current;
+    setRoundCur(seqRef.current[0]?.round || 1);
     setMeterFrac(1);
     enterPhase(seqRef.current[0]);
     intervalRef.current = setInterval(loop, 100);
   };
 
   const start = async () => {
-    const seq = buildSeq();
-    if (!seq.length) return;
+    const cycle = buildCycle();
+    if (!cycle.length) return;
     const a = audioRef.current || (audioRef.current = createBreathAudio(volume));
     a.setGain(volume);
     await a.resume();
+    // Build the run sequence: finite → flat & exhale-terminated; inf → cycle loop.
+    const inf = roundsRef.current === 'inf';
+    isInfRef.current = inf;
+    const seq = inf ? cycle : buildFlat(cycle, roundsRef.current);
+    if (!seq.length) return;
     seqRef.current = seq; idxRef.current = 0; roundRef.current = 1;
+    // Meter total = actual exercise duration (trimmed sequence for finite).
+    totalMsRef.current = inf ? 0 : cycleMs(seq);
     setRoundCur(1); setDone(false);
     runningRef.current = true; setRunning(true);
-    // ── Prep: 3-2-1 before the first inhale ──
-    setMode('prep'); setPrepLeft(3); setMeterFrac(1);
+
+    const prep = clamp(Number(prepSec) || 0, 0, 60);
+    if (prep <= 0) { beginExercise(a); return; } // 0 → straight into the exercise
+
+    // ── Prep countdown from the chosen length → then the exercise ──
+    setMode('prep'); setPrepLeft(prep); setMeterFrac(1);
     curRef.current = null; setPhaseName('תתכוננו');
-    setTransDur(0.32); setScale(0.5);
+    setTransDur(0.32); setScale(SMALL);
     a.tick(); prepPulse();
     onRunningChange && onRunningChange(true, { phase: 'הכנה', roundsLeft: roundsLeft() });
-    let n = 3;
+    let n = prep;
     prepIntervalRef.current = setInterval(() => {
       n -= 1;
       if (n <= 0) {
@@ -330,7 +372,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}>
         {/* Round line — only during the exercise (hidden in prep). */}
-        <div style={{ fontSize: 'clamp(20px,3.4vh,28px)', fontWeight: 800, color: '#8A6A52', minHeight: 30 }}>
+        <div style={{ fontSize: 'clamp(22px,4vh,32px)', fontWeight: 800, color: '#8A6A52', minHeight: 36 }}>
           {(!done && mode === 'run') ? `סבב ${roundCur} ${rounds === 'inf' ? '' : `מתוך ${rounds}`}` : ''}
         </div>
 
@@ -348,11 +390,13 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
           ) : (() => {
             const bigNum = mode === 'prep' ? prepLeft : secondsLeft;
             const twoDigit = String(bigNum).length >= 2;
-            const numFont = twoDigit ? 'clamp(78px,20vh,132px)' : 'clamp(110px,29vh,186px)';
+            // Sized to sit inside the MOST-contracted circle (scale SMALL);
+            // 2-digit steps down so it never clips. Fixed — doesn't breathe.
+            const numFont = twoDigit ? 'clamp(66px,14vh,104px)' : 'clamp(100px,21vh,158px)';
             const title = mode === 'prep' ? 'תתכוננו' : phaseName;
             return (
               <>
-                <div style={{ fontSize: 'clamp(32px,6.5vh,48px)', fontWeight: 900, color: ORANGE, lineHeight: 1 }}>{title}</div>
+                <div style={{ fontSize: 'clamp(40px,8vh,56px)', fontWeight: 900, color: ORANGE, lineHeight: 1 }}>{title}</div>
                 {/* Square = time-meter base. Rounded, slightly-darker cream. */}
                 <div style={{
                   position: 'relative', width: 'clamp(220px,46vh,340px)', aspectRatio: '1 / 1',
@@ -381,7 +425,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
                   {/* Big number — fixed & centered over the whole square, so
                       it stays huge and stable regardless of the circle scale. */}
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                    <span style={{ fontSize: numFont, fontWeight: 900, color: '#5A2A08', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{bigNum}</span>
+                    <span style={{ fontSize: numFont, fontWeight: 900, color: '#FFFFFF', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{bigNum}</span>
                   </div>
                 </div>
               </>
@@ -468,6 +512,22 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
             <div style={{ fontSize: 11, fontWeight: 700, color: roundsIsCustom ? ORANGE : '#8A6A52', marginTop: 2 }}>מותאם אישית</div>
           </div>
           {stepBtn(() => setRounds((r) => clamp((typeof r === 'number' ? r : 10) + 1, 1, 99)), '+')}
+        </div>
+      </div>
+
+      {/* Prep time — 0 / 3 / 5 / 10 seconds, saved between sessions */}
+      <div style={{ ...card }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: '#8A6A52', marginBottom: 8, textAlign: 'center' }}>זמן הכנה (שניות)</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {PREP_OPTS.map((p) => {
+            const on = prepSec === p;
+            return (
+              <button key={p} type="button" onClick={() => setPrepSec(p)} style={{
+                flex: 1, minHeight: 44, borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: 800,
+                border: on ? 'none' : '1px solid #F0E4D0', background: on ? ORANGE : '#FFF9F0', color: on ? '#fff' : '#5C4A3A',
+              }}>{p === 0 ? 'ללא' : p}</button>
+            );
+          })}
         </div>
       </div>
 
