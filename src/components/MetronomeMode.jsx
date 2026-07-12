@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { loadSoundVolume, saveSoundVolume, SOUND_VOL_MAX } from '@/lib/soundVolume';
 
 // ── Metronome mode ─────────────────────────────────────────────────
 // Web Audio lookahead scheduler (Chris Wilson "two clocks" pattern):
@@ -29,17 +30,39 @@ function paceLabel(bpm) {
 
 // Self-contained Web Audio click engine (own AudioContext so we never
 // touch the existing timers' sound module).
-function createEngine() {
+function createEngine(initialGain = 1) {
   let ctx = null;
+  let master = null;  // user-volume GainNode (0..3)
+  let comp = null;    // limiter after the gain — no distortion at high boost
+  let vol = initialGain;
   const ensure = () => {
     if (!ctx) { const AC = window.AudioContext || window.webkitAudioContext; ctx = new AC(); }
     return ctx;
   };
+  // Signal path: click → master(gain=vol) → compressor → destination.
+  // Only the audio graph — the lookahead scheduler is untouched, so
+  // timing stays jitter-free.
+  const bus = () => {
+    const c = ensure();
+    if (!master) {
+      master = c.createGain(); master.gain.value = vol;
+      comp = c.createDynamicsCompressor();
+      comp.threshold.setValueAtTime(-6, c.currentTime);
+      comp.knee.setValueAtTime(10, c.currentTime);
+      comp.ratio.setValueAtTime(10, c.currentTime);
+      comp.attack.setValueAtTime(0.001, c.currentTime);
+      comp.release.setValueAtTime(0.12, c.currentTime);
+      master.connect(comp); comp.connect(c.destination);
+    }
+    return master;
+  };
   return {
     now: () => ensure().currentTime,
+    setGain: (v) => { vol = Math.max(0, Math.min(3, v)); if (master) { try { master.gain.setTargetAtTime(vol, ensure().currentTime, 0.02); } catch { master.gain.value = vol; } } },
     resume: async () => {
       const c = ensure();
       if (c.state !== 'running') { try { await c.resume(); } catch {} }
+      bus(); // build the master/compressor inside the gesture
       // iOS unlock — play a 1-sample silent buffer inside the gesture.
       try {
         const b = c.createBuffer(1, 1, 22050);
@@ -50,15 +73,16 @@ function createEngine() {
       const c = ensure();
       const osc = c.createOscillator();
       const gain = c.createGain();
+      // Sharper, higher click carries further across a room. Accent even
+      // higher. Short exponential decay stays crisp; the master limiter
+      // absorbs peaks so higher volume never distorts.
       osc.type = 'square';
-      osc.frequency.value = accent ? 1600 : 1000; // accent = higher pitch
+      osc.frequency.value = accent ? 2000 : 1400;
       const dur = 0.03;
       gain.gain.setValueAtTime(0.0001, time);
-      // Louder click — accent sits at the 0.9 safety cap, regular raised
-      // from 0.55 → 0.78. Same short exponential decay (no clipping).
-      gain.gain.linearRampToValueAtTime(accent ? 0.9 : 0.78, time + 0.001);
+      gain.gain.linearRampToValueAtTime(accent ? 0.95 : 0.8, time + 0.001);
       gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
-      osc.connect(gain); gain.connect(c.destination);
+      osc.connect(gain); gain.connect(bus());
       osc.start(time); osc.stop(time + dur + 0.02);
     },
     suspend: () => { try { ctx && ctx.state === 'running' && ctx.suspend(); } catch {} },
@@ -72,6 +96,8 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
   const [beatsPerBar, setBeatsPerBar] = useState(4);
   const [percent, setPercent] = useState(100);
   const [currentBeat, setCurrentBeat] = useState(-1);
+  const [volume, setVolume] = useState(loadSoundVolume); // 0..3, shared pref
+  useEffect(() => { saveSoundVolume(volume); if (engineRef.current) engineRef.current.setGain(volume); }, [volume]);
 
   const effectiveBpm = Math.max(1, Math.round(bpm * percent / 100));
   const steady = running && effectiveBpm > STEADY_ABOVE;
@@ -135,7 +161,8 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
   };
 
   const start = async () => {
-    const eng = engineRef.current || (engineRef.current = createEngine());
+    const eng = engineRef.current || (engineRef.current = createEngine(volume));
+    eng.setGain(volume);
     await eng.resume();
     setPercent(100); percentRef.current = 100; // fresh start resets to 100%
     nextNoteRef.current = eng.now() + 0.1;
@@ -359,6 +386,17 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
             background: '#FFF4ED', fontSize: 24, lineHeight: 1,
           }}>🥁</button>
         </div>
+      </div>
+
+      {/* 5b. SOUND VOLUME — shared with breathing, saved between sessions */}
+      <div style={{ ...card }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: '#8A6A52' }}>🔊 עוצמת סאונד</span>
+          <span style={{ fontSize: 12, fontWeight: 800, color: ORANGE }}>{Math.round(volume * 100)}%</span>
+        </div>
+        <input type="range" min={0} max={SOUND_VOL_MAX} step={0.05} value={volume}
+          onChange={(e) => setVolume(parseFloat(e.target.value))}
+          aria-label="עוצמת סאונד" style={{ width: '100%', accentColor: ORANGE, height: 28 }} />
       </div>
 
       {/* 6. START / STOP */}

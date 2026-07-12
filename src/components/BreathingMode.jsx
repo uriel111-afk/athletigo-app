@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { loadSoundVolume, saveSoundVolume, SOUND_VOL_MAX } from '@/lib/soundVolume';
 
 // ── Breathing trainer ("נשימות") ───────────────────────────────────
 // A calm 4-phase cycle (inhale / hold / exhale / hold-empty). The
@@ -27,29 +28,46 @@ const STEPPERS = [
   { key: 'holdEmpty', label: 'החזקה ריקה' },
 ];
 
-function createBreathAudio() {
+function createBreathAudio(initialGain = 1) {
   let ctx = null;
-  let master = null;
+  let master = null;   // user-volume GainNode (0..3)
+  let comp = null;     // limiter after the gain — no distortion at high boost
+  let vol = initialGain;
   const ensure = () => {
     if (!ctx) { const AC = window.AudioContext || window.webkitAudioContext; ctx = new AC(); }
     return ctx;
   };
-  const bus = () => { const c = ensure(); if (!master) { master = c.createGain(); master.gain.value = 0.9; master.connect(c.destination); } return master; };
+  // Signal path: source → master(gain=vol) → compressor → destination.
+  const bus = () => {
+    const c = ensure();
+    if (!master) {
+      master = c.createGain(); master.gain.value = vol;
+      comp = c.createDynamicsCompressor();
+      comp.threshold.setValueAtTime(-8, c.currentTime);
+      comp.knee.setValueAtTime(14, c.currentTime);
+      comp.ratio.setValueAtTime(8, c.currentTime);
+      comp.attack.setValueAtTime(0.003, c.currentTime);
+      comp.release.setValueAtTime(0.2, c.currentTime);
+      master.connect(comp); comp.connect(c.destination);
+    }
+    return master;
+  };
   return {
+    setGain: (v) => { vol = Math.max(0, Math.min(SOUND_VOL_MAX, v)); if (master) { try { master.gain.setTargetAtTime(vol, ensure().currentTime, 0.02); } catch { master.gain.value = vol; } } },
     resume: async () => {
       const c = ensure();
       if (c.state !== 'running') { try { await c.resume(); } catch {} }
       try { const b = c.createBuffer(1, 1, 22050); const s = c.createBufferSource(); s.buffer = b; s.connect(c.destination); s.start(0); } catch {}
     },
-    // Soft sine that glides from→to over `dur` seconds, low gain with a
-    // gentle fade-in/out — the breathing "voice".
+    // Soft sine that glides from→to over `dur` seconds — the breathing
+    // "voice". Louder base level; the smooth attack/release keeps it calm.
     glide: (from, to, dur) => {
       const c = ensure(); const t = c.currentTime;
       const osc = c.createOscillator(); const g = c.createGain();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(from, t);
       osc.frequency.linearRampToValueAtTime(to, t + dur);
-      const peak = 0.17, fade = Math.min(0.9, dur * 0.35); // ~2.8x louder; same smooth attack/release
+      const peak = 0.32, fade = Math.min(0.9, dur * 0.35);
       g.gain.setValueAtTime(0.0001, t);
       g.gain.linearRampToValueAtTime(peak, t + fade);
       g.gain.setValueAtTime(peak, t + Math.max(fade, dur - 0.6));
@@ -61,9 +79,32 @@ function createBreathAudio() {
       const osc = c.createOscillator(); const g = c.createGain();
       osc.type = 'sine'; osc.frequency.value = freq;
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.linearRampToValueAtTime(0.13, t + 0.03); // louder transition chime, same soft envelope
+      g.gain.linearRampToValueAtTime(0.26, t + 0.03);
       g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
       osc.connect(g); g.connect(bus()); osc.start(t); osc.stop(t + 0.6);
+    },
+    // Prep second tick — short, gentle.
+    tick: () => {
+      const c = ensure(); const t = c.currentTime;
+      const osc = c.createOscillator(); const g = c.createGain();
+      osc.type = 'sine'; osc.frequency.value = 660;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.3, t + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+      osc.connect(g); g.connect(bus()); osc.start(t); osc.stop(t + 0.14);
+    },
+    // Distinct "exercise begins" cue — two quick rising notes.
+    startCue: () => {
+      const c = ensure(); const t0 = c.currentTime;
+      [523, 784].forEach((f, i) => {
+        const t = t0 + i * 0.12;
+        const osc = c.createOscillator(); const g = c.createGain();
+        osc.type = 'sine'; osc.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(0.4, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.36);
+        osc.connect(g); g.connect(bus()); osc.start(t); osc.stop(t + 0.4);
+      });
     },
     endChimes: () => {
       const c = ensure(); const t0 = c.currentTime;
@@ -72,7 +113,7 @@ function createBreathAudio() {
         const osc = c.createOscillator(); const g = c.createGain();
         osc.type = 'sine'; osc.frequency.value = f;
         g.gain.setValueAtTime(0.0001, t);
-        g.gain.linearRampToValueAtTime(0.18, t + 0.04); // louder finish chimes, same gentle decay
+        g.gain.linearRampToValueAtTime(0.34, t + 0.04);
         g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
         osc.connect(g); g.connect(bus()); osc.start(t); osc.stop(t + 0.95);
       });
@@ -81,6 +122,12 @@ function createBreathAudio() {
     close: () => { try { ctx && ctx.close(); } catch {}; ctx = null; },
   };
 }
+
+// Rounded-square border path (viewBox 0 0 100 100), starting at the
+// TOP-MIDDLE and running clockwise, pathLength=100 so stroke-dashoffset
+// is a simple 0..100 percentage. Used for the depleting time meter.
+const METER_PATH = 'M50 3 H81 A16 16 0 0 1 97 19 V81 A16 16 0 0 1 81 97 H19 A16 16 0 0 1 3 81 V19 A16 16 0 0 1 19 3 H50';
+const SQUARE_BG = '#F3E7D3'; // slightly darker than the #FFF9F0 page
 
 const PRESETS = {
   box:  { label: 'קופסה 4-4-4-4', v: { inhale: 4, hold: 4, exhale: 4, holdEmpty: 4 } },
@@ -113,9 +160,16 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const [roundCur, setRoundCur] = useState(1);
   const [scale, setScale] = useState(SMALL);
   const [transDur, setTransDur] = useState(0.4);
+  const [mode, setMode] = useState('run');    // 'prep' | 'run'
+  const [prepLeft, setPrepLeft] = useState(0); // 3,2,1 during prep
+  const [meterFrac, setMeterFrac] = useState(1); // 1 = full ring, 0 = empty
+  const [volume, setVolume] = useState(loadSoundVolume); // 0..3, shared pref
 
   const audioRef = useRef(null);
   const intervalRef = useRef(null);
+  const prepIntervalRef = useRef(null);
+  const exerciseStartRef = useRef(0);
+  const totalMsRef = useRef(0);
   const seqRef = useRef([]);
   const idxRef = useRef(0);
   const roundRef = useRef(1);
@@ -124,6 +178,8 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const runningRef = useRef(false);
   const cfgRef = useRef(cfg);
   const roundsRef = useRef(rounds);
+  // Push the shared volume into the live audio engine whenever it changes.
+  useEffect(() => { saveSoundVolume(volume); if (audioRef.current) audioRef.current.setGain(volume); }, [volume]);
   useEffect(() => { cfgRef.current = cfg; }, [cfg]);
   useEffect(() => { roundsRef.current = rounds; }, [rounds]);
   // Persist the chosen rounds (value encodes chip/custom/infinity mode).
@@ -162,9 +218,12 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const finish = () => {
     clearInterval(intervalRef.current); intervalRef.current = null;
     runningRef.current = false; setRunning(false); setDone(true);
+    setMeterFrac(0);
     audioRef.current && audioRef.current.endChimes();
     onRunningChange && onRunningChange(false);
   };
+
+  const cycleMs = (seq) => seq.reduce((s, p) => s + p.dur, 0) * 1000;
 
   const nextPhase = () => {
     const seq = seqRef.current;
@@ -183,25 +242,66 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
     const p = curRef.current; if (!p) return;
     const elapsed = (performance.now() - phaseStartRef.current) / 1000;
     setSecondsLeft(Math.max(0, Math.ceil(p.dur - elapsed)));
+    // Time meter — deplete over the WHOLE exercise (all rounds). For
+    // 'inf' (totalMs = 0) the ring stays full. CSS transition on the
+    // dashoffset smooths the 100ms steps into a continuous drain.
+    if (totalMsRef.current > 0) {
+      const te = performance.now() - exerciseStartRef.current;
+      setMeterFrac(clamp(1 - te / totalMsRef.current, 0, 1));
+    }
     if (elapsed >= p.dur) nextPhase();
+  };
+
+  // Gentle one-beat pulse of the circle during the prep countdown.
+  const prepPulse = () => {
+    setTransDur(0.32); setScale(0.6);
+    setTimeout(() => { if (runningRef.current) { setTransDur(0.32); setScale(0.5); } }, 340);
+  };
+
+  // The actual breathing begins (after prep): distinct cue, start the
+  // meter + phase loop.
+  const beginExercise = (a) => {
+    setMode('run');
+    a.startCue();
+    exerciseStartRef.current = performance.now();
+    totalMsRef.current = roundsRef.current === 'inf' ? 0 : cycleMs(seqRef.current) * roundsRef.current;
+    setMeterFrac(1);
+    enterPhase(seqRef.current[0]);
+    intervalRef.current = setInterval(loop, 100);
   };
 
   const start = async () => {
     const seq = buildSeq();
     if (!seq.length) return;
-    const a = audioRef.current || (audioRef.current = createBreathAudio());
+    const a = audioRef.current || (audioRef.current = createBreathAudio(volume));
+    a.setGain(volume);
     await a.resume();
     seqRef.current = seq; idxRef.current = 0; roundRef.current = 1;
     setRoundCur(1); setDone(false);
     runningRef.current = true; setRunning(true);
-    enterPhase(seq[0]);
-    intervalRef.current = setInterval(loop, 150);
+    // ── Prep: 3-2-1 before the first inhale ──
+    setMode('prep'); setPrepLeft(3); setMeterFrac(1);
+    curRef.current = null; setPhaseName('תתכוננו');
+    setTransDur(0.32); setScale(0.5);
+    a.tick(); prepPulse();
+    onRunningChange && onRunningChange(true, { phase: 'הכנה', roundsLeft: roundsLeft() });
+    let n = 3;
+    prepIntervalRef.current = setInterval(() => {
+      n -= 1;
+      if (n <= 0) {
+        clearInterval(prepIntervalRef.current); prepIntervalRef.current = null;
+        beginExercise(a);
+      } else {
+        setPrepLeft(n); a.tick(); prepPulse();
+      }
+    }, 1000);
   };
 
   const stop = () => {
     clearInterval(intervalRef.current); intervalRef.current = null;
+    clearInterval(prepIntervalRef.current); prepIntervalRef.current = null;
     runningRef.current = false; setRunning(false);
-    setScale(SMALL);
+    setMode('run'); setScale(SMALL);
     audioRef.current && audioRef.current.suspend();
     onRunningChange && onRunningChange(false);
   };
@@ -209,7 +309,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   // Keeps running across focus switches; external stop from a bar; full
   // cleanup on unmount (leaving /clocks).
   useEffect(() => { if (stopSignal > 0 && runningRef.current) stop(); /* eslint-disable-next-line */ }, [stopSignal]);
-  useEffect(() => () => { if (runningRef.current) { clearInterval(intervalRef.current); } audioRef.current && audioRef.current.close(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => () => { clearInterval(intervalRef.current); clearInterval(prepIntervalRef.current); audioRef.current && audioRef.current.close(); /* eslint-disable-next-line */ }, []);
 
   const setPhase = (key, d) => setCfg((c) => ({ ...c, [key]: clamp((Number(c[key]) || 0) + d, 0, 20) }));
   const applyPreset = (k) => setCfg({ ...PRESETS[k].v });
@@ -229,11 +329,12 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
         background: '#FFF9F0', padding: '16px 16px calc(16px + env(safe-area-inset-bottom,0px))',
         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}>
-        <div style={{ fontSize: 15, fontWeight: 800, color: '#8A6A52', minHeight: 22 }}>
-          {done ? '' : `סבב ${roundCur} ${rounds === 'inf' ? '' : `מתוך ${rounds}`}`}
+        {/* Round line — only during the exercise (hidden in prep). */}
+        <div style={{ fontSize: 'clamp(20px,3.4vh,28px)', fontWeight: 800, color: '#8A6A52', minHeight: 30 }}>
+          {(!done && mode === 'run') ? `סבב ${roundCur} ${rounds === 'inf' ? '' : `מתוך ${rounds}`}` : ''}
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, width: '100%' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'clamp(14px,3vh,26px)', width: '100%' }}>
           {done ? (
             <>
               <div style={{ fontSize: 'clamp(48px,14vh,96px)' }}>🌬️</div>
@@ -244,26 +345,48 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
                 boxShadow: '0 8px 22px rgba(255,111,32,0.45)',
               }}>▶ שוב</button>
             </>
-          ) : (
-            <>
-              <div style={{ fontSize: 24, fontWeight: 900, color: ORANGE }}>{phaseName}</div>
-              <div style={{
-                width: 'clamp(200px,44vh,320px)', height: 'clamp(200px,44vh,320px)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
+          ) : (() => {
+            const bigNum = mode === 'prep' ? prepLeft : secondsLeft;
+            const twoDigit = String(bigNum).length >= 2;
+            const numFont = twoDigit ? 'clamp(78px,20vh,132px)' : 'clamp(110px,29vh,186px)';
+            const title = mode === 'prep' ? 'תתכוננו' : phaseName;
+            return (
+              <>
+                <div style={{ fontSize: 'clamp(32px,6.5vh,48px)', fontWeight: 900, color: ORANGE, lineHeight: 1 }}>{title}</div>
+                {/* Square = time-meter base. Rounded, slightly-darker cream. */}
                 <div style={{
-                  width: '100%', height: '100%', borderRadius: '50%',
-                  background: 'radial-gradient(circle at 50% 40%, #FFC79E, #FF8A42 70%, #FF6F20)',
-                  boxShadow: '0 0 60px 12px rgba(255,138,66,0.35)',
-                  transform: `scale(${scale})`,
-                  transition: `transform ${transDur}s ease-in-out`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  position: 'relative', width: 'clamp(220px,46vh,340px)', aspectRatio: '1 / 1',
+                  background: SQUARE_BG, borderRadius: '16%',
                 }}>
-                  <span style={{ fontSize: 'clamp(40px,10vh,64px)', fontWeight: 900, color: '#fff' }}>{secondsLeft}</span>
+                  {/* Depleting time meter on the square border (fixed size). */}
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+                    <path d={METER_PATH} pathLength="100" fill="none" stroke="#FFC9A6" strokeWidth="2.5"
+                      vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round"
+                      strokeDasharray="100" strokeDashoffset={(1 - meterFrac) * 100}
+                      style={{ transition: 'stroke-dashoffset 0.15s linear' }} />
+                  </svg>
+                  {/* Breathing circle — inflates/deflates INSIDE the square.
+                      Animation untouched (transform scale + transition). */}
+                  <div style={{
+                    position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <div style={{
+                      width: '82%', height: '82%', borderRadius: '50%',
+                      background: 'radial-gradient(circle at 50% 40%, #FFC79E, #FF8A42 70%, #FF6F20)',
+                      boxShadow: '0 0 60px 12px rgba(255,138,66,0.35)',
+                      transform: `scale(${scale})`,
+                      transition: `transform ${transDur}s ease-in-out`,
+                    }} />
+                  </div>
+                  {/* Big number — fixed & centered over the whole square, so
+                      it stays huge and stable regardless of the circle scale. */}
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                    <span style={{ fontSize: numFont, fontWeight: 900, color: '#5A2A08', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{bigNum}</span>
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
+              </>
+            );
+          })()}
         </div>
 
         <button type="button" onClick={done ? () => setDone(false) : stop} style={{
@@ -346,6 +469,17 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
           </div>
           {stepBtn(() => setRounds((r) => clamp((typeof r === 'number' ? r : 10) + 1, 1, 99)), '+')}
         </div>
+      </div>
+
+      {/* Sound volume — shared with the metronome, saved between sessions */}
+      <div style={{ ...card }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: '#8A6A52' }}>🔊 עוצמת סאונד</span>
+          <span style={{ fontSize: 12, fontWeight: 800, color: ORANGE }}>{Math.round(volume * 100)}%</span>
+        </div>
+        <input type="range" min={0} max={SOUND_VOL_MAX} step={0.05} value={volume}
+          onChange={(e) => setVolume(parseFloat(e.target.value))}
+          aria-label="עוצמת סאונד" style={{ width: '100%', accentColor: ORANGE, height: 28 }} />
       </div>
 
       {/* Start */}
