@@ -1,5 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { loadSoundVolume, saveSoundVolume, SOUND_VOL_MAX } from '@/lib/soundVolume';
+
+// Fixed output gain — no user slider. The DynamicsCompressor after the
+// gain keeps it distortion-free; the phone's media (STREAM_MUSIC) volume
+// keys are the only user control.
+const FIXED_GAIN = 2.2;
 
 // ── Breathing trainer ("נשימות") ───────────────────────────────────
 // A calm 4-phase cycle (inhale / hold / exhale / hold-empty). The
@@ -31,7 +35,7 @@ const STEPPERS = [
   { key: 'holdEmpty', label: 'החזקה ריקה' },
 ];
 
-function createBreathAudio(initialGain = 1) {
+function createBreathAudio(initialGain = FIXED_GAIN) {
   let ctx = null;
   let master = null;   // user-volume GainNode (0..3)
   let comp = null;     // limiter after the gain — no distortion at high boost
@@ -56,7 +60,7 @@ function createBreathAudio(initialGain = 1) {
     return master;
   };
   return {
-    setGain: (v) => { vol = Math.max(0, Math.min(SOUND_VOL_MAX, v)); if (master) { try { master.gain.setTargetAtTime(vol, ensure().currentTime, 0.02); } catch { master.gain.value = vol; } } },
+    setGain: (v) => { vol = Math.max(0, Math.min(3, v)); if (master) { try { master.gain.setTargetAtTime(vol, ensure().currentTime, 0.02); } catch { master.gain.value = vol; } } },
     resume: async () => {
       const c = ensure();
       if (c.state !== 'running') { try { await c.resume(); } catch {} }
@@ -175,7 +179,6 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const [prepLeft, setPrepLeft] = useState(0); // countdown number during prep
   const [prepSec, setPrepSec] = useState(loadPrep); // 0/3/5/10, persisted
   const [meterFrac, setMeterFrac] = useState(1); // 1 = full ring, 0 = empty
-  const [volume, setVolume] = useState(loadSoundVolume); // 0..3, shared pref
 
   const audioRef = useRef(null);
   const intervalRef = useRef(null);
@@ -191,8 +194,6 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const runningRef = useRef(false);
   const cfgRef = useRef(cfg);
   const roundsRef = useRef(rounds);
-  // Push the shared volume into the live audio engine whenever it changes.
-  useEffect(() => { saveSoundVolume(volume); if (audioRef.current) audioRef.current.setGain(volume); }, [volume]);
   useEffect(() => { cfgRef.current = cfg; }, [cfg]);
   useEffect(() => { roundsRef.current = rounds; }, [rounds]);
   // Persist the chosen rounds (value encodes chip/custom/infinity mode).
@@ -304,8 +305,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const start = async () => {
     const cycle = buildCycle();
     if (!cycle.length) return;
-    const a = audioRef.current || (audioRef.current = createBreathAudio(volume));
-    a.setGain(volume);
+    const a = audioRef.current || (audioRef.current = createBreathAudio());
     await a.resume();
     // Build the run sequence: finite → flat & exhale-terminated; inf → cycle loop.
     const inf = roundsRef.current === 'inf';
@@ -529,17 +529,6 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
             );
           })}
         </div>
-      </div>
-
-      {/* Sound volume — shared with the metronome, saved between sessions */}
-      <div style={{ ...card }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <span style={{ fontSize: 12, fontWeight: 800, color: '#8A6A52' }}>🔊 עוצמת סאונד</span>
-          <span style={{ fontSize: 12, fontWeight: 800, color: ORANGE }}>{Math.round(volume * 100)}%</span>
-        </div>
-        <input type="range" min={0} max={SOUND_VOL_MAX} step={0.05} value={volume}
-          onChange={(e) => setVolume(parseFloat(e.target.value))}
-          aria-label="עוצמת סאונד" style={{ width: '100%', accentColor: ORANGE, height: 28 }} />
       </div>
 
       {/* Start */}

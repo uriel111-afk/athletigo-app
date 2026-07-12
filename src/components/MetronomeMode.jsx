@@ -1,5 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { loadSoundVolume, saveSoundVolume, SOUND_VOL_MAX } from '@/lib/soundVolume';
+
+// Fixed output gain — no user slider. The DynamicsCompressor after the
+// gain keeps it distortion-free; the phone's media (STREAM_MUSIC) volume
+// keys are the only user control.
+const FIXED_GAIN = 2.2;
 
 // ── Metronome mode ─────────────────────────────────────────────────
 // Web Audio lookahead scheduler (Chris Wilson "two clocks" pattern):
@@ -30,7 +34,7 @@ function paceLabel(bpm) {
 
 // Self-contained Web Audio click engine (own AudioContext so we never
 // touch the existing timers' sound module).
-function createEngine(initialGain = 1) {
+function createEngine(initialGain = FIXED_GAIN) {
   let ctx = null;
   let master = null;  // user-volume GainNode (0..3)
   let comp = null;    // limiter after the gain — no distortion at high boost
@@ -96,8 +100,6 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
   const [beatsPerBar, setBeatsPerBar] = useState(4);
   const [percent, setPercent] = useState(100);
   const [currentBeat, setCurrentBeat] = useState(-1);
-  const [volume, setVolume] = useState(loadSoundVolume); // 0..3, shared pref
-  useEffect(() => { saveSoundVolume(volume); if (engineRef.current) engineRef.current.setGain(volume); }, [volume]);
 
   const effectiveBpm = Math.max(1, Math.round(bpm * percent / 100));
   const steady = running && effectiveBpm > STEADY_ABOVE;
@@ -161,8 +163,7 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
   };
 
   const start = async () => {
-    const eng = engineRef.current || (engineRef.current = createEngine(volume));
-    eng.setGain(volume);
+    const eng = engineRef.current || (engineRef.current = createEngine());
     await eng.resume();
     setPercent(100); percentRef.current = 100; // fresh start resets to 100%
     nextNoteRef.current = eng.now() + 0.1;
@@ -386,17 +387,6 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
             background: '#FFF4ED', fontSize: 24, lineHeight: 1,
           }}>🥁</button>
         </div>
-      </div>
-
-      {/* 5b. SOUND VOLUME — shared with breathing, saved between sessions */}
-      <div style={{ ...card }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <span style={{ fontSize: 12, fontWeight: 800, color: '#8A6A52' }}>🔊 עוצמת סאונד</span>
-          <span style={{ fontSize: 12, fontWeight: 800, color: ORANGE }}>{Math.round(volume * 100)}%</span>
-        </div>
-        <input type="range" min={0} max={SOUND_VOL_MAX} step={0.05} value={volume}
-          onChange={(e) => setVolume(parseFloat(e.target.value))}
-          aria-label="עוצמת סאונד" style={{ width: '100%', accentColor: ORANGE, height: 28 }} />
       </div>
 
       {/* 6. START / STOP */}
