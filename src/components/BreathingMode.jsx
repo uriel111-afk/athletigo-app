@@ -3,8 +3,10 @@ import { ensureBreathPermission, showBreathNotification, clearBreathNotification
 
 // Fixed output gain — no user slider. The DynamicsCompressor after the
 // gain keeps it distortion-free; the phone's media (STREAM_MUSIC) volume
-// keys are the only user control.
-const FIXED_GAIN = 2.2;
+// keys are the only user control. Raised 2.2 → 3.0 (sounds were too weak
+// on-device); the limiter below was re-tuned so the higher gain still
+// never clips.
+const FIXED_GAIN = 3.0;
 
 // ── Breathing trainer ("נשימות") ───────────────────────────────────
 // A calm 4-phase cycle (inhale / hold / exhale / hold-empty). The
@@ -71,9 +73,13 @@ function createBreathAudio(initialGain = FIXED_GAIN) {
     if (!master) {
       master = c.createGain(); master.gain.value = vol;
       comp = c.createDynamicsCompressor();
-      comp.threshold.setValueAtTime(-8, c.currentTime);
+      // Re-tuned for the 3.0 gain + the +30% louder sources: a lower
+      // threshold and gentler ratio catch the peaks smoothly (no audible
+      // pumping) and keep the output well under 0 dBFS even at the loudest
+      // moment (Om drone / start-cue). threshold -18 dB, ratio 4.
+      comp.threshold.setValueAtTime(-18, c.currentTime);
       comp.knee.setValueAtTime(14, c.currentTime);
-      comp.ratio.setValueAtTime(8, c.currentTime);
+      comp.ratio.setValueAtTime(4, c.currentTime);
       comp.attack.setValueAtTime(0.003, c.currentTime);
       comp.release.setValueAtTime(0.2, c.currentTime);
       master.connect(comp); comp.connect(c.destination);
@@ -83,11 +89,14 @@ function createBreathAudio(initialGain = FIXED_GAIN) {
 
   // ── Hold-phase DRONE ─────────────────────────────────────────────────
   // A continuous pad that fills the whole hold: a gentle linear rise marks
-  // the entry (no gong / no cue), a beating sustain, then a linear decay in
-  // the last second. Recipe 'full' (החזקה מלאה): 220 + 221.1 Hz + a soft
-  // 440 Hz overtone that fades in; recipe 'empty' (החזקה ריקה): 110 +
-  // 110.55 Hz an octave down, no overtone. A slow LFO wobbles the amplitude.
-  // Everything routes through bus() (the 2.2 gain + compressor).
+  // the entry (no gong / no cue), a beating sustain, then a linear decay at
+  // the end. Recipe 'full' (החזקה מלאה): 220 + 221.1 Hz + a soft 440 Hz
+  // overtone that fades in. Recipe 'empty' (החזקה ריקה) is now a deep "Om"
+  // drone: four sines — 110 + 110.5 Hz (slow beating), 220 Hz (octave) and
+  // 165 Hz (perfect fifth — the vowel colour of Om) — with a 1.2 s rise and
+  // a 1.2 s decay. A slow LFO wobbles the amplitude. Everything routes
+  // through bus() (the 3.0 gain + compressor). All source levels here carry
+  // the +30% on-device boost.
   const doStopDrone = (fast = true) => {
     if (!droneNodes) return;
     const { c, amp, nodes } = droneNodes;
@@ -104,45 +113,77 @@ function createBreathAudio(initialGain = FIXED_GAIN) {
   const doDrone = (kind, dur) => {
     const c = ensure(); const t = c.currentTime;
     doStopDrone(true); // never overlap two drones
-    const short = dur < 2;               // short hold → shrink the envelope
-    const rise = short ? 0.4 : 0.8;
-    const decay = short ? 0.4 : 1.0;     // decay across the last second
-    const sustainStart = t + rise;
-    const decayStart = Math.max(sustainStart, t + dur - decay);
-    const base = kind === 'empty' ? 0.20 : 0.16;
-    const lfoRate = kind === 'empty' ? 0.18 : 0.25;
 
-    // Amplitude envelope (rise → sustain → decay). The LFO is summed onto
-    // this same param for a slow tremolo.
-    const amp = c.createGain();
-    amp.gain.setValueAtTime(0.0001, t);
-    amp.gain.linearRampToValueAtTime(base, sustainStart);
-    amp.gain.setValueAtTime(base, decayStart);
-    amp.gain.linearRampToValueAtTime(0.0001, t + dur);
+    const amp = c.createGain();       // shared master envelope for both drones
     amp.connect(bus());
+    const nodes = [];                 // everything with .stop() (oscillators)
+    const extraGains = [];            // per-partial / overtone / LFO gains
 
-    const nodes = [];
-    const osc = (freq) => { const o = c.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(freq, t); o.connect(amp); o.start(t); o.stop(t + dur + 0.05); nodes.push(o); return o; };
+    if (kind === 'empty') {
+      // ── Om drone (החזקה ריקה) ──────────────────────────────────────────
+      // Four sines; the envelope is a 0→1→0 multiplier and each partial
+      // carries its own amplitude. Levels below already include the +30%
+      // on-device boost (spec × 1.3). Rise/decay 1.2 s; holds under 2.5 s
+      // get a compact 0.5 s envelope, mirroring the full drone's shortening.
+      const short = dur < 2.5;
+      const rise = short ? 0.5 : 1.2;
+      const decay = short ? 0.5 : 1.2;
+      const sustainStart = t + rise;
+      const decayStart = Math.max(sustainStart, t + dur - decay);
+      amp.gain.setValueAtTime(0.0001, t);
+      amp.gain.linearRampToValueAtTime(1, sustainStart);
+      amp.gain.setValueAtTime(1, decayStart);
+      amp.gain.linearRampToValueAtTime(0.0001, t + dur);
 
-    if (kind === 'empty') { osc(110); osc(110.55); }
-    else {
+      const partials = [
+        [110,   0.234], // 0.18 × 1.3  — fundamental
+        [110.5, 0.234], // 0.18 × 1.3  — slow beating against the fundamental
+        [220,   0.078], // 0.06 × 1.3  — octave
+        [165,   0.052], // 0.04 × 1.3  — perfect fifth (the Om vowel colour)
+      ];
+      partials.forEach(([f, a]) => {
+        const o = c.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(f, t);
+        const g = c.createGain(); g.gain.setValueAtTime(a, t);
+        o.connect(g); g.connect(amp); o.start(t); o.stop(t + dur + 0.05);
+        nodes.push(o); extraGains.push(g);
+      });
+
+      // Slow LFO tremolo (depth 25% of the envelope peak).
+      const lfo = c.createOscillator(); lfo.type = 'sine'; lfo.frequency.setValueAtTime(0.18, t);
+      const lfoGain = c.createGain(); lfoGain.gain.setValueAtTime(0.25, t);
+      lfo.connect(lfoGain); lfoGain.connect(amp.gain);
+      lfo.start(t); lfo.stop(t + dur + 0.05); nodes.push(lfo); extraGains.push(lfoGain);
+    } else {
+      // ── Full-hold drone (החזקה מלאה) — unchanged recipe, +30% base ──────
+      const short = dur < 2;             // short hold → shrink the envelope
+      const rise = short ? 0.4 : 0.8;
+      const decay = short ? 0.4 : 1.0;   // decay across the last second
+      const sustainStart = t + rise;
+      const decayStart = Math.max(sustainStart, t + dur - decay);
+      const base = 0.208;                // 0.16 × 1.3
+      amp.gain.setValueAtTime(0.0001, t);
+      amp.gain.linearRampToValueAtTime(base, sustainStart);
+      amp.gain.setValueAtTime(base, decayStart);
+      amp.gain.linearRampToValueAtTime(0.0001, t + dur);
+
+      const osc = (freq) => { const o = c.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(freq, t); o.connect(amp); o.start(t); o.stop(t + dur + 0.05); nodes.push(o); return o; };
       osc(220); osc(221.1);
       // Overtone: 440 Hz at 18% of the main, fading in slowly (1.2 s).
       const o3 = c.createOscillator(); o3.type = 'sine'; o3.frequency.setValueAtTime(440, t);
       const g3 = c.createGain(); g3.gain.setValueAtTime(0.0001, t); g3.gain.linearRampToValueAtTime(0.18, t + Math.min(1.2, dur));
-      o3.connect(g3); g3.connect(amp); o3.start(t); o3.stop(t + dur + 0.05); nodes.push(o3);
-    }
+      o3.connect(g3); g3.connect(amp); o3.start(t); o3.stop(t + dur + 0.05); nodes.push(o3); extraGains.push(g3);
 
-    // Slow LFO tremolo on the amplitude (depth 25% of base).
-    const lfo = c.createOscillator(); lfo.type = 'sine'; lfo.frequency.setValueAtTime(lfoRate, t);
-    const lfoGain = c.createGain(); lfoGain.gain.setValueAtTime(base * 0.25, t);
-    lfo.connect(lfoGain); lfoGain.connect(amp.gain);
-    lfo.start(t); lfo.stop(t + dur + 0.05); nodes.push(lfo);
+      // Slow LFO tremolo on the amplitude (depth 25% of base).
+      const lfo = c.createOscillator(); lfo.type = 'sine'; lfo.frequency.setValueAtTime(0.25, t);
+      const lfoGain = c.createGain(); lfoGain.gain.setValueAtTime(base * 0.25, t);
+      lfo.connect(lfoGain); lfoGain.connect(amp.gain);
+      lfo.start(t); lfo.stop(t + dur + 0.05); nodes.push(lfo); extraGains.push(lfoGain);
+    }
 
     // Full teardown when the phase ends — no node left alive.
     nodes[nodes.length - 1].onended = () => {
       try { amp.disconnect(); } catch {}
-      try { lfoGain.disconnect(); } catch {}
+      extraGains.forEach((g) => { try { g.disconnect(); } catch {} });
       nodes.forEach((n) => { try { n.disconnect(); } catch {} });
       if (droneNodes && droneNodes.amp === amp) droneNodes = null;
     };
@@ -164,7 +205,7 @@ function createBreathAudio(initialGain = FIXED_GAIN) {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(from, t);
       osc.frequency.linearRampToValueAtTime(to, t + dur);
-      const peak = 0.32, fade = Math.min(0.9, dur * 0.35);
+      const peak = 0.416, fade = Math.min(0.9, dur * 0.35); // 0.32 × 1.3
       g.gain.setValueAtTime(0.0001, t);
       g.gain.linearRampToValueAtTime(peak, t + fade);
       g.gain.setValueAtTime(peak, t + Math.max(fade, dur - 0.6));
@@ -176,7 +217,7 @@ function createBreathAudio(initialGain = FIXED_GAIN) {
       const osc = c.createOscillator(); const g = c.createGain();
       osc.type = 'sine'; osc.frequency.value = freq;
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.linearRampToValueAtTime(0.26, t + 0.03);
+      g.gain.linearRampToValueAtTime(0.338, t + 0.03); // 0.26 × 1.3
       g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
       osc.connect(g); g.connect(bus()); osc.start(t); osc.stop(t + 0.6);
     },
@@ -188,7 +229,7 @@ function createBreathAudio(initialGain = FIXED_GAIN) {
       const osc = c.createOscillator(); const g = c.createGain();
       osc.type = 'sine'; osc.frequency.value = 660;
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.linearRampToValueAtTime(0.3, t + 0.004);
+      g.gain.linearRampToValueAtTime(0.39, t + 0.004); // 0.3 × 1.3
       g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
       osc.connect(g); g.connect(bus()); osc.start(t); osc.stop(t + 0.14);
     },
@@ -200,7 +241,7 @@ function createBreathAudio(initialGain = FIXED_GAIN) {
         const osc = c.createOscillator(); const g = c.createGain();
         osc.type = 'sine'; osc.frequency.value = f;
         g.gain.setValueAtTime(0.0001, t);
-        g.gain.linearRampToValueAtTime(0.4, t + 0.02);
+        g.gain.linearRampToValueAtTime(0.52, t + 0.02); // 0.4 × 1.3
         g.gain.exponentialRampToValueAtTime(0.0001, t + 0.36);
         osc.connect(g); g.connect(bus()); osc.start(t); osc.stop(t + 0.4);
       });
@@ -212,7 +253,7 @@ function createBreathAudio(initialGain = FIXED_GAIN) {
         const osc = c.createOscillator(); const g = c.createGain();
         osc.type = 'sine'; osc.frequency.value = f;
         g.gain.setValueAtTime(0.0001, t);
-        g.gain.linearRampToValueAtTime(0.34, t + 0.04);
+        g.gain.linearRampToValueAtTime(0.442, t + 0.04); // 0.34 × 1.3
         g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
         osc.connect(g); g.connect(bus()); osc.start(t); osc.stop(t + 0.95);
       });
