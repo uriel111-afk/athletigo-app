@@ -990,3 +990,27 @@ export async function updateCourse(id, patch) {
   if (error) throw error;
   return data;
 }
+
+// ── Lead interactions (journal) ─────────────────────────────────────
+// New table `lead_interactions` (lead_id, type, summary, created_at).
+// RLS scopes rows to the owning lead's user_id via a join (see SQL).
+export async function listInteractions(leadId) {
+  if (!leadId) return [];
+  const { data, error } = await supabase
+    .from('lead_interactions')
+    .select('id, lead_id, type, summary, created_at')
+    .eq('lead_id', leadId)
+    .order('created_at', { ascending: false });
+  if (error) { console.warn('[lifeos-api] listInteractions', error.message); return []; }
+  return data || [];
+}
+
+export async function addInteraction(leadId, { type, summary }) {
+  const { data, error } = await supabase
+    .from('lead_interactions')
+    .insert({ lead_id: leadId, type: type || null, summary: summary || null })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}

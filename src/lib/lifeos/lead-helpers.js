@@ -65,3 +65,11 @@ export function followUpSortKey(lead) {
   const dead = lead?.status === 'converted' || lead?.status === 'lost' ? 1 : 0;
   return `${dead}-${rank}-${d}`;
 }
+
+// Follow-up date helpers — ISO (YYYY-MM-DD) offsets from today.
+export function isoInDays(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + (Number(n) || 0));
+  return d.toISOString().slice(0, 10);
+}
+export function todayISO() { return isoInDays(0); }

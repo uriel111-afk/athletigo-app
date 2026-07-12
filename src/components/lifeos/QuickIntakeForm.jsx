@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { addLead, updateLead } from '@/lib/lifeos/lifeos-api';
+import { isoInDays } from '@/lib/lifeos/lead-helpers';
+import FollowupChips from '@/components/lifeos/FollowupChips';
 import { toast } from 'sonner';
 
 // ── Quick lead intake ("קליטה מהירה") ───────────────────────────────
@@ -39,6 +41,7 @@ const blank = () => ({
   lead_type: '',
   group_size: '', group_location: '', frequency_per_week: '', proposed_price: '', payer: '',
   source: 'שיחה נכנסת',
+  follow_up: isoInDays(1), // when to call back — default tomorrow
 });
 
 const fromLead = (l) => {
@@ -53,6 +56,7 @@ const fromLead = (l) => {
     frequency_per_week: l.frequency_per_week || '', proposed_price: l.proposed_price || '',
     payer: l.payer || '',
     source: l.source || 'שיחה נכנסת',
+    follow_up: l.next_follow_up ? String(l.next_follow_up).slice(0, 10) : isoInDays(1),
   };
 };
 
@@ -93,6 +97,7 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
       proposed_price: showGroup ? (f.proposed_price.trim() || null) : null,
       payer: showGroup ? (f.payer || null) : null,
       source: f.source || 'שיחה נכנסת',
+      next_follow_up: f.follow_up || null,
     };
     try {
       if (lead?.id) await updateLead(lead.id, payload);
@@ -170,6 +175,11 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
         {/* 8. Source */}
         <Field label="מקור">
           <Chips options={SOURCES} value={f.source} onPick={(v) => set({ source: v })} />
+        </Field>
+
+        {/* Follow-up — when to call back (default tomorrow) */}
+        <Field label="מתי לחזור אליו">
+          <FollowupChips value={f.follow_up} onChange={(d) => set({ follow_up: d })} />
         </Field>
       </div>
 

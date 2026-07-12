@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Phone, MessageCircle, Pencil, Send, ArrowLeftCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, Phone, MessageCircle, Pencil, Send, ArrowLeftCircle, Plus, Calendar } from 'lucide-react';
 import {
   LADDER_MATCHES, LEAD_CLOSE_RESULTS, LEAD_STATUS, LEAD_SOURCES,
   SPORTS_EXPERIENCE, LADDER_CONTENT, ladderForExperience,
@@ -9,8 +9,13 @@ import { updateLead } from '@/lib/lifeos/lifeos-api';
 import { useSalesScripts } from '@/lib/lifeos/sales-scripts-api';
 import { waLink, telLink, relTime, followUpState } from '@/lib/lifeos/lead-helpers';
 import { isBusinessLead, needsCompletion, TYPE_LABEL } from '@/components/lifeos/QuickIntakeForm';
+import { addInteraction, listInteractions } from '@/lib/lifeos/lifeos-api';
+import { isoInDays } from '@/lib/lifeos/lead-helpers';
+import FollowupChips from '@/components/lifeos/FollowupChips';
 
 const OFFER_STATUS = ['טרם הוגשה', 'הוגשה', 'התקבלה', 'נדחתה'];
+const INTERACTION_TYPES = ['שיחה', 'וואטסאפ', 'פגישה', 'הצעה נשלחה'];
+const INTERACTION_ICON = { 'שיחה': '📞', 'וואטסאפ': '💬', 'פגישה': '🤝', 'הצעה נשלחה': '📄' };
 
 const CLOSE_BY_KEY = Object.fromEntries(LEAD_CLOSE_RESULTS.map((s) => [s.key, s]));
 const STATUS_BY_KEY = Object.fromEntries(LEAD_STATUS.map((s) => [s.key, s]));
@@ -30,6 +35,21 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
   const [offer, setOffer] = useState({ our_offer: lead?.our_offer || '', offer_status: lead?.offer_status || '', proposed_price: lead?.proposed_price || '' });
   const [savingNotes, setSavingNotes] = useState(false);
   const [savingOffer, setSavingOffer] = useState(false);
+  // Follow-up + interaction journal.
+  const [followUp, setFollowUp] = useState(lead?.next_follow_up ? String(lead.next_follow_up).slice(0, 10) : '');
+  const [interactions, setInteractions] = useState([]);
+  const [adding, setAdding] = useState(false);
+  const [iType, setIType] = useState('');
+  const [iSummary, setISummary] = useState('');
+  const [fuPrompt, setFuPrompt] = useState(false);   // "set next follow-up" after an interaction
+  const [fuDate, setFuDate] = useState(isoInDays(3)); // default +3 days
+
+  useEffect(() => {
+    let alive = true;
+    if (lead?.id) listInteractions(lead.id).then((r) => { if (alive) setInteractions(r); });
+    return () => { alive = false; };
+  }, [lead?.id]);
+
   if (!lead) return null;
 
   // A quick-intake lead (has preferred_channel) edits via the quick form;
@@ -45,6 +65,25 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
     setSavingOffer(true);
     try { await updateLead(lead.id, { our_offer: offer.our_offer || null, offer_status: offer.offer_status || null, proposed_price: offer.proposed_price || null }); onChanged?.(); }
     catch (e) { console.warn('[LeadDetail] offer save', e); } finally { setSavingOffer(false); }
+  };
+  const saveFollowUp = async (d) => {
+    setFollowUp(d);
+    try { await updateLead(lead.id, { next_follow_up: d || null }); onChanged?.(); } catch (e) { console.warn('[LeadDetail] followup save', e); }
+  };
+  const saveInteraction = async () => {
+    if (!iType && !iSummary.trim()) { setAdding(false); return; }
+    try {
+      await addInteraction(lead.id, { type: iType, summary: iSummary.trim() });
+      const r = await listInteractions(lead.id); setInteractions(r);
+      try { await updateLead(lead.id, { last_contact_date: new Date().toISOString() }); } catch {}
+      onChanged?.();
+    } catch (e) { console.warn('[LeadDetail] addInteraction', e); }
+    setAdding(false); setIType(''); setISummary('');
+    setFuDate(isoInDays(3)); setFuPrompt(true); // immediately offer the next follow-up
+  };
+  const savePrompt = async () => {
+    try { await updateLead(lead.id, { next_follow_up: fuDate || null }); setFollowUp(fuDate); onChanged?.(); } catch (e) { console.warn('[LeadDetail] prompt save', e); }
+    setFuPrompt(false);
   };
 
   const sc = useSalesScripts();
@@ -132,6 +171,78 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
             style={{ width: '100%', minHeight: 90, padding: 10, borderRadius: 10, border: '1px solid #F0E4D0', fontSize: 14, lineHeight: 1.5, color: '#1A1A1A', resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
             placeholder="הערות חופשיות..." />
           {savingNotes && <div style={{ fontSize: 11, color: '#9A8F82', marginTop: 4 }}>שומר...</div>}
+        </div>
+
+        {/* Follow-up — when to call back */}
+        <div style={card}>
+          <div style={cardTitle}>מתי לחזור אליו</div>
+          <FollowupChips value={followUp} onChange={saveFollowUp} />
+        </div>
+
+        {/* Interaction journal — timeline + add */}
+        <div style={card}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <div style={{ ...cardTitle, marginBottom: 0, flex: 1 }}>יומן אינטראקציות</div>
+            {!adding && (
+              <button type="button" onClick={() => setAdding(true)} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4, border: `1px solid ${'#FF6F20'}`, background: '#fff', color: '#FF6F20',
+                borderRadius: 999, padding: '5px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+              }}><Plus size={14} /> הוסף</button>
+            )}
+          </div>
+
+          {adding && (
+            <div style={{ background: '#FFF9F0', border: '1px solid #F0E4D0', borderRadius: 10, padding: 10, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {INTERACTION_TYPES.map((t) => {
+                  const on = iType === t;
+                  return (
+                    <button key={t} type="button" onClick={() => setIType(on ? '' : t)} style={{
+                      minHeight: 32, padding: '0 11px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                      border: on ? '2px solid #FF6F20' : '1px solid #F0E4D0', background: on ? '#FF6F20' : '#fff', color: on ? '#fff' : '#3a3a3a',
+                    }}>{INTERACTION_ICON[t]} {t}</button>
+                  );
+                })}
+              </div>
+              <textarea value={iSummary} onChange={(e) => setISummary(e.target.value)} placeholder="סיכום קצר..." rows={2}
+                style={{ width: '100%', minHeight: 54, padding: 9, borderRadius: 10, border: '1px solid #F0E4D0', fontSize: 13, resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={saveInteraction} style={{ flex: 1, minHeight: 38, borderRadius: 10, border: 'none', background: '#FF6F20', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>שמור אינטראקציה</button>
+                <button type="button" onClick={() => { setAdding(false); setIType(''); setISummary(''); }} style={{ minHeight: 38, padding: '0 14px', borderRadius: 10, border: '1px solid #F0E4D0', background: '#fff', color: '#9A8F82', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>ביטול</button>
+              </div>
+            </div>
+          )}
+
+          {/* Post-interaction prompt: set the next follow-up (default +3d) */}
+          {fuPrompt && (
+            <div style={{ background: '#FFF7ED', border: '1px solid #FDBA74', borderRadius: 10, padding: 10, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#C24A0A', display: 'flex', alignItems: 'center', gap: 6 }}><Calendar size={14} /> מתי לחזור אליו בפעם הבאה?</div>
+              <FollowupChips value={fuDate} onChange={setFuDate} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={savePrompt} style={{ flex: 1, minHeight: 36, borderRadius: 10, border: 'none', background: '#C24A0A', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>קבע מעקב</button>
+                <button type="button" onClick={() => setFuPrompt(false)} style={{ minHeight: 36, padding: '0 14px', borderRadius: 10, border: '1px solid #FDBA74', background: '#fff', color: '#C24A0A', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>דלג</button>
+              </div>
+            </div>
+          )}
+
+          {interactions.length === 0 ? (
+            <div style={{ fontSize: 12, color: '#9A8F82' }}>אין אינטראקציות עדיין</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {interactions.map((it) => (
+                <div key={it.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 15, flexShrink: 0 }}>{INTERACTION_ICON[it.type] || '•'}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: '#1A1A1A' }}>{it.type || 'אינטראקציה'}</span>
+                      <span style={{ fontSize: 11, color: '#9A8F82' }}>{fmtTs(it.created_at)}</span>
+                    </div>
+                    {it.summary && <div style={{ fontSize: 13, color: '#3a3a3a', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>{it.summary}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Business offer block — proposed price + our offer + status */}

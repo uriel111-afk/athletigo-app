@@ -113,6 +113,14 @@ export default function Leads() {
     return out;
   }, [rows]);
 
+  // Leads whose follow-up time has arrived (overdue + today), most-urgent
+  // first — the "מעקבים להיום" bar at the top of the screen.
+  const dueFollowups = useMemo(
+    () => rows.filter((r) => ['overdue', 'today'].includes(followUpState(r)))
+      .sort((a, b) => followUpSortKey(a).localeCompare(followUpSortKey(b))),
+    [rows],
+  );
+
   const filtered = useMemo(() => {
     const f = LEAD_FILTERS.find((x) => x.key === filter) || LEAD_FILTERS[0];
     const list = rows.filter(f.test);
@@ -206,6 +214,8 @@ export default function Leads() {
           fontSize: 15, fontWeight: 700,
         }}>⚡ קליטה מהירה</button>
       </div>
+
+      {dueFollowups.length > 0 && <TodayFollowupsBar leads={dueFollowups} onOpen={openView} />}
 
       {/* View switcher — one compact segmented control (centered) */}
       <div style={{
@@ -558,6 +568,37 @@ function KanbanCard({ lead, columns, onTap, onMove, overdue }) {
 }
 
 // ─── Shared ──────────────────────────────────────────────────────
+
+// "מעקבים להיום" — leads whose follow-up has arrived, most urgent first,
+// with direct call / whatsapp actions.
+function TodayFollowupsBar({ leads, onOpen }) {
+  return (
+    <div style={{
+      ...LIFEOS_CARD, marginBottom: 12, padding: 10,
+      background: '#FFF7ED', border: '1px solid #FDBA74',
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: '#C24A0A', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+        📞 מעקבים להיום ({leads.length})
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {leads.slice(0, 8).map((l) => {
+          const st = followUpState(l);
+          return (
+            <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', borderRadius: 10, border: '1px solid #F0E4D0', padding: '7px 10px' }}>
+              <button type="button" onClick={() => onOpen(l)} style={{ flex: 1, minWidth: 0, textAlign: 'right', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#1A1A1A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name}</span>
+                <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 800, color: st === 'overdue' ? '#dc2626' : '#16a34a' }}>{st === 'overdue' ? 'באיחור' : 'היום'}</span>
+              </button>
+              <a href={telLink(l.phone)} onClick={(e) => e.stopPropagation()} aria-label="חייג" style={fuActBtn('#3B82F6')}><Phone size={15} /></a>
+              <a href={waLink(l.phone, '')} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} aria-label="וואטסאפ" style={fuActBtn('#25D366')}><MessageCircle size={15} /></a>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+const fuActBtn = (color) => ({ flexShrink: 0, width: 34, height: 34, borderRadius: 9, background: color, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' });
 
 // Distinct tag for business / existing-group leads (vs private).
 function LeadTypeTag({ lead }) {
