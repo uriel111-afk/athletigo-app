@@ -178,7 +178,13 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const [mode, setMode] = useState('run');    // 'prep' | 'run'
   const [prepLeft, setPrepLeft] = useState(0); // countdown number during prep
   const [prepSec, setPrepSec] = useState(loadPrep); // 0/3/5/10, persisted
-  const [meterFrac, setMeterFrac] = useState(1); // 1 = full ring, 0 = empty
+  // Time-frame FILL fraction: 0 = empty (nothing drawn), 1 = full closed ring.
+  // The frame BUILDS up over the whole exercise (all rounds).
+  const [fillFrac, setFillFrac] = useState(0);
+  // Real geometric length of the border path (getTotalLength). Measured once
+  // from the mounted node so the dash math never relies on pathLength — which
+  // WebKit ignores under vectorEffect="non-scaling-stroke".
+  const [meterLen, setMeterLen] = useState(0);
 
   const audioRef = useRef(null);
   const intervalRef = useRef(null);
@@ -244,7 +250,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const finish = () => {
     clearInterval(intervalRef.current); intervalRef.current = null;
     runningRef.current = false; setRunning(false); setDone(true);
-    setMeterFrac(0);
+    setFillFrac(1); // last exhale finished → frame complete and closed
     audioRef.current && audioRef.current.endChimes();
     onRunningChange && onRunningChange(false);
   };
@@ -273,12 +279,13 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
     const p = curRef.current; if (!p) return;
     const elapsed = (performance.now() - phaseStartRef.current) / 1000;
     setSecondsLeft(Math.max(0, Math.ceil(p.dur - elapsed)));
-    // Time meter — deplete over the WHOLE exercise (all rounds). For
-    // 'inf' (totalMs = 0) the ring stays full. CSS transition on the
-    // dashoffset smooths the 100ms steps into a continuous drain.
+    // Time frame — FILL over the WHOLE exercise (all rounds), uniformly.
+    // For 'inf' (totalMs = 0) there is no defined end, so the frame stays
+    // empty. CSS transition on the dashoffset smooths the 100ms steps into
+    // one continuous, jump-free build-up.
     if (totalMsRef.current > 0) {
       const te = performance.now() - exerciseStartRef.current;
-      setMeterFrac(clamp(1 - te / totalMsRef.current, 0, 1));
+      setFillFrac(clamp(te / totalMsRef.current, 0, 1));
     }
     if (elapsed >= p.dur) nextPhase();
   };
@@ -297,7 +304,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
     a.startCue();
     exerciseStartRef.current = performance.now();
     setRoundCur(seqRef.current[0]?.round || 1);
-    setMeterFrac(1);
+    setFillFrac(0); // exercise starts with an empty frame; it builds from here
     enterPhase(seqRef.current[0]);
     intervalRef.current = setInterval(loop, 100);
   };
@@ -322,7 +329,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
     if (prep <= 0) { beginExercise(a); return; } // 0 → straight into the exercise
 
     // ── Prep countdown from the chosen length → then the exercise ──
-    setMode('prep'); setPrepLeft(prep); setMeterFrac(1);
+    setMode('prep'); setPrepLeft(prep); setFillFrac(0); // no frame during prep
     curRef.current = null; setPhaseName('תתכוננו');
     setTransDur(0.32); setScale(SMALL);
     a.tick(); prepPulse();
@@ -402,12 +409,18 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
                   position: 'relative', width: 'clamp(220px,46vh,340px)', aspectRatio: '1 / 1',
                   background: SQUARE_BG, borderRadius: '16%',
                 }}>
-                  {/* Depleting time meter on the square border (fixed size). */}
+                  {/* Time frame on the square border (fixed size). Starts empty
+                      and FILLS clockwise from the top-middle as the exercise
+                      progresses. Dash math uses the path's real length (measured
+                      via getTotalLength) — never pathLength, which WebKit ignores
+                      under non-scaling-stroke and which caused the old static,
+                      corner-segmented frame. */}
                   <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-                    <path d={METER_PATH} pathLength="100" fill="none" stroke="#FFC9A6" strokeWidth="2.5"
+                    <path ref={(el) => { if (el && meterLen === 0) { const L = el.getTotalLength(); if (L) setMeterLen(L); } }}
+                      d={METER_PATH} fill="none" stroke="#FFC9A6" strokeWidth="2.5"
                       vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round"
-                      strokeDasharray="100" strokeDashoffset={(1 - meterFrac) * 100}
-                      style={{ transition: 'stroke-dashoffset 0.15s linear' }} />
+                      strokeDasharray={meterLen || 1} strokeDashoffset={meterLen * (1 - fillFrac)}
+                      style={{ transition: 'stroke-dashoffset 0.15s linear', opacity: meterLen ? 1 : 0 }} />
                   </svg>
                   {/* Breathing circle — inflates/deflates INSIDE the square.
                       Animation untouched (transform scale + transition). */}
