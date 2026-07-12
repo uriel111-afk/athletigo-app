@@ -9,6 +9,7 @@ import { updateLead } from '@/lib/lifeos/lifeos-api';
 import { useSalesScripts } from '@/lib/lifeos/sales-scripts-api';
 import { waLink, telLink, relTime, followUpState } from '@/lib/lifeos/lead-helpers';
 import { isBusinessLead, needsCompletion, TYPE_LABEL, SERVICE_LABEL, FORWHOM_LABEL } from '@/components/lifeos/QuickIntakeForm';
+import { PERSONA_LABEL } from '@/lib/lifeos/need-response-bank';
 import { addInteraction, listInteractions } from '@/lib/lifeos/lifeos-api';
 import { isoInDays } from '@/lib/lifeos/lead-helpers';
 import FollowupChips from '@/components/lifeos/FollowupChips';
@@ -156,6 +157,9 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
             <div style={cardTitle}>הבקשה</div>
             {(lead.service_type || lead.for_whom) && (
               <Row label="מה מבקשים" value={[SERVICE_LABEL[lead.service_type], FORWHOM_LABEL[lead.for_whom]].filter(Boolean).join(' · ')} />
+            )}
+            {(lead.persona || lead.need_type) && (
+              <Row label="אבחון" value={[PERSONA_LABEL[lead.persona] || lead.persona, lead.need_type && String(lead.need_type).split(',').join(' · ')].filter(Boolean).join(' — ')} />
             )}
             {(lead.training_location || lead.group_location || lead.group_size || lead.frequency_per_week || lead.preferred_times || lead.age_range || lead.workshop_topic || lead.target_date || lead.fitness_goal) && (
               <Row label="איפה ומתי" value={[

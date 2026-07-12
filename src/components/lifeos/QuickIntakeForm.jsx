@@ -3,6 +3,7 @@ import { X, Loader2, ChevronDown } from 'lucide-react';
 import { addLead, updateLead } from '@/lib/lifeos/lifeos-api';
 import { isoInDays } from '@/lib/lifeos/lead-helpers';
 import FollowupChips from '@/components/lifeos/FollowupChips';
+import { NEED_PERSONAS, NEEDS_BY_PERSONA, buildNeedResponse, smartNextStep } from '@/lib/lifeos/need-response-bank';
 import { toast } from 'sonner';
 
 // ── Quick lead intake ("קליטה מהירה") — unified request hierarchy ────
@@ -37,7 +38,7 @@ const LOCATIONS = ['הסטודיו שלנו', 'אצל הלקוח', 'אונליי
 const TIMES = ['בוקר', 'צהריים', 'ערב'];
 const PAYERS = ['המשתתפים', 'הארגון', 'ההורה'];
 const SOURCES = ['שיחה נכנסת', 'הפניה', 'אחר'];
-const NEXT_STEPS = ['לקבוע שיעור ניסיון', 'לשלוח הצעה', 'לחזור בטלפון', 'לשלוח פרטים בוואטסאפ'];
+const NEXT_STEPS = ['לקבוע שיעור ניסיון', 'לקבוע פגישת היכרות', 'לשלוח הצעה', 'לחזור בטלפון', 'לשלוח פרטים בוואטסאפ'];
 
 export const SERVICE_LABEL = Object.fromEntries(SERVICE_TYPES.map((t) => [t.key, t.label]));
 export const FORWHOM_LABEL = Object.fromEntries(FOR_WHOM.map((t) => [t.key, t.label]));
@@ -64,6 +65,8 @@ const blank = () => ({
   name: '', phone: '', notes: '',
   contact_role: '', organization: '', preferred_channel: 'whatsapp',
   service_type: '', for_whom: '',
+  // section 2b — diagnosis
+  persona: '', need_type: '',
   // section 3 (dynamic)
   training_location: '', preferred_times: '', frequency_per_week: '', age_range: '',
   group_size: '', group_location: '', main_goal: '', workshop_topic: '', target_date: '',
@@ -81,6 +84,7 @@ const fromLead = (l) => {
     contact_role: l.contact_role || '', organization: l.organization || '',
     preferred_channel: l.preferred_channel || 'whatsapp',
     service_type: l.service_type || '', for_whom: l.for_whom || '',
+    persona: l.persona || '', need_type: l.need_type || '',
     training_location: l.training_location || '', preferred_times: l.preferred_times || '',
     frequency_per_week: l.frequency_per_week || '', age_range: l.age_range || '',
     group_size: l.group_size || '', group_location: l.group_location || '',
@@ -96,12 +100,14 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
   const [f, setF] = useState(blank);
   const [busy, setBusy] = useState(false);
   const [moneyOpen, setMoneyOpen] = useState(false);
+  const [nextStepTouched, setNextStepTouched] = useState(false);
   const notesRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) return;
     setF(fromLead(lead));
     setMoneyOpen(!!(lead?.proposed_price || lead?.payer));
+    setNextStepTouched(!!lead?.next_step);
     setTimeout(() => { try { notesRef.current && notesRef.current.focus(); } catch {} }, 60);
   }, [isOpen, lead]);
 
@@ -114,6 +120,24 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
     const next = times.includes(t) ? times.filter((x) => x !== t) : [...times, t];
     set({ preferred_times: next.join(',') });
   };
+
+  // Diagnosis (2b): persona drives needs + the response card + a smart
+  // "next step" default (until the coach overrides it manually).
+  const needs = f.need_type ? f.need_type.split(',').filter(Boolean) : [];
+  const pickPersona = (key) => {
+    setF((p) => {
+      const persona = p.persona === key ? '' : key;
+      return {
+        ...p, persona, need_type: '', // needs are persona-specific
+        ...(nextStepTouched || !persona ? {} : { next_step: smartNextStep(persona, p.service_type) }),
+      };
+    });
+  };
+  const toggleNeed = (n) => {
+    if (needs.includes(n)) set({ need_type: needs.filter((x) => x !== n).join(',') });
+    else if (needs.length < 2) set({ need_type: [...needs, n].join(',') }); // up to two
+  };
+  const response = f.persona ? buildNeedResponse({ persona: f.persona, needs, serviceType: f.service_type }) : null;
 
   const save = async () => {
     if (!f.name.trim() || !f.phone.trim() || !f.notes.trim()) {
@@ -138,6 +162,7 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
       contact_role: f.contact_role || null, organization: f.organization.trim() || null,
       preferred_channel: f.preferred_channel || 'whatsapp',
       service_type: f.service_type || null, for_whom: f.for_whom || null,
+      persona: f.persona || null, need_type: f.need_type || null,
       lead_type: deriveLeadType(f) || null,
       ...sec3,
       proposed_price: f.proposed_price.trim() || null, payer: f.payer || null,
@@ -200,6 +225,30 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
           </Field>
         </Section>
 
+        {/* ═══ 2b — אבחון צורך ומענה (after a service type is chosen) ═══ */}
+        {st && (
+          <Section title="2ב · אבחון צורך">
+            <Field label="פרסונה">
+              <Chips options={NEED_PERSONAS.map((p) => p.label)} value={NEED_PERSONAS.find((p) => p.key === f.persona)?.label}
+                onPick={(lbl) => pickPersona(NEED_PERSONAS.find((p) => p.label === lbl)?.key)} />
+            </Field>
+            {f.persona && (
+              <Field label="הצורך המרכזי (עד שניים)">
+                <MultiChips options={NEEDS_BY_PERSONA[f.persona] || []} selected={needs} onToggle={toggleNeed} />
+              </Field>
+            )}
+            {/* Our-answer card — connection line + matching offer + one question */}
+            {response && (
+              <div style={{ background: '#FFF4E6', border: `1px solid ${ORANGE}`, borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#C24A0A' }}>🎯 המענה שלנו</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#4A1B0C', lineHeight: 1.5, userSelect: 'text' }}>{response.connection}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A', background: '#fff', borderRadius: 8, padding: '7px 10px', border: '1px solid #F0D9C6' }}>💡 {response.offer}</div>
+                <div style={{ fontSize: 12.5, fontStyle: 'italic', color: '#8A4A1E', lineHeight: 1.45 }}>לשאול עכשיו: {response.question}</div>
+              </div>
+            )}
+          </Section>
+        )}
+
         {/* ═══ 3 — איפה ומתי (dynamic by service type) ═══ */}
         {st && (
           <Section title="3 · איפה ומתי">
@@ -257,7 +306,7 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
 
         {/* ═══ 5 — מה הלאה ═══ */}
         <Section title="5 · מה הלאה">
-          <Field label="הצעד הבא"><Chips options={NEXT_STEPS} value={f.next_step} onPick={(v) => set({ next_step: f.next_step === v ? '' : v })} /></Field>
+          <Field label="הצעד הבא"><Chips options={NEXT_STEPS} value={f.next_step} onPick={(v) => { setNextStepTouched(true); set({ next_step: f.next_step === v ? '' : v }); }} /></Field>
           <Field label="מתי לחזור"><FollowupChips value={f.follow_up} onChange={(d) => set({ follow_up: d })} /></Field>
           <Field label="מקור"><Chips options={SOURCES} value={f.source} onPick={(v) => set({ source: v })} /></Field>
         </Section>
