@@ -34,9 +34,11 @@ export default function FileManager({
 }) {
   const cameraRef = useRef(null);
   const galleryRef = useRef(null);
+  const videoRef = useRef(null);
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadKind, setUploadKind] = useState(null);
 
   const refresh = useCallback(async () => {
     if (!entityType || !entityId) return;
@@ -65,9 +67,7 @@ export default function FileManager({
   useEffect(() => { refresh(); }, [refresh]);
 
   const allowImage = fileTypes.includes('image');
-  const acceptAttr = fileTypes
-    .map(t => (t === 'image' ? 'image/*' : t === 'video' ? 'video/*' : t))
-    .join(',');
+  const allowVideo = fileTypes.includes('video');
 
   async function handleFile(file) {
     pushDebugLog('FileManager', 'handleFile-entered', {
@@ -94,6 +94,7 @@ export default function FileManager({
     }
 
     setUploading(true);
+    setUploadKind((file.type || '').startsWith('video/') ? 'video' : 'image');
     try {
       const isImage = (file.type || '').startsWith('image/');
       let toUpload = file;
@@ -158,9 +159,61 @@ export default function FileManager({
       toast.error('שגיאה: ' + (err?.message || 'שגיאה לא ידועה'));
     } finally {
       setUploading(false);
+      setUploadKind(null);
       if (cameraRef.current) cameraRef.current.value = '';
       if (galleryRef.current) galleryRef.current.value = '';
+      if (videoRef.current) videoRef.current.value = '';
     }
+  }
+
+  // Reads a video's duration from metadata without decoding frames.
+  function readVideoDuration(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const v = document.createElement('video');
+      v.preload = 'metadata';
+      v.onloadedmetadata = () => {
+        URL.revokeObjectURL(url);
+        resolve(v.duration);
+      };
+      v.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('video metadata load failed'));
+      };
+      v.src = url;
+    });
+  }
+
+  // Video path: no @capacitor/camera, no compressImage. We enforce the
+  // 50MB / 60s limits client-side, then hand off to the SAME handleFile
+  // pipeline as images (which skips compression for non-image files).
+  async function validateAndUploadVideo(file) {
+    if (!file) return;
+
+    const MAX_BYTES = 50 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      pushDebugLog('FileManager', 'video-too-large', { size: file.size });
+      toast.error('הקובץ גדול מדי — עד 50MB. צלם קליפ קצר יותר');
+      if (videoRef.current) videoRef.current.value = '';
+      return;
+    }
+
+    try {
+      const duration = await readVideoDuration(file);
+      pushDebugLog('FileManager', 'video-duration', { duration });
+      if (Number.isFinite(duration) && duration > 60) {
+        toast.error('הקליפ ארוך מדי — עד 60 שניות');
+        if (videoRef.current) videoRef.current.value = '';
+        return;
+      }
+    } catch (err) {
+      // Metadata unreadable — allow through; the size limit still guards us.
+      pushDebugLog('FileManager', 'video-duration-read-failed', {
+        message: err?.message || String(err),
+      });
+    }
+
+    await handleFile(file);
   }
 
   async function pickWithNativeCamera(source) {
@@ -363,6 +416,17 @@ export default function FileManager({
                     }}
                   />
                 </a>
+              ) : f.file_type === 'video' ? (
+                <video
+                  src={f.file_url}
+                  controls
+                  preload="metadata"
+                  playsInline
+                  style={{
+                    width: '100%', maxWidth: '100%', height: 110,
+                    objectFit: 'cover', display: 'block', background: '#000',
+                  }}
+                />
               ) : (
                 <a
                   href={f.file_url}
@@ -410,51 +474,69 @@ export default function FileManager({
         </div>
       )}
 
-      {!atLimit && allowImage && (
-        <div style={{ display: 'flex', gap: 8 }} dir="rtl">
-          <button
-            type="button"
-            onClick={() => {
-              if (isNativePlatform) {
-                pickWithNativeCamera('camera');
-              } else {
-                cameraRef.current?.click();
-              }
-            }}
-            disabled={uploading}
-            style={pickerButtonStyle(uploading)}
-            aria-label="צלם"
-          >
-            {uploading
-              ? <Loader2 size={14} className="animate-spin" />
-              : <span style={{ fontSize: 16, lineHeight: 1 }}>📷</span>}
-            <span>{uploading ? 'מעלה...' : 'צלם'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (isNativePlatform) {
-                pickWithNativeCamera('gallery');
-              } else {
-                galleryRef.current?.click();
-              }
-            }}
-            disabled={uploading}
-            style={pickerButtonStyle(uploading)}
-            aria-label="בחר מהגלריה"
-          >
-            {uploading
-              ? <Loader2 size={14} className="animate-spin" />
-              : <span style={{ fontSize: 16, lineHeight: 1 }}>🖼️</span>}
-            <span>{uploading ? 'מעלה...' : 'גלריה'}</span>
-          </button>
+      {!atLimit && (allowImage || allowVideo) && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} dir="rtl">
+          {allowImage && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isNativePlatform) {
+                    pickWithNativeCamera('camera');
+                  } else {
+                    cameraRef.current?.click();
+                  }
+                }}
+                disabled={uploading}
+                style={pickerButtonStyle(uploading)}
+                aria-label="צלם"
+              >
+                {uploading
+                  ? <Loader2 size={14} className="animate-spin" />
+                  : <span style={{ fontSize: 16, lineHeight: 1 }}>📷</span>}
+                <span>{uploading ? 'מעלה...' : 'צלם'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isNativePlatform) {
+                    pickWithNativeCamera('gallery');
+                  } else {
+                    galleryRef.current?.click();
+                  }
+                }}
+                disabled={uploading}
+                style={pickerButtonStyle(uploading)}
+                aria-label="בחר מהגלריה"
+              >
+                {uploading
+                  ? <Loader2 size={14} className="animate-spin" />
+                  : <span style={{ fontSize: 16, lineHeight: 1 }}>🖼️</span>}
+                <span>{uploading ? 'מעלה...' : 'גלריה'}</span>
+              </button>
+            </>
+          )}
+          {allowVideo && (
+            <button
+              type="button"
+              onClick={() => videoRef.current?.click()}
+              disabled={uploading}
+              style={pickerButtonStyle(uploading)}
+              aria-label="העלה וידאו"
+            >
+              {uploading && uploadKind === 'video'
+                ? <Loader2 size={14} className="animate-spin" />
+                : <span style={{ fontSize: 16, lineHeight: 1 }}>🎥</span>}
+              <span>{uploading && uploadKind === 'video' ? 'מעלה וידאו...' : 'וידאו'}</span>
+            </button>
+          )}
         </div>
       )}
 
       <input
         ref={cameraRef}
         type="file"
-        accept={acceptAttr}
+        accept="image/*"
         capture="environment"
         onChange={(e) => handleFile(e.target.files?.[0])}
         style={{ display: 'none' }}
@@ -462,10 +544,19 @@ export default function FileManager({
       <input
         ref={galleryRef}
         type="file"
-        accept={acceptAttr}
+        accept="image/*"
         onChange={(e) => handleFile(e.target.files?.[0])}
         style={{ display: 'none' }}
       />
+      {allowVideo && (
+        <input
+          ref={videoRef}
+          type="file"
+          accept="video/mp4,video/webm,video/quicktime,video/3gpp"
+          onChange={(e) => validateAndUploadVideo(e.target.files?.[0])}
+          style={{ display: 'none' }}
+        />
+      )}
 
       {loading && files.length === 0 && (
         <div style={{

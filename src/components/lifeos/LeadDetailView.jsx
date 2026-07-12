@@ -13,6 +13,7 @@ import { PERSONA_LABEL, buildNeedResponse, HESITATION_STATUS, HESITATION_REASONS
 import { addInteraction, listInteractions } from '@/lib/lifeos/lifeos-api';
 import { isoInDays } from '@/lib/lifeos/lead-helpers';
 import FollowupChips from '@/components/lifeos/FollowupChips';
+import { groupPricing, monthlyFrame, offerSentence, compareOffer, nis } from '@/lib/lifeos/pricing-engine';
 
 const OFFER_STATUS = ['טרם הוגשה', 'הוגשה', 'התקבלה', 'נדחתה'];
 const INTERACTION_TYPES = ['שיחה', 'וואטסאפ', 'פגישה', 'הצעה נשלחה'];
@@ -51,6 +52,10 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
   const [callbackScript, setCallbackScript] = useState(lead?.callback_script || '');
   const [copiedCb, setCopiedCb] = useState(false);
   const [extra, setExtra] = useState(parseExtra(lead?.extra_details));
+  // Live offer calculator (group leads): size + weekly frequency drive it.
+  const [offerSize, setOfferSize] = useState(String(groupPeopleCount(lead) ?? ''));
+  const [offerFreq, setOfferFreq] = useState(String(lead?.frequency_per_week ?? ''));
+  const [copiedOffer, setCopiedOffer] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -140,6 +145,17 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
   const response = lead.persona ? buildNeedResponse({ persona: lead.persona, needs: (lead.need_type || '').split(',').filter(Boolean), serviceType: lead.service_type }) : null;
   const showHesReasons = hesStatus === 'מתלבט' || hesStatus === 'התקרר';
   const hesResp = hesitationResponse(hesReasons);
+  // Live group-offer calculator (recomputes as size/frequency change).
+  const gp = groupPricing(offerSize);
+  const mf = monthlyFrame(gp.anchor, offerFreq);
+  const offerLine = mf.sessions > 0 ? offerSentence({ sessions: mf.sessions, total: mf.total }) : '';
+  const cmp = compareOffer(lead.proposed_price, gp);
+  const saveOfferInputs = async () => {
+    try { await updateLead(lead.id, { group_size: offerSize.trim() || null, frequency_per_week: offerFreq.trim() || null }); onChanged?.(); } catch (e) { console.warn('[LeadDetail] offer inputs', e); }
+  };
+  const copyOfferLine = async () => {
+    try { await navigator.clipboard.writeText(offerLine); setCopiedOffer(true); setTimeout(() => setCopiedOffer(false), 1500); } catch {}
+  };
 
   const sendContent = async (item) => {
     window.open(waLink(lead.phone, `${item.message}\n${item.url}`), '_blank');
@@ -233,6 +249,47 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
             <div style={{ fontSize: 11, fontWeight: 800, color: '#C24A0A', marginBottom: 6 }}>🎯 המענה שלנו</div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#4A1B0C', lineHeight: 1.5 }}>{response.connection}</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A', background: '#fff', borderRadius: 8, padding: '7px 10px', border: '1px solid #F0D9C6', marginTop: 8 }}>💡 {response.offer}</div>
+          </div>
+        )}
+
+        {/* ═══ Offer calculator — group / org leads (live from size+freq) ═══ */}
+        {business && (
+          <div style={{ ...card, background: '#EEF2FF', border: '1px solid #C7D2FE' }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#3730A3', marginBottom: 8 }}>💰 מחשבון הצעה</div>
+            {/* Editable inputs — recompute the offer instantly */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#4338CA', marginBottom: 2 }}>גודל קבוצה</div>
+                <input value={offerSize} onChange={(e) => setOfferSize(e.target.value)} onBlur={saveOfferInputs} inputMode="numeric" placeholder="מספר" style={{ ...offerInp, borderColor: '#C7D2FE' }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#4338CA', marginBottom: 2 }}>תדירות בשבוע</div>
+                <input value={offerFreq} onChange={(e) => setOfferFreq(e.target.value)} onBlur={saveOfferInputs} inputMode="numeric" placeholder="למשל 2" style={{ ...offerInp, borderColor: '#C7D2FE' }} />
+              </div>
+            </div>
+            {/* Range + anchor */}
+            <div style={{ fontSize: 13, color: '#3730A3' }}>טווח: {nis(gp.rangeLow)}–{nis(gp.rangeHigh)} למפגש</div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#1E1B4B', margin: '4px 0 8px' }}>עוגן מומלץ: {nis(gp.anchor)} למפגש</div>
+            {/* Monthly */}
+            {mf.sessions > 0 && (
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#1A1A1A', background: '#fff', borderRadius: 8, padding: '8px 10px', border: '1px solid #C7D2FE' }}>
+                {mf.sessions} מפגשים בחודש = <span style={{ fontWeight: 900 }}>{nis(mf.total)}</span>{mf.discountPct > 0 ? ` (אחרי הנחת מסגרת ${Math.round(mf.discountPct * 100)}%)` : ''}
+              </div>
+            )}
+            {/* Phone sentence + copy */}
+            {offerLine && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#1E1B4B', lineHeight: 1.5, background: '#fff', borderRadius: 8, padding: '8px 10px', border: '1px solid #C7D2FE' }}>{offerLine}</div>
+                <button type="button" onClick={copyOfferLine} style={{ marginTop: 6, border: 'none', background: '#4338CA', color: '#fff', borderRadius: 999, padding: '6px 14px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>{copiedOffer ? '✓ הועתק' : 'העתק הצעה'}</button>
+              </div>
+            )}
+            {/* Client-offer comparison */}
+            {cmp && (
+              <div style={{ marginTop: 10, borderRadius: 8, padding: '7px 10px', background: '#fff', border: `1px solid ${cmp.color}` }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: cmp.color }}>ההצעה שלו: {nis(cmp.proposed)} · {cmp.label}</div>
+                {cmp.note && <div style={{ fontSize: 11, color: cmp.color, marginTop: 2 }}>⚠️ {cmp.note}</div>}
+              </div>
+            )}
           </div>
         )}
 

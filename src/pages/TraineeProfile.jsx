@@ -53,6 +53,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import FileManager from "@/components/lifeos/FileManager";
 import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, Trash2, FileText, MessageSquare, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut, Zap, Eye, Clock, Bell } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ReferenceLine } from "recharts";
 import { DEFAULT_EXERCISES, RECORD_UNITS } from "@/lib/recordExercises";
@@ -5470,6 +5471,22 @@ export default function TraineeProfile() {
               {/* Documents Tab */}
               <TabsContent value="documents" className="w-full" dir="rtl">
                 <ErrorBoundary fallback={<div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">טעינת טאב המסמכים נכשלה. נסה לרענן את הדף.</div>}>
+                  {/* לפני ואחרי — progress photos + short clips. Inline
+                      FileManager (NOT in a Dialog), entity_type
+                      'trainee_media' is just a new string value in
+                      lifeos_files — no schema change. */}
+                  <div style={{
+                    background: '#FFFFFF', border: '1px solid #F0E4D0',
+                    borderRadius: 12, padding: 14, marginBottom: 16,
+                  }}>
+                    <FileManager
+                      entityType="trainee_media"
+                      entityId={user?.id}
+                      ownerUserId={coach?.id || currentUser?.id}
+                      fileTypes={['image', 'video']}
+                      label="לפני ואחרי"
+                    />
+                  </div>
                   {/* Diagnostic — fires once per render of the docs
                       tab so production logs can confirm whether the
                       coach-only branch is taking effect. Cheap; can
