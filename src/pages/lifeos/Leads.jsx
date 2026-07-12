@@ -5,7 +5,7 @@ import { Pencil, Trash2, ChevronLeft, ChevronRight, RefreshCw, UserPlus, Phone, 
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import GuidedLeadFlow from '@/components/lifeos/GuidedLeadFlow';
-import QuickIntakeForm, { needsCompletion, isBusinessLead, TYPE_LABEL } from '@/components/lifeos/QuickIntakeForm';
+import QuickIntakeForm, { needsCompletion, isBusinessLead, TYPE_LABEL, groupPeopleCount } from '@/components/lifeos/QuickIntakeForm';
 import LeadDetailView from '@/components/lifeos/LeadDetailView';
 import AddTraineeDialog from '@/components/forms/AddTraineeDialog';
 import {
@@ -602,12 +602,14 @@ const fuActBtn = (color) => ({ flexShrink: 0, width: 34, height: 34, borderRadiu
 
 // Distinct tag for business / existing-group leads (vs private).
 function LeadTypeTag({ lead }) {
+  const ppl = groupPeopleCount(lead);
+  const label = lead.lead_type === 'group' && ppl ? `קבוצה · ${ppl} איש` : (TYPE_LABEL[lead.lead_type] || 'עסקי');
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 8px', borderRadius: 999,
       background: '#EEF2FF', color: '#4338CA', border: '1px solid #C7D2FE',
       fontSize: 10, fontWeight: 800, whiteSpace: 'nowrap',
-    }}>🏢 {TYPE_LABEL[lead.lead_type] || 'עסקי'}</span>
+    }}>🏢 {label}</span>
   );
 }
 

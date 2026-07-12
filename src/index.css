@@ -166,7 +166,6 @@ button:focus-visible {
     --brand-cream:       #FBF3EA; /* mirror of --cream */
     --brand-orange-deep: #C24E12; /* darkened brand orange — exhale + round line */
     --brand-amber-soft:  #E08A3C; /* warm amber mid-tone — holds */
-    --brand-ring-pastel: #FFC9A6; /* time-frame stroke */
 
     /* ── Breathing (נשימות) screen tokens — the component itself carries
        ZERO hard-coded hex; every colour it renders resolves here. Phase
@@ -175,7 +174,7 @@ button:focus-visible {
     --breath-inhale:      var(--brand-orange);      /* שאיפה + prep */
     --breath-exhale:      var(--brand-orange-deep);  /* נשיפה + round line */
     --breath-hold:        var(--brand-amber-soft);   /* החזקה / החזקה ריקה */
-    --breath-frame:       var(--brand-ring-pastel);  /* conic time-frame */
+    --breath-frame:       var(--brand-orange);       /* conic time-frame — full opaque brand orange */
     --breath-bg:          #FFF9F0;                   /* screen background */
     --breath-square:      #F3E7D3;                   /* time-frame square base */
     --breath-number:      #FFFFFF;                   /* the fixed white digit */

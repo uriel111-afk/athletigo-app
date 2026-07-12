@@ -64,6 +64,21 @@ export const TYPE_LABEL = Object.fromEntries(TYPES.map((t) => [t.key, t.label]))
 export const needsCompletion = (l) => !!(l?.preferred_channel) && !l?.lead_type;
 export const isBusinessLead = (l) => l?.lead_type === 'group' || l?.lead_type === 'business';
 
+// People in a group lead — sum of groups_detail sizes, else group_size.
+// Returns a number, or a raw string (e.g. "8-10"), or null.
+export const groupPeopleCount = (l) => {
+  try {
+    const gd = typeof l?.groups_detail === 'string' ? JSON.parse(l.groups_detail) : l?.groups_detail;
+    if (Array.isArray(gd) && gd.length) {
+      const sum = gd.reduce((s, g) => s + (parseInt(g.size, 10) || 0), 0);
+      if (sum > 0) return sum;
+    }
+  } catch {}
+  const n = parseInt(l?.group_size, 10);
+  if (Number.isFinite(n) && n > 0) return n;
+  return (l?.group_size || '').toString().trim() || null;
+};
+
 const blank = () => ({
   name: '', phone: '', notes: '',
   contact_role: '', organization: '', preferred_channel: 'whatsapp',
@@ -133,6 +148,8 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
 
   const set = (patch) => setF((p) => ({ ...p, ...patch }));
   const st = f.service_type;
+  // A group lead — by service type OR by "for whom = existing group".
+  const groupish = st === 'group' || f.for_whom === 'group';
   // Multi-select CSV helpers for days / hours.
   const csvSel = (field) => (f[field] ? f[field].split(',').filter(Boolean) : []);
   const toggleCsv = (field, v) => {
@@ -176,17 +193,21 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
       group_size: null, group_location: null, fitness_goal: null, workshop_topic: null, target_date: null, groups_detail: null,
     };
     if (st === 'personal') { sec3.training_location = f.training_location || null; sec3.frequency_per_week = f.frequency_per_week.trim() || null; }
-    else if (st === 'group') {
-      const gd = f.groups.filter((g) => (g.size || '').trim() || (g.ages || '').trim());
-      sec3.groups_detail = gd.length ? JSON.stringify(gd) : null;
-      sec3.group_size = (f.groups[0]?.size || '').trim() || null; // primary group → summary/back-compat
-      sec3.age_range = (f.groups[0]?.ages || '').trim() || null;
-      sec3.group_location = f.group_location.trim() || null; sec3.frequency_per_week = f.frequency_per_week.trim() || null;
-    }
     else if (st === 'online') { sec3.frequency_per_week = f.frequency_per_week.trim() || null; sec3.fitness_goal = f.main_goal.trim() || null; }
     else if (st === 'workshop') { sec3.workshop_topic = f.workshop_topic.trim() || null; sec3.group_size = f.group_size.trim() || null; sec3.target_date = f.target_date || null; sec3.group_location = f.group_location.trim() || null; }
     else if (st === 'movement65') { sec3.group_location = f.group_location.trim() || null; sec3.group_size = f.group_size.trim() || null; sec3.frequency_per_week = f.frequency_per_week.trim() || null; }
     else if (st === 'other') { sec3.fitness_goal = f.main_goal.trim() || null; }
+    // Group data persists whenever it's a group lead (service type OR
+    // for_whom = existing group). Primary group's size → group_size for
+    // the summary/kanban; full list → groups_detail.
+    if (groupish) {
+      const gd = f.groups.filter((g) => (g.size || '').trim() || (g.ages || '').trim());
+      sec3.groups_detail = gd.length ? JSON.stringify(gd) : null;
+      sec3.group_size = (f.groups[0]?.size || '').trim() || null;
+      sec3.age_range = (f.groups[0]?.ages || '').trim() || null;
+      sec3.group_location = f.group_location.trim() || null;
+      sec3.frequency_per_week = f.frequency_per_week.trim() || null;
+    }
 
     // Shared logistics (days/hours for scheduled services; start/constraints for any).
     const logistics = {
@@ -297,33 +318,35 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
           </Section>
         )}
 
-        {/* ═══ 3 — איפה ומתי (dynamic by service type) ═══ */}
-        {st && (
+        {/* ═══ 3 — איפה ומתי (dynamic by service type; group also opens
+              on for_whom=group) ═══ */}
+        {(st || groupish) && (
           <Section title="3 · איפה ומתי">
             {st === 'personal' && (<>
               <Field label="מיקום"><Chips options={LOCATIONS} value={f.training_location} onPick={(v) => set({ training_location: f.training_location === v ? '' : v })} /></Field>
               <Field label="תדירות בשבוע"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="למשל 2" /></Field>
             </>)}
-            {st === 'group' && (<>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: GAP_COL }}>
-                <Field label="תדירות בשבוע"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="2" /></Field>
-                <Field label="מיקום הפעילות"><input style={inp} value={f.group_location} onChange={(e) => set({ group_location: e.target.value })} placeholder="איפה" /></Field>
-              </div>
-              {/* One row per group — size + age range, add/remove */}
+            {groupish && (<>
+              {/* People count — FIRST, prominent, numeric keyboard. One
+                  open row by default (size ready to type, no "+ הוסף"). */}
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#9A8F82', marginBottom: GAP_LABEL, textAlign: 'right' }}>קבוצות ({f.groups.length})</label>
+                <label style={{ display: 'block', fontSize: 14, fontWeight: 800, color: '#C24A0A', marginBottom: GAP_LABEL, textAlign: 'right' }}>כמה אנשים?</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {f.groups.map((g, i) => (
                     <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <input style={{ ...inp, flex: 1 }} value={g.size} onChange={(e) => setGroup(i, { size: e.target.value })} placeholder="גודל" />
+                      <input style={{ ...inp, flex: 1, minHeight: 56, fontSize: 18, fontWeight: 800, textAlign: 'center' }} inputMode="numeric" enterKeyHint="next" value={g.size} onChange={(e) => setGroup(i, { size: e.target.value })} placeholder="מספר אנשים" />
                       <input style={{ ...inp, flex: 1 }} value={g.ages} onChange={(e) => setGroup(i, { ages: e.target.value })} placeholder="טווח גילאים" />
                       {f.groups.length > 1 && (
-                        <button type="button" onClick={() => removeGroup(i)} aria-label="הסר קבוצה" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 10, border: '1px solid #F0E4D0', background: '#fff', color: '#dc2626', fontSize: 18, cursor: 'pointer' }}>×</button>
+                        <button type="button" onClick={() => removeGroup(i)} aria-label="הסר קבוצה" style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 10, border: '1px solid #F0E4D0', background: '#fff', color: '#dc2626', fontSize: 18, cursor: 'pointer' }}>×</button>
                       )}
                     </div>
                   ))}
                 </div>
                 <button type="button" onClick={addGroup} style={{ marginTop: 8, border: `1px dashed ${ORANGE}`, background: '#FFF7ED', color: '#C24A0A', borderRadius: 10, padding: '8px 12px', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>+ הוסף קבוצה</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: GAP_COL }}>
+                <Field label="תדירות בשבוע"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="2" /></Field>
+                <Field label="מיקום הפעילות"><input style={inp} value={f.group_location} onChange={(e) => set({ group_location: e.target.value })} placeholder="איפה" /></Field>
               </div>
             </>)}
             {st === 'online' && (<>

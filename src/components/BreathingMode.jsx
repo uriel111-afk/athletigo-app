@@ -144,7 +144,7 @@ const SQUARE_BG = 'var(--breath-square)';
 // clockwise; masking to a border ring gives a frame that builds from the
 // top and closes at the end. Verified empty→quarter→half→full in Chromium.
 const FRAME_COLOR = 'var(--breath-frame)';
-const FRAME_STROKE = 2.5; // px — thin, within the 2-3px spec
+const FRAME_STROKE = 5; // px — full brand-orange ring
 const MASK_FILL = 'var(--breath-mask)'; // opaque fill for the border-ring mask
 
 // ── Per-phase title colours — Lumen tokens only (see --breath-* in
