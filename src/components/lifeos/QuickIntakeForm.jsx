@@ -183,23 +183,27 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
 
   return (
     <div dir="rtl" style={{
-      position: 'fixed', inset: 0, background: 'var(--cream, #FBF3EA)', zIndex: 1600,
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, height: '100dvh',
+      background: 'var(--cream, #FBF3EA)', zIndex: 1600,
       display: 'flex', flexDirection: 'column', fontFamily: "'Rubik', system-ui, sans-serif",
     }}>
       {/* Header */}
-      <div style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)', paddingInline: 14, paddingBottom: 8, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+      <div style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)', paddingInline: SIDE, paddingBottom: 8, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
         <button type="button" onClick={onClose} aria-label="סגור" style={iconBtn}><X size={22} color="#5C4A3A" /></button>
         <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: '#1A1A1A' }}>קליטה מהירה</div>
       </div>
 
-      {/* Body */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 14px 12px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Body — the ONE scroll region. Each section grows to its content
+          (no hard heights). onFocusCapture keeps the active field visible
+          above the keyboard / sticky Save. */}
+      <div onFocusCapture={(e) => { const t = e.target; setTimeout(() => { try { t.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} }, 300); }}
+        style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `8px ${SIDE}px 20px`, display: 'flex', flexDirection: 'column', gap: GAP_SECTION }}>
 
         {/* ═══ 1 — מי מתקשר ═══ */}
         <Section title="1 · מי מתקשר">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <Field label="שם *"><input style={inp} value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="שם" /></Field>
-            <Field label="טלפון *"><input style={{ ...inp, direction: 'ltr', textAlign: 'left' }} type="tel" value={f.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="050-0000000" /></Field>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: GAP_COL }}>
+            <Field label="שם *"><input style={inp} enterKeyHint="next" value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="שם" /></Field>
+            <Field label="טלפון *"><input style={{ ...inp, direction: 'ltr', textAlign: 'left' }} type="tel" inputMode="tel" enterKeyHint="next" value={f.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="050-0000000" /></Field>
           </div>
           <Field label="מה הוא אמר? *">
             <textarea ref={notesRef} style={{ ...inp, height: 'auto', minHeight: 120, lineHeight: 1.5 }} rows={5}
@@ -258,7 +262,7 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
               <Field label="זמנים מועדפים"><MultiChips options={TIMES} selected={times} onToggle={toggleTime} /></Field>
             </>)}
             {st === 'group' && (<>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: GAP_COL }}>
                 <Field label="גודל קבוצה"><input style={inp} value={f.group_size} onChange={(e) => set({ group_size: e.target.value })} placeholder="8-10" /></Field>
                 <Field label="תדירות בשבוע"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="2" /></Field>
               </div>
@@ -271,7 +275,7 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
             </>)}
             {st === 'workshop' && (<>
               <Field label="נושא מבוקש"><input style={inp} value={f.workshop_topic} onChange={(e) => set({ workshop_topic: e.target.value })} placeholder="נושא הסדנה" /></Field>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: GAP_COL }}>
                 <Field label="משתתפים משוער"><input style={inp} value={f.group_size} onChange={(e) => set({ group_size: e.target.value })} placeholder="מספר" /></Field>
                 <Field label="תאריך יעד"><input style={inp} type="date" value={f.target_date} onChange={(e) => set({ target_date: e.target.value })} /></Field>
               </div>
@@ -279,7 +283,7 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
             </>)}
             {st === 'movement65' && (<>
               <Field label="מיקום"><input style={inp} value={f.group_location} onChange={(e) => set({ group_location: e.target.value })} placeholder="איפה" /></Field>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: GAP_COL }}>
                 <Field label="משתתפים משוער"><input style={inp} value={f.group_size} onChange={(e) => set({ group_size: e.target.value })} placeholder="מספר" /></Field>
                 <Field label="תדירות בשבוע"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="2" /></Field>
               </div>
@@ -297,7 +301,7 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
             <ChevronDown size={18} color="#9A8F82" style={{ transform: moneyOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
           </button>
           {moneyOpen && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: GAP_FIELD, marginTop: 10 }}>
               <Field label="מחיר שהוצע / תקציב"><input style={inp} inputMode="numeric" value={f.proposed_price} onChange={(e) => set({ proposed_price: e.target.value })} placeholder="₪ (לא חובה)" /></Field>
               <Field label="מי משלם"><Chips options={PAYERS} value={f.payer} onPick={(v) => set({ payer: f.payer === v ? '' : v })} /></Field>
             </div>
@@ -312,8 +316,8 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
         </Section>
       </div>
 
-      {/* Save — always available, pinned */}
-      <div style={{ flexShrink: 0, padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', borderTop: '1px solid #F0E4D0', background: '#fff' }}>
+      {/* Save — sticky at the bottom, always visible (outside the scroll). */}
+      <div style={{ flexShrink: 0, padding: `10px ${SIDE}px`, paddingBottom: 'max(env(safe-area-inset-bottom), 12px)', borderTop: '1px solid #F0E4D0', background: '#fff' }}>
         <button type="button" onClick={save} disabled={busy} style={{
           width: '100%', minHeight: 54, borderRadius: 14, border: 'none', cursor: 'pointer',
           background: 'linear-gradient(135deg,#FF6F20,#FF8A42)', color: '#fff', fontSize: 18, fontWeight: 900,
@@ -329,15 +333,15 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
 function Section({ title, children }) {
   return (
     <div style={sectionCard}>
-      <div style={{ fontSize: 13, fontWeight: 800, color: '#C24A0A', marginBottom: 10 }}>{title}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{children}</div>
+      <div style={{ fontSize: 13, fontWeight: 800, color: '#C24A0A', marginBottom: 10, textAlign: 'right' }}>{title}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: GAP_FIELD }}>{children}</div>
     </div>
   );
 }
 
 function Chips({ options, value, onPick }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: GAP_CHIP }}>
       {options.map((o) => {
         const on = value === o;
         return <button key={o} type="button" onClick={() => onPick(o)} style={chipStyle(on)}>{o}</button>;
@@ -347,15 +351,18 @@ function Chips({ options, value, onPick }) {
 }
 function MultiChips({ options, selected, onToggle }) {
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: GAP_CHIP }}>
       {options.map((o) => <button key={o} type="button" onClick={() => onToggle(o)} style={chipStyle(selected.includes(o))}>{o}</button>)}
     </div>
   );
 }
+// Uniform chip: same height/padding in both states. Selected = full orange
+// fill + white text; unselected = subtle outline. 1px border in BOTH states
+// (box-sizing:border-box) so a selection never nudges the row height.
 const chipStyle = (on) => ({
-  minHeight: 36, padding: '0 13px', borderRadius: 999, cursor: 'pointer',
+  minHeight: CHIP_H, padding: '0 14px', borderRadius: 999, cursor: 'pointer', boxSizing: 'border-box',
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  border: on ? `2px solid ${ORANGE}` : '1px solid #F0E4D0',
+  border: `1px solid ${on ? ORANGE : '#E4D8C6'}`,
   background: on ? ORANGE : '#fff', color: on ? '#fff' : '#3a3a3a',
   fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
 });
@@ -363,17 +370,27 @@ const chipStyle = (on) => ({
 function Field({ label, children }) {
   return (
     <div>
-      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#9A8F82', marginBottom: 3 }}>{label}</label>
+      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#9A8F82', marginBottom: GAP_LABEL, textAlign: 'right' }}>{label}</label>
       {children}
     </div>
   );
 }
 
+// ── Shared layout tokens — one value each, used across the whole form ──
+const SIDE = 16;          // horizontal margins (every section / field / button)
+const GAP_SECTION = 16;   // vertical gap between section cards
+const GAP_FIELD = 12;     // vertical gap between fields inside a section
+const GAP_COL = 12;       // gap between the two equal columns (name/phone …)
+const GAP_CHIP = 8;       // gap between chips (wrap to next line, never clipped)
+const GAP_LABEL = 6;      // label → its field
+const INPUT_H = 48;       // finger-friendly input height
+const CHIP_H = 40;        // uniform chip height (all chip rows)
+
 const iconBtn = { background: 'transparent', border: 'none', cursor: 'pointer', padding: 6, display: 'flex' };
 const sectionCard = { background: '#fff', border: '1px solid #F0E4D0', borderRadius: 14, padding: 12 };
 const inp = {
-  width: '100%', minHeight: 44, padding: '10px 12px', borderRadius: 10,
+  width: '100%', minHeight: INPUT_H, padding: '10px 12px', borderRadius: 10,
   border: '1px solid #F0E4D0', background: '#fff', fontSize: 14, color: '#1A1A1A',
-  outline: 'none', boxSizing: 'border-box', resize: 'none',
+  outline: 'none', boxSizing: 'border-box', resize: 'none', textAlign: 'right',
   fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
 };

@@ -16,7 +16,7 @@ export default function FollowupChips({ value, onChange }) {
   const isCustom = !!value && !matched;
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
       {presets.map((p) => {
         const on = value === p.date;
         return (
@@ -33,10 +33,12 @@ export default function FollowupChips({ value, onChange }) {
   );
 }
 
+// Matches the intake form's uniform chip: height 40, 1px border in both
+// states (selected = full orange fill), so rows never jump or clip.
 const chip = (on) => ({
-  minHeight: 34, padding: '0 12px', borderRadius: 999, cursor: 'pointer',
+  minHeight: 40, padding: '0 14px', borderRadius: 999, cursor: 'pointer', boxSizing: 'border-box',
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  border: on ? `2px solid ${ORANGE}` : '1px solid #F0E4D0',
+  border: `1px solid ${on ? ORANGE : '#E4D8C6'}`,
   background: on ? ORANGE : '#fff', color: on ? '#fff' : '#3a3a3a',
   fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
 });
