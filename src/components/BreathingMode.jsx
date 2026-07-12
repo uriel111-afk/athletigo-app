@@ -262,6 +262,8 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   // by requestAnimationFrame from the exercise-start timestamp (below), so
   // it is smooth AND correct after a resume.
   const [fillFrac, setFillFrac] = useState(() => (boot?.kind === 'done' ? 1 : (boot?.kind === 'resume' && !boot.session.inf ? clamp(boot.elapsed / boot.session.totalMs, 0, 1) : 0)));
+  // Preview of the coming phase — { name, dur, tone } | { finishing:true } | null.
+  const [nextInfo, setNextInfo] = useState(null);
 
   const audioRef = useRef(null);
   const intervalRef = useRef(null);
@@ -329,10 +331,27 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
     return flat;
   };
 
+  // The phase that comes AFTER the current index — following the real
+  // sequence (0-length phases already dropped). Finite: the last (final
+  // exhale) has no next → { finishing:true }; a round's last phase rolls to
+  // the next round's first phase automatically (flat seq). Infinite: wraps.
+  // `prep` → the very first phase (nothing is running yet).
+  const computeNextInfo = ({ prep = false } = {}) => {
+    const seq = seqRef.current;
+    if (!seq || !seq.length) return null;
+    if (prep) { const p = seq[0]; return { name: p.name, dur: p.dur, tone: p.tone }; }
+    const i = idxRef.current;
+    if (isInfRef.current) { const p = seq[(i + 1) % seq.length]; return { name: p.name, dur: p.dur, tone: p.tone }; }
+    if (i + 1 >= seq.length) return { finishing: true };
+    const p = seq[i + 1];
+    return { name: p.name, dur: p.dur, tone: p.tone };
+  };
+
   const enterPhase = (p) => {
     curRef.current = p;
     phaseStartRef.current = performance.now();
     setPhaseName(p.name); setPhaseTone(p.tone); setPhaseKey(p.key); setSecondsLeft(p.dur);
+    setNextInfo(computeNextInfo());
     if (p.tone === 'up') { setTransDur(p.dur); setScale(1); }
     else if (p.tone === 'down') { setTransDur(p.dur); setScale(SMALL); }
     // holds keep the current scale (no transform change → no motion)
@@ -442,6 +461,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
     // ── Prep countdown from the chosen length → then the exercise ──
     setMode('prep'); setPrepLeft(prep); setFillFrac(0); // no frame during prep
     curRef.current = null; setPhaseName('תתכוננו');
+    setNextInfo(computeNextInfo({ prep: true })); // preview the first phase
     setTransDur(0.32); setScale(SMALL);
     a.tick(); prepPulse();
     onRunningChange && onRunningChange(true, { phase: 'הכנה', roundsLeft: roundsLeft() });
@@ -483,6 +503,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
       idxRef.current = loc.index; roundRef.current = s.inf ? (loc.roundsCompleted + 1) : (p.round || 1);
       curRef.current = p; phaseStartRef.current = performance.now() - loc.phaseElapsedMs;
       runningRef.current = true;
+      setNextInfo(computeNextInfo());
       const a = audioRef.current || (audioRef.current = createBreathAudio());
       a.resume().catch(() => {});
       report(true);
@@ -509,6 +530,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
       phaseStartRef.current = performance.now() - loc.phaseElapsedMs;
       exerciseStartRef.current = performance.now() - elapsed;
       setRoundCur(roundRef.current); setPhaseName(p.name); setPhaseTone(p.tone); setPhaseKey(p.key);
+      setNextInfo(computeNextInfo());
       setSecondsLeft(Math.max(0, Math.ceil(p.dur - loc.phaseElapsedMs / 1000)));
       const contracted = p.key === 'exhale' || p.key === 'holdEmpty';
       const remaining = Math.max(0.2, p.dur - loc.phaseElapsedMs / 1000);
@@ -620,6 +642,25 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
             );
           })()}
         </div>
+
+        {/* Next-phase preview — small, secondary, below the circle. Fixed
+            height so the text updating on each phase change never shifts the
+            layout. Hidden on the done screen. */}
+        {!done && (
+          <div style={{
+            minHeight: 30, marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 'clamp(18px,2.8vh,22px)', fontWeight: 700, color: 'var(--brand-amber-soft)',
+            lineHeight: 1, transition: 'color 0.3s ease', textAlign: 'center',
+          }}>
+            {nextInfo && (nextInfo.finishing
+              ? <span>סיום מתקרב</span>
+              : <span>
+                  {'הבא: '}
+                  <span style={{ color: PHASE_TITLE_COLOR[nextInfo.tone] || 'var(--brand-amber-soft)', fontWeight: 800 }}>{nextInfo.name}</span>
+                  {` · ${nextInfo.dur} ${nextInfo.dur === 1 ? 'שנייה' : 'שניות'}`}
+                </span>)}
+          </div>
+        )}
 
         <button type="button" onClick={done ? () => setDone(false) : stop} style={{
           width: '100%', minHeight: 50, borderRadius: 14, cursor: 'pointer',
