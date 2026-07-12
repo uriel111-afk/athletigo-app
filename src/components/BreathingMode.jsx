@@ -142,13 +142,13 @@ const SQUARE_BG = '#F3E7D3'; // slightly darker than the #FFF9F0 page
 const FRAME_COLOR = '#FFC9A6';
 const FRAME_STROKE = 2.5; // px — thin, within the 2-3px spec
 
-// ── Per-phase colours (fix 3) — warm brand family, distinct at a glance ─
-// Title colour sits on the cream page; the circle keeps a subtle warm/soft
-// split so the white number stays high-contrast on every shade.
+// ── Per-phase title colours — Lumen tokens only (see --breath-* in
+// index.css). Warm brand family: inhale = brand orange, exhale = deep
+// terracotta, hold/holdEmpty = smoky amber. No hard-coded hex here.
 const PHASE_TITLE_COLOR = {
-  up:   '#FF6F20', // שאיפה — full brand orange
-  down: '#B23C17', // נשיפה — deep terracotta
-  hold: '#C0801E', // החזקה/החזקה ריקה — smoky amber
+  up:   'var(--breath-inhale)', // שאיפה
+  down: 'var(--breath-exhale)', // נשיפה
+  hold: 'var(--breath-hold)',   // החזקה / החזקה ריקה
 };
 const CIRCLE_UP   = 'radial-gradient(circle at 50% 40%, #FFC79E, #FF8A42 70%, #FF6F20)'; // inhale/hold — full warm
 const CIRCLE_DOWN = 'radial-gradient(circle at 50% 40%, #F6B487, #E9702F 70%, #C24A16)'; // exhale/empty — softer/deeper
@@ -519,8 +519,9 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
         background: '#FFF9F0', padding: '16px 16px calc(16px + env(safe-area-inset-bottom,0px))',
         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}>
-        {/* Round line — only during the exercise (hidden in prep). */}
-        <div style={{ fontSize: 'clamp(22px,4vh,32px)', fontWeight: 800, color: '#8A6A52', minHeight: 36 }}>
+        {/* Round line — only during the exercise (hidden in prep). ~30%
+            larger and in the warm terracotta token (was a neutral brown). */}
+        <div style={{ fontSize: 'clamp(28px,5vh,40px)', fontWeight: 800, color: 'var(--breath-exhale)', minHeight: 44, lineHeight: 1.1 }}>
           {(!done && mode === 'run') ? `סבב ${roundCur} ${rounds === 'inf' ? '' : `מתוך ${rounds}`}` : ''}
         </div>
 
@@ -542,8 +543,9 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
             // 2-digit steps down so it never clips. Fixed — doesn't breathe.
             const numFont = twoDigit ? 'clamp(66px,14vh,104px)' : 'clamp(100px,21vh,158px)';
             const title = mode === 'prep' ? 'תתכוננו' : phaseName;
-            // Per-phase colours (fix 3). Prep keeps the brand orange.
-            const titleColor = mode === 'prep' ? ORANGE : (PHASE_TITLE_COLOR[phaseTone] || ORANGE);
+            // Per-phase title colour (Lumen --breath-* tokens). Prep keeps
+            // the brand-orange inhale token.
+            const titleColor = mode === 'prep' ? 'var(--breath-inhale)' : (PHASE_TITLE_COLOR[phaseTone] || 'var(--breath-inhale)');
             const contracted = phaseKey === 'exhale' || phaseKey === 'holdEmpty';
             const circleBg = (mode !== 'prep' && contracted) ? CIRCLE_DOWN : CIRCLE_UP;
             return (

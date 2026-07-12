@@ -161,6 +161,15 @@ button:focus-visible {
     --blue:     #3B82F6;
     --burgundy: #8B1A1A;
 
+    /* Breathing phase accents — one warm family anchored on --orange, for
+       the נשימות trainer phase titles (inhale / exhale / hold). Exhale is a
+       darkened terracotta of --orange; hold is a smoky amber mid-tone. All
+       three read clearly on --cream (contrast ≥ 3:1 for the large titles;
+       exhale ≈ 5.4:1). No breathing colour lives outside these tokens. */
+    --breath-inhale: var(--orange); /* #FF6F20 — full brand orange */
+    --breath-exhale: #B23C17;       /* deep terracotta — darkened --orange */
+    --breath-hold:   #B5761C;       /* smoky amber — warm mid-tone */
+
     /* Floating shadows — the "Lumen" signature: brown bottom-right
        drop paired with a white top-left highlight so cards read as
        softly raised on the cream-deep background. */
