@@ -60,6 +60,7 @@ function createBreathAudio(initialGain = FIXED_GAIN) {
   let master = null;   // user-volume GainNode (0..3)
   let comp = null;     // limiter after the gain — no distortion at high boost
   let vol = initialGain;
+  let droneNodes = null; // the active hold-phase drone (oscillators + LFO)
   const ensure = () => {
     if (!ctx) { const AC = window.AudioContext || window.webkitAudioContext; ctx = new AC(); }
     return ctx;
@@ -79,6 +80,75 @@ function createBreathAudio(initialGain = FIXED_GAIN) {
     }
     return master;
   };
+
+  // ── Hold-phase DRONE ─────────────────────────────────────────────────
+  // A continuous pad that fills the whole hold: a gentle linear rise marks
+  // the entry (no gong / no cue), a beating sustain, then a linear decay in
+  // the last second. Recipe 'full' (החזקה מלאה): 220 + 221.1 Hz + a soft
+  // 440 Hz overtone that fades in; recipe 'empty' (החזקה ריקה): 110 +
+  // 110.55 Hz an octave down, no overtone. A slow LFO wobbles the amplitude.
+  // Everything routes through bus() (the 2.2 gain + compressor).
+  const doStopDrone = (fast = true) => {
+    if (!droneNodes) return;
+    const { c, amp, nodes } = droneNodes;
+    droneNodes = null;
+    try {
+      const t = c.currentTime;
+      amp.gain.cancelScheduledValues(t);
+      amp.gain.setValueAtTime(Math.max(0.0001, amp.gain.value), t);
+      amp.gain.linearRampToValueAtTime(0.0001, t + (fast ? 0.1 : 0.15)); // quick fade, never a hard cut
+      const end = t + (fast ? 0.12 : 0.18);
+      nodes.forEach((n) => { try { n.stop(end); } catch {} });
+    } catch {}
+  };
+  const doDrone = (kind, dur) => {
+    const c = ensure(); const t = c.currentTime;
+    doStopDrone(true); // never overlap two drones
+    const short = dur < 2;               // short hold → shrink the envelope
+    const rise = short ? 0.4 : 0.8;
+    const decay = short ? 0.4 : 1.0;     // decay across the last second
+    const sustainStart = t + rise;
+    const decayStart = Math.max(sustainStart, t + dur - decay);
+    const base = kind === 'empty' ? 0.20 : 0.16;
+    const lfoRate = kind === 'empty' ? 0.18 : 0.25;
+
+    // Amplitude envelope (rise → sustain → decay). The LFO is summed onto
+    // this same param for a slow tremolo.
+    const amp = c.createGain();
+    amp.gain.setValueAtTime(0.0001, t);
+    amp.gain.linearRampToValueAtTime(base, sustainStart);
+    amp.gain.setValueAtTime(base, decayStart);
+    amp.gain.linearRampToValueAtTime(0.0001, t + dur);
+    amp.connect(bus());
+
+    const nodes = [];
+    const osc = (freq) => { const o = c.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(freq, t); o.connect(amp); o.start(t); o.stop(t + dur + 0.05); nodes.push(o); return o; };
+
+    if (kind === 'empty') { osc(110); osc(110.55); }
+    else {
+      osc(220); osc(221.1);
+      // Overtone: 440 Hz at 18% of the main, fading in slowly (1.2 s).
+      const o3 = c.createOscillator(); o3.type = 'sine'; o3.frequency.setValueAtTime(440, t);
+      const g3 = c.createGain(); g3.gain.setValueAtTime(0.0001, t); g3.gain.linearRampToValueAtTime(0.18, t + Math.min(1.2, dur));
+      o3.connect(g3); g3.connect(amp); o3.start(t); o3.stop(t + dur + 0.05); nodes.push(o3);
+    }
+
+    // Slow LFO tremolo on the amplitude (depth 25% of base).
+    const lfo = c.createOscillator(); lfo.type = 'sine'; lfo.frequency.setValueAtTime(lfoRate, t);
+    const lfoGain = c.createGain(); lfoGain.gain.setValueAtTime(base * 0.25, t);
+    lfo.connect(lfoGain); lfoGain.connect(amp.gain);
+    lfo.start(t); lfo.stop(t + dur + 0.05); nodes.push(lfo);
+
+    // Full teardown when the phase ends — no node left alive.
+    nodes[nodes.length - 1].onended = () => {
+      try { amp.disconnect(); } catch {}
+      try { lfoGain.disconnect(); } catch {}
+      nodes.forEach((n) => { try { n.disconnect(); } catch {} });
+      if (droneNodes && droneNodes.amp === amp) droneNodes = null;
+    };
+    droneNodes = { c, amp, nodes };
+  };
+
   return {
     setGain: (v) => { vol = Math.max(0, Math.min(3, v)); if (master) { try { master.gain.setTargetAtTime(vol, ensure().currentTime, 0.02); } catch { master.gain.value = vol; } } },
     resume: async () => {
@@ -110,6 +180,8 @@ function createBreathAudio(initialGain = FIXED_GAIN) {
       g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
       osc.connect(g); g.connect(bus()); osc.start(t); osc.stop(t + 0.6);
     },
+    drone: doDrone,
+    stopDrone: doStopDrone,
     // Prep second tick — short, gentle.
     tick: () => {
       const c = ensure(); const t = c.currentTime;
@@ -363,9 +435,11 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
     else if (p.tone === 'down') { setTransDur(p.dur); setScale(SMALL); }
     // holds keep the current scale (no transform change → no motion)
     const a = audioRef.current;
-    a.chime(p.tone === 'up' ? 560 : p.tone === 'down' ? 430 : 500);
-    if (p.tone === 'up') a.glide(220, 330, p.dur);
-    else if (p.tone === 'down') a.glide(330, 220, p.dur);
+    // Inhale/exhale keep their existing chime + glide EXACTLY. Holds get the
+    // continuous drone instead — no gong, no entry cue; its rise is the cue.
+    if (p.tone === 'up') { a.chime(560); a.glide(220, 330, p.dur); }
+    else if (p.tone === 'down') { a.chime(430); a.glide(330, 220, p.dur); }
+    else { a.drone(p.key === 'holdEmpty' ? 'empty' : 'full', p.dur); }
     report(true);
     refreshNotif(); // update the ongoing notification on each phase change
   };
@@ -373,6 +447,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const finish = () => {
     clearInterval(intervalRef.current); intervalRef.current = null;
     stopPaint(); clearSession(); clearBreathNotification();
+    audioRef.current && audioRef.current.stopDrone(true);
     runningRef.current = false; setRunning(false); setDone(true);
     setFillFrac(1); // last exhale finished → frame complete and closed
     audioRef.current && audioRef.current.endChimes();
@@ -490,6 +565,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
     stopPaint(); clearSession(); clearBreathNotification();
     runningRef.current = false; setRunning(false);
     setMode('run'); setScale(SMALL);
+    audioRef.current && audioRef.current.stopDrone(true); // quick 0.1s fade, no hard cut
     audioRef.current && audioRef.current.suspend();
     onRunningChange && onRunningChange(false);
   };
@@ -513,6 +589,8 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
       setNextInfo(computeNextInfo());
       const a = audioRef.current || (audioRef.current = createBreathAudio());
       a.resume().catch(() => {});
+      // Resuming mid-hold → restart the drone for the remaining time only.
+      if (p.tone === 'hold') { const rem = p.dur - loc.phaseElapsedMs / 1000; if (rem > 0.15) a.drone(p.key === 'holdEmpty' ? 'empty' : 'full', rem); }
       report(true);
       intervalRef.current = setInterval(loop, 100);
       startPaint();
@@ -522,8 +600,8 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
 
   useEffect(() => {
     const onVis = () => {
-      // Leaving the app mid-exercise → post the ongoing notification.
-      if (document.visibilityState === 'hidden') { if (runningRef.current) refreshNotif(); return; }
+      // Leaving the app mid-exercise → stop the drone and post the ongoing notification.
+      if (document.visibilityState === 'hidden') { if (runningRef.current) { audioRef.current && audioRef.current.stopDrone(true); refreshNotif(); } return; }
       // Back in the app → the notification's job is done.
       clearBreathNotification();
       if (!runningRef.current) return;
@@ -545,6 +623,13 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
       else if (p.tone === 'down') { setTransDur(remaining); setScale(SMALL); }
       else { setTransDur(0.2); setScale(contracted ? SMALL : 1); }
       if (!s.inf) setFillFrac(clamp(elapsed / s.totalMs, 0, 1));
+      // Back inside a hold → resume the drone for the remaining time; else make sure none lingers.
+      const a = audioRef.current;
+      if (a) {
+        a.resume && a.resume();
+        if (p.tone === 'hold') { const rem = p.dur - loc.phaseElapsedMs / 1000; if (rem > 0.15) a.drone(p.key === 'holdEmpty' ? 'empty' : 'full', rem); }
+        else a.stopDrone(true);
+      }
       startPaint();
       report(true);
     };
