@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompression';
 import { pushDebugLog } from '@/lib/debugLog';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
+import { validateVideoFile } from '@/lib/lifeos/videoValidation';
 
 const isNativePlatform = Capacitor.isNativePlatform();
 
@@ -166,51 +167,19 @@ export default function FileManager({
     }
   }
 
-  // Reads a video's duration from metadata without decoding frames.
-  function readVideoDuration(file) {
-    return new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(file);
-      const v = document.createElement('video');
-      v.preload = 'metadata';
-      v.onloadedmetadata = () => {
-        URL.revokeObjectURL(url);
-        resolve(v.duration);
-      };
-      v.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error('video metadata load failed'));
-      };
-      v.src = url;
-    });
-  }
-
-  // Video path: no @capacitor/camera, no compressImage. We enforce the
-  // 50MB / 60s limits client-side, then hand off to the SAME handleFile
-  // pipeline as images (which skips compression for non-image files).
+  // Video path: no @capacitor/camera, no compressImage. The 50MB / 60s
+  // limits are enforced by the shared validateVideoFile guard, then we
+  // hand off to the SAME handleFile pipeline as images (which skips
+  // compression for non-image files).
   async function validateAndUploadVideo(file) {
     if (!file) return;
 
-    const MAX_BYTES = 50 * 1024 * 1024;
-    if (file.size > MAX_BYTES) {
-      pushDebugLog('FileManager', 'video-too-large', { size: file.size });
-      toast.error('הקובץ גדול מדי — עד 50MB. צלם קליפ קצר יותר');
+    const check = await validateVideoFile(file);
+    if (!check.ok) {
+      pushDebugLog('FileManager', 'video-rejected', { reason: check.error, size: file?.size });
+      toast.error(check.error);
       if (videoRef.current) videoRef.current.value = '';
       return;
-    }
-
-    try {
-      const duration = await readVideoDuration(file);
-      pushDebugLog('FileManager', 'video-duration', { duration });
-      if (Number.isFinite(duration) && duration > 60) {
-        toast.error('הקליפ ארוך מדי — עד 60 שניות');
-        if (videoRef.current) videoRef.current.value = '';
-        return;
-      }
-    } catch (err) {
-      // Metadata unreadable — allow through; the size limit still guards us.
-      pushDebugLog('FileManager', 'video-duration-read-failed', {
-        message: err?.message || String(err),
-      });
     }
 
     await handleFile(file);

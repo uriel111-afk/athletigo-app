@@ -35,6 +35,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Gallery video picking for expense clips / trainee media (Android 13+) -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <!-- Ongoing breathing-exercise notification (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
