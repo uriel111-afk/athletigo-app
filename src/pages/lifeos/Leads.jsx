@@ -93,6 +93,7 @@ export default function Leads() {
   const [showQuick, setShowQuick] = useState(false);     // quick-intake form
   const [quickLead, setQuickLead] = useState(null);      // lead being completed/edited
   const [showIntake, setShowIntake] = useState(false);   // inbound-call generator
+  const [intakeLead, setIntakeLead] = useState(null);    // existing lead being continued in the generator
   const [viewingLead, setViewingLead] = useState(null);  // detail overlay
   // Create-trainee flow: when the coach wants to spin a paying client
   // out of a converted lead, we open AddTraineeDialog with name+phone
@@ -151,7 +152,11 @@ export default function Leads() {
 
   const openNew  = () => { setEditing(null); setShowForm(true); };
   // Inbound-call generator — the default capture for a live call.
-  const openIntake = () => { setShowIntake(true); };
+  const openIntake = () => { setIntakeLead(null); setShowIntake(true); };
+  // "המשך שיחה מודרכת" — reopen the generator ON an existing lead; it
+  // auto-skips everything already known and starts at the first open
+  // question, so a lead captured on any path still gets the full leadership.
+  const openContinueGuided = (lead) => { setViewingLead(null); setIntakeLead(lead); setShowIntake(true); };
   // Quick intake ("silent") — new capture, or reopen a lead to complete/edit
   // its quick fields.
   const openQuick = () => { setQuickLead(null); setShowQuick(true); };
@@ -334,8 +339,8 @@ export default function Leads() {
       <GuidedIntakeFlow
         isOpen={showIntake}
         userId={userId}
-        lead={null}
-        onClose={() => setShowIntake(false)}
+        lead={intakeLead}
+        onClose={() => { setShowIntake(false); setIntakeLead(null); }}
         onSaved={load}
       />
 
@@ -346,6 +351,7 @@ export default function Leads() {
           onEdit={openEdit}
           onEditQuick={openQuickLead}
           onChanged={load}
+          onContinueGuided={openContinueGuided}
         />
       )}
 

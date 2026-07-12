@@ -4,6 +4,7 @@ import { addLead, updateLead } from '@/lib/lifeos/lifeos-api';
 import { isoInDays } from '@/lib/lifeos/lead-helpers';
 import FollowupChips from '@/components/lifeos/FollowupChips';
 import { NEED_PERSONAS, NEEDS_BY_PERSONA, buildNeedResponse, smartNextStep } from '@/lib/lifeos/need-response-bank';
+import { BACKGROUND_CHIPS, INJURY_CHIPS, backgroundCopy, backgroundFocus, ASK_NOW } from '@/lib/lifeos/sales-playbook';
 import { toast } from 'sonner';
 
 // ── Quick lead intake ("קליטה מהירה") — unified request hierarchy ────
@@ -85,6 +86,8 @@ const blank = () => ({
   service_type: '', for_whom: '',
   // section 2b — diagnosis
   persona: '', need_type: '',
+  // section 2c — sport background + injuries (same columns as the flows)
+  background_level: '', sports_experience: '', injury_level: '', injuries: '',
   // section 3 (dynamic)
   training_location: '', frequency_per_week: '', age_range: '',
   group_size: '', group_location: '', main_goal: '', workshop_topic: '', target_date: '',
@@ -112,6 +115,8 @@ const fromLead = (l) => {
     preferred_channel: l.preferred_channel || 'whatsapp',
     service_type: l.service_type || '', for_whom: l.for_whom || '',
     persona: l.persona || '', need_type: l.need_type || '',
+    background_level: l.background_level || '', sports_experience: l.sports_experience || '',
+    injury_level: l.injury_level || '', injuries: l.injuries || '',
     training_location: l.training_location || '',
     frequency_per_week: l.frequency_per_week || '', age_range: l.age_range || '',
     group_size: l.group_size || '', group_location: l.group_location || '',
@@ -195,6 +200,9 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
     set({ need_type: [...base, text.trim() || 'אחר'].join(',') });
   };
   const response = f.persona ? buildNeedResponse({ persona: f.persona, needs, serviceType: f.service_type }) : null;
+  // Sport-background precision layer (2c) — same copy + focus the flows use.
+  const bgCopy = backgroundCopy(groupish);
+  const bgFocus = backgroundFocus(f);
 
   const save = async () => {
     if (!f.name.trim() || !f.phone.trim() || !f.notes.trim()) {
@@ -238,6 +246,10 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
       preferred_channel: f.preferred_channel || 'whatsapp',
       service_type: f.service_type || null, for_whom: f.for_whom || null,
       persona: f.persona || null, need_type: f.need_type || null,
+      background_level: f.background_level || null,
+      sports_experience: f.sports_experience.trim() || null,
+      injury_level: f.injury_level || null,
+      injuries: f.injuries.trim() || null,
       lead_type: deriveLeadType(f) || null,
       ...sec3, ...logistics,
       proposed_price: f.proposed_price.trim() || null, payer: payerHere ? (f.payer || null) : null,
@@ -391,6 +403,38 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
                 <div style={{ fontSize: 15, fontWeight: 700, color: '#4A1B0C', lineHeight: 1.5, userSelect: 'text' }}>{response.connection}</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A', background: '#fff', borderRadius: 8, padding: '7px 10px', border: '1px solid #F0D9C6' }}>💡 {response.offer}</div>
                 <div style={{ fontSize: 12.5, fontStyle: 'italic', color: '#8A4A1E', lineHeight: 1.45 }}>לשאול עכשיו: {response.question}</div>
+              </div>
+            )}
+          </Section>
+        )}
+
+        {/* ═══ 2ג — רקע ופציעות (same chips/fields/columns as the guided
+              flows — one brain across every intake path) ═══ */}
+        {(st || groupish) && (
+          <Section title="2ג · רקע ופציעות">
+            <div style={{ fontSize: 12, fontStyle: 'italic', color: '#C2743A', lineHeight: 1.45 }}>🗣 {ASK_NOW.background}</div>
+            <Field label={bgCopy.levelLabel}>
+              <Chips options={BACKGROUND_CHIPS.map((o) => o.label)} value={f.background_level}
+                onPick={(v) => set({ background_level: f.background_level === v ? '' : v })} />
+            </Field>
+            <Field label={bgCopy.levelDetail}>
+              <input style={inp} value={f.sports_experience} onChange={(e) => set({ sports_experience: e.target.value })} placeholder={bgCopy.levelDetail} />
+            </Field>
+            <Field label={bgCopy.injuryLabel}>
+              <Chips options={INJURY_CHIPS.map((o) => o.label)} value={f.injury_level}
+                onPick={(v) => set({ injury_level: f.injury_level === v ? '' : v })} />
+            </Field>
+            {f.injury_level && f.injury_level !== 'אין' && (
+              <Field label={bgCopy.injuryDetail}>
+                <input style={inp} value={f.injuries} onChange={(e) => set({ injuries: e.target.value })} placeholder={bgCopy.injuryDetail} />
+              </Field>
+            )}
+            {bgFocus && (
+              <div style={{ background: '#FFF4E6', border: `1px solid ${ORANGE}`, borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#C24A0A' }}>🎯 לאן לכוון</div>
+                {bgFocus.tips.map((t, i) => (
+                  <div key={i} style={{ fontSize: 14, fontWeight: 700, color: '#4A1B0C', lineHeight: 1.5 }}>· {t}</div>
+                ))}
               </div>
             )}
           </Section>

@@ -18,6 +18,7 @@ import {
   PRESENT_LADDER_LINE, tracksFor, valueIncludesFor, CLOSE_INCENTIVES,
   COMPARE_RESPONSE, APPROACH_FLAG, ASK_NOW, fitSuggest, buildMirror,
   OPEN_SCRIPT, PHONE_GATE_LINE,
+  BACKGROUND_CHIPS, INJURY_CHIPS, backgroundCopy, backgroundFocus,
 } from '@/lib/lifeos/sales-playbook';
 
 const ORANGE = '#FF6F20';
@@ -55,6 +56,7 @@ const STEP_DEFS = [
   { id: 'who',      title: 'מי מדבר',  show: () => true },
   { id: 'what',     title: 'מה מחפשים', show: () => true },
   { id: 'diagnose', title: 'אבחון',    show: (f) => !!f.service_type || groupishOf(f) },
+  { id: 'background', title: 'רקע',    show: (f) => !!f.service_type || groupishOf(f) },
   { id: 'goal',     title: 'מטרה',     show: (f) => !!f.service_type || groupishOf(f) },
   { id: 'mirror',   title: 'שיקוף',    show: () => true },
   { id: 'intro',    title: 'הצגה',     show: () => true },
@@ -72,6 +74,7 @@ const blank = () => ({
   payer: '',
   persona: '', need_type: '',
   diagnosis: {},
+  background_level: '', sports_experience: '', injury_level: '', injuries: '',
   activity_goals: '',
   preferred_days: '', preferred_hours: '', hours_exact: '', start_date_pref: '', constraints_note: '',
   conversation_summary: '',
@@ -98,9 +101,14 @@ export default function GuidedIntakeFlow({ isOpen, onClose, userId, lead, onSave
 
   useEffect(() => {
     if (!isOpen) return;
-    setForm(fromLead(lead));
+    const f = fromLead(lead);
+    setForm(f);
     setLeadId(lead?.id || null);
-    setStepId('open');
+    // Fresh inbound call → open at the greeting. Re-entering an existing
+    // lead ("המשך שיחה מודרכת") → skip everything already known and land
+    // on the first unanswered open question, so a lead captured on ANY
+    // path still gets the full leadership (mirror → ladder → offer).
+    setStepId(lead?.id ? firstOpenStep(f) : 'open');
     setPhoneGate(false);
     setFlagOpen(false);
     setSaved(null);
@@ -243,6 +251,7 @@ export default function GuidedIntakeFlow({ isOpen, onClose, userId, lead, onSave
             {stepId === 'who' && <StepWho form={form} pickRole={pickRole} />}
             {stepId === 'what' && <StepWhat form={form} set={set} />}
             {stepId === 'diagnose' && <StepDiagnose form={form} set={set} />}
+            {stepId === 'background' && <StepBackground form={form} set={set} />}
             {stepId === 'goal' && <StepGoal form={form} set={set} leadType={leadType} />}
             {stepId === 'mirror' && <StepMirror form={form} set={set} />}
             {stepId === 'intro' && <StepIntro form={form} set={set} leadType={leadType} />}
@@ -438,7 +447,50 @@ function StepDiagnose({ form, set }) {
           {START_OPTS.map((o) => <button key={o.key} type="button" onClick={() => set({ start_date_pref: form.start_date_pref === o.key ? '' : o.key })} style={chipStyle(form.start_date_pref === o.key)}>{o.label}</button>)}
         </div>
       </Field>
-      <Field label="מגבלות / הערה"><input style={inp} value={form.constraints_note} onChange={(e) => set({ constraints_note: e.target.value })} placeholder="פציעות, נגישות, ציוד..." /></Field>
+      <Field label="מגבלות לוגיסטיות / הערה"><input style={inp} value={form.constraints_note} onChange={(e) => set({ constraints_note: e.target.value })} placeholder="נגישות, ציוד, אילוצי מקום..." /></Field>
+    </div>
+  );
+}
+
+// Sport background + injuries. Adaptive: private phrasing vs group
+// ("most participants"). Writes the SAME columns the proactive flow uses
+// (background_level / sports_experience / injury_level / injuries) and
+// surfaces the playbook focus (injury story · personal-first · advanced
+// track · start-from-zero) the moment a signal is picked.
+function StepBackground({ form, set }) {
+  const isGroup = groupishOf(form);
+  const c = backgroundCopy(isGroup);
+  const focus = backgroundFocus(form);
+  return (
+    <div style={col}>
+      <ScriptBox>{c.ask}</ScriptBox>
+
+      <Field label={c.levelLabel}>
+        <Chips options={BACKGROUND_CHIPS.map((o) => o.label)} value={form.background_level}
+          onPick={(v) => set({ background_level: form.background_level === v ? '' : v })} />
+      </Field>
+      <Field label={c.levelDetail}>
+        <input style={inp} value={form.sports_experience} onChange={(e) => set({ sports_experience: e.target.value })} placeholder={c.levelDetail} />
+      </Field>
+
+      <Field label={c.injuryLabel}>
+        <Chips options={INJURY_CHIPS.map((o) => o.label)} value={form.injury_level}
+          onPick={(v) => set({ injury_level: form.injury_level === v ? '' : v })} />
+      </Field>
+      {form.injury_level && form.injury_level !== 'אין' && (
+        <Field label={c.injuryDetail}>
+          <input style={inp} value={form.injuries} onChange={(e) => set({ injuries: e.target.value })} placeholder={c.injuryDetail} />
+        </Field>
+      )}
+
+      {focus && (
+        <div style={{ ...CARD_PROMPT, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: '#C24A0A' }}>🎯 לאן לכוון עכשיו</div>
+          {focus.tips.map((t, i) => (
+            <div key={i} style={{ fontSize: 14, fontWeight: 700, color: '#4A1B0C', lineHeight: 1.5, userSelect: 'text' }}>· {t}</div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -485,9 +537,15 @@ function StepIntro({ form, set, leadType }) {
   const version = form.intro_version || 'first';
   const script = selfIntroScript(version, leadType);
   const copy = async () => { try { await navigator.clipboard.writeText(script.copyText); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {} };
+  const focus = backgroundFocus(form);
   return (
     <div style={col}>
       <ScriptBox label="מה להקריא">ספר לי עליך — 30 שניות שמסבירות למה השיטה עובדת:</ScriptBox>
+      {focus?.leadWithInjuryStory && (
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: '#C24A0A', background: '#FFF4E6', border: '1px solid #F0B892', borderRadius: 10, padding: '8px 10px', lineHeight: 1.45 }}>
+          🎯 יש כאב/מגבלה פעילים — פתח/י דווקא בסיפור הפציעות (גרסת "גוף ראשון"). זה הליד שהסיפור נבנה בשבילו.
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 8 }}>
         {[{ k: 'first', l: 'גוף ראשון' }, { k: 'coord', l: 'רכז/ת' }].map((v) => (
           <button key={v.k} type="button" onClick={() => set({ intro_version: v.k })} style={{ ...chipStyle(version === v.k), flex: 1 }}>{v.l}</button>
@@ -631,6 +689,8 @@ function StepSummary({ form, set, busy, onOutcome }) {
   const gaps = [];
   if (!form.service_type && !groupishOf(form)) gaps.push('סוג שירות');
   if (!form.persona) gaps.push('אבחון צורך');
+  if (!form.background_level) gaps.push('רקע ספורטיבי');
+  if (!form.injury_level) gaps.push('פציעות/מגבלות');
   if (!form.activity_goals) gaps.push('מטרת פעילות');
   if (!form.recommended_track) gaps.push('מסלול מומלץ');
   if (!(form.conversation_summary || '').trim()) gaps.push('שיקוף');
@@ -681,6 +741,8 @@ function SavedSummary({ form, onDone }) {
     ['שם', form.name], ['טלפון', form.phone],
     ['שירות', SERVICE_LABEL[form.service_type]], ['עבור מי', FORWHOM_LABEL[form.for_whom]],
     ['מסלול', form.recommended_track], ['מטרה', form.activity_goals],
+    ['רקע', [form.background_level, form.sports_experience].filter(Boolean).join(' · ')],
+    ['פציעות', [form.injury_level, form.injuries].filter(Boolean).join(' · ')],
     ['שיקוף', form.conversation_summary], ['הצעד הבא', form.next_step],
     ['מעקב הבא', form.follow_up], ['תמליל', form.transcript],
   ].filter(([, v]) => v != null && String(v).trim() !== '');
@@ -797,6 +859,20 @@ function MultiChips({ options, selected, onToggle }) {
 
 // ── Payload + helpers ────────────────────────────────────────────────
 
+// First open question still missing an answer — the entry point when
+// continuing an existing lead. Falls back to the mirror so a fully-known
+// lead still runs the closing leadership (mirror → ladder → offer).
+function firstOpenStep(f) {
+  const complete = {
+    who: !!f.contact_role,
+    what: !!f.service_type || groupishOf(f),
+    diagnose: !!f.persona,
+    background: !!f.background_level,
+    goal: !!f.activity_goals,
+  };
+  return ['who', 'what', 'diagnose', 'background', 'goal'].find((id) => !complete[id]) || 'mirror';
+}
+
 function fromLead(l) {
   if (!l) return blank();
   const parseGroups = (raw) => { try { const a = typeof raw === 'string' ? JSON.parse(raw) : raw; if (Array.isArray(a) && a.length) return a.map((g) => ({ size: g.size || '', ages: g.ages || '' })); } catch {} return [{ size: '', ages: '' }]; };
@@ -808,6 +884,8 @@ function fromLead(l) {
     training_location: l.training_location || '', frequency_per_week: l.frequency_per_week || '', group_location: l.group_location || '',
     groups: parseGroups(l.groups_detail), workshop_topic: l.workshop_topic || '', target_date: l.target_date || '', main_goal: l.fitness_goal || '',
     payer: l.payer || '', persona: l.persona || '', need_type: l.need_type || '',
+    background_level: l.background_level || '', sports_experience: l.sports_experience || '',
+    injury_level: l.injury_level || '', injuries: l.injuries || '',
     preferred_days: l.preferred_days || '',
     preferred_hours: (l.preferred_hours || '').split('|')[0] || '', hours_exact: (l.preferred_hours || '').split('|')[1] || '',
     start_date_pref: l.start_date_pref || '', constraints_note: l.constraints_note || '',
@@ -847,6 +925,10 @@ function buildPayload(f, applyStatus) {
     contact_role: f.contact_role || null,
     service_type: f.service_type || null, for_whom: f.for_whom || null,
     persona: f.persona || null, need_type: f.need_type || null,
+    background_level: f.background_level || null,
+    sports_experience: (f.sports_experience || '').trim() || null,
+    injury_level: f.injury_level || null,
+    injuries: (f.injuries || '').trim() || null,
     lead_type: deriveLeadType(f) || null,
     training_location: f.training_location || null,
     frequency_per_week: (f.frequency_per_week || '').trim() || null,

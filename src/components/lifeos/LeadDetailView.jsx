@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Phone, MessageCircle, Pencil, Send, ArrowLeftCircle, Plus, Calendar } from 'lucide-react';
+import { X, Phone, PhoneCall, MessageCircle, Pencil, Send, ArrowLeftCircle, Plus, Calendar } from 'lucide-react';
 import {
   LADDER_MATCHES, LEAD_CLOSE_RESULTS, LEAD_STATUS, LEAD_SOURCES,
   SPORTS_EXPERIENCE, LADDER_CONTENT, ladderForExperience,
@@ -10,6 +10,7 @@ import { useSalesScripts } from '@/lib/lifeos/sales-scripts-api';
 import { waLink, telLink, relTime, followUpState } from '@/lib/lifeos/lead-helpers';
 import { isBusinessLead, needsCompletion, TYPE_LABEL, SERVICE_LABEL, FORWHOM_LABEL, groupPeopleCount } from '@/components/lifeos/QuickIntakeForm';
 import { PERSONA_LABEL, buildNeedResponse, HESITATION_STATUS, HESITATION_REASONS, hesitationResponse } from '@/lib/lifeos/need-response-bank';
+import { backgroundFocus } from '@/lib/lifeos/sales-playbook';
 import { addInteraction, listInteractions } from '@/lib/lifeos/lifeos-api';
 import { isoInDays } from '@/lib/lifeos/lead-helpers';
 import FollowupChips from '@/components/lifeos/FollowupChips';
@@ -30,7 +31,7 @@ const fmt = (n) => Math.round(Number(n)).toLocaleString('he-IL');
 const parseExtra = (raw) => { try { const a = typeof raw === 'string' ? JSON.parse(raw) : raw; if (Array.isArray(a)) return a.map((x) => ({ label: x.label || '', value: x.value || '' })); } catch {} return []; };
 
 // Full-screen read-only summary of a saved lead + action buttons.
-export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onChanged }) {
+export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onChanged, onContinueGuided }) {
   const [sent, setSent] = useState(Array.isArray(lead?.content_sent) ? lead.content_sent : []);
   const [picker, setPicker] = useState(false);
   // Inline-editable free notes + business offer block.
@@ -145,6 +146,15 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
   const response = lead.persona ? buildNeedResponse({ persona: lead.persona, needs: (lead.need_type || '').split(',').filter(Boolean), serviceType: lead.service_type }) : null;
   const showHesReasons = hesStatus === 'מתלבט' || hesStatus === 'התקרר';
   const hesResp = hesitationResponse(hesReasons);
+  // Background/injury focus (same playbook mapping the flows use) + the
+  // still-open questions a guided continuation would fill in.
+  const bgFocus = backgroundFocus(lead);
+  const guidedGaps = [
+    !lead.background_level && 'רקע ספורטיבי',
+    !lead.injury_level && 'פציעות/מגבלות',
+    !lead.fitness_goal && !lead.activity_goals && 'מטרת פעילות',
+    !lead.persona && 'אבחון צורך',
+  ].filter(Boolean);
   // Live group-offer calculator (recomputes as size/frequency change).
   const gp = groupPricing(offerSize);
   const mf = monthlyFrame(gp.anchor, offerFreq);
@@ -240,6 +250,24 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
               <Row label="כסף" value={[lead.proposed_price && `${lead.proposed_price}₪`, lead.payer && `מממן: ${lead.payer}`].filter(Boolean).join(' · ')} />
             )}
             {lead.next_step && <Row label="הצעד הבא" value={lead.next_step} />}
+          </div>
+        )}
+
+        {/* What's still worth clarifying — the same leadership every path
+            gets: tap a gap (or the button below) to continue in the guided
+            conversation, which auto-skips to the first open question. */}
+        {onContinueGuided && guidedGaps.length > 0 && (
+          <div style={{ ...card, background: '#FFF7ED', border: '1px solid #F5C9A8' }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#C24A0A', marginBottom: 2 }}>מה עוד כדאי לברר</div>
+            <div style={{ fontSize: 12, color: '#7A4A1E', marginBottom: 8, lineHeight: 1.4 }}>הקש/י על פריט להשלמה בשיחה מודרכת</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {guidedGaps.map((g) => (
+                <button key={g} type="button" onClick={() => onContinueGuided(lead)} style={{
+                  minHeight: 36, padding: '0 14px', borderRadius: 999, cursor: 'pointer',
+                  border: '1px dashed #C24A0A', background: '#fff', color: '#C24A0A', fontSize: 13, fontWeight: 800,
+                }}>+ {g}</button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -466,13 +494,25 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
           </div>
         )}
 
-        {/* Discovery */}
-        {(exp || lead.fitness_goal || lead.fear_barrier || lead.current_training) && (
+        {/* Discovery — background / injuries land here from any intake path */}
+        {(exp || lead.fitness_goal || lead.fear_barrier || lead.current_training || lead.background_level || lead.sports_experience || lead.injury_level || lead.injuries) && (
           <div style={card}>
             {exp && <Row label="ניסיון" value={exp.label} />}
+            {(lead.background_level || lead.sports_experience) && <Row label="רקע ספורטיבי" value={[lead.background_level, lead.sports_experience].filter(Boolean).join(' · ')} />}
+            {(lead.injury_level || lead.injuries) && <Row label="פציעות / מגבלות" value={[lead.injury_level, lead.injuries].filter(Boolean).join(' · ')} />}
             {lead.current_training && <Row label="מתאמן היום" value={lead.current_training} />}
             {lead.fitness_goal && <Row label="מטרה" value={lead.fitness_goal} />}
             {lead.fear_barrier && <Row label="חסם" value={lead.fear_barrier} />}
+          </div>
+        )}
+
+        {/* Background → focus (injury story · personal-first · advanced · from-zero) */}
+        {bgFocus && (
+          <div style={{ ...card, background: '#FFF4E6', border: '1px solid #F0B892' }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#C24A0A', marginBottom: 6 }}>🎯 לאן לכוון</div>
+            {bgFocus.tips.map((t, i) => (
+              <div key={i} style={{ fontSize: 14, fontWeight: 700, color: '#4A1B0C', lineHeight: 1.5, marginTop: i ? 4 : 0 }}>· {t}</div>
+            ))}
           </div>
         )}
 
@@ -568,6 +608,11 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
       <div style={{ flexShrink: 0, padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', borderTop: '1px solid #F0E4D0', background: '#fff', display: 'flex', gap: 8 }}>
         {/* Edit — quick lead → quick form; wizard lead → wizard */}
         <ActionBtn onClick={() => (isQuick && onEditQuick ? onEditQuick(lead) : onEdit(lead))} icon={<Pencil size={18} />} label="ערוך" />
+        {/* Continue the guided conversation on THIS lead — auto-skips to the
+            first open question so any lead gets the full leadership. */}
+        {onContinueGuided && (
+          <ActionBtn onClick={() => onContinueGuided(lead)} icon={<PhoneCall size={18} />} label="שיחה מודרכת" color="#FF6F20" />
+        )}
         {/* Private quick leads can graduate to the 9-step wizard, prefilled.
             Business leads are handled by direct conversation — no wizard. */}
         {isQuick && !business && (

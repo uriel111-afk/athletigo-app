@@ -43,8 +43,11 @@ export function activityGoalsFor(leadType) {
 // Per service, only the relevant questions. Each = a chip question whose
 // answer is stored (as a label/value pair) into extra_details — no new
 // DB columns. `key` is the stored label.
+// NOTE: level / injury questions were REMOVED from here and merged into
+// the dedicated sport-background step (BACKGROUND_CHIPS / INJURY_CHIPS
+// below) so nothing is asked twice: "רמת המשתתפים" (group) and
+// "רמת פתיחה" / "פציעות" (personal, online, _default) now live there.
 const DIAG_GROUP = [
-  { key: 'רמת המשתתפים', chips: ['מתחילים', 'מעורב', 'מנוסים'] },
   { key: 'תשתית במקום', chips: ['אולם', 'שטח פתוח', 'חדר', 'אין'] },
   { key: 'מי מחליט', chips: ['אני', 'ועדה', 'הנהלה'] },
   { key: 'ציוד', chips: ['יש', 'חלקי', 'אין'] },
@@ -63,23 +66,81 @@ export const DIAGNOSIS_BY_SERVICE = {
     { key: 'דחיפות', chips: ['השבוע', 'החודש', 'גמיש'] },
   ],
   personal: [
-    { key: 'רמת פתיחה', chips: ['מתחיל', 'חוזר לכושר', 'מנוסה'] },
-    { key: 'פציעות', chips: ['אין', 'פציעת עבר', 'כאב פעיל'] },
     { key: 'איפה מתאמנים', chips: ['הסטודיו', 'בית', 'שטח פתוח'] },
     { key: 'דחיפות', chips: ['השבוע', 'החודש', 'גמיש'] },
   ],
   online: [
-    { key: 'רמת פתיחה', chips: ['מתחיל', 'חוזר לכושר', 'מנוסה'] },
     { key: 'ציוד בבית', chips: ['משקל גוף', 'גומיות', 'משקולות'] },
     { key: 'קביעות רצויה', chips: ['יומי', 'כמה בשבוע', 'גמיש'] },
   ],
   _default: [
-    { key: 'רמת פתיחה', chips: ['מתחיל', 'מעורב', 'מנוסה'] },
     { key: 'דחיפות', chips: ['השבוע', 'החודש', 'גמיש'] },
   ],
 };
 export function diagnosisFor(serviceType) {
   return DIAGNOSIS_BY_SERVICE[serviceType] || DIAGNOSIS_BY_SERVICE._default;
+}
+
+// ── Sport-background + injuries step ────────────────────────────────
+// Sits AFTER the diagnosis branch and BEFORE the goals step. Reuses the
+// exact columns the proactive flow writes, so a lead captured on ANY
+// path lands in the same place: background_level / sports_experience
+// (which sport) + injury_level / injuries (what & where). This is the
+// "same brain" — the chips + fields below feed the inbound generator,
+// the silent quick form and the lead card identically.
+export const BACKGROUND_CHIPS = [
+  { key: 'לא התאמן שנים',     label: 'לא התאמן שנים' },
+  { key: 'מתאמן פה ושם',      label: 'מתאמן פה ושם' },
+  { key: 'מתאמן קבוע',        label: 'מתאמן קבוע' },
+  { key: 'רקע תחרותי-מקצועי', label: 'רקע תחרותי-מקצועי' },
+];
+export const INJURY_CHIPS = [
+  { key: 'אין',                 label: 'אין' },
+  { key: 'פציעות עבר שהחלימו',  label: 'פציעות עבר שהחלימו' },
+  { key: 'כאב או מגבלה פעילים', label: 'כאב או מגבלה פעילים' },
+];
+
+// Labels + read-aloud line adapt to who trains: the individual (private)
+// vs the group ("most participants") — the group phrasing MERGES the old
+// diagnosis "רמת המשתתפים" question so it's never asked twice.
+export function backgroundCopy(isGroup) {
+  return isGroup
+    ? {
+        ask: 'מה הרקע של רוב המשתתפים, ויש מישהו עם פציעה או מגבלה שכדאי שנדע?',
+        levelLabel: 'רקע רוב המשתתפים',
+        levelDetail: 'באיזה ענף / איזה רקע לרובם?',
+        injuryLabel: 'יש משתתפים עם מגבלות?',
+        injuryDetail: 'מי, מה ואיפה',
+      }
+    : {
+        ask: 'מה עשית עד היום מבחינת ספורט, ויש פציעה או כאב שחשוב שנדע עליו?',
+        levelLabel: 'רקע ספורטיבי',
+        levelDetail: 'באיזה ענף?',
+        injuryLabel: 'פציעות וכאבים',
+        injuryDetail: 'מה ואיפה',
+      };
+}
+
+// Background / injury signal → the concrete move the coach makes NOW.
+// Returns null when nothing special is flagged.
+export function backgroundFocus({ background_level, injury_level } = {}) {
+  const tips = [];
+  let leadWithInjuryStory = false;
+  let personalBeforeGroup = false;
+  if (injury_level === 'כאב או מגבלה פעילים') {
+    leadWithInjuryStory = true;
+    personalBeforeGroup = true;
+    tips.push('פתח/י את ההצגה העצמית בסיפור הפציעות — זה בדיוק הליד שהסיפור שלך נבנה בשבילו.');
+    tips.push('המלץ/י לפתוח באימון אישי לפני קבוצתי — קודם בונים בסיס בטוח.');
+  }
+  if (background_level === 'רקע תחרותי-מקצועי') {
+    tips.push('מקד/י במסלול מיומנויות מתקדם ובדוגמאות פעילות שמתאימות לרמה שלו.');
+  }
+  if (background_level === 'לא התאמן שנים') {
+    tips.push('הדגש/י שהכול מתחיל מאפס בשיטה שלנו — שיעור ניסיון הוא הצעד הראשון הבטוח.');
+  }
+  if (!tips.length) return null;
+  return { tips, leadWithInjuryStory, personalBeforeGroup };
 }
 
 // ── Self-introduction (step 5) — 30-second brand story ──────────────
@@ -205,6 +266,7 @@ export const ASK_NOW = {
   who: 'ומי הולך להתאמן — אתה, מישהו קרוב, או קבוצה?',
   what: 'מה בדיוק חיפשת — אימון אישי, קבוצה, או משהו אחר?',
   diagnose: 'ספר/י לי עוד — באיזו רמה אתם ומה הכי חשוב לכם?',
+  background: 'מה הרקע — התאמנת בעבר? ויש פציעה או כאב שכדאי שנדע עליו?',
   goal: 'ומה המטרה העיקרית — מה תרצו להשיג מהפעילות?',
   mirror: 'רגע לוודא שהבנתי אותך נכון — תקן/י אותי אם פספסתי',
   intro: 'תן/י לי רגע לספר לך מי אנחנו ולמה זה עובד',
