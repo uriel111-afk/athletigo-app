@@ -8,7 +8,7 @@ import {
 import { updateLead } from '@/lib/lifeos/lifeos-api';
 import { useSalesScripts } from '@/lib/lifeos/sales-scripts-api';
 import { waLink, telLink, relTime, followUpState } from '@/lib/lifeos/lead-helpers';
-import { isBusinessLead, needsCompletion, TYPE_LABEL } from '@/components/lifeos/QuickIntakeForm';
+import { isBusinessLead, needsCompletion, TYPE_LABEL, SERVICE_LABEL, FORWHOM_LABEL } from '@/components/lifeos/QuickIntakeForm';
 import { addInteraction, listInteractions } from '@/lib/lifeos/lifeos-api';
 import { isoInDays } from '@/lib/lifeos/lead-helpers';
 import FollowupChips from '@/components/lifeos/FollowupChips';
@@ -150,17 +150,27 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
           )}
         </div>
 
-        {/* Business summary line — type · size · frequency · proposed price */}
-        {business && (
-          <div style={{ ...card, background: '#EEF2FF', border: '1px solid #C7D2FE' }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#3730A3' }}>
-              {[TYPE_LABEL[lead.lead_type], lead.group_size && `${lead.group_size} משתתפים`, lead.frequency_per_week && `${lead.frequency_per_week}×/שבוע`, lead.proposed_price && `הוצע ${lead.proposed_price}₪`].filter(Boolean).join(' · ')}
-            </div>
-            {(lead.group_location || lead.payer) && (
-              <div style={{ fontSize: 12, color: '#4338CA', marginTop: 4 }}>
-                {[lead.group_location, lead.payer && `מממן: ${lead.payer}`].filter(Boolean).join(' · ')}
-              </div>
+        {/* Request hierarchy — מה מבקשים · איפה ומתי · כסף · מה הלאה */}
+        {(lead.service_type || lead.for_whom || lead.next_step || lead.proposed_price || lead.payer) && (
+          <div style={card}>
+            <div style={cardTitle}>הבקשה</div>
+            {(lead.service_type || lead.for_whom) && (
+              <Row label="מה מבקשים" value={[SERVICE_LABEL[lead.service_type], FORWHOM_LABEL[lead.for_whom]].filter(Boolean).join(' · ')} />
             )}
+            {(lead.training_location || lead.group_location || lead.group_size || lead.frequency_per_week || lead.preferred_times || lead.age_range || lead.workshop_topic || lead.target_date || lead.fitness_goal) && (
+              <Row label="איפה ומתי" value={[
+                lead.training_location, lead.group_location,
+                lead.group_size && `${lead.group_size} משתתפים`,
+                lead.frequency_per_week && `${lead.frequency_per_week}×/שבוע`,
+                lead.preferred_times, lead.age_range && `גיל ${lead.age_range}`,
+                lead.workshop_topic, lead.target_date && `יעד ${String(lead.target_date).slice(0, 10)}`,
+                lead.fitness_goal,
+              ].filter(Boolean).join(' · ')} />
+            )}
+            {(lead.proposed_price || lead.payer) && (
+              <Row label="כסף" value={[lead.proposed_price && `${lead.proposed_price}₪`, lead.payer && `מממן: ${lead.payer}`].filter(Boolean).join(' · ')} />
+            )}
+            {lead.next_step && <Row label="הצעד הבא" value={lead.next_step} />}
           </div>
         )}
 
