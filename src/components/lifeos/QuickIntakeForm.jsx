@@ -139,7 +139,7 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
   useEffect(() => {
     if (!isOpen) return;
     setF(fromLead(lead));
-    setMoneyOpen(!!(lead?.proposed_price || lead?.payer));
+    setMoneyOpen(!!lead?.proposed_price);
     setNextStepTouched(!!lead?.next_step);
     setTimeout(() => { try { notesRef.current && notesRef.current.focus(); } catch {} }, 60);
   }, [isOpen, lead]);
@@ -148,8 +148,11 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
 
   const set = (patch) => setF((p) => ({ ...p, ...patch }));
   const st = f.service_type;
-  // A group lead — by service type OR by "for whom = existing group".
-  const groupish = st === 'group' || f.for_whom === 'group';
+  // Group precision fields show when the service IS group, or when
+  // "for whom = existing group" and no other service type is chosen —
+  // so they never duplicate another service's fields.
+  const groupish = st === 'group' || (!st && f.for_whom === 'group');
+  const payerHere = f.for_whom === 'org' || f.for_whom === 'group';
   // Multi-select CSV helpers for days / hours.
   const csvSel = (field) => (f[field] ? f[field].split(',').filter(Boolean) : []);
   const toggleCsv = (field, v) => {
@@ -225,7 +228,7 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
       persona: f.persona || null, need_type: f.need_type || null,
       lead_type: deriveLeadType(f) || null,
       ...sec3, ...logistics,
-      proposed_price: f.proposed_price.trim() || null, payer: f.payer || null,
+      proposed_price: f.proposed_price.trim() || null, payer: payerHere ? (f.payer || null) : null,
       next_step: f.next_step || null,
       source: f.source || 'שיחה נכנסת',
       next_follow_up: f.follow_up || null,
@@ -282,16 +285,68 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
           </Field>
         </Section>
 
-        {/* ═══ 2 — מה מבקשים ═══ */}
+        {/* ═══ 2 — מה מבקשים (precision fields live directly UNDER the
+              chip they refine — each datum appears once) ═══ */}
         <Section title="2 · מה מבקשים">
           <Field label="סוג שירות">
             <Chips options={SERVICE_TYPES.map((t) => t.label)} value={SERVICE_LABEL[f.service_type]}
               onPick={(lbl) => set({ service_type: SERVICE_TYPES.find((t) => t.label === lbl)?.key })} />
           </Field>
+
+          {/* Service-type precision — under the chip */}
+          {st === 'personal' && (<>
+            <Field label="מיקום"><Chips options={LOCATIONS} value={f.training_location} onPick={(v) => set({ training_location: f.training_location === v ? '' : v })} /></Field>
+            <Field label="תדירות בשבוע"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="למשל 2" /></Field>
+          </>)}
+          {groupish && (<>
+            <div>
+              <label style={{ display: 'block', fontSize: 14, fontWeight: 800, color: '#C24A0A', marginBottom: GAP_LABEL, textAlign: 'right' }}>כמה אנשים?</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {f.groups.map((g, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input style={{ ...inp, flex: 1, minHeight: 56, fontSize: 18, fontWeight: 800, textAlign: 'center' }} inputMode="numeric" enterKeyHint="next" value={g.size} onChange={(e) => setGroup(i, { size: e.target.value })} placeholder="מספר אנשים" />
+                    <input style={{ ...inp, flex: 1 }} value={g.ages} onChange={(e) => setGroup(i, { ages: e.target.value })} placeholder="טווח גילאים" />
+                    {f.groups.length > 1 && (<button type="button" onClick={() => removeGroup(i)} aria-label="הסר קבוצה" style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 10, border: '1px solid #F0E4D0', background: '#fff', color: '#dc2626', fontSize: 18, cursor: 'pointer' }}>×</button>)}
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={addGroup} style={{ marginTop: 8, border: `1px dashed ${ORANGE}`, background: '#FFF7ED', color: '#C24A0A', borderRadius: 10, padding: '8px 12px', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>+ הוסף קבוצה</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: GAP_COL }}>
+              <Field label="תדירות בשבוע"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="2" /></Field>
+              <Field label="מיקום הפעילות"><input style={inp} value={f.group_location} onChange={(e) => set({ group_location: e.target.value })} placeholder="איפה" /></Field>
+            </div>
+          </>)}
+          {st === 'online' && (<>
+            <Field label="תדירות מפגשי וידאו"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="בשבוע" /></Field>
+            <Field label="מטרה עיקרית"><input style={inp} value={f.main_goal} onChange={(e) => set({ main_goal: e.target.value })} placeholder="במשפט קצר" /></Field>
+          </>)}
+          {st === 'workshop' && (<>
+            <Field label="נושא מבוקש"><input style={inp} value={f.workshop_topic} onChange={(e) => set({ workshop_topic: e.target.value })} placeholder="נושא הסדנה" /></Field>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: GAP_COL }}>
+              <Field label="משתתפים משוער"><input style={inp} value={f.group_size} onChange={(e) => set({ group_size: e.target.value })} placeholder="מספר" /></Field>
+              <Field label="תאריך יעד"><input style={inp} type="date" value={f.target_date} onChange={(e) => set({ target_date: e.target.value })} /></Field>
+            </div>
+            <Field label="מיקום"><input style={inp} value={f.group_location} onChange={(e) => set({ group_location: e.target.value })} placeholder="איפה" /></Field>
+          </>)}
+          {st === 'movement65' && (<>
+            <Field label="מיקום"><input style={inp} value={f.group_location} onChange={(e) => set({ group_location: e.target.value })} placeholder="איפה" /></Field>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: GAP_COL }}>
+              <Field label="משתתפים משוער"><input style={inp} value={f.group_size} onChange={(e) => set({ group_size: e.target.value })} placeholder="מספר" /></Field>
+              <Field label="תדירות בשבוע"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="2" /></Field>
+            </div>
+          </>)}
+          {st === 'other' && (<Field label="פרטים"><textarea style={{ ...inp, height: 'auto', minHeight: 70 }} rows={3} value={f.main_goal} onChange={(e) => set({ main_goal: e.target.value })} placeholder="תיאור חופשי של הבקשה" /></Field>)}
+
           <Field label="עבור מי">
             <Chips options={FOR_WHOM.map((t) => t.label)} value={FORWHOM_LABEL[f.for_whom]}
               onPick={(lbl) => set({ for_whom: FOR_WHOM.find((t) => t.label === lbl)?.key })} />
           </Field>
+          {/* "for whom" precision — who pays (org / existing group). Lives
+              here ONLY, not in the money section. */}
+          {payerHere && (
+            <Field label="מי מממן"><Chips options={PAYERS} value={f.payer} onPick={(v) => set({ payer: f.payer === v ? '' : v })} /></Field>
+          )}
         </Section>
 
         {/* ═══ 2b — אבחון צורך ומענה (after a service type is chosen) ═══ */}
@@ -318,62 +373,12 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
           </Section>
         )}
 
-        {/* ═══ 3 — איפה ומתי (dynamic by service type; group also opens
-              on for_whom=group) ═══ */}
+        {/* ═══ 3 — איפה ומתי — ONLY the shared logistics not already shown
+              in the precision layers above (days / hours / start / limits).
+              Hidden entirely until a service type / group is chosen. ═══ */}
         {(st || groupish) && (
           <Section title="3 · איפה ומתי">
-            {st === 'personal' && (<>
-              <Field label="מיקום"><Chips options={LOCATIONS} value={f.training_location} onPick={(v) => set({ training_location: f.training_location === v ? '' : v })} /></Field>
-              <Field label="תדירות בשבוע"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="למשל 2" /></Field>
-            </>)}
-            {groupish && (<>
-              {/* People count — FIRST, prominent, numeric keyboard. One
-                  open row by default (size ready to type, no "+ הוסף"). */}
-              <div>
-                <label style={{ display: 'block', fontSize: 14, fontWeight: 800, color: '#C24A0A', marginBottom: GAP_LABEL, textAlign: 'right' }}>כמה אנשים?</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {f.groups.map((g, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <input style={{ ...inp, flex: 1, minHeight: 56, fontSize: 18, fontWeight: 800, textAlign: 'center' }} inputMode="numeric" enterKeyHint="next" value={g.size} onChange={(e) => setGroup(i, { size: e.target.value })} placeholder="מספר אנשים" />
-                      <input style={{ ...inp, flex: 1 }} value={g.ages} onChange={(e) => setGroup(i, { ages: e.target.value })} placeholder="טווח גילאים" />
-                      {f.groups.length > 1 && (
-                        <button type="button" onClick={() => removeGroup(i)} aria-label="הסר קבוצה" style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 10, border: '1px solid #F0E4D0', background: '#fff', color: '#dc2626', fontSize: 18, cursor: 'pointer' }}>×</button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <button type="button" onClick={addGroup} style={{ marginTop: 8, border: `1px dashed ${ORANGE}`, background: '#FFF7ED', color: '#C24A0A', borderRadius: 10, padding: '8px 12px', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>+ הוסף קבוצה</button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: GAP_COL }}>
-                <Field label="תדירות בשבוע"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="2" /></Field>
-                <Field label="מיקום הפעילות"><input style={inp} value={f.group_location} onChange={(e) => set({ group_location: e.target.value })} placeholder="איפה" /></Field>
-              </div>
-            </>)}
-            {st === 'online' && (<>
-              <Field label="תדירות מפגשי וידאו"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="בשבוע" /></Field>
-              <Field label="מטרה עיקרית"><input style={inp} value={f.main_goal} onChange={(e) => set({ main_goal: e.target.value })} placeholder="במשפט קצר" /></Field>
-            </>)}
-            {st === 'workshop' && (<>
-              <Field label="נושא מבוקש"><input style={inp} value={f.workshop_topic} onChange={(e) => set({ workshop_topic: e.target.value })} placeholder="נושא הסדנה" /></Field>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: GAP_COL }}>
-                <Field label="משתתפים משוער"><input style={inp} value={f.group_size} onChange={(e) => set({ group_size: e.target.value })} placeholder="מספר" /></Field>
-                <Field label="תאריך יעד"><input style={inp} type="date" value={f.target_date} onChange={(e) => set({ target_date: e.target.value })} /></Field>
-              </div>
-              <Field label="מיקום"><input style={inp} value={f.group_location} onChange={(e) => set({ group_location: e.target.value })} placeholder="איפה" /></Field>
-            </>)}
-            {st === 'movement65' && (<>
-              <Field label="מיקום"><input style={inp} value={f.group_location} onChange={(e) => set({ group_location: e.target.value })} placeholder="איפה" /></Field>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: GAP_COL }}>
-                <Field label="משתתפים משוער"><input style={inp} value={f.group_size} onChange={(e) => set({ group_size: e.target.value })} placeholder="מספר" /></Field>
-                <Field label="תדירות בשבוע"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="2" /></Field>
-              </div>
-            </>)}
-            {st === 'other' && (
-              <Field label="פרטים"><textarea style={{ ...inp, height: 'auto', minHeight: 70 }} rows={3} value={f.main_goal} onChange={(e) => set({ main_goal: e.target.value })} placeholder="תיאור חופשי של הבקשה" /></Field>
-            )}
-
-            {/* Shared logistics — days/hours for scheduled services; start + constraints for any */}
-            {SCHEDULED.includes(st) && (<>
+            {(SCHEDULED.includes(st) || groupish) && (<>
               <Field label="ימים מועדפים"><MultiChips options={DAYS} selected={days} onToggle={(d) => toggleCsv('preferred_days', d)} /></Field>
               <Field label="שעות מועדפות">
                 <MultiChips options={HOURS} selected={hours} onToggle={(h) => toggleCsv('preferred_hours', h)} />
@@ -408,8 +413,8 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
           </button>
           {moneyOpen && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: GAP_FIELD, marginTop: 10 }}>
+              {/* מי מממן moved up under "עבור מי" — not duplicated here. */}
               <Field label="מחיר שהוצע / תקציב"><input style={inp} inputMode="numeric" value={f.proposed_price} onChange={(e) => set({ proposed_price: e.target.value })} placeholder="₪ (לא חובה)" /></Field>
-              <Field label="מי משלם"><Chips options={PAYERS} value={f.payer} onPick={(v) => set({ payer: f.payer === v ? '' : v })} /></Field>
             </div>
           )}
         </div>
