@@ -130,11 +130,61 @@ function createBreathAudio(initialGain = FIXED_GAIN) {
   };
 }
 
-// Rounded-square border path (viewBox 0 0 100 100), starting at the
-// TOP-MIDDLE and running clockwise, pathLength=100 so stroke-dashoffset
-// is a simple 0..100 percentage. Used for the depleting time meter.
-const METER_PATH = 'M50 3 H81 A16 16 0 0 1 97 19 V81 A16 16 0 0 1 81 97 H19 A16 16 0 0 1 3 81 V19 A16 16 0 0 1 19 3 H50';
 const SQUARE_BG = '#F3E7D3'; // slightly darker than the #FFF9F0 page
+
+// ── Time frame ────────────────────────────────────────────────────────
+// The border fill is a conic-gradient masked to the square's edge, NOT an
+// SVG stroke. SVG stroke-dash on this path rendered as static corner
+// segments in WebKit (the vectorEffect="non-scaling-stroke" + pathLength
+// combination). The conic gradient starts at 0deg (top-middle) and sweeps
+// clockwise; masking to a border ring gives a frame that builds from the
+// top and closes at the end. Verified empty→quarter→half→full in Chromium.
+const FRAME_COLOR = '#FFC9A6';
+const FRAME_STROKE = 2.5; // px — thin, within the 2-3px spec
+
+// ── Per-phase colours (fix 3) — warm brand family, distinct at a glance ─
+// Title colour sits on the cream page; the circle keeps a subtle warm/soft
+// split so the white number stays high-contrast on every shade.
+const PHASE_TITLE_COLOR = {
+  up:   '#FF6F20', // שאיפה — full brand orange
+  down: '#B23C17', // נשיפה — deep terracotta
+  hold: '#C0801E', // החזקה/החזקה ריקה — smoky amber
+};
+const CIRCLE_UP   = 'radial-gradient(circle at 50% 40%, #FFC79E, #FF8A42 70%, #FF6F20)'; // inhale/hold — full warm
+const CIRCLE_DOWN = 'radial-gradient(circle at 50% 40%, #F6B487, #E9702F 70%, #C24A16)'; // exhale/empty — softer/deeper
+
+// ── Durable session (fix 1) ─────────────────────────────────────────────
+// Anchored on the wall-clock timestamp of the exercise start (Date.now),
+// NOT on in-memory ticks, so leaving and returning to the app resumes the
+// exact round/phase/elapsed. Persisted the moment the exercise begins and
+// cleared on stop / finish. `seq` is the flat phase list; round/phase are
+// re-derived from elapsed via locate().
+const SESSION_KEY = 'ag_breathing_session';
+const saveSession = (s) => { try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch {} };
+const loadSession = () => { try { const r = localStorage.getItem(SESSION_KEY); return r ? JSON.parse(r) : null; } catch { return null; } };
+const clearSession = () => { try { localStorage.removeItem(SESSION_KEY); } catch {} };
+export const hasLiveBreathingSession = () => {
+  const s = loadSession();
+  return !!(s && Array.isArray(s.seq) && s.seq.length && typeof s.startedAt === 'number');
+};
+
+// Given the flat sequence and elapsed ms, return the current phase index,
+// how far into that phase we are, and (for infinity) how many full cycles
+// have completed. `ended` = elapsed ran past a finite sequence.
+function locate(seq, elapsedMs, inf) {
+  if (!seq || !seq.length) return null;
+  const cyc = seq.reduce((s, p) => s + (Number(p.dur) || 0), 0) * 1000;
+  let e = Math.max(0, elapsedMs), roundsCompleted = 0;
+  if (inf && cyc > 0) { roundsCompleted = Math.floor(e / cyc); e -= roundsCompleted * cyc; }
+  let acc = 0;
+  for (let i = 0; i < seq.length; i++) {
+    const d = (Number(seq[i].dur) || 0) * 1000;
+    if (e < acc + d) return { index: i, phaseElapsedMs: e - acc, roundsCompleted, ended: false };
+    acc += d;
+  }
+  const last = seq.length - 1;
+  return { index: last, phaseElapsedMs: (Number(seq[last].dur) || 0) * 1000, roundsCompleted, ended: true };
+}
 
 const PRESETS = {
   box:  { label: 'קופסה 4-4-4-4', v: { inhale: 4, hold: 4, exhale: 4, holdEmpty: 4 } },
@@ -166,30 +216,54 @@ const loadPrep = () => {
 };
 
 export default function BreathingMode({ active, onRunningChange, stopSignal = 0 }) { // eslint-disable-line no-unused-vars
+  // ── Boot: was an exercise mid-flight when this component (re)mounted? ──
+  // Computed ONCE, synchronously, from the durable session so the first
+  // render already shows the running (or done) screen — no flash of the
+  // config screen, and the round/phase/elapsed are derived from the start
+  // timestamp, not from lost in-memory ticks.
+  const bootRef = useRef(undefined);
+  if (bootRef.current === undefined) {
+    let b = null;
+    const s = loadSession();
+    if (s && Array.isArray(s.seq) && s.seq.length && typeof s.startedAt === 'number') {
+      const elapsed = Date.now() - s.startedAt;
+      if (!s.inf && elapsed >= s.totalMs) b = { kind: 'done', session: s };
+      else b = { kind: 'resume', session: s, elapsed, loc: locate(s.seq, elapsed, !!s.inf) };
+    }
+    bootRef.current = b;
+  }
+  const boot = bootRef.current;
+  const bootPhase = boot?.kind === 'resume' ? (boot.session.seq[boot.loc.index] || {}) : null;
+
   const [cfg, setCfg] = useState({ inhale: 4, hold: 4, exhale: 4, holdEmpty: 4 });
   const [rounds, setRounds] = useState(loadRounds);
-  const [running, setRunning] = useState(false);
-  const [done, setDone] = useState(false);
-  const [phaseName, setPhaseName] = useState('');
-  const [secondsLeft, setSecondsLeft] = useState(0);
-  const [roundCur, setRoundCur] = useState(1);
-  const [scale, setScale] = useState(SMALL);
+  const [running, setRunning] = useState(() => boot?.kind === 'resume');
+  const [done, setDone] = useState(() => boot?.kind === 'done');
+  const [phaseName, setPhaseName] = useState(() => bootPhase?.name || '');
+  // Current phase tone/key drive the per-phase title colour + circle shade.
+  const [phaseTone, setPhaseTone] = useState(() => bootPhase?.tone || 'up');
+  const [phaseKey, setPhaseKey] = useState(() => bootPhase?.key || '');
+  const [secondsLeft, setSecondsLeft] = useState(() => bootPhase ? Math.max(0, Math.ceil((bootPhase.dur || 0) - boot.loc.phaseElapsedMs / 1000)) : 0);
+  const [roundCur, setRoundCur] = useState(() => {
+    if (boot?.kind === 'resume') return boot.session.inf ? (boot.loc.roundsCompleted + 1) : (bootPhase.round || 1);
+    return 1;
+  });
+  const [scale, setScale] = useState(() => bootPhase ? ((bootPhase.key === 'exhale' || bootPhase.key === 'holdEmpty') ? SMALL : 1) : SMALL);
   const [transDur, setTransDur] = useState(0.4);
   const [mode, setMode] = useState('run');    // 'prep' | 'run'
   const [prepLeft, setPrepLeft] = useState(0); // countdown number during prep
   const [prepSec, setPrepSec] = useState(loadPrep); // 0/3/5/10, persisted
-  // Time-frame FILL fraction: 0 = empty (nothing drawn), 1 = full closed ring.
-  // The frame BUILDS up over the whole exercise (all rounds).
-  const [fillFrac, setFillFrac] = useState(0);
-  // Real geometric length of the border path (getTotalLength). Measured once
-  // from the mounted node so the dash math never relies on pathLength — which
-  // WebKit ignores under vectorEffect="non-scaling-stroke".
-  const [meterLen, setMeterLen] = useState(0);
+  // Time-frame FILL fraction: 0 = empty ring, 1 = full closed ring. Driven
+  // by requestAnimationFrame from the exercise-start timestamp (below), so
+  // it is smooth AND correct after a resume.
+  const [fillFrac, setFillFrac] = useState(() => (boot?.kind === 'done' ? 1 : (boot?.kind === 'resume' && !boot.session.inf ? clamp(boot.elapsed / boot.session.totalMs, 0, 1) : 0)));
 
   const audioRef = useRef(null);
   const intervalRef = useRef(null);
   const prepIntervalRef = useRef(null);
   const exerciseStartRef = useRef(0);
+  const exerciseEpochRef = useRef(0); // Date.now() anchor for the frame fill
+  const rafRef = useRef(0);           // requestAnimationFrame handle
   const totalMsRef = useRef(0);
   const isInfRef = useRef(false);
   const seqRef = useRef([]);
@@ -236,7 +310,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const enterPhase = (p) => {
     curRef.current = p;
     phaseStartRef.current = performance.now();
-    setPhaseName(p.name); setSecondsLeft(p.dur);
+    setPhaseName(p.name); setPhaseTone(p.tone); setPhaseKey(p.key); setSecondsLeft(p.dur);
     if (p.tone === 'up') { setTransDur(p.dur); setScale(1); }
     else if (p.tone === 'down') { setTransDur(p.dur); setScale(SMALL); }
     // holds keep the current scale (no transform change → no motion)
@@ -249,6 +323,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
 
   const finish = () => {
     clearInterval(intervalRef.current); intervalRef.current = null;
+    stopPaint(); clearSession();
     runningRef.current = false; setRunning(false); setDone(true);
     setFillFrac(1); // last exhale finished → frame complete and closed
     audioRef.current && audioRef.current.endChimes();
@@ -256,6 +331,19 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   };
 
   const cycleMs = (seq) => seq.reduce((s, p) => s + p.dur, 0) * 1000;
+
+  // Frame fill on requestAnimationFrame — smooth, and anchored on the
+  // exercise-start timestamp so it self-corrects after a background/resume
+  // (no drift, no catch-up). Idle for infinity (no defined end).
+  const paint = () => {
+    rafRef.current = 0;
+    if (!runningRef.current || isInfRef.current || totalMsRef.current <= 0) return;
+    const frac = clamp((Date.now() - exerciseEpochRef.current) / totalMsRef.current, 0, 1);
+    setFillFrac(frac);
+    if (frac < 1) rafRef.current = requestAnimationFrame(paint);
+  };
+  const startPaint = () => { if (!rafRef.current && !isInfRef.current) rafRef.current = requestAnimationFrame(paint); };
+  const stopPaint = () => { if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = 0; } };
 
   const nextPhase = () => {
     const seq = seqRef.current;
@@ -275,18 +363,12 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
     }
   };
 
+  // Phase clock only — the number + phase transitions + sounds. The frame
+  // fill is handled separately by paint() (rAF, timestamp-anchored).
   const loop = () => {
     const p = curRef.current; if (!p) return;
     const elapsed = (performance.now() - phaseStartRef.current) / 1000;
     setSecondsLeft(Math.max(0, Math.ceil(p.dur - elapsed)));
-    // Time frame — FILL over the WHOLE exercise (all rounds), uniformly.
-    // For 'inf' (totalMs = 0) there is no defined end, so the frame stays
-    // empty. CSS transition on the dashoffset smooths the 100ms steps into
-    // one continuous, jump-free build-up.
-    if (totalMsRef.current > 0) {
-      const te = performance.now() - exerciseStartRef.current;
-      setFillFrac(clamp(te / totalMsRef.current, 0, 1));
-    }
     if (elapsed >= p.dur) nextPhase();
   };
 
@@ -302,11 +384,16 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const beginExercise = (a) => {
     setMode('run');
     a.startCue();
+    const startedAt = Date.now();
+    exerciseEpochRef.current = startedAt;
     exerciseStartRef.current = performance.now();
     setRoundCur(seqRef.current[0]?.round || 1);
     setFillFrac(0); // exercise starts with an empty frame; it builds from here
+    // Persist the timestamp-anchored session so leave/return restores it.
+    saveSession({ startedAt, totalMs: totalMsRef.current, inf: isInfRef.current, seq: seqRef.current });
     enterPhase(seqRef.current[0]);
     intervalRef.current = setInterval(loop, 100);
+    startPaint();
   };
 
   const start = async () => {
@@ -349,16 +436,70 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const stop = () => {
     clearInterval(intervalRef.current); intervalRef.current = null;
     clearInterval(prepIntervalRef.current); prepIntervalRef.current = null;
+    stopPaint(); clearSession();
     runningRef.current = false; setRunning(false);
     setMode('run'); setScale(SMALL);
     audioRef.current && audioRef.current.suspend();
     onRunningChange && onRunningChange(false);
   };
 
+  // ── Resume an in-flight exercise (fix 1) ──────────────────────────────
+  // Runs once on mount. If the durable session says an exercise was live,
+  // rebuild the refs from the start timestamp and pick the phase clock up
+  // exactly where it should be; if the whole exercise elapsed while away,
+  // show the done screen instead. Also re-syncs on every foreground so a
+  // background-throttled timer snaps to the correct phase (no slow catch-up,
+  // no replayed sounds) and ends if it overran.
+  useEffect(() => {
+    if (boot?.kind === 'done') { clearSession(); onRunningChange && onRunningChange(false); return; }
+    if (boot?.kind === 'resume') {
+      const s = boot.session, loc = boot.loc, seq = s.seq, p = seq[loc.index];
+      seqRef.current = seq; isInfRef.current = !!s.inf; totalMsRef.current = s.inf ? 0 : s.totalMs;
+      exerciseEpochRef.current = s.startedAt; exerciseStartRef.current = performance.now() - boot.elapsed;
+      idxRef.current = loc.index; roundRef.current = s.inf ? (loc.roundsCompleted + 1) : (p.round || 1);
+      curRef.current = p; phaseStartRef.current = performance.now() - loc.phaseElapsedMs;
+      runningRef.current = true;
+      const a = audioRef.current || (audioRef.current = createBreathAudio());
+      a.resume().catch(() => {});
+      report(true);
+      intervalRef.current = setInterval(loop, 100);
+      startPaint();
+    }
+    // eslint-disable-next-line
+  }, []);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState !== 'visible' || !runningRef.current) return;
+      const s = loadSession(); if (!s || !Array.isArray(s.seq) || !s.seq.length) return;
+      const elapsed = Date.now() - s.startedAt;
+      if (!s.inf && elapsed >= s.totalMs) { finish(); return; } // overran while away
+      const loc = locate(s.seq, elapsed, !!s.inf), p = s.seq[loc.index];
+      idxRef.current = loc.index; curRef.current = p;
+      roundRef.current = s.inf ? (loc.roundsCompleted + 1) : (p.round || 1);
+      exerciseEpochRef.current = s.startedAt;
+      phaseStartRef.current = performance.now() - loc.phaseElapsedMs;
+      exerciseStartRef.current = performance.now() - elapsed;
+      setRoundCur(roundRef.current); setPhaseName(p.name); setPhaseTone(p.tone); setPhaseKey(p.key);
+      setSecondsLeft(Math.max(0, Math.ceil(p.dur - loc.phaseElapsedMs / 1000)));
+      const contracted = p.key === 'exhale' || p.key === 'holdEmpty';
+      const remaining = Math.max(0.2, p.dur - loc.phaseElapsedMs / 1000);
+      if (p.tone === 'up') { setTransDur(remaining); setScale(1); }
+      else if (p.tone === 'down') { setTransDur(remaining); setScale(SMALL); }
+      else { setTransDur(0.2); setScale(contracted ? SMALL : 1); }
+      if (!s.inf) setFillFrac(clamp(elapsed / s.totalMs, 0, 1));
+      startPaint();
+      report(true);
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+    // eslint-disable-next-line
+  }, []);
+
   // Keeps running across focus switches; external stop from a bar; full
   // cleanup on unmount (leaving /clocks).
   useEffect(() => { if (stopSignal > 0 && runningRef.current) stop(); /* eslint-disable-next-line */ }, [stopSignal]);
-  useEffect(() => () => { clearInterval(intervalRef.current); clearInterval(prepIntervalRef.current); audioRef.current && audioRef.current.close(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => () => { clearInterval(intervalRef.current); clearInterval(prepIntervalRef.current); stopPaint(); audioRef.current && audioRef.current.close(); /* eslint-disable-next-line */ }, []);
 
   const setPhase = (key, d) => setCfg((c) => ({ ...c, [key]: clamp((Number(c[key]) || 0) + d, 0, 20) }));
   const applyPreset = (k) => setCfg({ ...PRESETS[k].v });
@@ -401,27 +542,31 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
             // 2-digit steps down so it never clips. Fixed — doesn't breathe.
             const numFont = twoDigit ? 'clamp(66px,14vh,104px)' : 'clamp(100px,21vh,158px)';
             const title = mode === 'prep' ? 'תתכוננו' : phaseName;
+            // Per-phase colours (fix 3). Prep keeps the brand orange.
+            const titleColor = mode === 'prep' ? ORANGE : (PHASE_TITLE_COLOR[phaseTone] || ORANGE);
+            const contracted = phaseKey === 'exhale' || phaseKey === 'holdEmpty';
+            const circleBg = (mode !== 'prep' && contracted) ? CIRCLE_DOWN : CIRCLE_UP;
             return (
               <>
-                <div style={{ fontSize: 'clamp(40px,8vh,56px)', fontWeight: 900, color: ORANGE, lineHeight: 1 }}>{title}</div>
+                <div style={{ fontSize: 'clamp(40px,8vh,56px)', fontWeight: 900, color: titleColor, lineHeight: 1, transition: 'color 0.3s ease' }}>{title}</div>
                 {/* Square = time-meter base. Rounded, slightly-darker cream. */}
                 <div style={{
                   position: 'relative', width: 'clamp(220px,46vh,340px)', aspectRatio: '1 / 1',
                   background: SQUARE_BG, borderRadius: '16%',
                 }}>
-                  {/* Time frame on the square border (fixed size). Starts empty
-                      and FILLS clockwise from the top-middle as the exercise
-                      progresses. Dash math uses the path's real length (measured
-                      via getTotalLength) — never pathLength, which WebKit ignores
-                      under non-scaling-stroke and which caused the old static,
-                      corner-segmented frame. */}
-                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-                    <path ref={(el) => { if (el && meterLen === 0) { const L = el.getTotalLength(); if (L) setMeterLen(L); } }}
-                      d={METER_PATH} fill="none" stroke="#FFC9A6" strokeWidth="2.5"
-                      vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round"
-                      strokeDasharray={meterLen || 1} strokeDashoffset={meterLen * (1 - fillFrac)}
-                      style={{ transition: 'stroke-dashoffset 0.15s linear', opacity: meterLen ? 1 : 0 }} />
-                  </svg>
+                  {/* Time frame — a conic-gradient border, masked to the square's
+                      edge. Fills clockwise from the top-middle (conic 0deg) as
+                      the exercise progresses; empty at the start, closed at the
+                      end. Replaces the SVG stroke-dash meter, which WebKit drew
+                      as static corner segments. Driven by fillFrac (rAF). */}
+                  <div style={{
+                    position: 'absolute', inset: 0, borderRadius: '16%', padding: FRAME_STROKE, pointerEvents: 'none',
+                    background: `conic-gradient(from 0deg, ${FRAME_COLOR} 0turn ${fillFrac}turn, rgba(0,0,0,0) ${fillFrac}turn 1turn)`,
+                    WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+                    WebkitMaskComposite: 'xor',
+                    mask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+                    maskComposite: 'exclude',
+                  }} />
                   {/* Breathing circle — inflates/deflates INSIDE the square.
                       Animation untouched (transform scale + transition). */}
                   <div style={{
@@ -429,10 +574,10 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
                   }}>
                     <div style={{
                       width: '82%', height: '82%', borderRadius: '50%',
-                      background: 'radial-gradient(circle at 50% 40%, #FFC79E, #FF8A42 70%, #FF6F20)',
+                      background: circleBg,
                       boxShadow: '0 0 60px 12px rgba(255,138,66,0.35)',
                       transform: `scale(${scale})`,
-                      transition: `transform ${transDur}s ease-in-out`,
+                      transition: `transform ${transDur}s ease-in-out, background 0.4s ease`,
                     }} />
                   </div>
                   {/* Big number — fixed & centered over the whole square, so

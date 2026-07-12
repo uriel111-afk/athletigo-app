@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Timer, Clock, Zap, Play, Pause, RotateCcw, Flag, ListOrdered, ChevronRight, Music, Wind } from "lucide-react";
 import MetronomeMode from "@/components/MetronomeMode";
-import BreathingMode from "@/components/BreathingMode";
+import BreathingMode, { hasLiveBreathingSession } from "@/components/BreathingMode";
 import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 import { AuthContext } from "@/lib/AuthContext";
@@ -335,6 +335,9 @@ export default function Clocks() {
   const [activeTab, setActiveTab] = useState(() => {
     const fromNav = location.state?.openTimer;
     if (fromNav === 'tabata' || fromNav === 'timer' || fromNav === 'stopwatch' || fromNav === 'dynamic' || fromNav === 'metronome' || fromNav === 'breathing') return fromNav;
+    // A breathing exercise that was mid-flight when the app was killed/reloaded
+    // → land back inside it (BreathingMode rehydrates its own running state).
+    if (hasLiveBreathingSession()) return 'breathing';
     return 'tabata';
   });
   const clock = useClock();
@@ -370,6 +373,9 @@ export default function Clocks() {
     if (showTabata) return 'tabata';
     if (showDynamic) return 'dynamic';
     if (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch') return clock.activeClock;
+    // A live breathing session (survived an app kill/reload) → focus it so
+    // the user returns straight to the running exercise, not the grid.
+    if (hasLiveBreathingSession()) return 'breathing';
     return null;
   });
   const focus = useCallback((id) => { setFocused(id); setActiveTab(id); }, []);
@@ -407,6 +413,7 @@ export default function Clocks() {
     else if (clock?.activeClock === 'timer' || clock?.activeClock === 'stopwatch') {
       setActiveTab(clock.activeClock); setFocused(clock.activeClock);
     }
+    else if (hasLiveBreathingSession()) { setActiveTab('breathing'); setFocused('breathing'); }
   }, []);
 
   // Minimize — NEVER stops intervals, navigates to role dashboard,
