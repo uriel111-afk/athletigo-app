@@ -5,6 +5,7 @@ import { Pencil, Trash2, ChevronLeft, ChevronRight, RefreshCw, UserPlus, Phone, 
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import GuidedLeadFlow from '@/components/lifeos/GuidedLeadFlow';
+import QuickIntakeForm, { needsCompletion, isBusinessLead, TYPE_LABEL } from '@/components/lifeos/QuickIntakeForm';
 import LeadDetailView from '@/components/lifeos/LeadDetailView';
 import AddTraineeDialog from '@/components/forms/AddTraineeDialog';
 import {
@@ -88,6 +89,8 @@ export default function Leads() {
   const [filter, setFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [showQuick, setShowQuick] = useState(false);     // quick-intake form
+  const [quickLead, setQuickLead] = useState(null);      // lead being completed/edited
   const [viewingLead, setViewingLead] = useState(null);  // detail overlay
   // Create-trainee flow: when the coach wants to spin a paying client
   // out of a converted lead, we open AddTraineeDialog with name+phone
@@ -137,8 +140,15 @@ export default function Leads() {
   const overdueCount = overdueIds.size;
 
   const openNew  = () => { setEditing(null); setShowForm(true); };
+  // Quick intake — new capture, or reopen a lead to complete/edit its
+  // quick fields.
+  const openQuick = () => { setQuickLead(null); setShowQuick(true); };
+  const openQuickLead = (lead) => { setViewingLead(null); setQuickLead(lead); setShowQuick(true); };
+  // The wizard — for private leads (edit / "continue in wizard"), prefilled.
   const openEdit = (lead) => { setViewingLead(null); setEditing(lead); setShowForm(true); };
-  const openView = (row) => setViewingLead(row);
+  // Tapping a lead: "awaiting completion" leads jump straight to the quick
+  // form; everything else opens the detail card.
+  const openView = (row) => { if (needsCompletion(row)) openQuickLead(row); else setViewingLead(row); };
 
   const handleDelete = async (e, id) => {
     e?.stopPropagation?.();
@@ -181,12 +191,21 @@ export default function Leads() {
         </button>
       </div>
     }>
-      <button onClick={openNew} style={{
-        width: '100%', padding: '14px 16px', borderRadius: 12, border: 'none',
-        backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
-        fontSize: 15, fontWeight: 700, cursor: 'pointer', marginBottom: 12,
-        boxShadow: '0 2px 8px rgba(255,111,32,0.2)',
-      }}>+ ליד חדש</button>
+      {/* Two intake paths side by side: proactive call → wizard,
+          inbound call → quick intake. */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <button onClick={openNew} style={{
+          flex: 1, padding: '14px 12px', borderRadius: 12, border: 'none',
+          backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
+          fontSize: 15, fontWeight: 700, cursor: 'pointer',
+          boxShadow: '0 2px 8px rgba(255,111,32,0.2)',
+        }}>+ ליד חדש (אשף)</button>
+        <button onClick={openQuick} style={{
+          flex: 1, padding: '14px 12px', borderRadius: 12, cursor: 'pointer',
+          border: `1px solid ${LIFEOS_COLORS.primary}`, background: '#FFFFFF', color: LIFEOS_COLORS.primary,
+          fontSize: 15, fontWeight: 700,
+        }}>⚡ קליטה מהירה</button>
+      </div>
 
       {/* View switcher — one compact segmented control (centered) */}
       <div style={{
@@ -282,11 +301,20 @@ export default function Leads() {
         onSaved={load}
       />
 
+      <QuickIntakeForm
+        isOpen={showQuick}
+        userId={userId}
+        lead={quickLead}
+        onClose={() => { setShowQuick(false); setQuickLead(null); }}
+        onSaved={load}
+      />
+
       {viewingLead && (
         <LeadDetailView
           lead={viewingLead}
           onClose={() => setViewingLead(null)}
           onEdit={openEdit}
+          onEditQuick={openQuickLead}
           onChanged={load}
         />
       )}
@@ -381,6 +409,8 @@ function LeadRow({ row, isLast, overdue, onView, onDelete, onCreateTrainee }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <div style={{ fontSize: 14, fontWeight: 700 }}>{row.name}</div>
+            {isBusinessLead(row) && <LeadTypeTag lead={row} />}
+            {needsCompletion(row) && <PendingTag />}
             {ladder && (
               <span style={{
                 padding: '2px 8px', borderRadius: 999,
@@ -506,6 +536,12 @@ function KanbanCard({ lead, columns, onTap, onMove, overdue }) {
         {interest && (
           <div style={{ fontSize: 10, color: LIFEOS_COLORS.textSecondary, marginTop: 2 }}>{interest.label}</div>
         )}
+        {(isBusinessLead(lead) || needsCompletion(lead)) && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5 }}>
+            {isBusinessLead(lead) && <LeadTypeTag lead={lead} />}
+            {needsCompletion(lead) && <PendingTag />}
+          </div>
+        )}
       </div>
       <div style={{ display: 'flex', gap: 6, marginTop: 10, alignItems: 'center' }}>
         <button onClick={(e) => { e.stopPropagation(); next && onMove(lead, next.key); }}
@@ -522,6 +558,27 @@ function KanbanCard({ lead, columns, onTap, onMove, overdue }) {
 }
 
 // ─── Shared ──────────────────────────────────────────────────────
+
+// Distinct tag for business / existing-group leads (vs private).
+function LeadTypeTag({ lead }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 8px', borderRadius: 999,
+      background: '#EEF2FF', color: '#4338CA', border: '1px solid #C7D2FE',
+      fontSize: 10, fontWeight: 800, whiteSpace: 'nowrap',
+    }}>🏢 {TYPE_LABEL[lead.lead_type] || 'עסקי'}</span>
+  );
+}
+
+// "Awaiting completion" tag — a quick lead not yet classified.
+function PendingTag() {
+  return (
+    <span style={{
+      padding: '2px 8px', borderRadius: 999, background: '#FEF3C7', color: '#92400E',
+      border: '1px solid #FDE68A', fontSize: 10, fontWeight: 800, whiteSpace: 'nowrap',
+    }}>ממתין להשלמה</span>
+  );
+}
 
 function FilterChip({ active, onClick, label, activeColor = LIFEOS_COLORS.primary, dangerIdle }) {
   // dangerIdle → red border + text when not active (e.g. "חסר קבלה" > 0).

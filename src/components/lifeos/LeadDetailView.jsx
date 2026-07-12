@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Phone, MessageCircle, Pencil, Send } from 'lucide-react';
+import { X, Phone, MessageCircle, Pencil, Send, ArrowLeftCircle } from 'lucide-react';
 import {
   LADDER_MATCHES, LEAD_CLOSE_RESULTS, LEAD_STATUS, LEAD_SOURCES,
   SPORTS_EXPERIENCE, LADDER_CONTENT, ladderForExperience,
@@ -8,6 +8,9 @@ import {
 import { updateLead } from '@/lib/lifeos/lifeos-api';
 import { useSalesScripts } from '@/lib/lifeos/sales-scripts-api';
 import { waLink, telLink, relTime, followUpState } from '@/lib/lifeos/lead-helpers';
+import { isBusinessLead, needsCompletion, TYPE_LABEL } from '@/components/lifeos/QuickIntakeForm';
+
+const OFFER_STATUS = ['טרם הוגשה', 'הוגשה', 'התקבלה', 'נדחתה'];
 
 const CLOSE_BY_KEY = Object.fromEntries(LEAD_CLOSE_RESULTS.map((s) => [s.key, s]));
 const STATUS_BY_KEY = Object.fromEntries(LEAD_STATUS.map((s) => [s.key, s]));
@@ -19,10 +22,30 @@ const fmtTs = (t) => { try { return new Date(t).toLocaleDateString('he-IL', { da
 const fmt = (n) => Math.round(Number(n)).toLocaleString('he-IL');
 
 // Full-screen read-only summary of a saved lead + action buttons.
-export default function LeadDetailView({ lead, onClose, onEdit, onChanged }) {
+export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onChanged }) {
   const [sent, setSent] = useState(Array.isArray(lead?.content_sent) ? lead.content_sent : []);
   const [picker, setPicker] = useState(false);
+  // Inline-editable free notes + business offer block.
+  const [notes, setNotes] = useState(lead?.notes || '');
+  const [offer, setOffer] = useState({ our_offer: lead?.our_offer || '', offer_status: lead?.offer_status || '', proposed_price: lead?.proposed_price || '' });
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [savingOffer, setSavingOffer] = useState(false);
   if (!lead) return null;
+
+  // A quick-intake lead (has preferred_channel) edits via the quick form;
+  // a private lead can also continue in the 9-step wizard.
+  const isQuick = !!lead.preferred_channel;
+  const business = isBusinessLead(lead);
+  const saveNotes = async () => {
+    if (notes === (lead.notes || '')) return;
+    setSavingNotes(true);
+    try { await updateLead(lead.id, { notes }); onChanged?.(); } catch (e) { console.warn('[LeadDetail] notes save', e); } finally { setSavingNotes(false); }
+  };
+  const saveOffer = async () => {
+    setSavingOffer(true);
+    try { await updateLead(lead.id, { our_offer: offer.our_offer || null, offer_status: offer.offer_status || null, proposed_price: offer.proposed_price || null }); onChanged?.(); }
+    catch (e) { console.warn('[LeadDetail] offer save', e); } finally { setSavingOffer(false); }
+  };
 
   const sc = useSalesScripts();
   const ladderKey = lead.ladder_match || ladderForExperience(lead.sports_experience);
@@ -58,12 +81,19 @@ export default function LeadDetailView({ lead, onClose, onEdit, onChanged }) {
 
       {/* Body */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Identity */}
+        {/* Identity — contact name, role, organization + direct actions */}
         <div style={card}>
           <div style={{ fontSize: 20, fontWeight: 900, color: '#1A1A1A' }}>
             {lead.name}{lead.age ? <span style={{ fontSize: 15, fontWeight: 600, color: '#9A8F82' }}> · בן {lead.age}</span> : null}
           </div>
+          {(lead.contact_role || lead.organization) && (
+            <div style={{ fontSize: 13, color: '#5C4A3A', fontWeight: 600, marginTop: 3 }}>
+              {[lead.contact_role, lead.organization].filter(Boolean).join(' · ')}
+            </div>
+          )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+            {business && <Badge color="#4338CA">🏢 {TYPE_LABEL[lead.lead_type] || 'עסקי'}</Badge>}
+            {needsCompletion(lead) && <Badge color="#92400E">ממתין להשלמה</Badge>}
             {statusBadge && <Badge color={statusBadge.color}>{statusBadge.label}</Badge>}
             {ladder && <Badge color={ladder.color}>{ladder.title}</Badge>}
             {source && <Badge color="#9A8F82" subtle>{source.label}</Badge>}
@@ -72,7 +102,71 @@ export default function LeadDetailView({ lead, onClose, onEdit, onChanged }) {
             {lead.phone && <a href={telLink(lead.phone)} style={linkStyle}><Phone size={13} /> {lead.phone}</a>}
             {lead.email && <span style={{ color: '#9A8F82' }}>{lead.email}</span>}
           </div>
+          {/* Direct call / whatsapp buttons in the header */}
+          {lead.phone && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <button type="button" onClick={() => { window.location.href = telLink(lead.phone); }} style={{ flex: 1, minHeight: 40, borderRadius: 10, border: 'none', cursor: 'pointer', background: '#3B82F6', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Phone size={15} /> חייג</button>
+              <button type="button" onClick={() => window.open(waLink(lead.phone, ''), '_blank')} style={{ flex: 1, minHeight: 40, borderRadius: 10, border: 'none', cursor: 'pointer', background: '#25D366', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><MessageCircle size={15} /> וואטסאפ</button>
+            </div>
+          )}
         </div>
+
+        {/* Business summary line — type · size · frequency · proposed price */}
+        {business && (
+          <div style={{ ...card, background: '#EEF2FF', border: '1px solid #C7D2FE' }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#3730A3' }}>
+              {[TYPE_LABEL[lead.lead_type], lead.group_size && `${lead.group_size} משתתפים`, lead.frequency_per_week && `${lead.frequency_per_week}×/שבוע`, lead.proposed_price && `הוצע ${lead.proposed_price}₪`].filter(Boolean).join(' · ')}
+            </div>
+            {(lead.group_location || lead.payer) && (
+              <div style={{ fontSize: 12, color: '#4338CA', marginTop: 4 }}>
+                {[lead.group_location, lead.payer && `מממן: ${lead.payer}`].filter(Boolean).join(' · ')}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Free notes ("מה הוא אמר") — shown in full, editable inline */}
+        <div style={card}>
+          <div style={cardTitle}>הערות</div>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={saveNotes}
+            style={{ width: '100%', minHeight: 90, padding: 10, borderRadius: 10, border: '1px solid #F0E4D0', fontSize: 14, lineHeight: 1.5, color: '#1A1A1A', resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+            placeholder="הערות חופשיות..." />
+          {savingNotes && <div style={{ fontSize: 11, color: '#9A8F82', marginTop: 4 }}>שומר...</div>}
+        </div>
+
+        {/* Business offer block — proposed price + our offer + status */}
+        {business && (
+          <div style={card}>
+            <div style={cardTitle}>הצעה עסקית</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#9A8F82', marginBottom: 2 }}>המחיר שהם הציעו</div>
+                <input value={offer.proposed_price} onChange={(e) => setOffer((o) => ({ ...o, proposed_price: e.target.value }))} placeholder="₪" style={offerInp} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#9A8F82', marginBottom: 2 }}>ההצעה שלנו</div>
+                <input value={offer.our_offer} onChange={(e) => setOffer((o) => ({ ...o, our_offer: e.target.value }))} placeholder="מה הצענו" style={offerInp} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#9A8F82', marginBottom: 4 }}>סטטוס ההצעה</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {OFFER_STATUS.map((s) => {
+                    const on = offer.offer_status === s;
+                    return (
+                      <button key={s} type="button" onClick={() => setOffer((o) => ({ ...o, offer_status: on ? '' : s }))} style={{
+                        minHeight: 34, padding: '0 12px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                        border: on ? '2px solid #4338CA' : '1px solid #F0E4D0', background: on ? '#4338CA' : '#fff', color: on ? '#fff' : '#3a3a3a',
+                      }}>{s}</button>
+                    );
+                  })}
+                </div>
+              </div>
+              <button type="button" onClick={saveOffer} disabled={savingOffer} style={{
+                minHeight: 42, borderRadius: 10, border: 'none', cursor: 'pointer', background: '#4338CA', color: '#fff', fontSize: 14, fontWeight: 800, opacity: savingOffer ? 0.6 : 1,
+              }}>{savingOffer ? 'שומר...' : 'שמור הצעה'}</button>
+            </div>
+          </div>
+        )}
 
         {/* Discovery */}
         {(exp || lead.fitness_goal || lead.fear_barrier || lead.current_training) && (
@@ -165,7 +259,6 @@ export default function LeadDetailView({ lead, onClose, onEdit, onChanged }) {
                   {String(lead.next_follow_up).slice(0, 10)}{fu === 'overdue' ? ' · באיחור' : fu === 'today' ? ' · היום' : ''}
                 </span>} />
             )}
-            {lead.notes && <Row label="הערות" value={lead.notes} />}
             {(lead.last_contact_date || lead.created_at) && (
               <Row label="קשר אחרון" value={relTime(lead.last_contact_date || lead.created_at)} />
             )}
@@ -174,10 +267,15 @@ export default function LeadDetailView({ lead, onClose, onEdit, onChanged }) {
       </div>
 
       {/* Actions */}
-      <div style={{ flexShrink: 0, padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', borderTop: '1px solid #F0E4D0', background: '#fff', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
-        <ActionBtn onClick={() => onEdit(lead)} icon={<Pencil size={18} />} label="ערוך" />
+      <div style={{ flexShrink: 0, padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', borderTop: '1px solid #F0E4D0', background: '#fff', display: 'flex', gap: 8 }}>
+        {/* Edit — quick lead → quick form; wizard lead → wizard */}
+        <ActionBtn onClick={() => (isQuick && onEditQuick ? onEditQuick(lead) : onEdit(lead))} icon={<Pencil size={18} />} label="ערוך" />
+        {/* Private quick leads can graduate to the 9-step wizard, prefilled.
+            Business leads are handled by direct conversation — no wizard. */}
+        {isQuick && !business && (
+          <ActionBtn onClick={() => onEdit(lead)} icon={<ArrowLeftCircle size={18} />} label="המשך באשף" color="#FF6F20" />
+        )}
         <ActionBtn onClick={() => window.open(waLink(lead.phone, ''), '_blank')} icon={<MessageCircle size={18} />} label="וואטסאפ" color="#25D366" />
-        <ActionBtn onClick={() => { window.location.href = telLink(lead.phone); }} icon={<Phone size={18} />} label="התקשר" color="#3B82F6" />
         <ActionBtn onClick={() => setPicker(true)} icon={<Send size={18} />} label="שלח תוכן" color="#FF6F20" />
       </div>
 
@@ -236,7 +334,7 @@ function Row({ label, value }) {
 function ActionBtn({ onClick, icon, label, color = '#5C4A3A' }) {
   return (
     <button type="button" onClick={onClick} style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+      flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
       padding: '8px 0', borderRadius: 12, border: '1px solid #F0E4D0', background: '#fff', cursor: 'pointer',
       color, fontSize: 11, fontWeight: 700,
     }}>
@@ -251,3 +349,4 @@ const cardTitle = { fontSize: 13, fontWeight: 800, color: '#1A1A1A', marginBotto
 const iconBtn = { background: 'transparent', border: 'none', cursor: 'pointer', padding: 6, display: 'flex' };
 const linkStyle = { display: 'inline-flex', alignItems: 'center', gap: 4, color: '#3B82F6', textDecoration: 'none', fontWeight: 600 };
 const chip = { fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 999, background: '#F4E8D8', color: '#5C4A3A' };
+const offerInp = { width: '100%', minHeight: 40, padding: '9px 11px', borderRadius: 10, border: '1px solid #F0E4D0', background: '#fff', fontSize: 14, color: '#1A1A1A', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' };
