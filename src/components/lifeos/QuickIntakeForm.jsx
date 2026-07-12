@@ -182,6 +182,18 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
     if (needs.includes(n)) set({ need_type: needs.filter((x) => x !== n).join(',') });
     else if (needs.length < 2) set({ need_type: [...needs, n].join(',') }); // up to two
   };
+  // Needs "אחר" — the free-text need is stored IN need_type (replacing the
+  // literal "אחר"). customNeed = the entry not in the persona's standard list.
+  const stdNeeds = NEEDS_BY_PERSONA[f.persona] || [];
+  const customNeed = needs.find((n) => !stdNeeds.includes(n)) || '';
+  const toggleOtherNeed = () => {
+    if (customNeed) set({ need_type: needs.filter((n) => n !== customNeed).join(',') });
+    else if (needs.length < 2) set({ need_type: [...needs, 'אחר'].join(',') });
+  };
+  const setOtherNeed = (text) => {
+    const base = needs.filter((n) => n !== customNeed);
+    set({ need_type: [...base, text.trim() || 'אחר'].join(',') });
+  };
   const response = f.persona ? buildNeedResponse({ persona: f.persona, needs, serviceType: f.service_type }) : null;
 
   const save = async () => {
@@ -277,7 +289,7 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
             <textarea ref={notesRef} style={{ ...inp, height: 'auto', minHeight: 120, lineHeight: 1.5 }} rows={5}
               value={f.notes} onChange={(e) => set({ notes: e.target.value })} placeholder="כתוב חופשי מה הוא אמר בשיחה..." />
           </Field>
-          <Field label="תפקיד"><Chips options={ROLE_CHIPS} value={f.contact_role} onPick={(v) => set({ contact_role: f.contact_role === v ? '' : v })} /></Field>
+          <Field label="תפקיד"><ChipsOther options={ROLE_CHIPS} value={f.contact_role} onChange={(v) => set({ contact_role: v })} hint="מה התפקיד? (למשל: מנהלת קהילה, רכז נוער)" /></Field>
           <Field label="ארגון / יישוב"><input style={inp} value={f.organization} onChange={(e) => set({ organization: e.target.value })} placeholder="לא חובה" /></Field>
           <Field label="ערוץ מועדף">
             <Chips options={CHANNELS.map((c) => c.label)} value={CHANNELS.find((c) => c.key === f.preferred_channel)?.label}
@@ -336,7 +348,11 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
               <Field label="תדירות בשבוע"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="2" /></Field>
             </div>
           </>)}
-          {st === 'other' && (<Field label="פרטים"><textarea style={{ ...inp, height: 'auto', minHeight: 70 }} rows={3} value={f.main_goal} onChange={(e) => set({ main_goal: e.target.value })} placeholder="תיאור חופשי של הבקשה" /></Field>)}
+          {/* Service type "אחר" — description already captured here (item 2).
+              The chip value stays the key 'other'; the text lives in its
+              own detail field (fitness_goal) since service_type must remain
+              a key for the app's logic. */}
+          {st === 'other' && (<Field label="תיאור השירות המבוקש"><textarea style={{ ...inp, height: 'auto', minHeight: 70 }} rows={3} value={f.main_goal} onChange={(e) => set({ main_goal: e.target.value })} placeholder="איזה שירות הם מבקשים?" /></Field>)}
 
           <Field label="עבור מי">
             <Chips options={FOR_WHOM.map((t) => t.label)} value={FORWHOM_LABEL[f.for_whom]}
@@ -358,7 +374,14 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
             </Field>
             {f.persona && (
               <Field label="הצורך המרכזי (עד שניים)">
-                <MultiChips options={NEEDS_BY_PERSONA[f.persona] || []} selected={needs} onToggle={toggleNeed} />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: GAP_CHIP }}>
+                  {stdNeeds.map((o) => <button key={o} type="button" onClick={() => toggleNeed(o)} style={chipStyle(needs.includes(o))}>{o}</button>)}
+                  <button type="button" onClick={toggleOtherNeed} style={chipStyle(!!customNeed)}>אחר</button>
+                </div>
+                {customNeed && (
+                  <input style={{ ...inp, marginTop: 8 }} value={customNeed === 'אחר' ? '' : customNeed}
+                    onChange={(e) => setOtherNeed(e.target.value)} placeholder="מה הצורך?" />
+                )}
               </Field>
             )}
             {/* Our-answer card — connection line + matching offer + one question */}
@@ -423,7 +446,7 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
         <Section title="5 · מה הלאה">
           <Field label="הצעד הבא"><Chips options={NEXT_STEPS} value={f.next_step} onPick={(v) => { setNextStepTouched(true); set({ next_step: f.next_step === v ? '' : v }); }} /></Field>
           <Field label="מתי לחזור"><FollowupChips value={f.follow_up} onChange={(d) => set({ follow_up: d })} /></Field>
-          <Field label="מקור"><Chips options={SOURCES} value={f.source} onPick={(v) => set({ source: v })} /></Field>
+          <Field label="מקור"><ChipsOther options={SOURCES} value={f.source} onChange={(v) => set({ source: v })} hint="מאיפה הגיע?" /></Field>
         </Section>
       </div>
 
@@ -465,6 +488,29 @@ function MultiChips({ options, selected, onToggle }) {
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: GAP_CHIP }}>
       {options.map((o) => <button key={o} type="button" onClick={() => onToggle(o)} style={chipStyle(selected.includes(o))}>{o}</button>)}
     </div>
+  );
+}
+// Single-select chips whose last option is "אחר": choosing it opens a
+// short detail field, and the FREE TEXT becomes the value (stored to the
+// same column, replacing the word "אחר"). A bare 'אחר' is the sentinel
+// while the field is still empty.
+function ChipsOther({ options, value, onChange, hint }) {
+  const std = options.filter((o) => o !== 'אחר');
+  const isOther = value === 'אחר' || (!!value && !std.includes(value));
+  return (
+    <>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: GAP_CHIP }}>
+        {options.map((o) => {
+          const on = o === 'אחר' ? isOther : value === o;
+          const onClick = () => onChange(o === 'אחר' ? (isOther ? '' : 'אחר') : (value === o ? '' : o));
+          return <button key={o} type="button" onClick={onClick} style={chipStyle(on)}>{o}</button>;
+        })}
+      </div>
+      {isOther && (
+        <input style={{ ...inp, marginTop: 8 }} value={value === 'אחר' ? '' : value}
+          onChange={(e) => onChange(e.target.value.trim() ? e.target.value : 'אחר')} placeholder={hint} />
+      )}
+    </>
   );
 }
 // Uniform chip: same height/padding in both states. Selected = full orange

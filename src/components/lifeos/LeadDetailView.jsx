@@ -178,7 +178,7 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
             {needsCompletion(lead) && <Badge color="#92400E">ממתין להשלמה</Badge>}
             {statusBadge && <Badge color={statusBadge.color}>{statusBadge.label}</Badge>}
             {ladder && <Badge color={ladder.color}>{ladder.title}</Badge>}
-            {source && <Badge color="#9A8F82" subtle>{source.label}</Badge>}
+            {source ? <Badge color="#9A8F82" subtle>{source.label}</Badge> : (lead.source && <Badge color="#9A8F82" subtle>{lead.source}</Badge>)}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 10, fontSize: 13 }}>
             {lead.phone && <a href={telLink(lead.phone)} style={linkStyle}><Phone size={13} /> {lead.phone}</a>}
