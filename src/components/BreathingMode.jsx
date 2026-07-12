@@ -25,19 +25,35 @@ const SMALL = 0.66;
 const PREP_PULSE = SMALL + 0.08; // gentle one-beat pulse during prep
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
-// Phase names — consistent set: שאיפה / החזקה / נשיפה / החזקה ריקה.
+// Phase names — one consistent set everywhere (settings + exercise + next
+// preview): שאיפה / החזקה מלאה / נשיפה / החזקה ריקה.
 const PHASE_DEFS = [
   { key: 'inhale',    name: 'שאיפה',      tone: 'up' },
-  { key: 'hold',      name: 'החזקה',      tone: 'hold' },
+  { key: 'hold',      name: 'החזקה מלאה', tone: 'hold' },
   { key: 'exhale',    name: 'נשיפה',      tone: 'down' },
   { key: 'holdEmpty', name: 'החזקה ריקה', tone: 'hold' },
 ];
 const STEPPERS = [
   { key: 'inhale',    label: 'שאיפה' },
-  { key: 'hold',      label: 'החזקה' },
+  { key: 'hold',      label: 'החזקה מלאה' },
   { key: 'exhale',    label: 'נשיפה' },
   { key: 'holdEmpty', label: 'החזקה ריקה' },
 ];
+
+// Per-phase palette (earth & sea) — keyed by phase KEY (hold and holdEmpty
+// are now DIFFERENT colours, so a tone-based lookup no longer suffices).
+const PHASE_COLOR = {
+  inhale:    'var(--phase-inhale)',
+  hold:      'var(--phase-hold-full)',
+  exhale:    'var(--phase-exhale)',
+  holdEmpty: 'var(--phase-hold-empty)',
+};
+const PHASE_TINT = {
+  inhale:    'var(--phase-inhale-tint)',
+  hold:      'var(--phase-hold-full-tint)',
+  exhale:    'var(--phase-exhale-tint)',
+  holdEmpty: 'var(--phase-hold-empty-tint)',
+};
 
 function createBreathAudio(initialGain = FIXED_GAIN) {
   let ctx = null;
@@ -147,14 +163,6 @@ const FRAME_COLOR = 'var(--breath-frame)';
 const FRAME_STROKE = 5; // px — full brand-orange ring
 const MASK_FILL = 'var(--breath-mask)'; // opaque fill for the border-ring mask
 
-// ── Per-phase title colours — Lumen tokens only (see --breath-* in
-// index.css). Warm brand family: inhale = brand orange, exhale = deep
-// terracotta, hold/holdEmpty = smoky amber. No hard-coded hex here.
-const PHASE_TITLE_COLOR = {
-  up:   'var(--breath-inhale)', // שאיפה
-  down: 'var(--breath-exhale)', // נשיפה
-  hold: 'var(--breath-hold)',   // החזקה / החזקה ריקה
-};
 const CIRCLE_UP   = 'var(--breath-circle-up)';   // inhale/hold — full warm
 const CIRCLE_DOWN = 'var(--breath-circle-down)'; // exhale/empty — softer/deeper
 
@@ -245,8 +253,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const [running, setRunning] = useState(() => boot?.kind === 'resume');
   const [done, setDone] = useState(() => boot?.kind === 'done');
   const [phaseName, setPhaseName] = useState(() => bootPhase?.name || '');
-  // Current phase tone/key drive the per-phase title colour + circle shade.
-  const [phaseTone, setPhaseTone] = useState(() => bootPhase?.tone || 'up');
+  // Current phase key drives the per-phase title colour + circle shade.
   const [phaseKey, setPhaseKey] = useState(() => bootPhase?.key || '');
   const [secondsLeft, setSecondsLeft] = useState(() => bootPhase ? Math.max(0, Math.ceil((bootPhase.dur || 0) - boot.loc.phaseElapsedMs / 1000)) : 0);
   const [roundCur, setRoundCur] = useState(() => {
@@ -339,18 +346,18 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const computeNextInfo = ({ prep = false } = {}) => {
     const seq = seqRef.current;
     if (!seq || !seq.length) return null;
-    if (prep) { const p = seq[0]; return { name: p.name, dur: p.dur, tone: p.tone }; }
+    const info = (p) => ({ name: p.name, dur: p.dur, key: p.key });
+    if (prep) return info(seq[0]);
     const i = idxRef.current;
-    if (isInfRef.current) { const p = seq[(i + 1) % seq.length]; return { name: p.name, dur: p.dur, tone: p.tone }; }
+    if (isInfRef.current) return info(seq[(i + 1) % seq.length]);
     if (i + 1 >= seq.length) return { finishing: true };
-    const p = seq[i + 1];
-    return { name: p.name, dur: p.dur, tone: p.tone };
+    return info(seq[i + 1]);
   };
 
   const enterPhase = (p) => {
     curRef.current = p;
     phaseStartRef.current = performance.now();
-    setPhaseName(p.name); setPhaseTone(p.tone); setPhaseKey(p.key); setSecondsLeft(p.dur);
+    setPhaseName(p.name); setPhaseKey(p.key); setSecondsLeft(p.dur);
     setNextInfo(computeNextInfo());
     if (p.tone === 'up') { setTransDur(p.dur); setScale(1); }
     else if (p.tone === 'down') { setTransDur(p.dur); setScale(SMALL); }
@@ -529,7 +536,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
       exerciseEpochRef.current = s.startedAt;
       phaseStartRef.current = performance.now() - loc.phaseElapsedMs;
       exerciseStartRef.current = performance.now() - elapsed;
-      setRoundCur(roundRef.current); setPhaseName(p.name); setPhaseTone(p.tone); setPhaseKey(p.key);
+      setRoundCur(roundRef.current); setPhaseName(p.name); setPhaseKey(p.key);
       setNextInfo(computeNextInfo());
       setSecondsLeft(Math.max(0, Math.ceil(p.dur - loc.phaseElapsedMs / 1000)));
       const contracted = p.key === 'exhale' || p.key === 'holdEmpty';
@@ -569,9 +576,9 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
         background: 'var(--breath-bg)', padding: '16px 16px calc(16px + env(safe-area-inset-bottom,0px))',
         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}>
-        {/* Round line — only during the exercise (hidden in prep). ~30%
-            larger and in the warm terracotta token (was a neutral brown). */}
-        <div style={{ fontSize: 'clamp(28px,5vh,40px)', fontWeight: 800, color: 'var(--breath-exhale)', minHeight: 44, lineHeight: 1.1 }}>
+        {/* Round line — only during the exercise (hidden in prep). Deep brand
+            orange, independent of the (now green) exhale phase colour. */}
+        <div style={{ fontSize: 'clamp(28px,5vh,40px)', fontWeight: 800, color: 'var(--brand-orange-deep)', minHeight: 44, lineHeight: 1.1 }}>
           {(!done && mode === 'run') ? `סבב ${roundCur} ${rounds === 'inf' ? '' : `מתוך ${rounds}`}` : ''}
         </div>
 
@@ -593,9 +600,9 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
             // 2-digit steps down so it never clips. Fixed — doesn't breathe.
             const numFont = twoDigit ? 'clamp(66px,14vh,104px)' : 'clamp(100px,21vh,158px)';
             const title = mode === 'prep' ? 'תתכוננו' : phaseName;
-            // Per-phase title colour (Lumen --breath-* tokens). Prep keeps
-            // the brand-orange inhale token.
-            const titleColor = mode === 'prep' ? 'var(--breath-inhale)' : (PHASE_TITLE_COLOR[phaseTone] || 'var(--breath-inhale)');
+            // Per-phase title colour (earth & sea tokens, keyed by phase).
+            // Prep keeps the inhale colour.
+            const titleColor = mode === 'prep' ? 'var(--phase-inhale)' : (PHASE_COLOR[phaseKey] || 'var(--phase-inhale)');
             const contracted = phaseKey === 'exhale' || phaseKey === 'holdEmpty';
             const circleBg = (mode !== 'prep' && contracted) ? CIRCLE_DOWN : CIRCLE_UP;
             return (
@@ -656,7 +663,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
               ? <span>סיום מתקרב</span>
               : <span>
                   {'הבא: '}
-                  <span style={{ color: PHASE_TITLE_COLOR[nextInfo.tone] || 'var(--brand-amber-soft)', fontWeight: 800 }}>{nextInfo.name}</span>
+                  <span style={{ color: PHASE_COLOR[nextInfo.key] || 'var(--brand-amber-soft)', fontWeight: 800 }}>{nextInfo.name}</span>
                   {` · ${nextInfo.dur} ${nextInfo.dur === 1 ? 'שנייה' : 'שניות'}`}
                 </span>)}
           </div>
@@ -685,8 +692,10 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
       {/* Steppers */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {STEPPERS.map((s) => (
-          <div key={s.key} style={{ ...card, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--breath-ink-soft)' }}>{s.label}</div>
+          // Each time card wears its phase's tint background + full-colour
+          // title; the +/- buttons and number keep the existing style.
+          <div key={s.key} style={{ ...card, background: PHASE_TINT[s.key], display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: PHASE_COLOR[s.key] }}>{s.label}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {stepBtn(() => setPhase(s.key, -1), '−')}
               <div style={{ minWidth: 40, textAlign: 'center', fontSize: 30, fontWeight: 900, color: 'var(--breath-ink)' }}>{cfg[s.key]}</div>

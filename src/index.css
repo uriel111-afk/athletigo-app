@@ -162,18 +162,24 @@ button:focus-visible {
     --burgundy: #8B1A1A;
 
     /* ── Brand palette anchors (Lumen, canonical) ───────────────────── */
-    --brand-orange:      #FF6F20; /* mirror of --orange */
+    --brand-orange:      #FF6F20; /* mirror of --orange — the 5px time-frame */
     --brand-cream:       #FBF3EA; /* mirror of --cream */
-    --brand-orange-deep: #C24E12; /* darkened brand orange — exhale + round line */
-    --brand-amber-soft:  #E08A3C; /* warm amber mid-tone — holds */
+    --brand-orange-deep: #C24E12; /* deep brand orange — the round line */
+    --brand-amber-soft:  #E08A3C; /* warm neutral — next-phase preview label */
 
-    /* ── Breathing (נשימות) screen tokens — the component itself carries
-       ZERO hard-coded hex; every colour it renders resolves here. Phase
-       hues come from the brand anchors above; the rest mirror the exact
-       prior values so nothing but the phase colours changes visually. */
-    --breath-inhale:      var(--brand-orange);      /* שאיפה + prep */
-    --breath-exhale:      var(--brand-orange-deep);  /* נשיפה + round line */
-    --breath-hold:        var(--brand-amber-soft);   /* החזקה / החזקה ריקה */
+    /* ── Breathing phase palette (earth & sea) — one pair per phase:
+       full colour for titles, pastel tint for the settings cards. ── */
+    --phase-inhale:          #E4560A; /* שאיפה — brand orange anchor */
+    --phase-hold-full:       #6E6248; /* החזקה מלאה — stone brown */
+    --phase-exhale:          #2E7D53; /* נשיפה — forest green */
+    --phase-hold-empty:      #3E7580; /* החזקה ריקה — lake blue */
+    --phase-inhale-tint:     #FFE3D1;
+    --phase-hold-full-tint:  #EFE9DB;
+    --phase-exhale-tint:     #DCEDE4;
+    --phase-hold-empty-tint: #E2EDEF;
+
+    /* ── Breathing screen structural tokens — the component carries ZERO
+       hard-coded hex; every colour it renders resolves here. ── */
     --breath-frame:       var(--brand-orange);       /* conic time-frame — full opaque brand orange */
     --breath-bg:          #FFF9F0;                   /* screen background */
     --breath-square:      #F3E7D3;                   /* time-frame square base */
