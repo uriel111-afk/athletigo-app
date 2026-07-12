@@ -222,7 +222,12 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
 
   return (
     <div dir="rtl" style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, height: '100dvh',
+      // Match the working overlays (GuidedLeadFlow / LeadDetailView): fill
+      // the viewport with `inset:0` ONLY. The previous `height:100dvh`
+      // mis-resolved in the Android WebView, handing the flex scroll body
+      // a wrong height that clipped every section. inset:0 (top/bottom:0)
+      // sizes the overlay from the viewport offsets — reliable everywhere.
+      position: 'fixed', inset: 0,
       background: 'var(--cream, #FBF3EA)', zIndex: 1600,
       display: 'flex', flexDirection: 'column', fontFamily: "'Rubik', system-ui, sans-serif",
     }}>
@@ -236,7 +241,7 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
           (no hard heights). onFocusCapture keeps the active field visible
           above the keyboard / sticky Save. */}
       <div onFocusCapture={(e) => { const t = e.target; setTimeout(() => { try { t.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} }, 300); }}
-        style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `8px ${SIDE}px 20px`, display: 'flex', flexDirection: 'column', gap: GAP_SECTION }}>
+        style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `8px ${SIDE}px 20px`, display: 'block' }}>
 
         {/* ═══ 1 — מי מתקשר ═══ */}
         <Section title="1 · מי מתקשר">
@@ -465,7 +470,12 @@ const INPUT_H = 48;       // finger-friendly input height
 const CHIP_H = 40;        // uniform chip height (all chip rows)
 
 const iconBtn = { background: 'transparent', border: 'none', cursor: 'pointer', padding: 6, display: 'flex' };
-const sectionCard = { background: '#fff', border: '1px solid #F0E4D0', borderRadius: 14, padding: 12 };
+// Every direct child of the (now block-flow) scroll body is a sectionCard.
+// marginBottom replaces the old flex `gap`. Block flow means a section can
+// NEVER be compressed to fit — it takes its full content height and the
+// body scrolls. flexShrink:0 is a belt-and-suspenders guard in case a
+// parent ever re-introduces a flex context.
+const sectionCard = { background: '#fff', border: '1px solid #F0E4D0', borderRadius: 14, padding: 12, marginBottom: GAP_SECTION, flexShrink: 0 };
 const inp = {
   width: '100%', minHeight: INPUT_H, padding: '10px 12px', borderRadius: 10,
   border: '1px solid #F0E4D0', background: '#fff', fontSize: 14, color: '#1A1A1A',
