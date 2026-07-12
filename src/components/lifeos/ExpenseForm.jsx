@@ -10,7 +10,6 @@ import {
 import { addExpense, updateExpense, deleteExpense } from '@/lib/lifeos/lifeos-api';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompression';
-import { validateVideoFile, VIDEO_ACCEPT } from '@/lib/lifeos/videoValidation';
 import { pushDebugLog, readDebugLog, clearDebugLog, formatDebugLog } from '@/lib/debugLog';
 
 const isNativePlatform = Capacitor.isNativePlatform();
@@ -89,10 +88,6 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
   // intent returns. Refs still work across the React tree.
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
-  // Video is picked via a plain WebView file input on ALL platforms
-  // (record OR gallery through the native chooser) — never through
-  // @capacitor/camera, which is image-only. Mirrors FileManager.
-  const videoInputRef = useRef(null);
   // Guards the reset useEffect against re-running while the dialog
   // is still open — a stray userId/expense reference change from a
   // parent re-render would otherwise blow away typed fields.
@@ -297,24 +292,6 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
     if (e.target) e.target.value = '';
   };
 
-  // Video clip picked (recorded or from gallery). Enforces the shared
-  // 50MB / 60s guard BEFORE adding to the pending list, so an oversized
-  // clip never reaches the atomic save/upload. On success the file joins
-  // the same pendingFiles pipeline as images — uploadOnePendingFile
-  // already skips compression and tags file_type='video'.
-  const handleVideoInputChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (e.target) e.target.value = ''; // reset so re-picking the same clip fires onChange
-    if (!file) return;
-    const check = await validateVideoFile(file);
-    if (!check.ok) {
-      pushDebugLog('ExpenseForm', 'video-rejected', { reason: check.error, size: file.size });
-      toast.error(check.error);
-      return;
-    }
-    addPendingFiles([file]);
-  };
-
   // Uploads one pending file (compress → storage → lifeos_files row).
   // Returns { path, rowId } on success so the caller can roll back if
   // a later step fails. Mirrors the FileManager flow exactly so files
@@ -359,7 +336,7 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         entity_id: expenseId,
         file_url: fileUrl,
         file_name: file.name || `expense-${Date.now()}.${extension}`,
-        file_type: isImage ? 'image' : (mimeType.startsWith('video/') ? 'video' : 'other'),
+        file_type: isImage ? 'image' : 'other',
         file_size: toUpload.size,
         mime_type: mimeType,
       })
@@ -554,13 +531,6 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
         accept="image/*"
         multiple
         onChange={handleHiddenInputChange}
-        style={{ display: 'none' }}
-      />
-      <input
-        ref={videoInputRef}
-        type="file"
-        accept={VIDEO_ACCEPT}
-        onChange={handleVideoInputChange}
         style={{ display: 'none' }}
       />
       <Dialog open={isOpen} onOpenChange={(open) => {
@@ -790,27 +760,14 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
                     borderRadius: 8, overflow: 'hidden',
                     border: `1px solid ${LIFEOS_COLORS.border}`,
                   }}>
-                    {(pf.file?.type || '').startsWith('video/') ? (
-                      <video
-                        src={pf.previewUrl}
-                        muted
-                        playsInline
-                        preload="metadata"
-                        style={{
-                          width: '100%', height: '100%', objectFit: 'cover',
-                          display: 'block', background: '#000',
-                        }}
-                      />
-                    ) : (
-                      <img
-                        src={pf.previewUrl}
-                        alt="קבלה"
-                        style={{
-                          width: '100%', height: '100%', objectFit: 'cover',
-                          display: 'block',
-                        }}
-                      />
-                    )}
+                    <img
+                      src={pf.previewUrl}
+                      alt="קבלה"
+                      style={{
+                        width: '100%', height: '100%', objectFit: 'cover',
+                        display: 'block',
+                      }}
+                    />
                     <button
                       type="button"
                       onClick={() => removePendingFile(pf.id)}
@@ -852,16 +809,6 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
               >
                 <span style={{ fontSize: 16, lineHeight: 1 }}>🖼️</span>
                 <span>גלריה</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => videoInputRef.current?.click()}
-                disabled={saving}
-                style={receiptPickerBtn(saving)}
-                aria-label="צרף קליפ"
-              >
-                <span style={{ fontSize: 16, lineHeight: 1 }}>🎥</span>
-                <span>וידאו</span>
               </button>
             </div>
           </div>

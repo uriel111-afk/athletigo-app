@@ -1,16 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Download, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Capacitor } from '@capacitor/core';
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompression';
 import { pushDebugLog } from '@/lib/debugLog';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 import { validateVideoFile } from '@/lib/lifeos/videoValidation';
-
-const isNativePlatform = Capacitor.isNativePlatform();
+import { captureNativePhoto, isNativePlatform } from '@/lib/lifeos/mediaCapture';
 
 // System-wide file manager. Renders inline on a page (NOT inside a
 // Radix Dialog) because Radix + Android Chrome + file inputs is the
@@ -185,87 +182,12 @@ export default function FileManager({
     await handleFile(file);
   }
 
+  // Native camera / gallery-photo capture lives in the shared
+  // mediaCapture helper (same logic the trainee gallery uses). On
+  // success we hand off to the SAME handleFile pipeline as before.
   async function pickWithNativeCamera(source) {
-    const isCamera = source === 'camera';
-    try {
-      pushDebugLog('FileManager', 'native-camera-start', { source });
-
-      // android.permission.CAMERA IS declared in the manifest, so
-      // Capacitor requires an explicit runtime grant before the camera
-      // intent will open. The Photos (gallery) source does not need it.
-      if (isCamera) {
-        let perm = await Camera.checkPermissions();
-        pushDebugLog('FileManager', 'camera-perm-check', { state: perm?.camera });
-        if (perm.camera !== 'granted') {
-          perm = await Camera.requestPermissions({ permissions: ['camera'] });
-          pushDebugLog('FileManager', 'camera-perm-request', { state: perm?.camera });
-        }
-        if (perm.camera !== 'granted') {
-          toast.error('אין הרשאת מצלמה — אפשר לאשר בהגדרות המכשיר');
-          return;
-        }
-      }
-
-      // Camera path uses Uri (more reliable for full-res captures than a
-      // large Base64 string); gallery keeps its working Base64 path.
-      // Both converge on handleFile → compressImage → upload.
-      const image = await Camera.getPhoto(
-        isCamera
-          ? {
-              quality: 80,
-              allowEditing: false,
-              resultType: CameraResultType.Uri,
-              source: CameraSource.Camera,
-              width: 1600,
-              correctOrientation: true,
-              saveToGallery: false,
-            }
-          : {
-              quality: 80,
-              allowEditing: false,
-              resultType: CameraResultType.Base64,
-              source: CameraSource.Photos,
-              width: 1600,
-              saveToGallery: false,
-            }
-      );
-
-      pushDebugLog('FileManager', 'native-camera-got-image', {
-        format: image.format,
-        hasData: !!(image.base64String || image.webPath),
-      });
-
-      const mimeString = `image/${image.format}`;
-      let blob;
-      if (image.webPath) {
-        const res = await fetch(image.webPath);
-        blob = await res.blob();
-      } else {
-        const byteString = atob(image.base64String);
-        const ab = new ArrayBuffer(byteString.length);
-        const ia = new Uint8Array(ab);
-        for (let i = 0; i < byteString.length; i++) {
-          ia[i] = byteString.charCodeAt(i);
-        }
-        blob = new Blob([ab], { type: mimeString });
-      }
-
-      const file = new File([blob], `photo-${Date.now()}.${image.format}`, {
-        type: mimeString,
-      });
-
-      await handleFile(file);
-    } catch (err) {
-      // Make the failure visible on-device — was previously easy to miss.
-      console.log('[FileManager camera error]', err);
-      pushDebugLog('FileManager', 'native-camera-error', {
-        message: err?.message,
-        code: err?.code,
-      });
-      // Capacitor throws when the user cancels the picker — stay silent.
-      if ((err?.message || '').toLowerCase().includes('cancel')) return;
-      toast.error('שגיאה במצלמה: ' + (err?.message || 'שגיאה לא ידועה'));
-    }
+    const file = await captureNativePhoto(source);
+    if (file) await handleFile(file);
   }
 
   async function handleDownload(fileRow) {

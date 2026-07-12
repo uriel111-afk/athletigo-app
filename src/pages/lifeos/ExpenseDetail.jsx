@@ -171,7 +171,7 @@ export default function ExpenseDetail() {
           entityType="expense"
           entityId={expense.id}
           ownerUserId={userId}
-          fileTypes={['image', 'video']}
+          fileTypes={['image']}
           label="קבלות"
         />
       </div>

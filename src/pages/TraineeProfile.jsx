@@ -54,7 +54,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import FileManager from "@/components/lifeos/FileManager";
-import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, Trash2, FileText, MessageSquare, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut, Zap, Eye, Clock, Bell } from "lucide-react";
+import TraineeGallery from "@/components/lifeos/TraineeGallery";
+import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, Trash2, FileText, MessageSquare, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut, Zap, Eye, Clock, Bell, Image as ImageIcon } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ReferenceLine } from "recharts";
 import { DEFAULT_EXERCISES, RECORD_UNITS } from "@/lib/recordExercises";
 import { format } from "date-fns";
@@ -3877,6 +3878,7 @@ export default function TraineeProfile() {
     { id: 'achievements',  label: 'שיאים',    emoji: '🏆', icon: Award,           perm: 'view_progress' },
     { id: 'metrics',       label: 'מדידות',   emoji: '📐', icon: Activity,        perm: 'edit_metrics' },
     { id: 'documents',     label: 'מסמכים',   emoji: '📄', icon: FileText,        perm: 'view_documents' },
+    { id: 'gallery',       label: 'גלריה',    emoji: '🖼️', icon: ImageIcon,       perm: null },
     { id: 'notifications', label: 'התראות',   emoji: '🔔', icon: Bell,            perm: null },
     { id: 'messages',      label: 'הערות',    emoji: '💬', icon: MessageSquare,   perm: 'send_messages' },
     { id: 'clocks',        label: 'שעונים',   emoji: '⏱', icon: Clock,           perm: null, isLink: true },
@@ -5550,6 +5552,19 @@ export default function TraineeProfile() {
                     traineeId={user?.id}
                     coachId={coach?.id}
                     currentUser={currentUser}
+                    isCoach={isCoach}
+                  />
+                </ErrorBoundary>
+              </TabsContent>
+
+              {/* Gallery Tab — visual progress record. Trainee sees only
+                  their own (traineeId = the profile subject) and can
+                  self-upload; the coach sees + edits everything. */}
+              <TabsContent value="gallery" className="space-y-4 w-full" dir="rtl">
+                <ErrorBoundary fallback={<div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">טעינת הגלריה נכשלה. נסה לרענן את הדף.</div>}>
+                  <TraineeGallery
+                    traineeId={user?.id}
+                    coachId={coach?.id || currentUser?.id}
                     isCoach={isCoach}
                   />
                 </ErrorBoundary>
