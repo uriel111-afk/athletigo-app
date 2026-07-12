@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ensureBreathPermission, showBreathNotification, clearBreathNotification } from '@/lib/breathNotification';
 
 // Fixed output gain — no user slider. The DynamicsCompressor after the
@@ -341,8 +341,9 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   // by requestAnimationFrame from the exercise-start timestamp (below), so
   // it is smooth AND correct after a resume.
   const [fillFrac, setFillFrac] = useState(() => (boot?.kind === 'done' ? 1 : (boot?.kind === 'resume' && !boot.session.inf ? clamp(boot.elapsed / boot.session.totalMs, 0, 1) : 0)));
-  // Preview of the coming phase — { name, dur, tone } | { finishing:true } | null.
+  // Preview of the coming phase — { name, dur, key } | { finishing:true } | null.
   const [nextInfo, setNextInfo] = useState(null);
+  const [nextScale, setNextScale] = useState(1); // auto-shrink factor to keep it one line
 
   const audioRef = useRef(null);
   const intervalRef = useRef(null);
@@ -358,6 +359,8 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const phaseStartRef = useRef(0);
   const curRef = useRef(null);
   const runningRef = useRef(false);
+  const nextWrapRef = useRef(null); // fixed-width container for the next-phase line
+  const nextTextRef = useRef(null); // the single-line text (measured for auto-shrink)
   const cfgRef = useRef(cfg);
   const roundsRef = useRef(rounds);
   useEffect(() => { cfgRef.current = cfg; }, [cfg]);
@@ -638,6 +641,19 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
     // eslint-disable-next-line
   }, []);
 
+  // Keep the next-phase line to ONE line: measure its natural width against
+  // the available width and shrink the font (uniform scale) until it fits —
+  // never wraps. Re-measures whenever the previewed phase changes.
+  useLayoutEffect(() => {
+    const wrap = nextWrapRef.current, el = nextTextRef.current;
+    if (!wrap || !el) return;
+    const avail = wrap.clientWidth - 2;      // small safety margin
+    const natural = el.scrollWidth;          // content width at scale 1 (transform-independent)
+    if (!avail || !natural) return;
+    const s = Math.min(1, avail / natural);
+    setNextScale(s < 1 ? Math.max(0.62, s) : 1);
+  }, [nextInfo]);
+
   // Keeps running across focus switches; external stop from a bar; full
   // cleanup on unmount (leaving /clocks).
   useEffect(() => { if (stopSignal > 0 && runningRef.current) stop(); /* eslint-disable-next-line */ }, [stopSignal]);
@@ -735,28 +751,32 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
           })()}
         </div>
 
-        {/* Next-phase preview — small, secondary, below the circle. Fixed
-            height so the text updating on each phase change never shifts the
-            layout. Hidden on the done screen. */}
+        {/* Next-phase preview — ONE centred line below the circle. "הבא:"
+            small + refined; phase name bold in its earth/sea token; time in
+            regular-weight dark. Fixed-height, nowrap, auto-shrinks to fit a
+            narrow screen (never wraps). Hidden on the done screen. */}
         {!done && (
-          <div style={{
-            minHeight: 64, marginTop: 'clamp(6px,1.5vh,14px)', marginBottom: 'clamp(6px,1.5vh,14px)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
-            textAlign: 'center', flexShrink: 0,
+          <div ref={nextWrapRef} style={{
+            minHeight: 34, marginTop: 'clamp(6px,1.5vh,14px)', marginBottom: 'clamp(6px,1.5vh,14px)',
+            alignSelf: 'stretch', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            overflow: 'hidden', flexShrink: 0,
           }}>
-            {nextInfo && (nextInfo.finishing ? (
-              <span style={{ fontSize: 34, fontWeight: 800, lineHeight: 1, color: 'var(--brand-amber-soft)' }}>סיום מתקרב</span>
-            ) : (
-              <>
-                {/* Small, refined lead word */}
-                <span style={{ fontSize: 20, fontWeight: 700, lineHeight: 1, color: 'var(--brand-amber-soft)' }}>הבא:</span>
-                {/* Title-level line — phase name in its earth/sea token, seconds neutral */}
-                <span style={{ fontSize: 34, fontWeight: 800, lineHeight: 1, whiteSpace: 'nowrap' }}>
-                  <span style={{ color: PHASE_COLOR[nextInfo.key] || 'var(--brand-amber-soft)', transition: 'color 0.3s ease' }}>{nextInfo.name}</span>
-                  <span style={{ color: 'var(--breath-ink-soft)' }}>{` · ${nextInfo.dur} ${nextInfo.dur === 1 ? 'שנייה' : 'שניות'}`}</span>
-                </span>
-              </>
-            ))}
+            {nextInfo && (
+              <span ref={nextTextRef} style={{
+                display: 'inline-block', whiteSpace: 'nowrap', lineHeight: 1.1,
+                transform: `scale(${nextScale})`, transformOrigin: 'center',
+              }}>
+                {nextInfo.finishing ? (
+                  <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--breath-ink-soft)' }}>סיום מתקרב</span>
+                ) : (
+                  <>
+                    <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--breath-label)' }}>{'הבא: '}</span>
+                    <span style={{ fontSize: 22, fontWeight: 800, color: PHASE_COLOR[nextInfo.key] || 'var(--breath-ink-soft)', transition: 'color 0.3s ease' }}>{nextInfo.name}</span>
+                    <span style={{ fontSize: 22, fontWeight: 400, color: 'var(--breath-ink-soft)' }}>{` · ${nextInfo.dur} ${nextInfo.dur === 1 ? 'שנייה' : 'שניות'}`}</span>
+                  </>
+                )}
+              </span>
+            )}
           </div>
         )}
 
