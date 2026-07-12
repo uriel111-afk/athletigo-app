@@ -89,3 +89,25 @@ export function smartNextStep(persona, serviceType) {
 }
 
 export const PERSONA_LABEL = Object.fromEntries(NEED_PERSONAS.map((p) => [p.key, p.label]));
+
+// ── Sales-brain: hesitation → objection answer (editable content) ────
+// Post-call analysis. Reason → the matching answer line (drawn from the
+// objection-bank philosophy) + a bridge offer where relevant. Edit the
+// copy here freely — no code changes needed.
+export const HESITATION_STATUS = ['סגר', 'מתלבט', 'התקרר', 'נעלם'];
+export const HESITATION_REASONS = ['מחיר', 'זמנים לא מסתדרים', 'רוצה להתייעץ', 'משווה מתחרים', 'לא השתכנע בערך', 'רצה לחשוב', 'אחר'];
+
+export const HESITATION_RESPONSES = {
+  'מחיר': { answer: 'המחיר הוא השקעה בתהליך של התקדמות, לא הוצאה חד-פעמית. בוא נראה מה מתאים לתקציב שלך.', bridge: 'להציע כפתיחה: המוצר הדיגיטלי ב-49₪ או שיעור ניסיון חינם — רף כניסה נמוך' },
+  'זמנים לא מסתדרים': { answer: 'יש לנו כמה חלונות בשבוע — נמצא את מה שנכנס לך ללו"ז בלי להפוך את השבוע.', bridge: 'להציע שעה/יום חלופיים או פורמט אונליין' },
+  'רוצה להתייעץ': { answer: 'הגיוני להתייעץ. בוא נשריין עכשיו שיעור ניסיון בלי התחייבות, ותחליטו יחד אחרי שהתנסה.', bridge: 'שיעור ניסיון חינם מוריד את רף ההחלטה המשותפת' },
+  'משווה מתחרים': { answer: 'ההבדל שלנו הוא השיטה והליווי האישי — לא רק אימון. הכי טוב פשוט להרגיש את זה.', bridge: 'שיעור ניסיון להשוואה מוחשית' },
+  'לא השתכנע בערך': { answer: 'הערך מורגש כשמתחילים לזוז נכון ורואים התקדמות ראשונה. בוא ניתן לזה הזדמנות אחת.', bridge: 'שיעור ניסיון חינם או המוצר הדיגיטלי 49₪' },
+  'רצה לחשוב': { answer: 'קח את הזמן — נשריין לך מקום לשיעור ניסיון כדי שלא תפספס, ותחליט אחריו בראש שקט.', bridge: 'לשריין שיעור ניסיון + לתאם פולו-אפ' },
+  'אחר': { answer: 'נבין בדיוק מה עוצר — ונענה על זה ישירות בשיחה הבאה.', bridge: '' },
+};
+
+export function hesitationResponse(reasons) {
+  const r = Array.isArray(reasons) ? reasons.find(Boolean) : reasons;
+  return (r && HESITATION_RESPONSES[r]) || null;
+}

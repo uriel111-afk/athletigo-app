@@ -35,10 +35,13 @@ const FOR_WHOM = [
   { key: 'org',   label: 'לארגון' },
 ];
 const LOCATIONS = ['הסטודיו שלנו', 'אצל הלקוח', 'אונליין'];
-const TIMES = ['בוקר', 'צהריים', 'ערב'];
 const PAYERS = ['המשתתפים', 'הארגון', 'ההורה'];
 const SOURCES = ['שיחה נכנסת', 'הפניה', 'אחר'];
 const NEXT_STEPS = ['לקבוע שיעור ניסיון', 'לקבוע פגישת היכרות', 'לשלוח הצעה', 'לחזור בטלפון', 'לשלוח פרטים בוואטסאפ'];
+const DAYS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'שבת'];
+const HOURS = ['בוקר', 'צהריים', 'אחר הצהריים', 'ערב'];
+const START_OPTS = [{ key: 'asap', label: 'בהקדם' }, { key: 'next_month', label: 'חודש הבא' }];
+const SCHEDULED = ['personal', 'group', 'online', 'movement65']; // services with day/hour prefs
 
 export const SERVICE_LABEL = Object.fromEntries(SERVICE_TYPES.map((t) => [t.key, t.label]));
 export const FORWHOM_LABEL = Object.fromEntries(FOR_WHOM.map((t) => [t.key, t.label]));
@@ -68,13 +71,22 @@ const blank = () => ({
   // section 2b — diagnosis
   persona: '', need_type: '',
   // section 3 (dynamic)
-  training_location: '', preferred_times: '', frequency_per_week: '', age_range: '',
+  training_location: '', frequency_per_week: '', age_range: '',
   group_size: '', group_location: '', main_goal: '', workshop_topic: '', target_date: '',
+  // section 3 — shared logistics
+  preferred_days: '', preferred_hours: '', hours_exact: '',
+  start_date_pref: '', constraints_note: '',
+  groups: [{ size: '', ages: '' }],
   // section 4
   proposed_price: '', payer: '',
   // section 5
   next_step: '', follow_up: isoInDays(1), source: 'שיחה נכנסת',
 });
+
+const parseGroups = (raw) => {
+  try { const a = typeof raw === 'string' ? JSON.parse(raw) : raw; if (Array.isArray(a) && a.length) return a.map((g) => ({ size: g.size || '', ages: g.ages || '' })); } catch {}
+  return [{ size: '', ages: '' }];
+};
 
 const fromLead = (l) => {
   if (!l) return blank();
@@ -85,10 +97,16 @@ const fromLead = (l) => {
     preferred_channel: l.preferred_channel || 'whatsapp',
     service_type: l.service_type || '', for_whom: l.for_whom || '',
     persona: l.persona || '', need_type: l.need_type || '',
-    training_location: l.training_location || '', preferred_times: l.preferred_times || '',
+    training_location: l.training_location || '',
     frequency_per_week: l.frequency_per_week || '', age_range: l.age_range || '',
     group_size: l.group_size || '', group_location: l.group_location || '',
     main_goal: l.fitness_goal || '', workshop_topic: l.workshop_topic || '', target_date: l.target_date || '',
+    preferred_days: l.preferred_days || '',
+    preferred_hours: (l.preferred_hours || '').split('|')[0] || '',
+    hours_exact: (l.preferred_hours || '').split('|')[1] || '',
+    start_date_pref: l.start_date_pref || '',
+    constraints_note: l.constraints_note || '',
+    groups: parseGroups(l.groups_detail),
     proposed_price: l.proposed_price || '', payer: l.payer || '',
     next_step: l.next_step || '',
     follow_up: l.next_follow_up ? String(l.next_follow_up).slice(0, 10) : isoInDays(1),
@@ -115,11 +133,18 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
 
   const set = (patch) => setF((p) => ({ ...p, ...patch }));
   const st = f.service_type;
-  const times = f.preferred_times ? f.preferred_times.split(',').filter(Boolean) : [];
-  const toggleTime = (t) => {
-    const next = times.includes(t) ? times.filter((x) => x !== t) : [...times, t];
-    set({ preferred_times: next.join(',') });
+  // Multi-select CSV helpers for days / hours.
+  const csvSel = (field) => (f[field] ? f[field].split(',').filter(Boolean) : []);
+  const toggleCsv = (field, v) => {
+    const arr = csvSel(field);
+    set({ [field]: (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]).join(',') });
   };
+  const days = csvSel('preferred_days');
+  const hours = csvSel('preferred_hours');
+  // Multi-group editor (group leads).
+  const setGroup = (i, patch) => set({ groups: f.groups.map((g, idx) => (idx === i ? { ...g, ...patch } : g)) });
+  const addGroup = () => set({ groups: [...f.groups, { size: '', ages: '' }] });
+  const removeGroup = (i) => set({ groups: f.groups.length > 1 ? f.groups.filter((_, idx) => idx !== i) : f.groups });
 
   // Diagnosis (2b): persona drives needs + the response card + a smart
   // "next step" default (until the coach overrides it manually).
@@ -147,15 +172,29 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
     setBusy(true);
     // Section-3 columns — only the ones the active service type uses.
     const sec3 = {
-      training_location: null, preferred_times: null, frequency_per_week: null, age_range: null,
-      group_size: null, group_location: null, fitness_goal: null, workshop_topic: null, target_date: null,
+      training_location: null, frequency_per_week: null, age_range: null,
+      group_size: null, group_location: null, fitness_goal: null, workshop_topic: null, target_date: null, groups_detail: null,
     };
-    if (st === 'personal') { sec3.training_location = f.training_location || null; sec3.frequency_per_week = f.frequency_per_week.trim() || null; sec3.preferred_times = f.preferred_times || null; }
-    else if (st === 'group') { sec3.group_size = f.group_size.trim() || null; sec3.group_location = f.group_location.trim() || null; sec3.frequency_per_week = f.frequency_per_week.trim() || null; sec3.age_range = f.age_range.trim() || null; }
+    if (st === 'personal') { sec3.training_location = f.training_location || null; sec3.frequency_per_week = f.frequency_per_week.trim() || null; }
+    else if (st === 'group') {
+      const gd = f.groups.filter((g) => (g.size || '').trim() || (g.ages || '').trim());
+      sec3.groups_detail = gd.length ? JSON.stringify(gd) : null;
+      sec3.group_size = (f.groups[0]?.size || '').trim() || null; // primary group → summary/back-compat
+      sec3.age_range = (f.groups[0]?.ages || '').trim() || null;
+      sec3.group_location = f.group_location.trim() || null; sec3.frequency_per_week = f.frequency_per_week.trim() || null;
+    }
     else if (st === 'online') { sec3.frequency_per_week = f.frequency_per_week.trim() || null; sec3.fitness_goal = f.main_goal.trim() || null; }
     else if (st === 'workshop') { sec3.workshop_topic = f.workshop_topic.trim() || null; sec3.group_size = f.group_size.trim() || null; sec3.target_date = f.target_date || null; sec3.group_location = f.group_location.trim() || null; }
     else if (st === 'movement65') { sec3.group_location = f.group_location.trim() || null; sec3.group_size = f.group_size.trim() || null; sec3.frequency_per_week = f.frequency_per_week.trim() || null; }
     else if (st === 'other') { sec3.fitness_goal = f.main_goal.trim() || null; }
+
+    // Shared logistics (days/hours for scheduled services; start/constraints for any).
+    const logistics = {
+      preferred_days: SCHEDULED.includes(st) ? (f.preferred_days || null) : null,
+      preferred_hours: SCHEDULED.includes(st) ? ((f.hours_exact.trim() ? `${f.preferred_hours}|${f.hours_exact.trim()}` : f.preferred_hours) || null) : null,
+      start_date_pref: st ? (f.start_date_pref || null) : null,
+      constraints_note: st ? (f.constraints_note.trim() || null) : null,
+    };
 
     const payload = {
       name: f.name.trim(), phone: f.phone.trim(), notes: f.notes,
@@ -164,7 +203,7 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
       service_type: f.service_type || null, for_whom: f.for_whom || null,
       persona: f.persona || null, need_type: f.need_type || null,
       lead_type: deriveLeadType(f) || null,
-      ...sec3,
+      ...sec3, ...logistics,
       proposed_price: f.proposed_price.trim() || null, payer: f.payer || null,
       next_step: f.next_step || null,
       source: f.source || 'שיחה נכנסת',
@@ -259,15 +298,28 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
             {st === 'personal' && (<>
               <Field label="מיקום"><Chips options={LOCATIONS} value={f.training_location} onPick={(v) => set({ training_location: f.training_location === v ? '' : v })} /></Field>
               <Field label="תדירות בשבוע"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="למשל 2" /></Field>
-              <Field label="זמנים מועדפים"><MultiChips options={TIMES} selected={times} onToggle={toggleTime} /></Field>
             </>)}
             {st === 'group' && (<>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: GAP_COL }}>
-                <Field label="גודל קבוצה"><input style={inp} value={f.group_size} onChange={(e) => set({ group_size: e.target.value })} placeholder="8-10" /></Field>
                 <Field label="תדירות בשבוע"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="2" /></Field>
+                <Field label="מיקום הפעילות"><input style={inp} value={f.group_location} onChange={(e) => set({ group_location: e.target.value })} placeholder="איפה" /></Field>
               </div>
-              <Field label="מיקום הפעילות"><input style={inp} value={f.group_location} onChange={(e) => set({ group_location: e.target.value })} placeholder="איפה מתאמנים" /></Field>
-              <Field label="טווח גילאים"><input style={inp} value={f.age_range} onChange={(e) => set({ age_range: e.target.value })} placeholder="למשל 30-45" /></Field>
+              {/* One row per group — size + age range, add/remove */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#9A8F82', marginBottom: GAP_LABEL, textAlign: 'right' }}>קבוצות ({f.groups.length})</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {f.groups.map((g, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input style={{ ...inp, flex: 1 }} value={g.size} onChange={(e) => setGroup(i, { size: e.target.value })} placeholder="גודל" />
+                      <input style={{ ...inp, flex: 1 }} value={g.ages} onChange={(e) => setGroup(i, { ages: e.target.value })} placeholder="טווח גילאים" />
+                      {f.groups.length > 1 && (
+                        <button type="button" onClick={() => removeGroup(i)} aria-label="הסר קבוצה" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 10, border: '1px solid #F0E4D0', background: '#fff', color: '#dc2626', fontSize: 18, cursor: 'pointer' }}>×</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button type="button" onClick={addGroup} style={{ marginTop: 8, border: `1px dashed ${ORANGE}`, background: '#FFF7ED', color: '#C24A0A', borderRadius: 10, padding: '8px 12px', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>+ הוסף קבוצה</button>
+              </div>
             </>)}
             {st === 'online' && (<>
               <Field label="תדירות מפגשי וידאו"><input style={inp} value={f.frequency_per_week} onChange={(e) => set({ frequency_per_week: e.target.value })} placeholder="בשבוע" /></Field>
@@ -291,6 +343,32 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
             {st === 'other' && (
               <Field label="פרטים"><textarea style={{ ...inp, height: 'auto', minHeight: 70 }} rows={3} value={f.main_goal} onChange={(e) => set({ main_goal: e.target.value })} placeholder="תיאור חופשי של הבקשה" /></Field>
             )}
+
+            {/* Shared logistics — days/hours for scheduled services; start + constraints for any */}
+            {SCHEDULED.includes(st) && (<>
+              <Field label="ימים מועדפים"><MultiChips options={DAYS} selected={days} onToggle={(d) => toggleCsv('preferred_days', d)} /></Field>
+              <Field label="שעות מועדפות">
+                <MultiChips options={HOURS} selected={hours} onToggle={(h) => toggleCsv('preferred_hours', h)} />
+                <input style={{ ...inp, marginTop: 6 }} value={f.hours_exact} onChange={(e) => set({ hours_exact: e.target.value })} placeholder="שעות מדויקות (לא חובה)" />
+              </Field>
+            </>)}
+            <Field label="תאריך התחלה רצוי">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: GAP_CHIP, alignItems: 'center' }}>
+                {START_OPTS.map((o) => (
+                  <button key={o.key} type="button" onClick={() => set({ start_date_pref: f.start_date_pref === o.key ? '' : o.key })} style={chipStyle(f.start_date_pref === o.key)}>{o.label}</button>
+                ))}
+                {(() => {
+                  const custom = f.start_date_pref && !START_OPTS.some((o) => o.key === f.start_date_pref);
+                  return (
+                    <label style={{ ...chipStyle(custom), cursor: 'pointer', position: 'relative' }}>
+                      {custom ? f.start_date_pref : 'תאריך מותאם'}
+                      <input type="date" value={custom ? f.start_date_pref : ''} onChange={(e) => set({ start_date_pref: e.target.value })} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }} />
+                    </label>
+                  );
+                })()}
+              </div>
+            </Field>
+            <Field label="מגבלות / הערה"><input style={inp} value={f.constraints_note} onChange={(e) => set({ constraints_note: e.target.value })} placeholder="פציעות, נגישות, ציוד במקום..." /></Field>
           </Section>
         )}
 

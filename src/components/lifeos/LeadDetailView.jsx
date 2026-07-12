@@ -9,7 +9,7 @@ import { updateLead } from '@/lib/lifeos/lifeos-api';
 import { useSalesScripts } from '@/lib/lifeos/sales-scripts-api';
 import { waLink, telLink, relTime, followUpState } from '@/lib/lifeos/lead-helpers';
 import { isBusinessLead, needsCompletion, TYPE_LABEL, SERVICE_LABEL, FORWHOM_LABEL } from '@/components/lifeos/QuickIntakeForm';
-import { PERSONA_LABEL } from '@/lib/lifeos/need-response-bank';
+import { PERSONA_LABEL, buildNeedResponse, HESITATION_STATUS, HESITATION_REASONS, hesitationResponse } from '@/lib/lifeos/need-response-bank';
 import { addInteraction, listInteractions } from '@/lib/lifeos/lifeos-api';
 import { isoInDays } from '@/lib/lifeos/lead-helpers';
 import FollowupChips from '@/components/lifeos/FollowupChips';
@@ -26,6 +26,7 @@ const EXP_BY_KEY = Object.fromEntries(SPORTS_EXPERIENCE.map((s) => [s.key, s]));
 const fmtTs = (t) => { try { return new Date(t).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' }); } catch { return ''; } };
 
 const fmt = (n) => Math.round(Number(n)).toLocaleString('he-IL');
+const parseExtra = (raw) => { try { const a = typeof raw === 'string' ? JSON.parse(raw) : raw; if (Array.isArray(a)) return a.map((x) => ({ label: x.label || '', value: x.value || '' })); } catch {} return []; };
 
 // Full-screen read-only summary of a saved lead + action buttons.
 export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onChanged }) {
@@ -44,6 +45,12 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
   const [iSummary, setISummary] = useState('');
   const [fuPrompt, setFuPrompt] = useState(false);   // "set next follow-up" after an interaction
   const [fuDate, setFuDate] = useState(isoInDays(3)); // default +3 days
+  // Sales-brain (post-call) + flexible extra details.
+  const [hesStatus, setHesStatus] = useState(lead?.hesitation_status || '');
+  const [hesReasons, setHesReasons] = useState(lead?.hesitation_reason ? String(lead.hesitation_reason).split(',').filter(Boolean) : []);
+  const [callbackScript, setCallbackScript] = useState(lead?.callback_script || '');
+  const [copiedCb, setCopiedCb] = useState(false);
+  const [extra, setExtra] = useState(parseExtra(lead?.extra_details));
 
   useEffect(() => {
     let alive = true;
@@ -86,6 +93,36 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
     try { await updateLead(lead.id, { next_follow_up: fuDate || null }); setFollowUp(fuDate); onChanged?.(); } catch (e) { console.warn('[LeadDetail] prompt save', e); }
     setFuPrompt(false);
   };
+  // Sales-brain handlers.
+  const pickHesStatus = async (s) => {
+    const next = hesStatus === s ? '' : s;
+    setHesStatus(next);
+    const keepReasons = next === 'מתלבט' || next === 'התקרר';
+    if (!keepReasons) setHesReasons([]);
+    try { await updateLead(lead.id, { hesitation_status: next || null, ...(keepReasons ? {} : { hesitation_reason: null }) }); onChanged?.(); } catch (e) { console.warn('[LeadDetail] hes status', e); }
+  };
+  const toggleHesReason = async (r) => {
+    const has = hesReasons.includes(r);
+    if (!has && hesReasons.length >= 2) return; // up to two
+    const next = has ? hesReasons.filter((x) => x !== r) : [...hesReasons, r];
+    setHesReasons(next);
+    try {
+      await updateLead(lead.id, { hesitation_reason: next.join(',') || null });
+      // Adding a reason auto-logs an interaction in the existing journal.
+      if (!has) { await addInteraction(lead.id, { type: 'ניתוח', summary: `סיבה שנבחרה: ${r}` }); const rows = await listInteractions(lead.id); setInteractions(rows); }
+      onChanged?.();
+    } catch (e) { console.warn('[LeadDetail] hes reason', e); }
+  };
+  const saveCallback = async () => {
+    try { await updateLead(lead.id, { callback_script: callbackScript || null }); onChanged?.(); } catch (e) { console.warn('[LeadDetail] callback save', e); }
+  };
+  const copyCallback = async () => {
+    try { await navigator.clipboard.writeText(callbackScript || ''); setCopiedCb(true); setTimeout(() => setCopiedCb(false), 1500); } catch {}
+  };
+  const setExtraRow = (i, patch) => setExtra((arr) => arr.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
+  const addExtra = () => setExtra((arr) => [...arr, { label: '', value: '' }]);
+  const removeExtra = async (i) => { const next = extra.filter((_, idx) => idx !== i); setExtra(next); try { await updateLead(lead.id, { extra_details: JSON.stringify(next.filter((x) => x.label || x.value)) }); onChanged?.(); } catch {} };
+  const saveExtra = async () => { try { await updateLead(lead.id, { extra_details: JSON.stringify(extra.filter((x) => x.label || x.value)) }); onChanged?.(); } catch (e) { console.warn('[LeadDetail] extra save', e); } };
 
   const sc = useSalesScripts();
   const ladderKey = lead.ladder_match || ladderForExperience(lead.sports_experience);
@@ -98,6 +135,11 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
   const yesQuestions = sc.getSection(`yes_ladder_${ladderKey}`);
   const yesSet = new Set(Array.isArray(lead.yes_answers) ? lead.yes_answers : []);
   const payMethod = LEAD_PAYMENT_METHOD_BY_KEY[lead.payment_method];
+  // Sales-brain derived: our-answer card (from the saved diagnosis) +
+  // the objection response for the chosen hesitation reason.
+  const response = lead.persona ? buildNeedResponse({ persona: lead.persona, needs: (lead.need_type || '').split(',').filter(Boolean), serviceType: lead.service_type }) : null;
+  const showHesReasons = hesStatus === 'מתלבט' || hesStatus === 'התקרר';
+  const hesResp = hesitationResponse(hesReasons);
 
   const sendContent = async (item) => {
     window.open(waLink(lead.phone, `${item.message}\n${item.url}`), '_blank');
@@ -161,14 +203,18 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
             {(lead.persona || lead.need_type) && (
               <Row label="אבחון" value={[PERSONA_LABEL[lead.persona] || lead.persona, lead.need_type && String(lead.need_type).split(',').join(' · ')].filter(Boolean).join(' — ')} />
             )}
-            {(lead.training_location || lead.group_location || lead.group_size || lead.frequency_per_week || lead.preferred_times || lead.age_range || lead.workshop_topic || lead.target_date || lead.fitness_goal) && (
+            {(lead.training_location || lead.group_location || lead.group_size || lead.frequency_per_week || lead.preferred_days || lead.preferred_hours || lead.start_date_pref || lead.constraints_note || lead.age_range || lead.workshop_topic || lead.target_date || lead.fitness_goal || lead.groups_detail) && (
               <Row label="איפה ומתי" value={[
                 lead.training_location, lead.group_location,
                 lead.group_size && `${lead.group_size} משתתפים`,
                 lead.frequency_per_week && `${lead.frequency_per_week}×/שבוע`,
-                lead.preferred_times, lead.age_range && `גיל ${lead.age_range}`,
+                lead.age_range && `גיל ${lead.age_range}`,
+                lead.preferred_days && `ימים: ${lead.preferred_days}`,
+                lead.preferred_hours && `שעות: ${String(lead.preferred_hours).replace('|', ' · ')}`,
+                lead.start_date_pref && `התחלה: ${{ asap: 'בהקדם', next_month: 'חודש הבא' }[lead.start_date_pref] || lead.start_date_pref}`,
                 lead.workshop_topic, lead.target_date && `יעד ${String(lead.target_date).slice(0, 10)}`,
                 lead.fitness_goal,
+                lead.constraints_note && `מגבלות: ${lead.constraints_note}`,
               ].filter(Boolean).join(' · ')} />
             )}
             {(lead.proposed_price || lead.payer) && (
@@ -177,6 +223,73 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
             {lead.next_step && <Row label="הצעד הבא" value={lead.next_step} />}
           </div>
         )}
+
+        {/* Our-answer card (from the saved diagnosis) */}
+        {response && (
+          <div style={{ ...card, background: '#FFF4E6', border: `1px solid #F0B892` }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#C24A0A', marginBottom: 6 }}>🎯 המענה שלנו</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#4A1B0C', lineHeight: 1.5 }}>{response.connection}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A', background: '#fff', borderRadius: 8, padding: '7px 10px', border: '1px solid #F0D9C6', marginTop: 8 }}>💡 {response.offer}</div>
+          </div>
+        )}
+
+        {/* ═══ Sales-brain — post-call analysis ═══ */}
+        <div style={card}>
+          <div style={cardTitle}>🧠 ניתוח מכירה</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#9A8F82', marginBottom: 4 }}>סטטוס</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+            {HESITATION_STATUS.map((s) => (
+              <button key={s} type="button" onClick={() => pickHesStatus(s)} style={pill(hesStatus === s)}>{s}</button>
+            ))}
+          </div>
+          {showHesReasons && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#9A8F82', marginBottom: 4 }}>למה לא סגר (עד שניים)</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {HESITATION_REASONS.map((r) => (
+                  <button key={r} type="button" onClick={() => toggleHesReason(r)} style={pill(hesReasons.includes(r))}>{r}</button>
+                ))}
+              </div>
+              {/* Objection answer pulled from the bank */}
+              {hesResp && (
+                <div style={{ marginTop: 10, background: '#EAF7EF', border: '1px solid #BFE6CD', borderRadius: 10, padding: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#16803D', marginBottom: 4 }}>מה עונים על זה</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#14532d', lineHeight: 1.5 }}>{hesResp.answer}</div>
+                  {hesResp.bridge && <div style={{ fontSize: 12, fontStyle: 'italic', color: '#3B6D11', marginTop: 5 }}>🌉 {hesResp.bridge}</div>}
+                </div>
+              )}
+            </>
+          )}
+          {/* Callback opener script + copy */}
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#9A8F82', marginBottom: 4 }}>תסריט חזרה (משפט פתיחה לפולו-אפ)</div>
+            <textarea value={callbackScript} onChange={(e) => setCallbackScript(e.target.value)} onBlur={saveCallback} rows={2}
+              style={{ width: '100%', minHeight: 54, padding: 9, borderRadius: 10, border: '1px solid #F0E4D0', fontSize: 13, resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+              placeholder="היי [שם], חשבתי על מה שאמרת..." />
+            <button type="button" onClick={copyCallback} disabled={!callbackScript} style={{ marginTop: 6, border: '1px solid #F0E4D0', background: '#fff', color: copiedCb ? '#16a34a' : '#5C4A3A', borderRadius: 999, padding: '6px 12px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>{copiedCb ? '✓ הועתק' : 'העתק'}</button>
+          </div>
+        </div>
+
+        {/* ═══ Flexible extra details — label + value rows (JSON) ═══ */}
+        <div style={card}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <div style={{ ...cardTitle, marginBottom: 0, flex: 1 }}>פרטים נוספים</div>
+            <button type="button" onClick={addExtra} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid #FF6F20', background: '#fff', color: '#FF6F20', borderRadius: 999, padding: '5px 10px', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}><Plus size={14} /> הוסף פרט</button>
+          </div>
+          {extra.length === 0 ? (
+            <div style={{ fontSize: 12, color: '#9A8F82' }}>אין פרטים נוספים</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {extra.map((x, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input value={x.label} onChange={(e) => setExtraRow(i, { label: e.target.value })} onBlur={saveExtra} placeholder="תווית" style={{ ...offerInp, flex: 1 }} />
+                  <input value={x.value} onChange={(e) => setExtraRow(i, { value: e.target.value })} onBlur={saveExtra} placeholder="ערך" style={{ ...offerInp, flex: 1 }} />
+                  <button type="button" onClick={() => removeExtra(i)} aria-label="הסר" style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 9, border: '1px solid #F0E4D0', background: '#fff', color: '#dc2626', fontSize: 16, cursor: 'pointer' }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Free notes ("מה הוא אמר") — shown in full, editable inline */}
         <div style={card}>
@@ -475,3 +588,4 @@ const iconBtn = { background: 'transparent', border: 'none', cursor: 'pointer', 
 const linkStyle = { display: 'inline-flex', alignItems: 'center', gap: 4, color: '#3B82F6', textDecoration: 'none', fontWeight: 600 };
 const chip = { fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 999, background: '#F4E8D8', color: '#5C4A3A' };
 const offerInp = { width: '100%', minHeight: 40, padding: '9px 11px', borderRadius: 10, border: '1px solid #F0E4D0', background: '#fff', fontSize: 14, color: '#1A1A1A', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' };
+const pill = (on) => ({ minHeight: 34, padding: '0 12px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 700, border: on ? '2px solid #FF6F20' : '1px solid #F0E4D0', background: on ? '#FF6F20' : '#fff', color: on ? '#fff' : '#3a3a3a' });
