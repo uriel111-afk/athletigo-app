@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { ensureBreathPermission, showBreathNotification, clearBreathNotification } from '@/lib/breathNotification';
 
 // Fixed output gain — no user slider. The DynamicsCompressor after the
 // gain keeps it distortion-free; the phone's media (STREAM_MUSIC) volume
@@ -15,18 +16,21 @@ const FIXED_GAIN = 2.2;
 // Integrates with the parallel-clocks system (floating bar + wake-lock).
 // ────────────────────────────────────────────────────────────────────
 
-const ORANGE = '#FF6F20';
+// All colours resolve to Lumen tokens (see index.css) — no hard-coded hex
+// anywhere in this component.
+const ORANGE = 'var(--brand-orange)';
 // Min contraction — kept at 66% (≥65%) so the FIXED white number stays
 // fully inside the circle even at its most contracted (end of exhale).
 const SMALL = 0.66;
 const PREP_PULSE = SMALL + 0.08; // gentle one-beat pulse during prep
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
+// Phase names — consistent set: שאיפה / החזקה / נשיפה / החזקה ריקה.
 const PHASE_DEFS = [
-  { key: 'inhale',    name: 'שאיפה', tone: 'up' },
-  { key: 'hold',      name: 'החזק',  tone: 'hold' },
-  { key: 'exhale',    name: 'נשיפה', tone: 'down' },
-  { key: 'holdEmpty', name: 'החזק',  tone: 'hold' },
+  { key: 'inhale',    name: 'שאיפה',      tone: 'up' },
+  { key: 'hold',      name: 'החזקה',      tone: 'hold' },
+  { key: 'exhale',    name: 'נשיפה',      tone: 'down' },
+  { key: 'holdEmpty', name: 'החזקה ריקה', tone: 'hold' },
 ];
 const STEPPERS = [
   { key: 'inhale',    label: 'שאיפה' },
@@ -130,7 +134,7 @@ function createBreathAudio(initialGain = FIXED_GAIN) {
   };
 }
 
-const SQUARE_BG = '#F3E7D3'; // slightly darker than the #FFF9F0 page
+const SQUARE_BG = 'var(--breath-square)';
 
 // ── Time frame ────────────────────────────────────────────────────────
 // The border fill is a conic-gradient masked to the square's edge, NOT an
@@ -139,8 +143,9 @@ const SQUARE_BG = '#F3E7D3'; // slightly darker than the #FFF9F0 page
 // combination). The conic gradient starts at 0deg (top-middle) and sweeps
 // clockwise; masking to a border ring gives a frame that builds from the
 // top and closes at the end. Verified empty→quarter→half→full in Chromium.
-const FRAME_COLOR = '#FFC9A6';
+const FRAME_COLOR = 'var(--breath-frame)';
 const FRAME_STROKE = 2.5; // px — thin, within the 2-3px spec
+const MASK_FILL = 'var(--breath-mask)'; // opaque fill for the border-ring mask
 
 // ── Per-phase title colours — Lumen tokens only (see --breath-* in
 // index.css). Warm brand family: inhale = brand orange, exhale = deep
@@ -150,8 +155,8 @@ const PHASE_TITLE_COLOR = {
   down: 'var(--breath-exhale)', // נשיפה
   hold: 'var(--breath-hold)',   // החזקה / החזקה ריקה
 };
-const CIRCLE_UP   = 'radial-gradient(circle at 50% 40%, #FFC79E, #FF8A42 70%, #FF6F20)'; // inhale/hold — full warm
-const CIRCLE_DOWN = 'radial-gradient(circle at 50% 40%, #F6B487, #E9702F 70%, #C24A16)'; // exhale/empty — softer/deeper
+const CIRCLE_UP   = 'var(--breath-circle-up)';   // inhale/hold — full warm
+const CIRCLE_DOWN = 'var(--breath-circle-down)'; // exhale/empty — softer/deeper
 
 // ── Durable session (fix 1) ─────────────────────────────────────────────
 // Anchored on the wall-clock timestamp of the exercise start (Date.now),
@@ -291,6 +296,23 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const roundsLeft = () => (roundsRef.current === 'inf' ? '∞' : Math.max(0, roundsRef.current - roundRef.current + 1));
   const report = (r) => onRunningChange && onRunningChange(r, { phase: curRef.current?.name || '', roundsLeft: roundsLeft() });
 
+  // ── Ongoing Android notification (task 2) ─────────────────────────────
+  // Live "phase · round X of Y" text. Shown while the app is BACKGROUNDED
+  // during an active exercise; refreshed on every phase change; cleared on
+  // return / stop / finish.
+  const notifBody = () => {
+    const phase = curRef.current?.name || 'הכנה';
+    const r = roundsRef.current === 'inf'
+      ? `סבב ${roundRef.current}`
+      : `סבב ${roundRef.current} מתוך ${roundsRef.current}`;
+    return `${phase} · ${r}`;
+  };
+  const refreshNotif = () => {
+    if (typeof document !== 'undefined' && document.hidden && runningRef.current) {
+      showBreathNotification('אימון נשימות פעיל', notifBody());
+    }
+  };
+
   // One breathing cycle: enabled phases in order (starts on inhale).
   const buildCycle = () => {
     const c = cfgRef.current;
@@ -319,11 +341,12 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
     if (p.tone === 'up') a.glide(220, 330, p.dur);
     else if (p.tone === 'down') a.glide(330, 220, p.dur);
     report(true);
+    refreshNotif(); // update the ongoing notification on each phase change
   };
 
   const finish = () => {
     clearInterval(intervalRef.current); intervalRef.current = null;
-    stopPaint(); clearSession();
+    stopPaint(); clearSession(); clearBreathNotification();
     runningRef.current = false; setRunning(false); setDone(true);
     setFillFrac(1); // last exhale finished → frame complete and closed
     audioRef.current && audioRef.current.endChimes();
@@ -399,6 +422,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const start = async () => {
     const cycle = buildCycle();
     if (!cycle.length) return;
+    ensureBreathPermission(); // ask for notification permission (Android 13+)
     const a = audioRef.current || (audioRef.current = createBreathAudio());
     await a.resume();
     // Build the run sequence: finite → flat & exhale-terminated; inf → cycle loop.
@@ -436,7 +460,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const stop = () => {
     clearInterval(intervalRef.current); intervalRef.current = null;
     clearInterval(prepIntervalRef.current); prepIntervalRef.current = null;
-    stopPaint(); clearSession();
+    stopPaint(); clearSession(); clearBreathNotification();
     runningRef.current = false; setRunning(false);
     setMode('run'); setScale(SMALL);
     audioRef.current && audioRef.current.suspend();
@@ -470,7 +494,11 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
 
   useEffect(() => {
     const onVis = () => {
-      if (document.visibilityState !== 'visible' || !runningRef.current) return;
+      // Leaving the app mid-exercise → post the ongoing notification.
+      if (document.visibilityState === 'hidden') { if (runningRef.current) refreshNotif(); return; }
+      // Back in the app → the notification's job is done.
+      clearBreathNotification();
+      if (!runningRef.current) return;
       const s = loadSession(); if (!s || !Array.isArray(s.seq) || !s.seq.length) return;
       const elapsed = Date.now() - s.startedAt;
       if (!s.inf && elapsed >= s.totalMs) { finish(); return; } // overran while away
@@ -499,7 +527,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   // Keeps running across focus switches; external stop from a bar; full
   // cleanup on unmount (leaving /clocks).
   useEffect(() => { if (stopSignal > 0 && runningRef.current) stop(); /* eslint-disable-next-line */ }, [stopSignal]);
-  useEffect(() => () => { clearInterval(intervalRef.current); clearInterval(prepIntervalRef.current); stopPaint(); audioRef.current && audioRef.current.close(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => () => { clearInterval(intervalRef.current); clearInterval(prepIntervalRef.current); stopPaint(); clearBreathNotification(); audioRef.current && audioRef.current.close(); /* eslint-disable-next-line */ }, []);
 
   const setPhase = (key, d) => setCfg((c) => ({ ...c, [key]: clamp((Number(c[key]) || 0) + d, 0, 20) }));
   const applyPreset = (k) => setCfg({ ...PRESETS[k].v });
@@ -507,7 +535,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const stepBtn = (onClick, label) => (
     <button type="button" onClick={onClick} style={{
       width: 46, height: 46, borderRadius: 12, border: 'none', cursor: 'pointer',
-      background: '#FFE3D1', color: '#C24A0A', fontSize: 22, fontWeight: 800, flexShrink: 0,
+      background: 'var(--breath-step-bg)', color: 'var(--breath-step-ink)', fontSize: 22, fontWeight: 800, flexShrink: 0,
     }}>{label}</button>
   );
 
@@ -516,7 +544,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
     return (
       <div dir="rtl" style={{
         height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center',
-        background: '#FFF9F0', padding: '16px 16px calc(16px + env(safe-area-inset-bottom,0px))',
+        background: 'var(--breath-bg)', padding: '16px 16px calc(16px + env(safe-area-inset-bottom,0px))',
         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
       }}>
         {/* Round line — only during the exercise (hidden in prep). ~30%
@@ -529,11 +557,11 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
           {done ? (
             <>
               <div style={{ fontSize: 'clamp(48px,14vh,96px)' }}>🌬️</div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: '#1a1a1a' }}>כל הכבוד 🌬️</div>
+              <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--breath-ink)' }}>כל הכבוד 🌬️</div>
               <button type="button" onClick={start} style={{
                 minHeight: 54, padding: '0 34px', borderRadius: 16, border: 'none', cursor: 'pointer',
-                background: 'linear-gradient(135deg,#FF6F20,#FF8A42)', color: '#fff', fontSize: 18, fontWeight: 900,
-                boxShadow: '0 8px 22px rgba(255,111,32,0.45)',
+                background: 'var(--breath-cta)', color: 'var(--breath-card)', fontSize: 18, fontWeight: 900,
+                boxShadow: 'var(--breath-cta-shadow)',
               }}>▶ שוב</button>
             </>
           ) : (() => {
@@ -563,10 +591,10 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
                       as static corner segments. Driven by fillFrac (rAF). */}
                   <div style={{
                     position: 'absolute', inset: 0, borderRadius: '16%', padding: FRAME_STROKE, pointerEvents: 'none',
-                    background: `conic-gradient(from 0deg, ${FRAME_COLOR} 0turn ${fillFrac}turn, rgba(0,0,0,0) ${fillFrac}turn 1turn)`,
-                    WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+                    background: `conic-gradient(from 0deg, ${FRAME_COLOR} 0turn ${fillFrac}turn, transparent ${fillFrac}turn 1turn)`,
+                    WebkitMask: `linear-gradient(${MASK_FILL} 0 0) content-box, linear-gradient(${MASK_FILL} 0 0)`,
                     WebkitMaskComposite: 'xor',
-                    mask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+                    mask: `linear-gradient(${MASK_FILL} 0 0) content-box, linear-gradient(${MASK_FILL} 0 0)`,
                     maskComposite: 'exclude',
                   }} />
                   {/* Breathing circle — inflates/deflates INSIDE the square.
@@ -577,7 +605,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
                     <div style={{
                       width: '82%', height: '82%', borderRadius: '50%',
                       background: circleBg,
-                      boxShadow: '0 0 60px 12px rgba(255,138,66,0.35)',
+                      boxShadow: '0 0 60px 12px var(--breath-circle-glow)',
                       transform: `scale(${scale})`,
                       transition: `transform ${transDur}s ease-in-out, background 0.4s ease`,
                     }} />
@@ -585,7 +613,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
                   {/* Big number — fixed & centered over the whole square, so
                       it stays huge and stable regardless of the circle scale. */}
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                    <span style={{ fontSize: numFont, fontWeight: 900, color: '#FFFFFF', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{bigNum}</span>
+                    <span style={{ fontSize: numFont, fontWeight: 900, color: 'var(--breath-number)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{bigNum}</span>
                   </div>
                 </div>
               </>
@@ -595,7 +623,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
 
         <button type="button" onClick={done ? () => setDone(false) : stop} style={{
           width: '100%', minHeight: 50, borderRadius: 14, cursor: 'pointer',
-          border: '1px solid #E0C9A8', background: '#fff', color: '#5C4A3A', fontSize: 16, fontWeight: 800,
+          border: '1px solid var(--breath-stop-border)', background: 'var(--breath-card)', color: 'var(--breath-ink-soft)', fontSize: 16, fontWeight: 800,
         }}>{done ? 'סגור' : '⏹ עצור'}</button>
       </div>
     );
@@ -605,10 +633,10 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const seqValid = (Number(cfg.inhale) || 0) > 0 && (Number(cfg.exhale) || 0) > 0;
   const roundsNum = typeof rounds === 'number' ? rounds : 10;           // number shown in the stepper
   const roundsIsCustom = typeof rounds === 'number' && !CHIP_VALUES.includes(rounds);
-  const card = { background: '#fff', border: '1px solid #F0E4D0', borderRadius: 16, padding: 12 };
+  const card = { background: 'var(--breath-card)', border: '1px solid var(--breath-border)', borderRadius: 16, padding: 12 };
   return (
     <div dir="rtl" style={{
-      height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: '#FFF9F0',
+      height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: 'var(--breath-bg)',
       padding: '14px 14px calc(16px + env(safe-area-inset-bottom,0px))',
       display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 14,
       fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
@@ -617,10 +645,10 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {STEPPERS.map((s) => (
           <div key={s.key} style={{ ...card, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#5C4A3A' }}>{s.label}</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--breath-ink-soft)' }}>{s.label}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {stepBtn(() => setPhase(s.key, -1), '−')}
-              <div style={{ minWidth: 40, textAlign: 'center', fontSize: 30, fontWeight: 900, color: '#1a1a1a' }}>{cfg[s.key]}</div>
+              <div style={{ minWidth: 40, textAlign: 'center', fontSize: 30, fontWeight: 900, color: 'var(--breath-ink)' }}>{cfg[s.key]}</div>
               {stepBtn(() => setPhase(s.key, 1), '+')}
             </div>
           </div>
@@ -634,28 +662,28 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
           return (
             <button key={k} type="button" onClick={() => applyPreset(k)} style={{
               flex: 1, minHeight: 40, borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 800,
-              border: on ? 'none' : '1px solid #F0E4D0', background: on ? ORANGE : '#fff', color: on ? '#fff' : '#5C4A3A',
+              border: on ? 'none' : '1px solid var(--breath-border)', background: on ? ORANGE : 'var(--breath-card)', color: on ? 'var(--breath-card)' : 'var(--breath-ink-soft)',
             }}>{PRESETS[k].label}</button>
           );
         })}
         <div style={{
           flex: 1, minHeight: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 13, fontWeight: 800,
-          border: activePreset === 'custom' ? 'none' : '1px solid #F0E4D0',
-          background: activePreset === 'custom' ? ORANGE : '#fff', color: activePreset === 'custom' ? '#fff' : '#8A6A52',
+          border: activePreset === 'custom' ? 'none' : '1px solid var(--breath-border)',
+          background: activePreset === 'custom' ? ORANGE : 'var(--breath-card)', color: activePreset === 'custom' ? 'var(--breath-card)' : 'var(--breath-label)',
         }}>מותאם אישית</div>
       </div>
 
       {/* Rounds — quick chips + a free 1-99 custom stepper */}
       <div style={{ ...card }}>
-        <div style={{ fontSize: 12, fontWeight: 800, color: '#8A6A52', marginBottom: 8, textAlign: 'center' }}>מספר סבבים</div>
+        <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--breath-label)', marginBottom: 8, textAlign: 'center' }}>מספר סבבים</div>
         <div style={{ display: 'flex', gap: 6 }}>
           {ROUND_OPTS.map((r) => {
             const on = rounds === r;
             return (
               <button key={String(r)} type="button" onClick={() => setRounds(r)} style={{
                 flex: 1, minHeight: 44, borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: 800,
-                border: on ? 'none' : '1px solid #F0E4D0', background: on ? ORANGE : '#FFF9F0', color: on ? '#fff' : '#5C4A3A',
+                border: on ? 'none' : '1px solid var(--breath-border)', background: on ? ORANGE : 'var(--breath-bg)', color: on ? 'var(--breath-card)' : 'var(--breath-ink-soft)',
               }}>{r === 'inf' ? 'אינסוף' : r}</button>
             );
           })}
@@ -664,12 +692,12 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
             (chips deselect); tapping a chip above snaps back to its value. */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginTop: 12,
-          paddingTop: 12, borderTop: '1px solid #F5ECE0',
+          paddingTop: 12, borderTop: '1px solid var(--breath-divider)',
         }}>
           {stepBtn(() => setRounds((r) => clamp((typeof r === 'number' ? r : 10) - 1, 1, 99)), '−')}
           <div style={{ minWidth: 64, textAlign: 'center' }}>
-            <div style={{ fontSize: 30, fontWeight: 900, color: roundsIsCustom ? ORANGE : '#1a1a1a', lineHeight: 1 }}>{roundsNum}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: roundsIsCustom ? ORANGE : '#8A6A52', marginTop: 2 }}>מותאם אישית</div>
+            <div style={{ fontSize: 30, fontWeight: 900, color: roundsIsCustom ? ORANGE : 'var(--breath-ink)', lineHeight: 1 }}>{roundsNum}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: roundsIsCustom ? ORANGE : 'var(--breath-label)', marginTop: 2 }}>מותאם אישית</div>
           </div>
           {stepBtn(() => setRounds((r) => clamp((typeof r === 'number' ? r : 10) + 1, 1, 99)), '+')}
         </div>
@@ -677,14 +705,14 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
 
       {/* Prep time — 0 / 3 / 5 / 10 seconds, saved between sessions */}
       <div style={{ ...card }}>
-        <div style={{ fontSize: 12, fontWeight: 800, color: '#8A6A52', marginBottom: 8, textAlign: 'center' }}>זמן הכנה (שניות)</div>
+        <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--breath-label)', marginBottom: 8, textAlign: 'center' }}>זמן הכנה (שניות)</div>
         <div style={{ display: 'flex', gap: 6 }}>
           {PREP_OPTS.map((p) => {
             const on = prepSec === p;
             return (
               <button key={p} type="button" onClick={() => setPrepSec(p)} style={{
                 flex: 1, minHeight: 44, borderRadius: 10, cursor: 'pointer', fontSize: 15, fontWeight: 800,
-                border: on ? 'none' : '1px solid #F0E4D0', background: on ? ORANGE : '#FFF9F0', color: on ? '#fff' : '#5C4A3A',
+                border: on ? 'none' : '1px solid var(--breath-border)', background: on ? ORANGE : 'var(--breath-bg)', color: on ? 'var(--breath-card)' : 'var(--breath-ink-soft)',
               }}>{p === 0 ? 'ללא' : p}</button>
             );
           })}
@@ -694,8 +722,8 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
       {/* Start */}
       <button type="button" onClick={start} disabled={!seqValid} style={{
         width: '100%', minHeight: 56, borderRadius: 16, border: 'none', cursor: seqValid ? 'pointer' : 'default',
-        background: seqValid ? 'linear-gradient(135deg,#FF6F20,#FF8A42)' : '#E7D9C7', color: '#fff', fontSize: 20, fontWeight: 900,
-        boxShadow: seqValid ? '0 8px 22px rgba(255,111,32,0.45)' : 'none',
+        background: seqValid ? 'var(--breath-cta)' : 'var(--breath-disabled)', color: 'var(--breath-card)', fontSize: 20, fontWeight: 900,
+        boxShadow: seqValid ? 'var(--breath-cta-shadow)' : 'none',
       }}>▶ התחל</button>
     </div>
   );
