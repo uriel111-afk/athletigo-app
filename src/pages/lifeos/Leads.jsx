@@ -5,6 +5,7 @@ import { Pencil, Trash2, ChevronLeft, ChevronRight, RefreshCw, UserPlus, Phone, 
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import GuidedLeadFlow from '@/components/lifeos/GuidedLeadFlow';
+import GuidedIntakeFlow from '@/components/lifeos/GuidedIntakeFlow';
 import QuickIntakeForm, { needsCompletion, isBusinessLead, TYPE_LABEL, groupPeopleCount } from '@/components/lifeos/QuickIntakeForm';
 import LeadDetailView from '@/components/lifeos/LeadDetailView';
 import AddTraineeDialog from '@/components/forms/AddTraineeDialog';
@@ -91,6 +92,7 @@ export default function Leads() {
   const [editing, setEditing] = useState(null);
   const [showQuick, setShowQuick] = useState(false);     // quick-intake form
   const [quickLead, setQuickLead] = useState(null);      // lead being completed/edited
+  const [showIntake, setShowIntake] = useState(false);   // inbound-call generator
   const [viewingLead, setViewingLead] = useState(null);  // detail overlay
   // Create-trainee flow: when the coach wants to spin a paying client
   // out of a converted lead, we open AddTraineeDialog with name+phone
@@ -148,8 +150,10 @@ export default function Leads() {
   const overdueCount = overdueIds.size;
 
   const openNew  = () => { setEditing(null); setShowForm(true); };
-  // Quick intake — new capture, or reopen a lead to complete/edit its
-  // quick fields.
+  // Inbound-call generator — the default capture for a live call.
+  const openIntake = () => { setShowIntake(true); };
+  // Quick intake ("silent") — new capture, or reopen a lead to complete/edit
+  // its quick fields.
   const openQuick = () => { setQuickLead(null); setShowQuick(true); };
   const openQuickLead = (lead) => { setViewingLead(null); setQuickLead(lead); setShowQuick(true); };
   // The wizard — for private leads (edit / "continue in wizard"), prefilled.
@@ -199,20 +203,28 @@ export default function Leads() {
         </button>
       </div>
     }>
-      {/* Two intake paths side by side: proactive call → wizard,
-          inbound call → quick intake. */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <button onClick={openNew} style={{
-          flex: 1, padding: '14px 12px', borderRadius: 12, border: 'none',
-          backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
-          fontSize: 15, fontWeight: 700, cursor: 'pointer',
-          boxShadow: '0 2px 8px rgba(255,111,32,0.2)',
-        }}>+ ליד חדש (אשף)</button>
-        <button onClick={openQuick} style={{
-          flex: 1, padding: '14px 12px', borderRadius: 12, cursor: 'pointer',
-          border: `1px solid ${LIFEOS_COLORS.primary}`, background: '#FFFFFF', color: LIFEOS_COLORS.primary,
-          fontSize: 15, fontWeight: 700,
-        }}>⚡ קליטה מהירה</button>
+      {/* Intake paths. Default (live inbound call) → the adaptive
+          generator. Secondary: the proactive-call wizard + the silent
+          quick form. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+        <button onClick={openIntake} style={{
+          width: '100%', padding: '16px 12px', borderRadius: 14, border: 'none',
+          background: 'linear-gradient(135deg,#FF6F20,#FF8A42)', color: '#FFFFFF',
+          fontSize: 17, fontWeight: 900, cursor: 'pointer',
+          boxShadow: '0 3px 10px rgba(255,111,32,0.28)',
+        }}>📞 שיחה נכנסת — מחולל</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={openNew} style={{
+            flex: 1, padding: '12px', borderRadius: 12, cursor: 'pointer',
+            border: `1px solid ${LIFEOS_COLORS.primary}`, background: '#FFFFFF', color: LIFEOS_COLORS.primary,
+            fontSize: 14, fontWeight: 700,
+          }}>+ ליד יזום (אשף)</button>
+          <button onClick={openQuick} style={{
+            flex: 1, padding: '12px', borderRadius: 12, cursor: 'pointer',
+            border: `1px solid ${LIFEOS_COLORS.border}`, background: '#FFFFFF', color: LIFEOS_COLORS.textSecondary,
+            fontSize: 14, fontWeight: 700,
+          }}>⚡ קליטה שקטה</button>
+        </div>
       </div>
 
       {dueFollowups.length > 0 && <TodayFollowupsBar leads={dueFollowups} onOpen={openView} />}
@@ -316,6 +328,14 @@ export default function Leads() {
         userId={userId}
         lead={quickLead}
         onClose={() => { setShowQuick(false); setQuickLead(null); }}
+        onSaved={load}
+      />
+
+      <GuidedIntakeFlow
+        isOpen={showIntake}
+        userId={userId}
+        lead={null}
+        onClose={() => setShowIntake(false)}
         onSaved={load}
       />
 
