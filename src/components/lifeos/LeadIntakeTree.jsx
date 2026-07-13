@@ -71,6 +71,10 @@ export default function LeadIntakeTree({ isOpen, onClose, userId, lead, onSaved,
   // Derived "field" view of the answers — for lead-type, offer, summary.
   const fields = useMemo(() => collect(schema, { name, phone, answers, texts, notes, pov }).payload, [schema, name, phone, answers, texts, notes, pov]);
   const leadType = deriveLeadType(fields);
+  // Progress bar source. MUST stay above the `if (!isOpen)` early return
+  // with every other hook — a hook after the return renders a different
+  // count on the closed→open transition (React #310).
+  const answeredGroups = useMemo(() => groupProgress(schema, answers, texts), [schema, answers, texts]);
 
   // Auto-summary (until the coach edits it).
   useEffect(() => {
@@ -158,8 +162,6 @@ export default function LeadIntakeTree({ isOpen, onClose, userId, lead, onSaved,
   };
 
   // ── Layout ──────────────────────────────────────────────────────
-  const answeredGroups = useMemo(() => groupProgress(schema, answers, texts), [schema, answers, texts]);
-
   return (
     <div dir="rtl" style={{ position: 'fixed', inset: 0, background: CREAM, zIndex: 1600, display: 'flex', flexDirection: 'column', fontFamily: "'Rubik', system-ui, sans-serif" }}>
       {/* Header + progress + persistent name/phone */}
