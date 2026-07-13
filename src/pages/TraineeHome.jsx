@@ -15,6 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import { syncPackageStatus } from "@/lib/packageStatus";
 import HealthDeclarationForm from "../components/forms/HealthDeclarationForm";
+import PhotoConsentDialog from "../components/forms/PhotoConsentDialog";
+import { isMinorFromBirthDate } from "@/lib/photoConsent";
 import WelcomeBlessingPopup from "../components/WelcomeBlessingPopup";
 import PaymentResultModal from "@/components/PaymentResultModal";
 import OnboardingProgressBar from "@/components/OnboardingProgressBar";
@@ -192,6 +194,10 @@ export default function TraineeHome() {
   // dismisses it without signing — they can re-open from the banner
   // any time they tap "חתום על הצהרת בריאות".
   const autoHealthShownRef = useRef(false);
+  // Returning-trainee photo-consent prompt — shown once, after health,
+  // for anyone who predates the onboarding photo-consent step.
+  const [showPhotoConsent, setShowPhotoConsent] = useState(false);
+  const autoPhotoShownRef = useRef(false);
   // Per-trainee gate. ANY signed health declaration (current session
   // or any prior one) marks the trainee as "signed". Used by the
   // approval banner so a returning casual trainee doesn't have to
@@ -501,6 +507,28 @@ export default function TraineeHome() {
     setPendingSessionId(pendingApprovalSession?.id || null);
     setShowPreHealth(true);
   }, [user?.id, user?.onboarding_completed, user?.onboarding_completed_at, user?.health_declaration_signed_at, hasSignedHealth, pendingApprovalSession?.id]);
+
+  // One-time photo-consent prompt for returning trainees who never saw
+  // the onboarding step. Sequenced AFTER the health declaration so the
+  // two dialogs never stack. Gated by the DB flag + a per-device flag so
+  // it never re-prompts once answered.
+  useEffect(() => {
+    if (autoPhotoShownRef.current) return;
+    if (!user?.id) return;
+    const onboardingDone = !!(user?.onboarding_completed || user?.onboarding_completed_at);
+    if (!onboardingDone) return;
+    const healthDone = user?.health_declaration_signed === true
+      || !!user?.health_declaration_signed_at
+      || hasSignedHealth === true;
+    if (!healthDone) return;
+    if (user?.photo_consent_completed === true || user?.photo_consent) return;
+    try { if (localStorage.getItem(`athletigo_photo_consent_${user.id}`)) return; } catch {}
+    if (showHealthForm || showPreHealth) return; // don't stack dialogs
+    autoPhotoShownRef.current = true;
+    setShowPhotoConsent(true);
+  }, [user?.id, user?.onboarding_completed, user?.onboarding_completed_at,
+      user?.photo_consent_completed, user?.health_declaration_signed_at,
+      hasSignedHealth, showHealthForm, showPreHealth]);
 
   // Diagnostic: which banner button should the trainee see right now?
   // Useful when debugging "why didn't the pay screen open" — the
@@ -933,6 +961,19 @@ export default function TraineeHome() {
       <WelcomeBlessingPopup
         isOpen={showWelcome}
         onClose={() => setShowWelcome(false)}
+      />
+
+      {/* Returning-trainee photo-consent — one-time, gallery stays
+          disabled until answered (the gallery gates on the consent). */}
+      <PhotoConsentDialog
+        open={showPhotoConsent}
+        onClose={() => setShowPhotoConsent(false)}
+        traineeId={user?.id}
+        coachId={coach?.id}
+        isMinor={isMinorFromBirthDate(user?.birth_date)}
+        childName={user?.full_name || ''}
+        source="dialog"
+        onSaved={() => setShowPhotoConsent(false)}
       />
 
       {/* Trainee-side NewRecordDialog — opens with traineeId locked to

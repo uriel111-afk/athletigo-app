@@ -7,6 +7,11 @@ import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 import { validateVideoFile, VIDEO_ACCEPT } from '@/lib/lifeos/videoValidation';
 import { captureNativePhoto, isNativePlatform } from '@/lib/lifeos/mediaCapture';
 import { EXERCISE_LIBRARY, EXERCISE_CATEGORIES } from '@/data/exercises';
+import PhotoConsentDialog from '@/components/forms/PhotoConsentDialog';
+import { PHOTO_CONSENT_CONTENT as PCC } from '@/content/photoConsent';
+import {
+  loadPhotoConsent, hasDocumentationConsent, hasMarketingConsent, isMinorFromBirthDate,
+} from '@/lib/photoConsent';
 
 // Skill-tag suggestions: the existing skills library (categories + named
 // exercises) feed a datalist, but the field stays free-text so a coach
@@ -18,15 +23,50 @@ const SKILL_SUGGESTIONS = Array.from(new Set([
 
 const BUCKET = 'trainee-media';
 
+// The bucket is PRIVATE (see 20260713_trainee_media_private.sql). Media is
+// rendered through short-lived signed URLs, regenerated on every gallery
+// load. 1h is long enough for a viewing/compare session and short relative
+// to a permanent public link.
+const SIGNED_TTL = 3600;
+
 const fmtDate = (t) => {
   try { return new Date(t).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: 'numeric' }); }
   catch { return ''; }
 };
 
-// Best-effort storage path from a public URL (…/object/public/trainee-media/<path>).
+// Storage path from a stored file_url. Handles BOTH the legacy public URL
+// shape (…/object/public/trainee-media/<path>) and a signed URL
+// (…/object/sign/trainee-media/<path>?token=…), stripping any query string
+// so the bare object path survives the private-bucket migration.
 const pathFromUrl = (url) => {
-  try { const m = String(url).split(`/${BUCKET}/`); return m[1] ? decodeURIComponent(m[1]) : null; }
-  catch { return null; }
+  if (!url) return null;
+  try {
+    const s = String(url);
+    const after = s.includes(`/${BUCKET}/`) ? s.split(`/${BUCKET}/`)[1] : s;
+    if (!after) return null;
+    return decodeURIComponent(after.split('?')[0]);
+  } catch { return null; }
+};
+
+// Attach a fresh signed viewUrl to each row so a private bucket still
+// renders. file_url is left untouched (delete + pathFromUrl still key off
+// it). Batched into one createSignedUrls call; on failure we fall back to
+// the stored url so nothing regresses to a blank grid.
+const withSignedUrls = async (rows) => {
+  const paths = rows.map((r) => pathFromUrl(r.file_url)).filter(Boolean);
+  if (!paths.length) return rows.map((r) => ({ ...r, viewUrl: r.file_url }));
+  try {
+    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrls(paths, SIGNED_TTL);
+    if (error) throw error;
+    const byPath = new Map((data || []).map((d) => [d.path, d.signedUrl]));
+    return rows.map((r) => {
+      const p = pathFromUrl(r.file_url);
+      return { ...r, viewUrl: (p && byPath.get(p)) || r.file_url };
+    });
+  } catch (e) {
+    console.warn('[TraineeGallery] signing failed, falling back:', e?.message);
+    return rows.map((r) => ({ ...r, viewUrl: r.file_url }));
+  }
 };
 
 // Trainee media gallery — the visual progress record. Dedicated
@@ -45,6 +85,23 @@ export default function TraineeGallery({ traineeId, coachId, isCoach }) {
   const [compareMode, setCompareMode] = useState(false);
   const [selected, setSelected] = useState([]);       // up to two ids for compare
 
+  // ── Photo consent gate ──────────────────────────────────────────
+  // documentation consent → uploads allowed at all; marketing consent →
+  // an item may be flagged is_shareable. Loaded once for the subject.
+  const [consent, setConsent] = useState(null);
+  const [consentMeta, setConsentMeta] = useState({ birthDate: null, fullName: '' });
+  const [consentDialogOpen, setConsentDialogOpen] = useState(false);
+  const canUpload = hasDocumentationConsent(consent);
+  const canShare = hasMarketingConsent(consent);
+  const traineeIsMinor = isMinorFromBirthDate(consentMeta.birthDate);
+
+  const loadConsent = useCallback(async () => {
+    if (!traineeId) return;
+    const res = await loadPhotoConsent(traineeId);
+    if (res) { setConsent(res.consent); setConsentMeta({ birthDate: res.birthDate, fullName: res.fullName }); }
+  }, [traineeId]);
+  useEffect(() => { loadConsent(); }, [loadConsent]);
+
   const camInputRef = useRef(null);       // web camera-photo fallback
   const imgInputRef = useRef(null);       // web gallery-image fallback
   const recordVideoRef = useRef(null);    // record a clip (capture)
@@ -60,7 +117,7 @@ export default function TraineeGallery({ traineeId, coachId, isCoach }) {
         .eq('trainee_id', traineeId)
         .order('created_at', { ascending: false });
       if (error) { toast.error('טעינת הגלריה נכשלה: ' + error.message); return; }
-      setItems(data || []);
+      setItems(await withSignedUrls(data || []));
     } finally { setLoading(false); }
   }, [traineeId]);
 
@@ -99,6 +156,7 @@ export default function TraineeGallery({ traineeId, coachId, isCoach }) {
 
   const saveStaged = async () => {
     if (!staged || !traineeId) return;
+    if (!canUpload) { toast.error(PCC.gallery.noConsent); return; }
     setSaving(true);
     try {
       const isImage = staged.media_type === 'image';
@@ -112,6 +170,10 @@ export default function TraineeGallery({ traineeId, coachId, isCoach }) {
       const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, toUpload, { contentType: mimeType, upsert: false });
       if (upErr) { toast.error('העלאה נכשלה: ' + upErr.message); return; }
 
+      // Bucket is private — this URL no longer resolves on its own. We
+      // still store it so file_url keeps one uniform shape across old and
+      // new rows; pathFromUrl() derives the object path from it and the
+      // grid renders via a fresh signed URL (withSignedUrls).
       const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
       const fileUrl = urlData?.publicUrl;
       if (!fileUrl) { try { await supabase.storage.from(BUCKET).remove([path]); } catch {} toast.error('קבלת ה-URL נכשלה'); return; }
@@ -148,6 +210,19 @@ export default function TraineeGallery({ traineeId, coachId, isCoach }) {
     } catch (err) { toast.error('שגיאה: ' + (err?.message || '')); }
   };
 
+  // Flip an item's is_shareable — allowed only when marketing consent
+  // is on. Optimistic update, reverts on error.
+  const toggleShareable = async (item) => {
+    if (!canShare) { toast.error(PCC.gallery.marketingLockedHint); return; }
+    const next = !item.is_shareable;
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, is_shareable: next } : i)));
+    const { error } = await supabase.from('trainee_media').update({ is_shareable: next }).eq('id', item.id);
+    if (error) {
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, is_shareable: item.is_shareable } : i)));
+      toast.error('עדכון נכשל: ' + error.message);
+    }
+  };
+
   const toggleSelect = (id) => {
     setSelected((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
@@ -179,14 +254,32 @@ export default function TraineeGallery({ traineeId, coachId, isCoach }) {
         )}
       </div>
 
-      {/* Add controls (hidden while a file is staged) */}
-      {!staged && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button type="button" onClick={pickCameraPhoto} style={pickerBtn}><span style={{ fontSize: 16 }}>📷</span> צלם</button>
-          <button type="button" onClick={pickGalleryPhoto} style={pickerBtn}><span style={{ fontSize: 16 }}>🖼️</span> תמונה</button>
-          <button type="button" onClick={() => recordVideoRef.current?.click()} style={pickerBtn}><span style={{ fontSize: 16 }}>🎥</span> הקלט</button>
-          <button type="button" onClick={() => galleryVideoRef.current?.click()} style={pickerBtn}><span style={{ fontSize: 16 }}>🎬</span> וידאו</button>
+      {/* Consent status + settings — change/revoke any time */}
+      <div style={{ ...cardBox, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 160, fontSize: 12, color: LIFEOS_COLORS.textSecondary }}>
+          <div style={{ fontWeight: 800, color: LIFEOS_COLORS.textPrimary, marginBottom: 4 }}>{PCC.settings.title}</div>
+          <div>{PCC.settings.statusDoc}: <b style={{ color: canUpload ? '#1D9E75' : '#C62828' }}>{consent ? (canUpload ? PCC.settings.allowed : PCC.settings.denied) : PCC.settings.none}</b></div>
+          <div>{PCC.settings.statusMkt}: <b style={{ color: canShare ? '#1D9E75' : '#C62828' }}>{consent ? (canShare ? PCC.settings.allowed : PCC.settings.denied) : PCC.settings.none}</b></div>
         </div>
+        <button type="button" onClick={() => setConsentDialogOpen(true)}
+          style={{ ...chip(false), whiteSpace: 'nowrap' }}>{PCC.settings.manageBtn}</button>
+      </div>
+
+      {/* Add controls (hidden while a file is staged). Gated on
+          documentation consent — no consent, no upload (coach or trainee). */}
+      {!staged && (
+        canUpload ? (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" onClick={pickCameraPhoto} style={pickerBtn}><span style={{ fontSize: 16 }}>📷</span> צלם</button>
+            <button type="button" onClick={pickGalleryPhoto} style={pickerBtn}><span style={{ fontSize: 16 }}>🖼️</span> תמונה</button>
+            <button type="button" onClick={() => recordVideoRef.current?.click()} style={pickerBtn}><span style={{ fontSize: 16 }}>🎥</span> הקלט</button>
+            <button type="button" onClick={() => galleryVideoRef.current?.click()} style={pickerBtn}><span style={{ fontSize: 16 }}>🎬</span> וידאו</button>
+          </div>
+        ) : (
+          <div style={{ ...cardBox, textAlign: 'center', color: '#C62828', fontSize: 13, fontWeight: 700, background: '#FFF4F4', border: '1px solid #F5C2C2' }}>
+            🔒 {PCC.gallery.noConsent}
+          </div>
+        )
       )}
 
       {/* Staged item — caption + skill tag before commit */}
@@ -248,13 +341,30 @@ export default function TraineeGallery({ traineeId, coachId, isCoach }) {
                   cursor: compareMode ? 'pointer' : 'default' }}>
                 <div style={{ width: '100%', height: 130, background: '#000' }}>
                   {item.media_type === 'video'
-                    ? <video src={item.file_url} controls={!compareMode} preload="metadata" playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : <img src={item.file_url} alt={item.caption || 'פריט'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                    ? <video src={item.viewUrl || item.file_url} controls={!compareMode} preload="metadata" playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <img src={item.viewUrl || item.file_url} alt={item.caption || 'פריט'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                 </div>
                 <div style={{ padding: '6px 8px' }}>
                   <div style={{ fontSize: 11, color: LIFEOS_COLORS.textSecondary }}>{fmtDate(item.created_at)}</div>
                   {item.caption && <div style={{ fontSize: 12, color: LIFEOS_COLORS.textPrimary, lineHeight: 1.35 }}>{item.caption}</div>}
                   {item.skill_tag && <span style={{ display: 'inline-block', marginTop: 4, fontSize: 10, fontWeight: 700, color: '#C24A0A', background: '#FFF4E6', borderRadius: 999, padding: '2px 8px' }}>{item.skill_tag}</span>}
+                  {!compareMode && (
+                    <button
+                      type="button"
+                      onClick={() => toggleShareable(item)}
+                      disabled={!canShare && !item.is_shareable}
+                      title={!canShare ? PCC.gallery.marketingLockedHint : ''}
+                      style={{
+                        display: 'block', marginTop: 6, width: '100%', padding: '4px 6px',
+                        borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: (canShare || item.is_shareable) ? 'pointer' : 'not-allowed',
+                        border: `1px solid ${item.is_shareable ? '#1D9E75' : LIFEOS_COLORS.border}`,
+                        background: item.is_shareable ? '#E8F5E9' : '#fff',
+                        color: item.is_shareable ? '#1D9E75' : (canShare ? LIFEOS_COLORS.textSecondary : '#BBB'),
+                      }}
+                    >
+                      {item.is_shareable ? `✓ ${PCC.gallery.shareOn}` : `${canShare ? '' : '🔒 '}${PCC.gallery.shareOff}`}
+                    </button>
+                  )}
                 </div>
                 {isSel && <div style={{ position: 'absolute', top: 6, insetInlineStart: 6, background: LIFEOS_COLORS.primary, color: '#fff', borderRadius: 999, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800 }}>{selected.indexOf(item.id) + 1}</div>}
                 {!compareMode && (
@@ -283,8 +393,8 @@ export default function TraineeGallery({ traineeId, coachId, isCoach }) {
                 </div>
                 <div style={{ flex: 1, minHeight: 0, background: '#000', borderRadius: 10, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {it.media_type === 'video'
-                    ? <video src={it.file_url} controls playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                    : <img src={it.file_url} alt={it.caption || ''} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />}
+                    ? <video src={it.viewUrl || it.file_url} controls playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    : <img src={it.viewUrl || it.file_url} alt={it.caption || ''} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />}
                 </div>
                 {it.caption && <div style={{ color: '#eee', fontSize: 12, textAlign: 'center', marginTop: 6 }}>{it.caption}</div>}
               </div>
@@ -298,6 +408,19 @@ export default function TraineeGallery({ traineeId, coachId, isCoach }) {
       <input ref={imgInputRef} type="file" accept="image/*" onChange={(e) => { stageFile(e.target.files?.[0], 'image'); e.target.value = ''; }} style={{ display: 'none' }} />
       <input ref={recordVideoRef} type="file" accept={VIDEO_ACCEPT} capture="environment" onChange={(e) => { stageVideo(e.target.files?.[0]); e.target.value = ''; }} style={{ display: 'none' }} />
       <input ref={galleryVideoRef} type="file" accept={VIDEO_ACCEPT} onChange={(e) => { stageVideo(e.target.files?.[0]); e.target.value = ''; }} style={{ display: 'none' }} />
+
+      {/* Change / revoke consent any time */}
+      <PhotoConsentDialog
+        open={consentDialogOpen}
+        onClose={() => setConsentDialogOpen(false)}
+        traineeId={traineeId}
+        coachId={coachId}
+        isMinor={traineeIsMinor}
+        childName={consentMeta.fullName}
+        initial={consent}
+        source="settings"
+        onSaved={() => { loadConsent(); refresh(); }}
+      />
     </div>
   );
 }

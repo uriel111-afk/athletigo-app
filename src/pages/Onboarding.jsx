@@ -4,6 +4,7 @@ import { getStepsForTrack } from '../lib/onboardingTracks';
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import HealthDeclarationForm from "@/components/forms/HealthDeclarationForm";
+import PhotoConsentStep from "@/components/forms/PhotoConsentStep";
 import WelcomeBlessingPopup from "@/components/WelcomeBlessingPopup";
 import PageLoader from "@/components/PageLoader";
 import { generateTraineeSummary } from "@/lib/onboardingSummary";
@@ -1529,11 +1530,32 @@ export default function Onboarding() {
                   } catch (e) {
                     console.warn('[Onboarding] post-health lifecycle write failed:', e?.message);
                   }
-                  setStep('confirm');
+                  // Advance to whatever follows health in this track —
+                  // normally the photo_consent step, falling back to
+                  // confirm for any track without it.
+                  const hi = STEPS.findIndex(s => s.id === 'health');
+                  setStep(STEPS[hi + 1]?.id || 'confirm');
                 }}
               />
             )}
           </>
+        )}
+
+        {/* ───────────────────────────────────────────────────── */}
+        {/* PHOTO CONSENT — after health, before confirm         */}
+        {/* ───────────────────────────────────────────────────── */}
+        {step === 'photo_consent' && (
+          <PhotoConsentStep
+            traineeId={userId}
+            coachId={coachId}
+            isMinor={isMinor}
+            childName={fullName}
+            source="onboarding"
+            submitLabel="המשך"
+            showSkip={isMinor}
+            onSkip={() => setStep('confirm')}
+            onSaved={() => setStep('confirm')}
+          />
         )}
 
         {/* ───────────────────────────────────────────────────── */}
@@ -1868,7 +1890,7 @@ export default function Onboarding() {
         {/* Back button — visible from step 2 onward, hidden during
             health-form modal so it doesn't compete with the modal's
             own close. */}
-        {currentStepIndex > 0 && step !== 'health' && step !== 'confirm' && (
+        {currentStepIndex > 0 && step !== 'health' && step !== 'photo_consent' && step !== 'confirm' && (
           <button onClick={goBack} style={{
             background: 'none', border: 'none', color: COLORS.muted,
             fontSize: 13, cursor: 'pointer', marginTop: 8,

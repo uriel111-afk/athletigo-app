@@ -1,19 +1,22 @@
 // Master step library — id → Hebrew label (course_select is added in a later build step)
 export const STEP_LIBRARY = {
-  details:      'פרטים',
-  measurements: 'מדידות',
-  goals:        'מטרות',
-  about:        'היכרות',
-  health:       'בריאות',
-  confirm:      'אישור',
+  details:       'פרטים',
+  measurements:  'מדידות',
+  goals:         'מטרות',
+  about:         'היכרות',
+  health:        'בריאות',
+  photo_consent: 'צילום',
+  confirm:       'אישור',
 };
 
-// Ordered step ids per service track
+// Ordered step ids per service track. photo_consent sits right after
+// the health declaration and before confirm, on every track that has a
+// health step (course has neither health nor filming).
 export const TRACK_STEPS = {
-  personal: ['details', 'measurements', 'goals', 'about', 'health', 'confirm'],
-  online:   ['details', 'measurements', 'goals', 'about', 'health', 'confirm'],
-  group:    ['details', 'goals', 'health', 'confirm'],
-  workshop: ['details', 'health', 'confirm'],
+  personal: ['details', 'measurements', 'goals', 'about', 'health', 'photo_consent', 'confirm'],
+  online:   ['details', 'measurements', 'goals', 'about', 'health', 'photo_consent', 'confirm'],
+  group:    ['details', 'goals', 'health', 'photo_consent', 'confirm'],
+  workshop: ['details', 'health', 'photo_consent', 'confirm'],
   course:   ['details', 'goals', 'confirm'], // 'course_select' will be inserted in the next build step
 };
 
