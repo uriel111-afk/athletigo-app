@@ -463,7 +463,9 @@ export default function Dashboard() {
                 onClick: () => setIsAddTraineeOpen(true),
                 pos: { top: 0, left: '50%', marginLeft: -50 } },
               { line1: 'הוסף', line2: 'ליד',    emoji: '👥', iconSize: 26, iconColor: 'var(--ag-purple)',
-                onClick: () => setIsLeadDialogOpen(true),
+                // Funnel to the single new-lead entry (the intake tree on
+                // the leads screen) instead of the legacy inline dialog.
+                onClick: () => navigate('/lifeos/leads'),
                 pos: { top: 72, right: 18 } },
               { line1: 'בנה',  line2: 'תוכנית', emoji: '📋', iconSize: 26, iconColor: 'var(--ag-warning)',
                 onClick: () => setIsPlanDialogOpen(true),

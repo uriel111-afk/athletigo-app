@@ -12,7 +12,6 @@ import { groupPricing, monthlyFrame, offerSentence, compareOffer, nis, PRIVATE_P
 import { DEFAULT_INTAKE_TREE, GROUPS } from '@/lib/lifeos/intake-tree-schema';
 
 const ORANGE = '#FF6F20';
-const CREAM = '#FBF3EA';
 const RAPPORT_BG = '#FDF0E3';
 // Depth side-line — lightens as the selected path deepens.
 const DEPTH_COLORS = ['#FF6F20', '#FF9A5C', '#FFC9A6', '#FFE0CC', '#FFEEE2'];
@@ -163,7 +162,8 @@ export default function LeadIntakeTree({ isOpen, onClose, userId, lead, onSaved,
 
   // ── Layout ──────────────────────────────────────────────────────
   return (
-    <div dir="rtl" style={{ position: 'fixed', inset: 0, background: CREAM, zIndex: 1600, display: 'flex', flexDirection: 'column', fontFamily: "'Rubik', system-ui, sans-serif" }}>
+    <div dir="rtl" style={{ position: 'fixed', inset: 0, background: 'var(--cream, #FBF3EA)', zIndex: 1600, display: 'flex', flexDirection: 'column', fontFamily: "'Rubik', system-ui, sans-serif" }}>
+      <style>{`@keyframes agFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}`}</style>
       {/* Header + progress + persistent name/phone */}
       <div style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)', paddingInline: 14, paddingBottom: 8, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -347,7 +347,7 @@ function SummaryBlock({ ctx }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ fontSize: 14, fontWeight: 800, color: '#1A1A1A' }}>סיכום להקראה</div>
-      <div style={{ borderInlineStart: `4px solid ${ORANGE}`, background: '#fff', borderRadius: 12, border: '1px solid #F0E4D0', padding: 12 }}>
+      <div style={{ borderInlineStart: `4px solid ${ORANGE}`, background: '#fff', borderRadius: 14, border: '1px solid #F0E4D0', padding: 14 }}>
         <AutoTextarea value={ctx.summaryText} onChange={(v) => { ctx.summaryTouched.current = true; ctx.setSummaryText(v); }} onBlur={ctx.persistSafe} placeholder="נבנה אוטומטית מהנתיב שנבחר..." minHeight={90} />
       </div>
       <button type="button" onClick={copy} style={ghostBtn}>{copied ? <Check size={14} color="#16a34a" /> : <Copy size={14} />} {copied ? 'הועתק' : 'העתק סיכום'}</button>
@@ -380,7 +380,7 @@ function OfferBlock({ ctx }) {
           {privateLines(fields.service_type).map((l, i) => <div key={i} style={{ fontSize: 14, fontWeight: 700 }}>· {l}</div>)}
         </>)}
       </div>
-      <div style={{ background: '#fff', border: '1px solid #F0E4D0', borderRadius: 12, padding: 12 }}>
+      <div style={{ background: '#fff', border: '1px solid #F0E4D0', borderRadius: 14, padding: 14 }}>
         <div style={{ fontSize: 12, fontWeight: 800, color: '#5C4A3A', marginBottom: 4 }}>מה כלול</div>
         {includes.map((l, i) => <div key={i} style={{ fontSize: 13, color: '#3a3a3a', lineHeight: 1.45 }}>✓ {l}</div>)}
       </div>
@@ -432,8 +432,9 @@ function ClosingBlock({ ctx }) {
 
 // ── Building blocks ─────────────────────────────────────────────────
 function DepthBlock({ depth, children }) {
+  // Soft branch-open: each newly-expanded depth fades/slides in (~180ms).
   return (
-    <div style={{ borderInlineStart: `3px solid ${depthColor(depth)}`, paddingInlineStart: 12, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 14, background: depth >= 2 ? 'rgba(255,111,32,0.03)' : 'transparent', borderRadius: 6 }}>
+    <div style={{ borderInlineStart: `3px solid ${depthColor(depth)}`, paddingInlineStart: 12, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 14, background: depth >= 2 ? 'rgba(255,111,32,0.03)' : 'transparent', borderRadius: 6, animation: 'agFade .18s ease' }}>
       {children}
     </div>
   );
@@ -454,7 +455,7 @@ function ProgressBar({ answeredGroups }) {
         const active = i === lastIdx;
         return (
           <div key={g.key} style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ height: 6, borderRadius: 999, background: done ? ORANGE : active ? '#FF9A5C' : '#E7E0D5', marginBottom: 3 }} />
+            <div style={{ height: 6, borderRadius: 999, background: done ? ORANGE : active ? '#FF9A5C' : '#E7E0D5', marginBottom: 3, transition: 'all .2s' }} />
             <div style={{ fontSize: 10, fontWeight: active ? 800 : 600, color: done || active ? '#C24A0A' : '#9A8F82' }}>{g.label}</div>
           </div>
         );
@@ -462,13 +463,16 @@ function ProgressBar({ answeredGroups }) {
     </div>
   );
 }
+// Label sits ABOVE the input in normal flow — never a floating badge —
+// so it can't be clipped or overlap the progress row on narrow screens
+// (full display from 360px up).
 function TopField({ label, value, onChange, onBlur, placeholder, ltr }) {
   const empty = !value.trim();
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+      <label style={{ fontSize: 11, fontWeight: 700, color: empty ? '#C24A0A' : '#9A8F82', paddingInlineStart: 2, whiteSpace: 'nowrap' }}>{label}{empty ? ' *' : ''}</label>
       <input value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} type={ltr ? 'tel' : 'text'} inputMode={ltr ? 'tel' : undefined}
-        style={{ ...inp, minHeight: 40, padding: '6px 10px', fontSize: 14, border: `1px solid ${empty ? '#F0C89A' : '#E4D8C6'}`, background: empty ? '#FFFBF5' : '#fff', direction: ltr ? 'ltr' : 'rtl', textAlign: ltr ? 'left' : 'right' }} />
-      <span style={{ position: 'absolute', top: -7, insetInlineStart: 8, background: CREAM, padding: '0 4px', fontSize: 9, fontWeight: 700, color: empty ? '#C24A0A' : '#9A8F82' }}>{label}{empty ? ' ·' : ''}</span>
+        style={{ ...inp, minHeight: 42, padding: '8px 10px', fontSize: 14, border: `1px solid ${empty ? '#F0C89A' : '#F0E4D0'}`, background: empty ? '#FFFBF5' : '#fff', direction: ltr ? 'ltr' : 'rtl', textAlign: ltr ? 'left' : 'right' }} />
     </div>
   );
 }
@@ -505,4 +509,6 @@ const lbl = { display: 'block', fontSize: 12, fontWeight: 700, color: '#9A8F82',
 const inp = { width: '100%', minHeight: 44, padding: '10px 12px', borderRadius: 10, border: '1px solid #F0E4D0', background: '#fff', fontSize: 14, color: '#1A1A1A', outline: 'none', boxSizing: 'border-box', resize: 'none', textAlign: 'right', fontFamily: "'Rubik', system-ui, -apple-system, sans-serif" };
 const rapportStyle = { background: RAPPORT_BG, borderRadius: 10, padding: '8px 12px' };
 const ghostBtn = { alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid #F0E4D0', background: '#fff', color: '#3a3a3a', borderRadius: 999, padding: '6px 14px', fontSize: 12, fontWeight: 800, cursor: 'pointer' };
-const chip = (on) => ({ minHeight: 42, padding: '0 16px', borderRadius: 999, cursor: 'pointer', boxSizing: 'border-box', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${on ? ORANGE : '#E4D8C6'}`, background: on ? ORANGE : '#fff', color: on ? '#fff' : '#3a3a3a', fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' });
+// Chip geometry aligned to the wizard's ChipRow: 36px tall, 2px orange
+// border when selected, neutral #F0E4D0 when not, 13/600 type.
+const chip = (on) => ({ minHeight: 36, padding: '0 13px', borderRadius: 999, cursor: 'pointer', boxSizing: 'border-box', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: on ? `2px solid ${ORANGE}` : '1px solid #F0E4D0', background: on ? ORANGE : '#fff', color: on ? '#fff' : '#3a3a3a', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' });

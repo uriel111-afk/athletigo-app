@@ -7,20 +7,21 @@ import {
   LIFEOS_COLORS,
   EXPENSE_CATEGORIES,
   ATHLETIGO_PRODUCTS,
-  LEAD_INTERESTED_IN,
   CONTENT_TYPES,
 } from '@/lib/lifeos/lifeos-constants';
 import {
-  addExpense, addIncome, addLead, addContentItem,
+  addExpense, addIncome, addContentItem,
 } from '@/lib/lifeos/lifeos-api';
 import ExpenseForm from '@/components/lifeos/ExpenseForm';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+// NOTE: lead capture is NOT here — the ONLY new-lead entry is
+// "+ ליד חדש" on the Leads screen (→ LeadIntakeTree). A quick-lead
+// action here was a second, competing creation path; removed.
 const ACTIONS = [
   { key: 'expense',  emoji: '💸', label: 'הוצאה מהירה' },
   { key: 'income',   emoji: '💰', label: 'הכנסה מהירה' },
-  { key: 'lead',     emoji: '👥', label: 'דיווח ליד' },
   { key: 'content',  emoji: '🎬', label: 'תוכן פורסם' },
   { key: 'workshop', emoji: '🎪', label: 'סדנה חדשה' },
 ];
@@ -125,7 +126,6 @@ function QuickDialog({ action, onClose, onSaved }) {
         {/* 'expense' is handled by the full <ExpenseForm> at the FAB
             level — not routed here anymore. */}
         {action === 'income'   && <QIncome  onSaved={onSaved} onClose={onClose} />}
-        {action === 'lead'     && <QLead    onSaved={onSaved} onClose={onClose} />}
         {action === 'content'  && <QContent onSaved={onSaved} onClose={onClose} />}
         {action === 'workshop' && <QWorkshop onSaved={onSaved} onClose={onClose} />}
       </DialogContent>
@@ -206,44 +206,6 @@ function QIncome({ onSaved, onClose }) {
         ))}
       </select>
       <SaveBtns onClose={onClose} onSave={save} saving={saving} saveColor={LIFEOS_COLORS.success} />
-    </div>
-  );
-}
-
-function QLead({ onSaved, onClose }) {
-  const userId = useUserId();
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [interestedIn, setInterestedIn] = useState('');
-  const [saving, setSaving] = useState(false);
-  const save = async () => {
-    // Name only — phone optional so a coach can dump a screenshot
-    // contact in one tap and fill the rest later.
-    if (!name.trim()) { toast.error('הכנס שם'); return; }
-    setSaving(true);
-    try {
-      await addLead(userId, {
-        name: name.trim(),
-        phone: phone.trim() || null,
-        interested_in: interestedIn || null,
-        status: 'new', source: 'other',
-      });
-      toast.success('ליד נוסף ✓');
-      onSaved();
-    } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
-    finally { setSaving(false); }
-  };
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 8 }}>
-      <input type="text" placeholder="שם" autoFocus value={name}
-             onChange={e => setName(e.target.value)} style={textInput} />
-      <input type="tel" placeholder="טלפון" value={phone}
-             onChange={e => setPhone(e.target.value)} style={textInput} />
-      <select value={interestedIn} onChange={e => setInterestedIn(e.target.value)} style={textInput}>
-        <option value="">— מעוניין ב- —</option>
-        {LEAD_INTERESTED_IN.map(i => <option key={i.key} value={i.key}>{i.label}</option>)}
-      </select>
-      <SaveBtns onClose={onClose} onSave={save} saving={saving} />
     </div>
   );
 }
