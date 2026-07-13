@@ -9,6 +9,7 @@ import {
 } from '@/lib/tabataSounds';
 import { useActiveTimer } from '@/contexts/ActiveTimerContext';
 import { useNavigate } from 'react-router-dom';
+import { useExerciseBackGuard } from '@/hooks/useExerciseBackGuard';
 import { useAuth } from '@/lib/AuthContext';
 import { ChevronRight } from 'lucide-react';
 
@@ -108,6 +109,11 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
   const {
     setLiveTimerDynamic, setShowDynamic, setIsMinimized, showDynamic,
   } = useActiveTimer();
+
+  // Android back while running in the foreground: first press warns
+  // (toast), a second within 2s minimizes it (keeps running) — never
+  // stops on a back press.
+  useExerciseBackGuard(screen === 'running' && showDynamic, () => doMinimize());
 
   let _user = null;
   try { _user = useAuth()?.user; } catch {}

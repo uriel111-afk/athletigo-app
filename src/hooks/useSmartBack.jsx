@@ -24,7 +24,13 @@ export function SmartBackProvider({ children }) {
     stackRef.current = stackRef.current.filter((h) => h.id !== id);
   }, []);
 
-  const triggerBack = useCallback(() => {
+  // Pop one open layer if the stack has any; otherwise fall through.
+  // The optional `fallback` lets a caller (the Android hardware back
+  // button) supply route-aware behaviour (internal → dashboard,
+  // dashboard → double-press exit) instead of the header button's
+  // default history `navigate(-1)`. Returns true when a layer was
+  // closed, false when it fell through to the route level.
+  const triggerBack = useCallback((fallback) => {
     if (stackRef.current.length > 0) {
       const top = stackRef.current[stackRef.current.length - 1];
       try {
@@ -35,9 +41,11 @@ export function SmartBackProvider({ children }) {
       // The handler should flip its `active` flag to false, which
       // triggers the useSmartBackHandler effect cleanup and removes
       // its registration from the stack on the next render.
-      return;
+      return true;
     }
+    if (typeof fallback === 'function') { fallback(); return false; }
     navigate(-1);
+    return false;
   }, [navigate]);
 
   return (

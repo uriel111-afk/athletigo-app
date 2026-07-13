@@ -6,6 +6,7 @@ import { isoInDays, waLink, normalizePhone } from '@/lib/lifeos/lead-helpers';
 import { statusForDetail } from '@/lib/lifeos/lifeos-constants';
 import { SERVICE_LABEL, FORWHOM_LABEL } from '@/components/lifeos/QuickIntakeForm';
 import FollowupChips from '@/components/lifeos/FollowupChips';
+import { useSmartBackHandler } from '@/hooks/useSmartBack';
 import {
   NEED_PERSONAS, NEEDS_BY_PERSONA, buildNeedResponse, smartNextStep,
   HESITATION_REASONS, hesitationResponse,
@@ -129,6 +130,11 @@ export default function GuidedIntakeFlow({ isOpen, onClose, userId, lead, onSave
     mirroredRef.current = true;
   }, [stepId, isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Android hardware back closes the generator exactly like the header
+  // X — persisting a pending lead if one was started (handleClose).
+  const backCloseRef = useRef(() => {});
+  useSmartBackHandler(isOpen, () => backCloseRef.current());
+
   if (!isOpen) return null;
 
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
@@ -181,6 +187,7 @@ export default function GuidedIntakeFlow({ isOpen, onClose, userId, lead, onSave
     finally { setBusy(false); }
   };
   const handleClose = () => { if (leadId) onSaved?.(); onClose(); };
+  backCloseRef.current = handleClose;
   const finishAll = () => { onSaved?.(); onClose(); };
 
   const leadType = deriveLeadType(form);

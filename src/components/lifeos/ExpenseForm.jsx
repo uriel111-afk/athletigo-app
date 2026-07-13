@@ -11,6 +11,7 @@ import { addExpense, updateExpense, deleteExpense } from '@/lib/lifeos/lifeos-ap
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompression';
 import { pushDebugLog, readDebugLog, clearDebugLog, formatDebugLog } from '@/lib/debugLog';
+import { useSmartBackHandler } from '@/hooks/useSmartBack';
 
 const isNativePlatform = Capacitor.isNativePlatform();
 
@@ -215,6 +216,10 @@ export default function ExpenseForm({ isOpen, onClose, userId, onSaved, expense 
     clearDraft();
     onClose?.();
   };
+
+  // Android hardware back closes the expense dialog like cancel/X —
+  // clearing the draft and revoking pending previews (no app exit).
+  useSmartBackHandler(isOpen && !saving, () => closeForm('android-back'));
 
   // Unmount-time safety net — if the component is torn down without
   // closeForm running, still revoke any outstanding object URLs.

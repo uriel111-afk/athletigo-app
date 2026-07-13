@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Copy, Check, MessageCircle, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useSmartBackHandler } from '@/hooks/useSmartBack';
 import { statusForDetail, OBJECTION_BANK_BY_STEP, SALES_SUPPORT_BY_STEP, LEAD_PERSONAS, PRESCRIPTION_TRACKS, PRESCRIPTION_LINES, PRESCRIPTION_DIGITAL, OBJECTION_PREAMBLE } from '@/lib/lifeos/lifeos-constants';
 import { addLead, updateLead } from '@/lib/lifeos/lifeos-api';
 import { waLink, normalizePhone } from '@/lib/lifeos/lead-helpers';
@@ -318,6 +319,11 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
     }
   }, [step, isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Android hardware back closes the wizard like the header X —
+  // persisting a pending lead if one was started (handleClose).
+  const backCloseRef = useRef(() => {});
+  useSmartBackHandler(isOpen, () => backCloseRef.current());
+
   if (!isOpen) return null;
 
   // Map the form snapshot → DB columns. applyStatus flips lead.status
@@ -404,6 +410,7 @@ export default function GuidedLeadFlow({ isOpen, onClose, userId, lead, onSaved 
   };
 
   const handleClose = () => { if (leadId) onSaved?.(); onClose(); };
+  backCloseRef.current = handleClose;
 
   // Create one NEW lead per captured referral (step 9). Source is
   // tagged back to the referring lead; status = 'new'. Best-effort:

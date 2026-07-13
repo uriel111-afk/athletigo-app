@@ -67,6 +67,7 @@ import InstallPrompt from './components/InstallPrompt';
 import NotificationPopup from './components/NotificationPopup';
 import { supabase } from '@/lib/supabaseClient';
 import { SmartBackProvider } from '@/hooks/useSmartBack';
+import AndroidBackButton from './components/AndroidBackButton';
 
 console.log('[APP] App module loaded', new Date().toISOString());
 
@@ -630,6 +631,7 @@ function App() {
                 window.location.href bridges. */}
             <AuthProvider>
               <NavigationTracker />
+              <AndroidBackButton />
               <GlobalTabata />
               <GlobalDynamicIntervals />
               <Routes>

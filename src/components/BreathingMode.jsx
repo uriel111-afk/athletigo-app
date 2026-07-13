@@ -1,5 +1,9 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ensureBreathPermission, showBreathNotification, clearBreathNotification } from '@/lib/breathNotification';
+import { useExerciseBackGuard } from '@/hooks/useExerciseBackGuard';
+import { useAuth } from '@/lib/AuthContext';
+import { homePathForUser } from '@/lib/homePath';
 
 // Fixed output gain — no user slider. The DynamicsCompressor after the
 // gain keeps it distortion-free; the phone's media (STREAM_MUSIC) volume
@@ -360,11 +364,19 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   }
   const boot = bootRef.current;
   const bootPhase = boot?.kind === 'resume' ? (boot.session.seq[boot.loc.index] || {}) : null;
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [cfg, setCfg] = useState({ inhale: 4, hold: 4, exhale: 4, holdEmpty: 4 });
   const [rounds, setRounds] = useState(loadRounds);
   const [running, setRunning] = useState(() => boot?.kind === 'resume');
   const [done, setDone] = useState(() => boot?.kind === 'done');
+
+  // Android back while the breathing exercise is running in the
+  // foreground: first press warns (toast), a second within 2s leaves
+  // the screen WITHOUT stopping — the durable session + notification
+  // keep it alive and it resumes on return to the clocks.
+  useExerciseBackGuard(active && running && !done, () => navigate(homePathForUser(user)));
   const [phaseName, setPhaseName] = useState(() => bootPhase?.name || '');
   // Current phase key drives the per-phase title colour + circle shade.
   const [phaseKey, setPhaseKey] = useState(() => bootPhase?.key || '');

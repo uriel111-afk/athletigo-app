@@ -11,6 +11,7 @@ import ScrollPickerPopup, { SECONDS_OPTIONS, ROUNDS_OPTIONS, PREP_OPTIONS } from
 import RoundJumpPicker from '@/components/RoundJumpPicker';
 import { useActiveTimer } from '@/contexts/ActiveTimerContext';
 import { useNavigate } from 'react-router-dom';
+import { useExerciseBackGuard } from '@/hooks/useExerciseBackGuard';
 import { useAuth } from '@/lib/AuthContext';
 import { ChevronRight } from 'lucide-react';
 
@@ -104,6 +105,11 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     setLiveTimerTabata, setShowTabata, setIsMinimized, showTabata,
     pendingTabataCfg, setPendingTabataCfg,
   } = useActiveTimer();
+
+  // Android back while the timer is in the foreground running: first
+  // press warns (toast), a second press within 2s minimizes it (keeps
+  // running in the background) — it never stops on a back press.
+  useExerciseBackGuard(screen === 'running' && showTabata, () => doMinimize());
 
   // Coach-prefill banner: stays on the settings screen until the
   // overlay closes (showTabata=false). The cfg itself merges into the

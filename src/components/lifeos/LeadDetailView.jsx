@@ -11,6 +11,7 @@ import { waLink, telLink, relTime, followUpState } from '@/lib/lifeos/lead-helpe
 import { isBusinessLead, needsCompletion, TYPE_LABEL, SERVICE_LABEL, FORWHOM_LABEL, groupPeopleCount } from '@/components/lifeos/QuickIntakeForm';
 import { PERSONA_LABEL, buildNeedResponse, HESITATION_STATUS, HESITATION_REASONS, hesitationResponse } from '@/lib/lifeos/need-response-bank';
 import { backgroundFocus } from '@/lib/lifeos/sales-playbook';
+import { useSmartBackHandler } from '@/hooks/useSmartBack';
 import { addInteraction, listInteractions } from '@/lib/lifeos/lifeos-api';
 import { isoInDays } from '@/lib/lifeos/lead-helpers';
 import FollowupChips from '@/components/lifeos/FollowupChips';
@@ -63,6 +64,10 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
     if (lead?.id) listInteractions(lead.id).then((r) => { if (alive) setInteractions(r); });
     return () => { alive = false; };
   }, [lead?.id]);
+
+  // Android hardware back closes the content sheet first (if open),
+  // otherwise the whole lead card — returning to the leads list.
+  useSmartBackHandler(!!lead, () => { if (picker) { setPicker(false); return; } onClose?.(); });
 
   if (!lead) return null;
 

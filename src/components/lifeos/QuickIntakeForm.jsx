@@ -5,6 +5,7 @@ import { isoInDays } from '@/lib/lifeos/lead-helpers';
 import FollowupChips from '@/components/lifeos/FollowupChips';
 import { NEED_PERSONAS, NEEDS_BY_PERSONA, buildNeedResponse, smartNextStep } from '@/lib/lifeos/need-response-bank';
 import { BACKGROUND_CHIPS, INJURY_CHIPS, backgroundCopy, backgroundFocus, ASK_NOW } from '@/lib/lifeos/sales-playbook';
+import { useSmartBackHandler } from '@/hooks/useSmartBack';
 import { toast } from 'sonner';
 
 // ── Quick lead intake ("קליטה מהירה") — unified request hierarchy ────
@@ -148,6 +149,9 @@ export default function QuickIntakeForm({ isOpen, userId, lead, onClose, onSaved
     setNextStepTouched(!!lead?.next_step);
     setTimeout(() => { try { notesRef.current && notesRef.current.focus(); } catch {} }, 60);
   }, [isOpen, lead]);
+
+  // Android hardware back closes the quick form like the header X.
+  useSmartBackHandler(isOpen, () => onClose?.());
 
   if (!isOpen) return null;
 
