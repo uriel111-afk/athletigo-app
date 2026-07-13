@@ -6,6 +6,10 @@ import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import GuidedLeadFlow from '@/components/lifeos/GuidedLeadFlow';
 import LeadIntakeTree from '@/components/lifeos/LeadIntakeTree';
+import IntakeSchemaEditor from '@/components/lifeos/IntakeSchemaEditor';
+import { loadIntakeSchema, saveIntakeSchema } from '@/lib/lifeos/intake-schema-api';
+import { addOption } from '@/lib/lifeos/intake-tree-ops';
+import { DEFAULT_INTAKE_TREE } from '@/lib/lifeos/intake-tree-schema';
 // QuickIntakeForm is out of the routing, but its helper exports are still
 // the source of truth for lead classification used across this page.
 import { needsCompletion, isBusinessLead, TYPE_LABEL, groupPeopleCount } from '@/components/lifeos/QuickIntakeForm';
@@ -73,6 +77,8 @@ export default function Leads() {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
   const isCoordinator = user?.role === 'coordinator';
+  // Schema editing is for the coach/admin only — never the coordinator.
+  const canEditSchema = !!user && !isCoordinator && (user.role === 'coach' || user.role === 'admin' || user.is_coach === true);
   const navigate = useNavigate();
   const qc = useQueryClient();
 
@@ -94,6 +100,8 @@ export default function Leads() {
   const [editing, setEditing] = useState(null);
   const [showTree, setShowTree] = useState(false);       // recursive intake tree (single new-lead entry)
   const [treeLead, setTreeLead] = useState(null);        // existing lead reopened in the tree (else null = new)
+  const [intakeSchema, setIntakeSchema] = useState(DEFAULT_INTAKE_TREE); // active tree (DB or bundled default)
+  const [showEditor, setShowEditor] = useState(false);   // admin schema editor
   const [viewingLead, setViewingLead] = useState(null);  // detail overlay
   // Create-trainee flow: when the coach wants to spin a paying client
   // out of a converted lead, we open AddTraineeDialog with name+phone
@@ -108,6 +116,22 @@ export default function Leads() {
     finally { setLoaded(true); }
   }, [userId]);
   useEffect(() => { load(); }, [load]);
+
+  // Load the active intake tree (DB version, else the bundled default).
+  useEffect(() => {
+    let alive = true;
+    loadIntakeSchema().then(({ schema }) => { if (alive && Array.isArray(schema)) setIntakeSchema(schema); });
+    return () => { alive = false; };
+  }, []);
+
+  // In-conversation quick-add — append a chip to a node's list and
+  // persist the schema (admins only; the button is gated in the tree).
+  const handleQuickAdd = async (nodeId, label) => {
+    const next = addOption(intakeSchema, nodeId, { label });
+    setIntakeSchema(next);
+    try { const v = await saveIntakeSchema(next, userId); toast.success(`נוסף · גרסה ${v}`); }
+    catch (e) { toast.error('שמירת התהליך נכשלה: ' + (e?.message || '')); }
+  };
 
   // Follow-up urgency drives both the overdue badge and the list sort.
   const overdueIds = useMemo(() => {
@@ -216,11 +240,21 @@ export default function Leads() {
           fontSize: 17, fontWeight: 900, cursor: 'pointer',
           boxShadow: '0 3px 10px rgba(255,111,32,0.28)',
         }}>🌳 ליד חדש</button>
-        <button onClick={openNew} style={{
-          width: '100%', padding: '12px', borderRadius: 12, cursor: 'pointer',
-          border: `1px solid ${LIFEOS_COLORS.primary}`, background: '#FFFFFF', color: LIFEOS_COLORS.primary,
-          fontSize: 14, fontWeight: 700,
-        }}>+ ליד יזום (אשף)</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={openNew} style={{
+            flex: 1, padding: '12px', borderRadius: 12, cursor: 'pointer',
+            border: `1px solid ${LIFEOS_COLORS.primary}`, background: '#FFFFFF', color: LIFEOS_COLORS.primary,
+            fontSize: 14, fontWeight: 700,
+          }}>+ ליד יזום (אשף)</button>
+          {/* Admin/coach only — never the coordinator. */}
+          {canEditSchema && (
+            <button onClick={() => setShowEditor(true)} style={{
+              flex: 1, padding: '12px', borderRadius: 12, cursor: 'pointer',
+              border: `1px solid ${LIFEOS_COLORS.border}`, background: '#FFFFFF', color: LIFEOS_COLORS.textSecondary,
+              fontSize: 14, fontWeight: 700,
+            }}>✏️ ערוך תהליך</button>
+          )}
+        </div>
       </div>
 
       {dueFollowups.length > 0 && <TodayFollowupsBar leads={dueFollowups} onOpen={openView} />}
@@ -323,8 +357,19 @@ export default function Leads() {
         isOpen={showTree}
         userId={userId}
         lead={treeLead}
+        schema={intakeSchema}
+        canEdit={canEditSchema}
+        onQuickAdd={handleQuickAdd}
         onClose={() => { setShowTree(false); setTreeLead(null); }}
         onSaved={load}
+      />
+
+      <IntakeSchemaEditor
+        isOpen={showEditor}
+        userId={userId}
+        schema={intakeSchema}
+        onSaved={(next) => setIntakeSchema(next)}
+        onClose={() => setShowEditor(false)}
       />
 
       {viewingLead && (

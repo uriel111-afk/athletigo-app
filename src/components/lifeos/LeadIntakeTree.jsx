@@ -36,7 +36,7 @@ const deriveLeadType = (f) => {
 
 // Single entry point for a NEW lead — the recursive intake tree.
 // Replaces GuidedIntakeFlow + QuickIntakeForm as the "new lead" screen.
-export default function LeadIntakeTree({ isOpen, onClose, userId, lead, onSaved, schema = DEFAULT_INTAKE_TREE, canEdit = false }) { // eslint-disable-line no-unused-vars
+export default function LeadIntakeTree({ isOpen, onClose, userId, lead, onSaved, schema = DEFAULT_INTAKE_TREE, canEdit = false, onQuickAdd }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [answers, setAnswers] = useState({});   // nodeId → key | [keys]
@@ -154,6 +154,7 @@ export default function LeadIntakeTree({ isOpen, onClose, userId, lead, onSaved,
     objReasons, setObjReasons, objAnswer, setObjAnswer,
     closeResult, setCloseResult, energy, setEnergy, closeNote, setCloseNote,
     followUp, setFollowUp, pov, setPov,
+    canEdit, onQuickAdd,
   };
 
   // ── Layout ──────────────────────────────────────────────────────
@@ -184,7 +185,7 @@ export default function LeadIntakeTree({ isOpen, onClose, userId, lead, onSaved,
         ) : (
           <>
             {GROUPS.map((g) => {
-              const nodes = schema.filter((n) => n.group === g.key && n.kind !== 'contact');
+              const nodes = schema.filter((n) => n.group === g.key && n.kind !== 'contact' && !n.hidden);
               if (!nodes.length) return null;
               return (
                 <div key={g.key} style={{ marginBottom: 18 }}>
@@ -220,6 +221,7 @@ function collect(schema, { name, phone, answers, texts, notes, pov }) {
   const extra = [];
   const walk = (nodes) => {
     for (const node of nodes) {
+      if (node.hidden) continue;
       if (['contact', 'summary', 'offer', 'objection', 'closing'].includes(node.kind)) continue;
       const v = answers[node.id];
       const sel = node.multi ? (Array.isArray(v) ? v : []) : (v ? [v] : []);
@@ -295,9 +297,11 @@ function RenderNode({ node, depth, ctx }) {
   if (node.kind === 'closing') return <ClosingBlock ctx={ctx} />;
 
   const sel = ctx.selectedKeys(node);
-  const opts = node.options || [];
-  const isText = node.kind === 'text' || opts.length === 0;
-  const rapKeys = sel.map((k) => opts.find((o) => o.key === k)?.rapport).filter(Boolean);
+  const opts = (node.options || []).filter((o) => !o.hidden);
+  const isText = node.kind === 'text' || (node.options || []).length === 0;
+  // Selected options' rapport lines — an inline override text wins over
+  // the playbook key, so admins can edit the 💬 sentence in the schema.
+  const rapLines = sel.map((k) => { const o = opts.find((x) => x.key === k); return o ? (o.rapportText || rapportLine(o.rapport)) : null; }).filter(Boolean);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -307,6 +311,12 @@ function RenderNode({ node, depth, ctx }) {
           {opts.map((o) => (
             <button key={o.key} type="button" onClick={() => { ctx.pickChip(node, o.key); ctx.persistSafe(); }} style={chip(sel.includes(o.key))}>{o.label}</button>
           ))}
+          {/* In-conversation quick-add (admins only) — appends a chip to
+              this exact list and persists the schema immediately. */}
+          {ctx.canEdit && ctx.onQuickAdd && (
+            <button type="button" onClick={() => { const l = window.prompt('צ׳יפ חדש לרשימה:'); if (l && l.trim()) ctx.onQuickAdd(node.id, l.trim()); }}
+              style={{ ...chip(false), borderStyle: 'dashed', color: ORANGE, borderColor: ORANGE }}>+ הוספה</button>
+          )}
         </div>
       )}
       {/* Free-text law — a note beside the chips, always available. */}
@@ -314,7 +324,7 @@ function RenderNode({ node, depth, ctx }) {
         <AutoTextarea value={ctx.texts[node.id] || ''} onChange={(v) => ctx.setText(node.id, v)} onBlur={ctx.persistSafe}
           placeholder={node.placeholder || 'בכמה מילים...'} minHeight={node.gold ? 70 : 44} gold={node.gold} />
       )}
-      {rapKeys.map((rk) => <RapportLine key={rk} text={rapportLine(rk)} />)}
+      {rapLines.map((t, i) => <RapportLine key={i} text={t} />)}
       {/* Node-level follow-up sub-tree (asked once the node is answered). */}
       {node.children && (sel.length > 0 || (ctx.texts[node.id] || '').trim()) && (
         <DepthBlock depth={depth}><RenderNodes nodes={node.children} depth={depth + 1} ctx={ctx} /></DepthBlock>
