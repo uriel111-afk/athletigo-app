@@ -304,3 +304,49 @@ export function buildMirror({ name, needLabel, groupSize, freq, goals, forWhomLa
   }
   return `אז אם הבנתי נכון${who} — ${body}${goalPart}. נכון?`;
 }
+
+// ── Rapport / sales-angle lines (intake tree) ───────────────────────
+// Key answers in the intake tree carry a `rapport` key; the screen shows
+// the matching 💬 line so a rep without a sports background translates
+// each answer into Uriel's selling angle. Fully editable — the tree's
+// schema references these keys; edit the copy freely.
+export const RAPPORT_LINES = {
+  // How they arrived
+  referral:        'הפניה זה האמון הכי חזק — מישהו כבר ערב לנו. שווה להזכיר את מי.',
+  saw_activity:    'ראו אותנו בפעולה — כבר יש חיבור רגשי, רק להפוך אותו להתחלה.',
+  // Who / audience
+  for_group:       'קבוצה זה הכיוון — האנשים אצלנו הם חצי מהסיפור, זה מה שמחזיק לאורך זמן.',
+  for_child:       'אצל ילדים אנחנו בונים ביטחון דרך תנועה — ההורה קונה שקט נפשי, לא רק אימון.',
+  for_school:      'בבית ספר הערך הוא חינוכי — תנועה שמלמדת התמדה ומשמעת, לא רק כושר.',
+  for_company:     'בארגון זה רווחה שמחזירה אנרגיה לעבודה — פחות ימי מחלה, יותר צוות מגובש.',
+  day_of_fun:      'יום שיא זה חלון הזדמנות — חוויה אחת מדויקת פותחת דלת לפעילות קבועה.',
+  // Trigger / why now
+  pain_trigger:    'כאב הוא הסיבה שמתקשרים היום — כאן אנחנו הכי חזקים: לבנות גוף שלא נשבר.',
+  event_trigger:   'יש דדליין — זה דלק. נבנה תוכנית עם תאריך יעד ברור.',
+  // Relationship with sport
+  loves_sport:     'הם כבר אוהבים — צריך רק לתת מסגרת שתשמור על זה. חצי מהעבודה נעשתה.',
+  needs_but:       'הם יודעים שהם צריכים — התפקיד שלנו להסיר את מה שמרתיע, לא ללחוץ.',
+  hates_sport:     'מי ששונא ספורט בדרך כלל שנא חדר כושר — לא תנועה עם משמעות. שם אנחנו שונים.',
+  boring_gym:      'בדיוק בגלל זה אצלנו לומדים מיומנויות — עמידת ידיים לא משעממת אף פעם.',
+  no_time:         'פעמיים בשבוע 45 דקות — זה הכול. אנחנו בונים סביב החיים, לא הפוך.',
+  bad_experience:  'חוויה רעה בעבר זה בדיוק מה שאנחנו מתקנים — יחס אישי, בלי שיפוטיות.',
+  // Last time active
+  before_army:     'הגוף כבר יודע — צריך רק להזכיר לו. חוזרים מהר יותר ממה שחושבים.',
+  years_ago:       'הרבה זמן עבר, אבל הבסיס שם — נתחיל בעדינות ונבנה מחדש נכון.',
+  // Tried before — what was missing (key to the offer)
+  quit_price:      'אם עזבו בגלל מחיר — נדבר על ערך: מה קיבלו ומה קיבלו אצלנו.',
+  quit_boredom:    'עזבו כי היה משעמם — אצלנו כל שבוע מיומנות חדשה, אין שגרה מתה.',
+  quit_injury:     'עזבו בגלל פציעה — זה הליבה שלנו: להתאמן חכם כדי לא להיפצע שוב.',
+  quit_no_care:    'עזבו כי לא קיבלו יחס — אצלנו מכירים כל אחד בשם, זה כל ההבדל.',
+  // Injuries
+  injury_active:   'כאב פעיל — נפתח את הסיפור שלי בפציעות, זה בדיוק הליד שנבנה בשבילו. ונמליץ על אישי לפני קבוצתי.',
+  surgery_cleared: 'כתף אחרי ניתוח עם אישור רופא זה בדיוק מה שאני יודע לעבוד איתו — בטוח ומדויק.',
+  needs_clearance: 'לפני שמתחילים נסדר אישור רופא — לא ממהרים, בונים על בטוח.',
+  chronic_pain:    'כאב כרוני דורש תוכנית, לא אימון אקראי — נבנה משהו שמחזק בלי להחמיר.',
+  // Competitive background
+  competitive:     'רקע תחרותי — נדבר מיומנויות מתקדמות ואתגר אמיתי, לא בסיס.',
+  never_trained:   'הכול מתחיל מאפס בשיטה שלנו — שיעור ניסיון הוא הצעד הראשון הבטוח.',
+};
+export function rapportLine(key) {
+  return key ? (RAPPORT_LINES[key] || null) : null;
+}

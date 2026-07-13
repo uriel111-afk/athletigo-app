@@ -194,6 +194,18 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
 
       {/* Body */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* 💎 The real pain — the intake tree's gold field, shown at the
+            very top of the card so the coach re-opens on the true driver. */}
+        {(() => {
+          const pain = extra.find((x) => (x.label || '').includes('הכאב האמיתי'))?.value;
+          if (!pain) return null;
+          return (
+            <div style={{ background: '#FFF4E6', border: '2px solid #FF6F20', borderRadius: 14, padding: '12px 14px' }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#C24A0A', marginBottom: 4 }}>💎 הכאב האמיתי</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#4A1B0C', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{pain}</div>
+            </div>
+          );
+        })()}
         {/* Identity — contact name, role, organization + direct actions */}
         <div style={card}>
           <div style={{ fontSize: 20, fontWeight: 900, color: '#1A1A1A' }}>

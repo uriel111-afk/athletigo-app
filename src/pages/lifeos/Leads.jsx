@@ -5,8 +5,10 @@ import { Pencil, Trash2, ChevronLeft, ChevronRight, RefreshCw, UserPlus, Phone, 
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import GuidedLeadFlow from '@/components/lifeos/GuidedLeadFlow';
-import GuidedIntakeFlow from '@/components/lifeos/GuidedIntakeFlow';
-import QuickIntakeForm, { needsCompletion, isBusinessLead, TYPE_LABEL, groupPeopleCount } from '@/components/lifeos/QuickIntakeForm';
+import LeadIntakeTree from '@/components/lifeos/LeadIntakeTree';
+// QuickIntakeForm is out of the routing, but its helper exports are still
+// the source of truth for lead classification used across this page.
+import { needsCompletion, isBusinessLead, TYPE_LABEL, groupPeopleCount } from '@/components/lifeos/QuickIntakeForm';
 import LeadDetailView from '@/components/lifeos/LeadDetailView';
 import AddTraineeDialog from '@/components/forms/AddTraineeDialog';
 import {
@@ -90,10 +92,8 @@ export default function Leads() {
   const [filter, setFilter] = useState('all');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [showQuick, setShowQuick] = useState(false);     // quick-intake form
-  const [quickLead, setQuickLead] = useState(null);      // lead being completed/edited
-  const [showIntake, setShowIntake] = useState(false);   // inbound-call generator
-  const [intakeLead, setIntakeLead] = useState(null);    // existing lead being continued in the generator
+  const [showTree, setShowTree] = useState(false);       // recursive intake tree (single new-lead entry)
+  const [treeLead, setTreeLead] = useState(null);        // existing lead reopened in the tree (else null = new)
   const [viewingLead, setViewingLead] = useState(null);  // detail overlay
   // Create-trainee flow: when the coach wants to spin a paying client
   // out of a converted lead, we open AddTraineeDialog with name+phone
@@ -151,21 +151,20 @@ export default function Leads() {
   const overdueCount = overdueIds.size;
 
   const openNew  = () => { setEditing(null); setShowForm(true); };
-  // Inbound-call generator — the default capture for a live call.
-  const openIntake = () => { setIntakeLead(null); setShowIntake(true); };
-  // "המשך שיחה מודרכת" — reopen the generator ON an existing lead; it
-  // auto-skips everything already known and starts at the first open
-  // question, so a lead captured on any path still gets the full leadership.
-  const openContinueGuided = (lead) => { setViewingLead(null); setIntakeLead(lead); setShowIntake(true); };
-  // Quick intake ("silent") — new capture, or reopen a lead to complete/edit
-  // its quick fields.
-  const openQuick = () => { setQuickLead(null); setShowQuick(true); };
-  const openQuickLead = (lead) => { setViewingLead(null); setQuickLead(lead); setShowQuick(true); };
+  // Single new-lead entry point — the recursive intake tree. Replaces the
+  // inbound generator + silent quick form (their code stays in the repo,
+  // just out of the routing).
+  const openTree = () => { setTreeLead(null); setShowTree(true); };
+  const openTreeLead = (lead) => { setViewingLead(null); setTreeLead(lead); setShowTree(true); };
+  // "המשך שיחה מודרכת" + quick-complete + edit-quick all reopen the tree
+  // on the existing lead (its persist guards never clobber earlier data).
+  const openContinueGuided = openTreeLead;
+  const openQuickLead = openTreeLead;
   // The wizard — for private leads (edit / "continue in wizard"), prefilled.
   const openEdit = (lead) => { setViewingLead(null); setEditing(lead); setShowForm(true); };
-  // Tapping a lead: "awaiting completion" leads jump straight to the quick
-  // form; everything else opens the detail card.
-  const openView = (row) => { if (needsCompletion(row)) openQuickLead(row); else setViewingLead(row); };
+  // Tapping a lead: "awaiting completion" leads jump straight to the tree;
+  // everything else opens the detail card.
+  const openView = (row) => { if (needsCompletion(row)) openTreeLead(row); else setViewingLead(row); };
 
   const handleDelete = async (e, id) => {
     e?.stopPropagation?.();
@@ -208,28 +207,20 @@ export default function Leads() {
         </button>
       </div>
     }>
-      {/* Intake paths. Default (live inbound call) → the adaptive
-          generator. Secondary: the proactive-call wizard + the silent
-          quick form. */}
+      {/* Intake. Single new-lead entry → the recursive intake tree.
+          Secondary: the proactive-call wizard (unchanged). */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-        <button onClick={openIntake} style={{
+        <button onClick={openTree} style={{
           width: '100%', padding: '16px 12px', borderRadius: 14, border: 'none',
           background: 'linear-gradient(135deg,#FF6F20,#FF8A42)', color: '#FFFFFF',
           fontSize: 17, fontWeight: 900, cursor: 'pointer',
           boxShadow: '0 3px 10px rgba(255,111,32,0.28)',
-        }}>📞 שיחה נכנסת — מחולל</button>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={openNew} style={{
-            flex: 1, padding: '12px', borderRadius: 12, cursor: 'pointer',
-            border: `1px solid ${LIFEOS_COLORS.primary}`, background: '#FFFFFF', color: LIFEOS_COLORS.primary,
-            fontSize: 14, fontWeight: 700,
-          }}>+ ליד יזום (אשף)</button>
-          <button onClick={openQuick} style={{
-            flex: 1, padding: '12px', borderRadius: 12, cursor: 'pointer',
-            border: `1px solid ${LIFEOS_COLORS.border}`, background: '#FFFFFF', color: LIFEOS_COLORS.textSecondary,
-            fontSize: 14, fontWeight: 700,
-          }}>⚡ קליטה שקטה</button>
-        </div>
+        }}>🌳 ליד חדש</button>
+        <button onClick={openNew} style={{
+          width: '100%', padding: '12px', borderRadius: 12, cursor: 'pointer',
+          border: `1px solid ${LIFEOS_COLORS.primary}`, background: '#FFFFFF', color: LIFEOS_COLORS.primary,
+          fontSize: 14, fontWeight: 700,
+        }}>+ ליד יזום (אשף)</button>
       </div>
 
       {dueFollowups.length > 0 && <TodayFollowupsBar leads={dueFollowups} onOpen={openView} />}
@@ -328,19 +319,11 @@ export default function Leads() {
         onSaved={load}
       />
 
-      <QuickIntakeForm
-        isOpen={showQuick}
+      <LeadIntakeTree
+        isOpen={showTree}
         userId={userId}
-        lead={quickLead}
-        onClose={() => { setShowQuick(false); setQuickLead(null); }}
-        onSaved={load}
-      />
-
-      <GuidedIntakeFlow
-        isOpen={showIntake}
-        userId={userId}
-        lead={intakeLead}
-        onClose={() => { setShowIntake(false); setIntakeLead(null); }}
+        lead={treeLead}
+        onClose={() => { setShowTree(false); setTreeLead(null); }}
         onSaved={load}
       />
 
