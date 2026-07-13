@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Phone, PhoneCall, MessageCircle, Pencil, Send, ArrowLeftCircle, Plus, Calendar } from 'lucide-react';
+import { X, Phone, MessageCircle, Pencil, Send, ArrowLeftCircle, Plus, Calendar } from 'lucide-react';
 import {
   LADDER_MATCHES, LEAD_CLOSE_RESULTS, LEAD_STATUS, LEAD_SOURCES,
   SPORTS_EXPERIENCE, LADDER_CONTENT, ladderForExperience,
@@ -623,18 +623,11 @@ export default function LeadDetailView({ lead, onClose, onEdit, onEditQuick, onC
 
       {/* Actions */}
       <div style={{ flexShrink: 0, padding: '8px 14px', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', borderTop: '1px solid #F0E4D0', background: '#fff', display: 'flex', gap: 8 }}>
-        {/* Edit — quick lead → quick form; wizard lead → wizard */}
-        <ActionBtn onClick={() => (isQuick && onEditQuick ? onEditQuick(lead) : onEdit(lead))} icon={<Pencil size={18} />} label="ערוך" />
-        {/* Continue the guided conversation on THIS lead — auto-skips to the
-            first open question so any lead gets the full leadership. */}
-        {onContinueGuided && (
-          <ActionBtn onClick={() => onContinueGuided(lead)} icon={<PhoneCall size={18} />} label="שיחה מודרכת" color="#FF6F20" />
-        )}
-        {/* Private quick leads can graduate to the 9-step wizard, prefilled.
-            Business leads are handled by direct conversation — no wizard. */}
-        {isQuick && !business && (
-          <ActionBtn onClick={() => onEdit(lead)} icon={<ArrowLeftCircle size={18} />} label="המשך באשף" color="#FF6F20" />
-        )}
+        {/* Edit / continue this lead — always in the intake tree. */}
+        <ActionBtn onClick={() => (onEditQuick ? onEditQuick(lead) : onEdit(lead))} icon={<Pencil size={18} />} label="ערוך" />
+        {/* The proactive-call wizard (GuidedLeadFlow) lives HERE only — it
+            is not a new-lead entry, it's a tool for an existing lead. */}
+        <ActionBtn onClick={() => onEdit(lead)} icon={<ArrowLeftCircle size={18} />} label="שיחה יזומה" color="#FF6F20" />
         <ActionBtn onClick={() => window.open(waLink(lead.phone, ''), '_blank')} icon={<MessageCircle size={18} />} label="וואטסאפ" color="#25D366" />
         <ActionBtn onClick={() => setPicker(true)} icon={<Send size={18} />} label="שלח תוכן" color="#FF6F20" />
       </div>

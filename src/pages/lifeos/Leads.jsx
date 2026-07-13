@@ -174,7 +174,6 @@ export default function Leads() {
 
   const overdueCount = overdueIds.size;
 
-  const openNew  = () => { setEditing(null); setShowForm(true); };
   // Single new-lead entry point — the recursive intake tree. Replaces the
   // inbound generator + silent quick form (their code stays in the repo,
   // just out of the routing).
@@ -231,30 +230,26 @@ export default function Leads() {
         </button>
       </div>
     }>
-      {/* Intake. Single new-lead entry → the recursive intake tree.
-          Secondary: the proactive-call wizard (unchanged). */}
+      {/* Intake — ONE and only new-lead entry: the recursive intake
+          tree. The proactive wizard (GuidedLeadFlow) is NOT a create
+          path — it's reached from a lead card ("שיחה יזומה"). The old
+          generator + silent-form buttons are gone (code stays in repo). */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
         <button onClick={openTree} style={{
           width: '100%', padding: '16px 12px', borderRadius: 14, border: 'none',
           background: 'linear-gradient(135deg,#FF6F20,#FF8A42)', color: '#FFFFFF',
           fontSize: 17, fontWeight: 900, cursor: 'pointer',
           boxShadow: '0 3px 10px rgba(255,111,32,0.28)',
-        }}>🌳 ליד חדש</button>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={openNew} style={{
-            flex: 1, padding: '12px', borderRadius: 12, cursor: 'pointer',
-            border: `1px solid ${LIFEOS_COLORS.primary}`, background: '#FFFFFF', color: LIFEOS_COLORS.primary,
-            fontSize: 14, fontWeight: 700,
-          }}>+ ליד יזום (אשף)</button>
-          {/* Admin/coach only — never the coordinator. */}
-          {canEditSchema && (
-            <button onClick={() => setShowEditor(true)} style={{
-              flex: 1, padding: '12px', borderRadius: 12, cursor: 'pointer',
-              border: `1px solid ${LIFEOS_COLORS.border}`, background: '#FFFFFF', color: LIFEOS_COLORS.textSecondary,
-              fontSize: 14, fontWeight: 700,
-            }}>✏️ ערוך תהליך</button>
-          )}
-        </div>
+        }}>+ ליד חדש</button>
+        {/* Admin/coach only (never the coordinator) — schema editing, not
+            a lead-creation entry. */}
+        {canEditSchema && (
+          <button onClick={() => setShowEditor(true)} style={{
+            width: '100%', padding: '10px', borderRadius: 12, cursor: 'pointer',
+            border: `1px solid ${LIFEOS_COLORS.border}`, background: '#FFFFFF', color: LIFEOS_COLORS.textSecondary,
+            fontSize: 13, fontWeight: 700,
+          }}>✏️ ערוך תהליך</button>
+        )}
       </div>
 
       {dueFollowups.length > 0 && <TodayFollowupsBar leads={dueFollowups} onOpen={openView} />}
