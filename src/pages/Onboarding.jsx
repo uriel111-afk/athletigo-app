@@ -4,7 +4,8 @@ import { getStepsForTrack } from '../lib/onboardingTracks';
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import HealthDeclarationForm from "@/components/forms/HealthDeclarationForm";
-import PhotoConsentStep from "@/components/forms/PhotoConsentStep";
+import ConsentSection from "@/components/forms/ConsentSection";
+import { saveConsents } from "@/lib/legalConsent";
 import WelcomeBlessingPopup from "@/components/WelcomeBlessingPopup";
 import PageLoader from "@/components/PageLoader";
 import { generateTraineeSummary } from "@/lib/onboardingSummary";
@@ -259,6 +260,9 @@ export default function Onboarding() {
   const [step, setStep] = useState('details');
   const [showHealthForm, setShowHealthForm] = useState(false);
   const [healthSigned, setHealthSigned] = useState(false);
+  // Consent section (terms+privacy required, photo optional) — lives in
+  // the final confirm step and gates the finish button.
+  const [consentState, setConsentState] = useState(null);
   const [showWelcome, setShowWelcome] = useState(false);
   const [savingStep, setSavingStep] = useState(false);
 
@@ -1542,23 +1546,6 @@ export default function Onboarding() {
         )}
 
         {/* ───────────────────────────────────────────────────── */}
-        {/* PHOTO CONSENT — after health, before confirm         */}
-        {/* ───────────────────────────────────────────────────── */}
-        {step === 'photo_consent' && (
-          <PhotoConsentStep
-            traineeId={userId}
-            coachId={coachId}
-            isMinor={isMinor}
-            childName={fullName}
-            source="onboarding"
-            submitLabel="המשך"
-            showSkip={isMinor}
-            onSkip={() => setStep('confirm')}
-            onSaved={() => setStep('confirm')}
-          />
-        )}
-
-        {/* ───────────────────────────────────────────────────── */}
         {/* STEP 6 — CONFIRM                                     */}
         {/* ───────────────────────────────────────────────────── */}
         {step === 'confirm' && (
@@ -1867,19 +1854,48 @@ export default function Onboarding() {
               </div>
             )}
 
-            {/* Final CTA — runs the same completeOnboarding the
-                wizard always used. Always enabled (only blocked by an
-                in-flight save) so a trainee with no pending session
-                or a slow pending-session load can finish onboarding
-                without the button being stuck gray. Pending session
-                rows still render their own card above with their own
-                accept/reject actions; this just no longer gates the
-                final tap. */}
+            {/* Consents — terms+privacy (required) + photo (optional).
+                Rendered inside the final step; the finish button below
+                is gated on the required consent (and guardian signature
+                for minors). */}
+            {healthSigned && (
+              <div style={{ ...cardStyle, marginBottom: 16 }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text, marginBottom: 12 }}>הסכמות</div>
+                <ConsentSection isMinor={isMinor} onChange={setConsentState} />
+              </div>
+            )}
+
+            {/* Final CTA — saves the consent audit record, then runs the
+                same completeOnboarding the wizard always used. Gated on
+                the required terms+privacy consent (and, for a minor, the
+                guardian signature). */}
             {healthSigned && (
               <button
-                onClick={completeOnboarding}
-                disabled={savingStep}
-                style={primaryBtn(!savingStep)}
+                onClick={async () => {
+                  if (!consentState?.valid) {
+                    toast.error(isMinor
+                      ? 'יש לאשר את תנאי השימוש ומדיניות הפרטיות ולחתום כהורה/אפוטרופוס'
+                      : 'יש לאשר את תנאי השימוש ומדיניות הפרטיות');
+                    return;
+                  }
+                  try {
+                    await saveConsents(userId, coachId, {
+                      termsPrivacyAccepted: consentState.termsPrivacyAccepted,
+                      photoAllowed: consentState.photoAllowed,
+                      isMinor,
+                      signerName: consentState.signerName,
+                      signerRelation: consentState.signerRelation,
+                      signatureData: consentState.signatureData,
+                    });
+                  } catch (e) {
+                    console.error('[Onboarding] saveConsents failed:', e);
+                    toast.error('שמירת ההסכמות נכשלה: ' + (e?.message || ''));
+                    return;
+                  }
+                  await completeOnboarding();
+                }}
+                disabled={savingStep || !consentState?.valid}
+                style={primaryBtn(!savingStep && !!consentState?.valid)}
               >
                 {savingStep ? 'שומר...' : 'סיום ✓'}
               </button>

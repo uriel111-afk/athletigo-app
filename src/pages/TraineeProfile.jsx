@@ -55,6 +55,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import FileManager from "@/components/lifeos/FileManager";
 import TraineeGallery from "@/components/lifeos/TraineeGallery";
+import ConsentSettingsCard from "@/components/forms/ConsentSettingsCard";
 import { Edit2, User, Mail, Phone, MapPin, Heart, Award, TrendingUp, Package, Plus, Loader2, Camera, Target, CheckCircle, Calendar, Shield, Trash2, FileText, MessageSquare, Activity, ChevronDown, ChevronUp, ChevronLeft, Folder, FolderOpen, DollarSign, Lock, LogOut, Zap, Eye, Clock, Bell, Image as ImageIcon } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ReferenceLine } from "recharts";
 import { DEFAULT_EXERCISES, RECORD_UNITS } from "@/lib/recordExercises";
@@ -5473,6 +5474,12 @@ export default function TraineeProfile() {
               {/* Documents Tab */}
               <TabsContent value="documents" className="w-full" dir="rtl">
                 <ErrorBoundary fallback={<div className="text-center py-8 bg-gray-50 rounded-lg text-sm text-gray-500">טעינת טאב המסמכים נכשלה. נסה לרענן את הדף.</div>}>
+                  {/* מסמכים והסכמות — legal docs + consent status/revoke. */}
+                  <ConsentSettingsCard
+                    traineeId={user?.id}
+                    coachId={coach?.id || currentUser?.id}
+                    isSelf={!isCoach}
+                  />
                   {/* לפני ואחרי — progress photos + short clips. Inline
                       FileManager (NOT in a Dialog), entity_type
                       'trainee_media' is just a new string value in

@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import { syncPackageStatus } from "@/lib/packageStatus";
 import HealthDeclarationForm from "../components/forms/HealthDeclarationForm";
-import PhotoConsentDialog from "../components/forms/PhotoConsentDialog";
+import ConsentDialog from "../components/forms/ConsentDialog";
 import { isMinorFromBirthDate } from "@/lib/photoConsent";
 import WelcomeBlessingPopup from "../components/WelcomeBlessingPopup";
 import PaymentResultModal from "@/components/PaymentResultModal";
@@ -194,10 +194,10 @@ export default function TraineeHome() {
   // dismisses it without signing — they can re-open from the banner
   // any time they tap "חתום על הצהרת בריאות".
   const autoHealthShownRef = useRef(false);
-  // Returning-trainee photo-consent prompt — shown once, after health,
-  // for anyone who predates the onboarding photo-consent step.
-  const [showPhotoConsent, setShowPhotoConsent] = useState(false);
-  const autoPhotoShownRef = useRef(false);
+  // Returning-trainee consent prompt — shown once, after health, for
+  // anyone who predates the onboarding consent section (terms+privacy+photo).
+  const [showConsent, setShowConsent] = useState(false);
+  const autoConsentShownRef = useRef(false);
   // Per-trainee gate. ANY signed health declaration (current session
   // or any prior one) marks the trainee as "signed". Used by the
   // approval banner so a returning casual trainee doesn't have to
@@ -508,12 +508,12 @@ export default function TraineeHome() {
     setShowPreHealth(true);
   }, [user?.id, user?.onboarding_completed, user?.onboarding_completed_at, user?.health_declaration_signed_at, hasSignedHealth, pendingApprovalSession?.id]);
 
-  // One-time photo-consent prompt for returning trainees who never saw
-  // the onboarding step. Sequenced AFTER the health declaration so the
-  // two dialogs never stack. Gated by the DB flag + a per-device flag so
-  // it never re-prompts once answered.
+  // One-time consent prompt for returning trainees who never saw the
+  // onboarding consent section (terms+privacy+photo). Sequenced AFTER
+  // the health declaration so dialogs never stack. Gated by the DB
+  // record (terms_accepted) + a per-device flag so it never re-prompts.
   useEffect(() => {
-    if (autoPhotoShownRef.current) return;
+    if (autoConsentShownRef.current) return;
     if (!user?.id) return;
     const onboardingDone = !!(user?.onboarding_completed || user?.onboarding_completed_at);
     if (!onboardingDone) return;
@@ -521,13 +521,13 @@ export default function TraineeHome() {
       || !!user?.health_declaration_signed_at
       || hasSignedHealth === true;
     if (!healthDone) return;
-    if (user?.photo_consent_completed === true || user?.photo_consent) return;
-    try { if (localStorage.getItem(`athletigo_photo_consent_${user.id}`)) return; } catch {}
+    if (user?.terms_accepted) return; // already accepted terms+privacy
+    try { if (localStorage.getItem(`athletigo_legal_consent_${user.id}`)) return; } catch {}
     if (showHealthForm || showPreHealth) return; // don't stack dialogs
-    autoPhotoShownRef.current = true;
-    setShowPhotoConsent(true);
+    autoConsentShownRef.current = true;
+    setShowConsent(true);
   }, [user?.id, user?.onboarding_completed, user?.onboarding_completed_at,
-      user?.photo_consent_completed, user?.health_declaration_signed_at,
+      user?.terms_accepted, user?.health_declaration_signed_at,
       hasSignedHealth, showHealthForm, showPreHealth]);
 
   // Diagnostic: which banner button should the trainee see right now?
@@ -963,17 +963,15 @@ export default function TraineeHome() {
         onClose={() => setShowWelcome(false)}
       />
 
-      {/* Returning-trainee photo-consent — one-time, gallery stays
-          disabled until answered (the gallery gates on the consent). */}
-      <PhotoConsentDialog
-        open={showPhotoConsent}
-        onClose={() => setShowPhotoConsent(false)}
+      {/* Returning-trainee consents — one-time. The gallery stays
+          disabled until photo consent is given (gallery gates on it). */}
+      <ConsentDialog
+        open={showConsent}
+        onClose={() => setShowConsent(false)}
         traineeId={user?.id}
         coachId={coach?.id}
         isMinor={isMinorFromBirthDate(user?.birth_date)}
-        childName={user?.full_name || ''}
-        source="dialog"
-        onSaved={() => setShowPhotoConsent(false)}
+        onSaved={() => setShowConsent(false)}
       />
 
       {/* Trainee-side NewRecordDialog — opens with traineeId locked to
