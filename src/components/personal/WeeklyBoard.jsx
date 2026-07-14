@@ -105,7 +105,7 @@ export default function WeeklyBoard() {
         onClick={() => setShowPlanner(true)}
         style={{
           width: '100%',
-          padding: '12px 16px', borderRadius: 14, border: 'none',
+          padding: '12px 16px', borderRadius: 14,
           backgroundColor: showPlannerButton ? PERSONAL_COLORS.primary : '#FFFFFF',
           color: showPlannerButton ? '#FFFFFF' : PERSONAL_COLORS.primary,
           border: showPlannerButton ? 'none' : `1px solid ${PERSONAL_COLORS.primary}`,

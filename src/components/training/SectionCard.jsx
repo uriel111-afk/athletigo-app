@@ -563,6 +563,7 @@ export default function SectionCard({
   // ── End lined-page card ───────────────────────────────────────────
   // The block below this point is the legacy coach render. It is no
   // longer reachable because the lined-page block above always returns.
+  // eslint-disable-next-line no-unreachable -- intentional dead legacy render, kept for reference
   const style = isTraineeView
     ? {
         bg: '#FFFEFC',

@@ -44,7 +44,7 @@ const FEEDBACK_OPTIONS = [
 // This function unwraps each shape recursively into a clean array of
 // trimmed strings. Always returns an array.
 function parseArrayField(field) {
-  const stripQuotes = (s) => String(s).replace(/^[\[\"\\\s]+|[\]\"\\\s]+$/g, '').trim();
+  const stripQuotes = (s) => String(s).replace(/^[[\\\s"]+|[\]\\\s"]+$/g, '').trim();
   if (field == null || field === '') return [];
   if (Array.isArray(field)) {
     return field
@@ -1432,6 +1432,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       tabataPreview = previewSource
         .map((s) => s.exercise_name || s.name || "תת-תרגיל")
         .join(" • ");
+    // eslint-disable-next-line no-dupe-else-if -- legacy tabata_blocks back-compat; covered by the mode==="טבטה" branch above, kept intentionally
     } else if (exerciseData.mode === "טבטה" && exerciseData.tabata_blocks?.length > 0) {
       // Legacy tabata blocks (backward compat)
       const blocks = exerciseData.tabata_blocks;

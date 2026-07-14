@@ -5312,6 +5312,7 @@ export default function TraineeProfile() {
                     PlanCard / WorkoutHistory render paths can be removed
                     in a follow-up cleanup without losing them in this
                     diff. */}
+                {/* eslint-disable-next-line no-constant-binary-expression -- intentionally disabled block, kept in place */}
                 {false && isCoach && (<>
                 {plansLoading && trainingPlans.length === 0 && (
                   <InlineLoader message="טוען תוכניות..." />

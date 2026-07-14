@@ -326,23 +326,44 @@ const CHIP_VALUES = [5, 10, 15];
 // Remember the last chosen rounds across sessions. The stored value
 // (a number or 'inf') fully encodes the mode: 5/10/15 → chip, 'inf' →
 // infinity, any other number → custom.
-const ROUNDS_KEY = 'ag_breathing_rounds';
-const loadRounds = () => {
-  try {
-    const raw = localStorage.getItem(ROUNDS_KEY);
-    if (raw == null) return 10;
-    if (raw === 'inf') return 'inf';
-    const n = parseInt(raw, 10);
-    return Number.isFinite(n) ? clamp(n, 1, 99) : 10;
-  } catch { return 10; }
+// Settings persist PER USER (key suffixed by uid) so two people sharing
+// one device never overwrite each other. Falls back to the legacy global
+// key once, for a seamless migration of an existing setting.
+const keyFor = (base, uid) => (uid ? `${base}_${uid}` : base);
+const readKey = (base, uid) => {
+  try { const v = localStorage.getItem(keyFor(base, uid)); return v != null ? v : localStorage.getItem(base); }
+  catch { return null; }
 };
 
-// Prep countdown length before the exercise (seconds). Persisted.
+const ROUNDS_KEY = 'ag_breathing_rounds';
+const loadRounds = (uid) => {
+  const raw = readKey(ROUNDS_KEY, uid);
+  if (raw == null) return 10;
+  if (raw === 'inf') return 'inf';
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) ? clamp(n, 1, 99) : 10;
+};
+
+// Prep countdown length before the exercise (seconds). Persisted per user.
 const PREP_OPTS = [0, 3, 5, 10];
 const PREP_KEY = 'ag_breathing_prep';
-const loadPrep = () => {
-  try { const n = parseInt(localStorage.getItem(PREP_KEY), 10); return PREP_OPTS.includes(n) ? n : 3; }
-  catch { return 3; }
+const loadPrep = (uid) => {
+  const n = parseInt(readKey(PREP_KEY, uid), 10);
+  return PREP_OPTS.includes(n) ? n : 3;
+};
+
+// Breathing pattern (inhale/hold/exhale/holdEmpty). Now persisted per user
+// so a custom pattern survives across sessions and doesn't get clobbered.
+const CFG_KEY = 'ag_breathing_cfg';
+const DEFAULT_CFG = { inhale: 4, hold: 4, exhale: 4, holdEmpty: 4 };
+const loadCfg = (uid) => {
+  try {
+    const raw = readKey(CFG_KEY, uid);
+    if (!raw) return { ...DEFAULT_CFG };
+    const o = JSON.parse(raw) || {};
+    const c = (v, d) => (v == null || !Number.isFinite(+v) ? d : clamp(+v, 0, 60));
+    return { inhale: c(o.inhale, 4), hold: c(o.hold, 4), exhale: c(o.exhale, 4), holdEmpty: c(o.holdEmpty, 4) };
+  } catch { return { ...DEFAULT_CFG }; }
 };
 
 export default function BreathingMode({ active, onRunningChange, stopSignal = 0 }) { // eslint-disable-line no-unused-vars
@@ -366,9 +387,10 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const bootPhase = boot?.kind === 'resume' ? (boot.session.seq[boot.loc.index] || {}) : null;
   const navigate = useNavigate();
   const { user } = useAuth();
+  const uid = user?.id || null;
 
-  const [cfg, setCfg] = useState({ inhale: 4, hold: 4, exhale: 4, holdEmpty: 4 });
-  const [rounds, setRounds] = useState(loadRounds);
+  const [cfg, setCfg] = useState(() => loadCfg(uid));
+  const [rounds, setRounds] = useState(() => loadRounds(uid));
   const [running, setRunning] = useState(() => boot?.kind === 'resume');
   const [done, setDone] = useState(() => boot?.kind === 'done');
 
@@ -389,7 +411,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const [transDur, setTransDur] = useState(0.4);
   const [mode, setMode] = useState('run');    // 'prep' | 'run'
   const [prepLeft, setPrepLeft] = useState(0); // countdown number during prep
-  const [prepSec, setPrepSec] = useState(loadPrep); // 0/3/5/10, persisted
+  const [prepSec, setPrepSec] = useState(() => loadPrep(uid)); // 0/3/5/10, persisted per user
   // Time-frame FILL fraction: 0 = empty ring, 1 = full closed ring. Driven
   // by requestAnimationFrame from the exercise-start timestamp (below), so
   // it is smooth AND correct after a resume.
@@ -418,9 +440,11 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
   const roundsRef = useRef(rounds);
   useEffect(() => { cfgRef.current = cfg; }, [cfg]);
   useEffect(() => { roundsRef.current = rounds; }, [rounds]);
-  // Persist the chosen rounds (value encodes chip/custom/infinity mode).
-  useEffect(() => { try { localStorage.setItem(ROUNDS_KEY, String(rounds)); } catch {} }, [rounds]);
-  useEffect(() => { try { localStorage.setItem(PREP_KEY, String(prepSec)); } catch {} }, [prepSec]);
+  // Persist the chosen rounds / prep / pattern PER USER (value encodes
+  // chip/custom/infinity mode for rounds).
+  useEffect(() => { try { localStorage.setItem(keyFor(ROUNDS_KEY, uid), String(rounds)); } catch {} }, [rounds, uid]);
+  useEffect(() => { try { localStorage.setItem(keyFor(PREP_KEY, uid), String(prepSec)); } catch {} }, [prepSec, uid]);
+  useEffect(() => { try { localStorage.setItem(keyFor(CFG_KEY, uid), JSON.stringify(cfg)); } catch {} }, [cfg, uid]);
 
   const activePreset = (() => {
     for (const k of Object.keys(PRESETS)) {

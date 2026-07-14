@@ -472,7 +472,7 @@ function TopField({ label, value, onChange, onBlur, placeholder, ltr }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
       <label style={{ fontSize: 11, fontWeight: 700, color: empty ? '#C24A0A' : '#9A8F82', paddingInlineStart: 2, whiteSpace: 'nowrap' }}>{label}{empty ? ' *' : ''}</label>
       <input value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} type={ltr ? 'tel' : 'text'} inputMode={ltr ? 'tel' : undefined}
-        style={{ ...inp, minHeight: 42, padding: '8px 10px', fontSize: 14, border: `1px solid ${empty ? '#F0C89A' : '#F0E4D0'}`, background: empty ? '#FFFBF5' : '#fff', direction: ltr ? 'ltr' : 'rtl', textAlign: ltr ? 'left' : 'right' }} />
+        style={{ ...inp, minWidth: 0, minHeight: 42, padding: '8px 10px', fontSize: 14, border: `1px solid ${empty ? '#F0C89A' : '#F0E4D0'}`, background: empty ? '#FFFBF5' : '#fff', direction: ltr ? 'ltr' : 'rtl', textAlign: ltr ? 'left' : 'right' }} />
     </div>
   );
 }

@@ -543,6 +543,7 @@ export default function Dashboard() {
 
           {/* ═══ SECTION 3 — מתאמנים (hidden — keeps the home screen
                 no-scroll. The full trainees list lives in /AllUsers.) */}
+          {/* eslint-disable-next-line no-constant-binary-expression -- intentionally disabled section, kept in place */}
           {false && trainees.length > 0 && (
             <>
               <SectionHeader title="מתאמנים" />
