@@ -16,6 +16,7 @@ import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
 import CoachHub from './pages/CoachHub';
 import BusinessCalculator from './pages/BusinessCalculator';
+import Profitability from './pages/Profitability';
 import ContentCommander from './pages/ContentCommander';
 import ContentDropDetail from './pages/content/DropDetail';
 import ContentClipDetail from './pages/content/ClipDetail';
@@ -543,8 +544,18 @@ const AuthenticatedApp = () => {
         }
       />
 
-      {/* ── Business Calculator (coach-only) ────────────────────── */}
-      {/* Keeps the app-wide Layout so header + bottom nav stay visible. */}
+      {/* ── Profitability (coach/admin-only) ─────────────────────── */}
+      {/* Two tabs: products (import calculator) + team (the existing    */}
+      {/* business calculator, embedded as-is). Menu entry replaces the  */}
+      {/* old standalone "מחשבון".                                        */}
+      <Route path="/profitability" element={
+        <PageRouteGuard pageKey="Profitability">
+          <LayoutWrapper currentPageName="Profitability"><Profitability /></LayoutWrapper>
+        </PageRouteGuard>
+      } />
+
+      {/* ── Business Calculator (coach-only) — legacy direct route ─── */}
+      {/* Menu entry removed; route kept so old deep links still open.  */}
       <Route path="/calculator" element={
         <PageRouteGuard pageKey="Calculator">
           <LayoutWrapper currentPageName="Calculator"><BusinessCalculator /></LayoutWrapper>
