@@ -6,7 +6,7 @@
 
 ## סקירה כללית
 
-מסד הנתונים מבוסס על **Supabase (PostgreSQL)** ומכיל **19 טבלאות** (17 פעילות + 2 לא קיימות בפועל).
+מסד הנתונים מבוסס על **Supabase (PostgreSQL)**. הליבה: ~19 טבלאות מקוריות (17 פעילות + 2 לא קיימות), בתוספת טבלאות שנוספו ב-07/2026: `intake_schema`, `lead_interactions`, `trainee_media`, `import_products` (ר' סעיף "טבלאות חדשות").
 
 המערכת תומכת בשני סוגי משתמשים:
 - **מאמן (coach)** — מנהל את המערכת, רואה את כל הנתונים
@@ -102,8 +102,12 @@
 
 ### 2. `leads` — לידים
 
+> ⚠️ **עמודת הבעלים החיה היא `user_id`, לא `coach_id`.** כל קריאה/כתיבה מסננת `user_id = auth.uid()`, וה-RLS (מ-07/2026) מבוסס עליה. `coach_id`/`full_name` הם legacy — הטבלה החיה משתמשת ב-`user_id` + `name`. נוספו גם עמודות רגישות/אשף: `injuries`, `injury_level`, `for_whom`, `child_age`, `extra_details` (jsonb) + ~30 עמודות אשף מכירה.
+
 | עמודה | סוג | תיאור |
 |--------|------|--------|
+| `user_id` | uuid | **בעלים ראשי (RLS)** |
+| `name` | text | שם (החי; מקביל ל-full_name הישן) |
 | `id` | uuid PK | מזהה |
 | `created_at` | timestamp | נוצר |
 | `updated_at` | timestamp | עודכן |
@@ -289,6 +293,19 @@
 | `messages` | sender_id, recipient_id, content, is_read, message_type | — |
 | `program_series` | title/name, trainee_id, plans, status, assigned_to | — |
 | `training_plan_assignments` | trainee_id, plan_id, assigned_date, status | — |
+
+### טבלאות חדשות (יולי 2026)
+
+| טבלה | עמודות מרכזיות | הערות |
+|-------|----------------|--------|
+| `intake_schema` | id, **schema** (jsonb), version (int), updated_at, updated_by | סכמת עץ קליטת הלידים, מודל append-version (קוראים את הגרסה הגבוהה). RLS: קריאה לכל מחובר, כתיבה מאמן/אדמין |
+| `lead_interactions` | id, **lead_id** (→leads, ON DELETE CASCADE), type, summary, created_at | יומן אינטראקציות ליד. RLS דרך join ל-`user_id` של הליד האב |
+| `trainee_media` | id, trainee_id, coach_id, file_url, media_type (image/video), caption, skill_tag, is_shareable, created_at | גלריית מתאמן. **bucket `trainee-media` פרטי** — תצוגה ב-signed URLs (TTL שעה). RLS פעיל |
+| `import_products` | id, user_id, name, status (potential/ordered/stock), notes, **spec** (jsonb), created_at, updated_at | מוצרי ייבוא (מסך רווחיות). `spec` מכיל את כל קלט מחשבון הייבוא |
+
+**עמודות שנוספו ל-`users` (07/2026, כולן jsonb עם גרסת מסמך + חותם):** `photo_consent`, `photo_consent_completed` (bool), `terms_accepted`, `privacy_accepted`.
+
+**RLS (07/2026):** פעיל על `leads` (user_id), `lead_interactions`, `trainee_media`. חוב ידוע: `users` עם מדיניות allow-all פתוחה.
 
 ---
 

@@ -6,21 +6,20 @@ description: >
 
 # AthletiGo App Development — Complete Reference
 
-## CURRENT SESSION STATE (May 2026)
+## CURRENT SESSION STATE (14.07.2026)
 
-**Major work just completed — workout flow redesign + progress system:**
+**Major work completed today — privacy/legal, media, profitability, security, clocks:**
+- **Lead intake TREE** (`LeadIntakeTree`) replaced `GuidedIntakeFlow` + `QuickIntakeForm` as the SINGLE new-lead entry point — schema-driven recursive tree, DB-backed schema (`intake_schema`, append-version).
+- **Trainee gallery** (`TraineeGallery`) — `trainee_media` table, PRIVATE bucket, signed URLs (1h TTL), before/after compare, gated by photo consent.
+- **Legal consents** — 4 docs v1.0 in `src/content/legal`, onboarding `ConsentSection` (terms+privacy required, photo optional), `LegalDocModal`, `ConsentDialog` (returning users), `ConsentSettingsCard` (profile).
+- **Unified Profitability screen** — products tab (`ImportCalculator`: landed cost, CIF, customs, import VAT as a full עוסק-פטור cost, break-even, quantity sensitivity) + team tab (legacy `BusinessCalculator` as-is). Table `import_products`.
+- **Security:** RLS enabled on `leads` / `lead_interactions` / `trainee_media`; `trainee-media` bucket made PRIVATE.
+- **Clocks:** confirmed already unified (one `BreathingMode`/`MetronomeMode` for both sides); breathing settings now persist per-user.
+- **APK rebuilt:** versionName **13.26**, versionCode **32**.
 
-The trainee/coach workout view has been completely rebuilt with a "lined-page" design + set-filling + derived status + autosave + unified progress graph. Coach editing still works via a single "עריכה" menu. Tabata/superset detection and toggle-only flow work. Workout duplication now creates clean copies (no leaked completion state). Completion popup z-index bug fixed.
+Details in "New Features (14.07.2026)", "Security & RLS", "Clocks / Breathing" and "APK Build" sections below.
 
-**Open bug right now (the one to tackle next):**
-Tapping a trainee in the coach's trainees list redirects to the COACH's own profile instead of the selected trainee. Navigation/id-resolution bug. A diagnostic prompt has been prepared. This is what to fix when resuming.
-
-**Backlog from the audit (in priority order):**
-1. **MEDIUM:** exercise.completed / section.completed leak between sessions on the "open the same workout the next day" path (same family as the duplicate-fix that already shipped, but for a different path).
-2. **MEDIUM:** unguarded .toFixed() in less-trafficked screens (MyPlan history compare, BaselineFormDialog, PhysicalMetricsManager, several LifeOS stats).
-3. **LOW:** ~158 console.log statements across 41 files (high-frequency in TabataTimer, WorkoutFolderDetail, AllUsers, Sessions, Leads, AuthContext).
-
-The audit found **0 critical bugs** — the system is stable. The above are improvements, not blockers.
+**Open tasks now (see Pending / Open):** RLS on `users` (known allow-all debt), Google Play release (keystore, AAB, graphic assets), WordPress site stabilization.
 
 ## Tech Stack
 
@@ -99,7 +98,9 @@ id, execution_id, exercise_id, set_number, reps_completed, time_completed, weigh
 id, user_id, type, message, is_read, data (jsonb), scheduled_at, trainee_id, created_at
 
 ### leads
-id, coach_id, full_name, phone, email, status, source, notes, created_at
+id, **user_id** (OWNER), name, phone, email, birth_date, age, status, source, notes, medical_history, injuries, injury_level, for_whom, child_age, parent_name, extra_details (jsonb), + ~30 sales/wizard columns, created_at
+
+**⚠️ CRITICAL — the leads OWNER column is `user_id`, NOT `coach_id`** (contradicts DATABASE_SCHEMA.md). Every read/write filters `user_id = auth.uid()`; RLS keys off `user_id`. `coach_id` is legacy and is NOT the live owner. Coordinators run with their own uid, so their leads are owned by them.
 
 ### attendance_log
 id, session_id, trainee_id, status, notes, created_at
@@ -107,7 +108,75 @@ id, session_id, trainee_id, status, notes, created_at
 ### session_participants
 For multi-participant sessions (group training).
 
+### intake_schema (lead-intake tree — DB-backed, append-version)
+id, schema (jsonb), version (int), updated_at, updated_by. App reads the HIGHEST version; default fallback = `src/lib/lifeos/intake-tree-schema.js`. RLS: read for all authenticated; write coach/admin only.
+
+### lead_interactions
+id, lead_id (→ leads, ON DELETE CASCADE), type, summary, created_at. RLS scoped via join to the parent lead's `user_id`. (Was never created in a migration before — created by `20260713_leads_rls.sql`.)
+
+### trainee_media (gallery)
+id, trainee_id, coach_id, file_url, media_type ('image'|'video'), caption, skill_tag, is_shareable, created_at. Bucket **`trainee-media` is PRIVATE** — display via `createSignedUrls` (1h TTL), NOT getPublicUrl. Upload path = `<trainee_id>/<file>` (storage RLS keys off the first path segment).
+
+### import_products (profitability → products tab)
+id, user_id, name, status ('potential'|'ordered'|'stock'), notes, **spec (jsonb — ALL import-calc inputs)**, created_at, updated_at. (spec added by `20260714_import_products_spec.sql`.)
+
+### users — consent columns added (all jsonb, carry doc version + signer id)
+`photo_consent`, `photo_consent_completed` (bool), `terms_accepted`, `privacy_accepted`.
+
 **Realtime is enabled on 11 tables.**
+
+## New Features (14.07.2026)
+
+### Lead intake tree (single entry point)
+- `src/components/lifeos/LeadIntakeTree.jsx` — the ONE new-lead entry (replaces `GuidedIntakeFlow` + `QuickIntakeForm`, both now dead/unused). Recursive, schema-driven tree, no depth limit, 22 questions in 5 groups.
+- Default schema: `src/lib/lifeos/intake-tree-schema.js`. Live schema stored in DB (`intake_schema`, append-version — every save inserts version+1; app reads highest).
+- Admin schema editor: `src/components/lifeos/IntakeSchemaEditor.jsx` (coach/admin only). API: `src/lib/lifeos/intake-schema-api.js` (loadIntakeSchema / saveIntakeSchema).
+- Leads page renders exactly ONE add-lead button ("+ ליד חדש" → tree).
+
+### Trainee gallery
+- `src/components/lifeos/TraineeGallery.jsx` → table `trainee_media`, bucket `trainee-media` (PRIVATE). Display via `createSignedUrls` (1h TTL). Before/after compare mode, skill tags.
+- Upload gated: no photo documentation consent → upload blocked (coach AND trainee). `is_shareable` per-item gated on marketing consent.
+
+### Legal consents
+- 4 docs, all **version 1.0**, in `src/content/legal/`: `termsOfUse.js`, `privacyPolicy.js`, `photoMediaConsent.js`, `healthDeclaration.js` (all `isPlaceholder: false`, no placeholders).
+- `ConsentSection.jsx` in Onboarding confirm step — checkbox 1 terms+privacy (REQUIRED, gates finish), checkbox 2 photo (optional). Minors: guardian name+relation+signature via shared `SignaturePad.jsx`.
+- `LegalDocModal.jsx` (scrollable reader), `ConsentDialog.jsx` (one-time prompt for returning trainees on TraineeHome), `ConsentSettingsCard.jsx` (profile documents tab — links + change/revoke).
+- Data layer: `src/lib/legalConsent.js` (saveConsents), `src/lib/photoConsent.js`. Columns `users.terms_accepted` / `privacy_accepted` / `photo_consent` (jsonb, each carries doc_version + signer_id). Business identity: אוריאל שלמה, עוסק פטור.
+
+### Unified Profitability screen (coach/admin only)
+- `src/pages/Profitability.jsx` — route `/profitability`, menu item "רווחיות" (replaced the old "מחשבון"; `/calculator` route kept for deep links). Coach-only because it's not in App.jsx traineeOnly/shared sets.
+- Tab "מוצרים" = `src/components/profitability/ImportCalculator.jsx` — landed cost, currency+fx, MOQ, 4 shipping modes, CIF, customs, **import VAT (18%) as a FULL non-deductible cost for עוסק פטור** + "כעוסק מורשה היית חוסך X" line; live outputs: landed/unit + % breakdown, gross/net, investment, break-even, quantity sensitivity (MOQ/×2/×4), sea-vs-air. Persists to `import_products.spec`. Seeds 6 products.
+- Tab "צוות" = legacy `BusinessCalculator.jsx` embedded AS-IS (do NOT change its logic).
+
+## Security & RLS (14.07.2026)
+
+- **RLS ENABLED and verified live** on: `leads` (`auth.uid() = user_id`), `lead_interactions` (join to parent lead's user_id), `trainee_media` (trainee owns own rows; coach via `users.coach_id`).
+- **`trainee-media` storage bucket is PRIVATE** — path-scoped storage policies; render via signed URLs.
+- **KNOWN DEBT (still open):** `users` table has an open **allow-all (true/true) RLS policy** — anon can read all users. Fix pending (see Pending / Open).
+- Migration files (`supabase/migrations/`): `20260713_leads_rls.sql`, `20260713_trainee_media_private.sql`, `20260713_photo_consent.sql`, `20260713_legal_consents.sql`, `20260713_intake_schema.sql`, `20260714_import_products_spec.sql`.
+- Introspecting Supabase live: the anon key in `src/lib/supabaseClient.js` works for reads; probe columns via `?select=<col>&limit=1` (OpenAPI root is 401 for anon). Network in the Bash tool needs `dangerouslyDisableSandbox`.
+
+## Clocks / Breathing
+
+- **`BreathingMode.jsx` and `MetronomeMode.jsx` are SHARED components** — coach and trainee use the EXACT same ones (mounted in `Clocks.jsx`; `Clocks` is in App.jsx `sharedPages`; `isCoach` only picks the leave/minimize destination, never gates features). **No duplicate / old version exists.** If a trainee "sees an old version" it is a STALE APK — rebuild.
+- Breathing settings persist **per-user**: `ag_breathing_rounds` / `ag_breathing_prep` / `ag_breathing_cfg` are suffixed by `user.id` (via `keyFor`/`readKey`), with one-time fallback to the legacy global key.
+- Breathing upgrades: earth/sea phase-color tokens (`--phase-*` in index.css), filling time-frame ring (rAF from start timestamp), prep countdown (0/3/5/10s), hold drones (full-hold 220Hz, empty-hold "Om" 110Hz with LFO), **`FIXED_GAIN = 3.0`** + DynamicsCompressor limiter, single-line "next phase" preview, sticky background notification (`src/lib/breathNotification.js`) + wall-clock session resume.
+- Metronome: `MetronomeMode.jsx`, `FIXED_GAIN = 2.2` (same for both sides).
+- Android back button: fully implemented in `src/components/AndroidBackButton.jsx` (single App-level listener). Do NOT re-implement. Hierarchy: open layer→close; internal→dashboard; dashboard→toast then exitApp within 2s; active exercise→`useExerciseBackGuard` (toast, doesn't exit).
+
+## APK Build (Android)
+
+- `JAVA_HOME` is unset in the shell — set it first: `export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"` (JBR 21).
+- Steps: `npm run build` → `npx cap sync android` → `cd android && ./gradlew assembleDebug` (Bash tool needs `dangerouslyDisableSandbox` for gradle network).
+- Output: `android/app/build/outputs/apk/debug/app-debug.apk`. Bump `versionCode` in `android/app/build.gradle` for each installable build.
+- Current: **versionName 13.26, versionCode 32**. Last APK: `C:\Users\URIEL\Downloads\athletigo-13.26.apk`.
+
+## Rules Learned (locked-in — do NOT relearn the hard way)
+
+1. **`leads` owner column is `user_id`, not `coach_id`** (contradicts DATABASE_SCHEMA.md). Filter/insert on `user_id = auth.uid()`.
+2. **Every node in the recursive intake tree must be a REAL React component with its hooks at the top** — a hook after an early `return` throws React #310. (LeadIntakeTree is clean; watch for this pattern, e.g. LeadDetailView had a latent one.)
+3. **A render component defined INSIDE a parent component loses input focus on every keystroke** — hoist it to module level (never define components inside components).
+4. **Uriel is עוסק פטור** — import VAT is a FULL non-deductible cost that enters landed cost (not offset). Model it as cost, show the עוסק-מורשה savings comparison.
 
 ## Workout System — Current Architecture (post-redesign)
 
@@ -400,8 +469,15 @@ PWA icons, favicon, loading screen, login screen, OG/Twitter meta tags, realtime
 
 ## Pending / Open
 
-### Right now (next prompt to run)
-- **Trainee profile redirect bug** — tapping a trainee opens the COACH's profile. Investigate `TraineeProfile.jsx` + the trainees-list onClick handler.
+### Open tasks now (14.07.2026)
+- **RLS on `users`** — replace the open allow-all (true/true) policy with proper owner/coach scoping. Verify live (anon can currently read all 19 users). Do a live schema check before touching to avoid breaking login.
+- **Google Play release** — production keystore, signed **AAB** (not just debug APK), + graphic assets (icon, feature graphic, screenshots).
+- **WordPress site stabilization** (the marketing site).
+
+### Also pending (from before)
+- exercise.completed / section.completed leak on day-after workout-open path (same family as the duplicate fix)
+- Unguarded `.toFixed()` in MyPlan history compare, BaselineFormDialog, PhysicalMetricsManager, several LifeOS stats
+- Latent React #310: `LeadDetailView.jsx` calls `useSalesScripts()` after an early return (masked by conditional mount) — move the hook above the return.
 
 ### After that (MEDIUM)
 - exercise.completed / section.completed leak on day-after workout-open path (same family as the duplicate fix)
@@ -412,6 +488,7 @@ PWA icons, favicon, loading screen, login screen, OG/Twitter meta tags, realtime
 - ~158 `console.log` statements across 41 files — high-frequency cleanup in TabataTimer, WorkoutFolderDetail, AllUsers, Sessions, Leads, AuthContext, App.jsx, main.jsx, AuthContext.jsx, [UPB], [ExerciseCard], "rendering section", "tabata_data_parsed"
 
 ### Migrations not yet run
+- `supabase/migrations/20260714_import_products_spec.sql` (adds `import_products.spec` — profitability products don't persist without it)
 - `migrations/2026-04-29-sessions-coach-notes.sql`
 - `migrations/2026-04-30-long-term-infrastructure.sql`
 
