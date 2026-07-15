@@ -636,9 +636,13 @@ export default function Layout({ children, currentPageName }) {
             <MiniInstallButton />
           </div>
 
-          {/* Mobile Bottom Navigation — fixed to bottom (pushed up by 72px per active timer bar) */}
+          {/* Mobile Bottom Navigation — pinned to the very bottom
+              (bottom:0) with a safe-area bottom padding so the icons
+              ALWAYS sit above the Android gesture bar, timer or not.
+              The minimized timer bar now stacks ABOVE this nav (see
+              TimerFooterBar) instead of pushing it up. */}
           <div className="md:hidden"
-               style={{ position: 'fixed', bottom: timerBarsHeight, left: 0, right: 0, zIndex: 1050, backgroundColor: '#FFFFFF', borderTop: '0.5px solid #F0E4D0', boxShadow: '0 -2px 10px rgba(0,0,0,0.04)', display: isClocks ? 'none' : 'flex', justifyContent: 'space-around', alignItems: 'center', paddingTop: 10, paddingRight: 8, paddingLeft: 8, paddingBottom: 'max(env(safe-area-inset-bottom), 8px)', direction: 'rtl', overflow: 'visible' }}>
+               style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1050, backgroundColor: '#FFFFFF', borderTop: '0.5px solid #F0E4D0', boxShadow: '0 -2px 10px rgba(0,0,0,0.04)', display: isClocks ? 'none' : 'flex', justifyContent: 'space-around', alignItems: 'center', paddingTop: 10, paddingRight: 8, paddingLeft: 8, paddingBottom: 'max(env(safe-area-inset-bottom), 8px)', direction: 'rtl', overflow: 'visible' }}>
             <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', width: '100%' }}>
               {(() => {
                 // The five canonical trainee tabs. Indices used below

@@ -51,6 +51,15 @@ export default function AppSwitcher({ wide = false }) {
         overflowX: "auto",
         scrollSnapType: "x proximity",
         width: "100%",
+        // Never let a parent flex column (e.g. the coach Dashboard's
+        // flex:1 / space-between column) VERTICALLY compress this row.
+        // When a minimized timer bar grows the page-container's bottom
+        // padding, the content box shrinks by 74px; without
+        // flexShrink:0 the flex parent absorbs that loss by squeezing
+        // this tab row, misaligning the icon-over-label tabs. Pinning
+        // shrink to 0 keeps the row's height invariant to the bar.
+        flexShrink: 0,
+        flexWrap: "nowrap",
       }}
     >
       {tabs.map(t => {

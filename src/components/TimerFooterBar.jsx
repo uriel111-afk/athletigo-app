@@ -15,6 +15,13 @@ const TYPES_WITH_ROUNDS = new Set(['tabata', 'emom', 'dynamicIntervals']);
 
 const BAR_HEIGHT = 74;
 
+// Height of the fixed bottom nav (content only, WITHOUT the safe-area
+// inset — that is added separately as env() below). Mirrors the 70px
+// magic number the Layout uses for the page-container bottom padding.
+// The minimized bar(s) stack ABOVE the nav and above the gesture bar,
+// so the bar's bottom = navHeight + safe-area + (stack index * bar).
+const NAV_HEIGHT = 70;
+
 // Wrap each button handler so the click can never bubble to a parent
 // (e.g. a Radix Dialog's "click-outside" backdrop that would close the
 // form behind the bar).
@@ -124,7 +131,10 @@ function SingleBar({ timer, bottomOffset, onToggle, onExpand, onClose, onPrevRou
       onTouchEnd={stopAny}
       style={{
         position: 'fixed',
-        bottom: bottomOffset,
+        // Sit ABOVE the bottom nav (NAV_HEIGHT) and above the Android
+        // gesture bar (env safe-area). Extra bars stack upward by
+        // bottomOffset. Never overlaps the nav or the system footer.
+        bottom: `calc(${NAV_HEIGHT}px + env(safe-area-inset-bottom, 0px) + ${bottomOffset}px)`,
         left: 0, right: 0,
         height: BAR_HEIGHT,
         background: barBg,
