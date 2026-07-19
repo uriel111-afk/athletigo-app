@@ -149,7 +149,7 @@ export default function FocusCalendar() {
                     <div key={'s' + i} style={{ background: '#fff', borderRight: `4px solid ${FOCUS.session}`, border: `1px solid ${FOCUS.border}`, borderRadius: 10, padding: '8px 11px', boxShadow: FOCUS.neu }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: FOCUS.ink }}>{it.s.displayName}</div>
                       <div style={{ fontSize: 11, color: FOCUS.session, fontWeight: 600, marginTop: 2 }}>
-                        {String(it.s.time).slice(0, 5)} · {it.s.type || 'אימון'}
+                        {String(it.s.time).slice(0, 5)} · {it.s.session_type || 'אימון'}
                       </div>
                     </div>
                   ) : (

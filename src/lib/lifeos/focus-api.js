@@ -145,9 +145,11 @@ export async function fetchIdeas(userId) {
 // Sessions for a date — READ ONLY. No PostgREST embeds: fetch trainee
 // ids, then hydrate names from `users` (full_name) separately.
 export async function fetchSessionsForDate(userId, dateIso) {
+  // NOTE: the session-type column is `session_type` (there is no
+  // `sessions.type` column — selecting it returns PostgREST 42703 / 400).
   const { data: sessions, error } = await supabase
     .from('sessions')
-    .select('id, coach_id, trainee_id, date, time, status, type, participants, group_name')
+    .select('id, coach_id, trainee_id, date, time, status, session_type, participants, group_name')
     .eq('coach_id', userId)
     .eq('date', dateIso);
   if (error) throw error;
