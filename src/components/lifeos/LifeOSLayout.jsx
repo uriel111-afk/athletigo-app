@@ -11,7 +11,11 @@ import { AuthContext } from '@/lib/AuthContext';
 import { LIFEOS_COLORS, COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 
 // Shell around every Life OS screen.
-export default function LifeOSLayout({ title, children, rightSlot = null, onQuickSaved }) {
+// `fullBleed` (opt-in) turns the shell into a fixed-height flex column so
+// the content area gets flex:1 and fills the viewport edge-to-edge between
+// the header and the bottom nav — no max-width, no side gutters. Existing
+// pages don't pass it, so their scrolling/centered layout is unchanged.
+export default function LifeOSLayout({ title, children, rightSlot = null, onQuickSaved, fullBleed = false }) {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const isCoordinator = user?.role === 'coordinator';
@@ -23,6 +27,7 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
         minHeight: '100dvh',
         backgroundColor: LIFEOS_COLORS.bg,
         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+        ...(fullBleed ? { height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' } : {}),
       }}
     >
       {/* App switcher pills — only render for the master coach. When
@@ -31,7 +36,7 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
           AppSwitcher is null and the sticky top bar below owns the
           inset instead (so no empty double gap). */}
       {user?.id === COACH_USER_ID && (
-        <div className="safe-area-top" style={{ background: '#FFFFFF' }}>
+        <div className="safe-area-top" style={{ background: '#FFFFFF', flexShrink: 0 }}>
           <AppSwitcher />
         </div>
       )}
@@ -43,6 +48,7 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
           position: 'sticky',
           top: 0,
           zIndex: 100,
+          flexShrink: 0,
           backgroundColor: '#FFFFFF',
           borderBottom: `0.5px solid ${LIFEOS_COLORS.border}`,
           // Real top inset so the sticky bar clears the camera cutout
@@ -105,7 +111,16 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
       </div>
 
       {/* Content */}
-      <div style={{ padding: '16px 0 100px', maxWidth: 560, margin: '0 auto' }}>
+      <div
+        style={fullBleed
+          ? {
+              flex: 1, minHeight: 0, width: '100%',
+              display: 'flex', flexDirection: 'column', overflow: 'hidden',
+              // Reserve the fixed bottom nav so flex:1 children end above it.
+              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)',
+            }
+          : { padding: '16px 0 100px', maxWidth: 560, margin: '0 auto' }}
+      >
         {children}
       </div>
 

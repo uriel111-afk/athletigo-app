@@ -84,9 +84,9 @@ export default function FocusCalendar() {
   if (!loaded) return <LifeOSLayout title="מיקוד"><FocusChips /><PageSkeleton rows={6} /></LifeOSLayout>;
 
   return (
-    <LifeOSLayout title="מיקוד">
+    <LifeOSLayout title="מיקוד" fullBleed>
       <FocusChips />
-      <div style={{ padding: '0 14px' }}>
+      <div style={{ padding: '0 14px', flexShrink: 0 }}>
         <button onClick={() => setPlanOpen(true)}
           style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px', borderRadius: 14, border: 'none', background: FOCUS.orangeGrad, color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer', marginBottom: 14, boxShadow: '0 4px 14px rgba(255,111,32,0.35)' }}>
           <CalendarRange size={18} /> תכנון שבוע
@@ -114,7 +114,7 @@ export default function FocusCalendar() {
         </div>
       </div>
 
-      <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ padding: '0 14px' }}>
+      <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 14px 24px' }}>
         {/* Untimed tray */}
         <div style={{ background: '#FBF6EF', border: `1px dashed ${FOCUS.border}`, borderRadius: 14, padding: 12, marginBottom: 16 }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: FOCUS.muted, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>

@@ -19,6 +19,7 @@ export default function FocusChips() {
         display: 'flex', gap: 6,
         padding: '4px 14px 12px',
         overflowX: 'auto',
+        flexShrink: 0,
       }}
     >
       {CHIPS.map(c => (

@@ -105,9 +105,9 @@ export default function FocusList() {
   if (!loaded) return <LifeOSLayout title="מיקוד"><FocusChips /><PageSkeleton rows={5} /></LifeOSLayout>;
 
   return (
-    <LifeOSLayout title="מיקוד">
+    <LifeOSLayout title="מיקוד" fullBleed>
       <FocusChips />
-      <div style={{ padding: '0 14px' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 14px 24px' }}>
         {/* Filters */}
         <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 10 }}>
           {FILTERS.map(f => (

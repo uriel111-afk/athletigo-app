@@ -121,11 +121,11 @@ export default function FocusMap() {
   const empty = nodes.length === 0;
 
   return (
-    <LifeOSLayout title="מיקוד">
+    <LifeOSLayout title="מיקוד" fullBleed>
       <FocusChips />
 
-      {/* Toolbar */}
-      <div style={{ display: 'flex', gap: 8, padding: '0 14px 10px', alignItems: 'center' }}>
+      {/* Toolbar — compact, wraps on narrow screens */}
+      <div style={{ display: 'flex', gap: 8, padding: '0 12px 8px', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
         <button onClick={autoArrange} style={toolBtn}>
           <LayoutGrid size={15} /> סידור אוטומטי
         </button>
@@ -137,8 +137,8 @@ export default function FocusMap() {
         </button>
       </div>
 
-      {/* Canvas */}
-      <div style={{ position: 'relative', margin: '0 14px', borderRadius: 18, overflow: 'hidden', border: `1px solid ${FOCUS.border}`, height: 'calc(100dvh - 320px)', minHeight: 380, background: FOCUS.bg }}>
+      {/* Canvas — fills all remaining space, edge to edge */}
+      <div style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%', overflow: 'hidden', background: FOCUS.bg }}>
         {empty ? (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: FOCUS.muted, padding: 24, textAlign: 'center' }}>
             <Network size={44} color={FOCUS.orange} style={{ opacity: 0.5 }} />
@@ -155,6 +155,11 @@ export default function FocusMap() {
           />
         )}
 
+        {/* Floating selection hint — overlays, no layout height */}
+        <div style={{ position: 'absolute', top: 8, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: FOCUS.muted, pointerEvents: 'none' }}>
+          {selectedId ? `נבחר: ${byId[selectedId]?.title || ''} · הוספה תיצור צומת מתחתיו` : 'הקש לבחירה · לחיצה ארוכה לעריכה · גרור להזזה'}
+        </div>
+
         {/* Floating add */}
         <div style={{ position: 'absolute', left: 12, bottom: 12 }}>
           {addMenu && (
@@ -168,10 +173,6 @@ export default function FocusMap() {
             <Plus size={26} />
           </button>
         </div>
-      </div>
-
-      <div style={{ fontSize: 11, color: FOCUS.muted, textAlign: 'center', padding: '8px 14px 0' }}>
-        {selectedId ? `נבחר: ${byId[selectedId]?.title || ''} · הוספה תיצור צומת מתחתיו` : 'הקש על צומת לבחירה · לחיצה ארוכה לעריכה · גרור להזזה'}
       </div>
 
       {/* Inbox drawer */}
