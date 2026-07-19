@@ -36,7 +36,10 @@ export default function MindMapCanvas({
   const [drag, setDrag] = useState(null);      // live node drag
   const [livePos, setLivePos] = useState({});   // id -> {x,y} during drag
   const saveTimer = useRef(null);
-  const gesture = useRef(null);
+  const gesture = useRef(null);   // single-finger node gesture (tap/drag/long-press)
+  const pan = useRef(null);       // single-finger canvas pan
+  const pinch = useRef(null);     // two-finger pinch-zoom
+  const pointers = useRef(new Map()); // active pointerId -> {x,y}
   const svgRef = useRef(null);
 
   const visibleChildrenOf = (node) => {
@@ -67,59 +70,120 @@ export default function MindMapCanvas({
   const maxX = Math.max(200, ...visibleNodes.map(n => posOf(n).x + NODE_W));
   const maxY = Math.max(200, ...visibleNodes.map(n => posOf(n).y + 90));
 
-  // ── Node pointer gesture: tap / long-press / drag ──────────────
-  const nodeDown = (e, node) => {
-    e.stopPropagation();
-    const start = posOf(node);
-    gesture.current = {
-      node, sx: e.clientX, sy: e.clientY, nx: start.x, ny: start.y,
-      moved: false, long: false,
-      timer: setTimeout(() => { gesture.current.long = true; onLongPress(node); }, 480),
+  const clampScale = (s) => Math.min(2, Math.max(0.5, s));
+  const findNode = (target) => {
+    const el = target?.closest?.('[data-node-id]');
+    return el ? byId[el.getAttribute('data-node-id')] : null;
+  };
+  const beginPinch = () => {
+    // Two fingers → cancel any single-finger gesture and start pinching.
+    if (gesture.current) clearTimeout(gesture.current.timer);
+    gesture.current = null;
+    pan.current = null;
+    setDrag(null);
+    const pts = [...pointers.current.values()];
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect || pts.length < 2) return;
+    const midX = (pts[0].x + pts[1].x) / 2 - rect.left;
+    const midY = (pts[0].y + pts[1].y) / 2 - rect.top;
+    pinch.current = {
+      startDist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1,
+      startScale: view.scale, startTx: view.tx, startTy: view.ty, midX, midY,
     };
   };
-  const nodeMove = (e) => {
-    const g = gesture.current;
-    if (!g) return;
-    const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
-    if (!g.moved && Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-    g.moved = true;
-    clearTimeout(g.timer);
-    const nx = g.nx + dx / view.scale;
-    const ny = g.ny + dy / view.scale;
-    setDrag({ id: g.node.id });
-    setLivePos(p => ({ ...p, [g.node.id]: { x: nx, y: ny } }));
+
+  // ── Unified pointer handling: tap / long-press / drag / pan / pinch ──
+  const onDown = (e) => {
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* noop */ }
+
+    if (pointers.current.size === 2) { beginPinch(); return; }
+    if (pointers.current.size > 2) return;
+
+    // Single pointer: node gesture if on a node, else canvas pan.
+    const node = findNode(e.target);
+    if (node) {
+      const start = posOf(node);
+      gesture.current = {
+        node, sx: e.clientX, sy: e.clientY, nx: start.x, ny: start.y, moved: false, long: false,
+        timer: setTimeout(() => { if (gesture.current) { gesture.current.long = true; onLongPress(node); } }, 480),
+      };
+    } else {
+      pan.current = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty };
+    }
   };
-  const nodeUp = (e, node) => {
-    const g = gesture.current;
-    gesture.current = null;
-    if (!g) return;
-    clearTimeout(g.timer);
-    if (g.long) return;
-    if (!g.moved) {
-      if (node.node_type === 'task') onToggleDone(node); else onTapNode(node);
+
+  const onMove = (e) => {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    // Pinch takes priority whenever two fingers are down.
+    if (pinch.current && pointers.current.size >= 2) {
+      const pts = [...pointers.current.values()];
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      const newScale = clampScale(pinch.current.startScale * (dist / pinch.current.startDist));
+      // Keep the world point under the finger-midpoint fixed while scaling.
+      const worldX = (pinch.current.midX - pinch.current.startTx) / pinch.current.startScale;
+      const worldY = (pinch.current.midY - pinch.current.startTy) / pinch.current.startScale;
+      setView(v => ({ ...v, scale: newScale, tx: pinch.current.midX - worldX * newScale, ty: pinch.current.midY - worldY * newScale }));
       return;
     }
-    // Persist dragged position (debounced 500ms).
-    const final = livePos[node.id];
-    setDrag(null);
-    if (final) {
-      clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => { onSavePos(node.id, final.x, final.y); }, 500);
+
+    const g = gesture.current;
+    if (g) {
+      const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
+      if (!g.moved && Math.abs(dx) < 8 && Math.abs(dy) < 8) return; // 8px threshold
+      g.moved = true;
+      clearTimeout(g.timer);
+      setDrag({ id: g.node.id });
+      setLivePos(p => ({ ...p, [g.node.id]: { x: g.nx + dx / view.scale, y: g.ny + dy / view.scale } }));
+      return;
+    }
+
+    if (pan.current) {
+      const p = pan.current;
+      setView(v => ({ ...v, tx: p.tx + (e.clientX - p.x), ty: p.ty + (e.clientY - p.y) }));
     }
   };
 
-  // ── Canvas pan (pointer down on empty space) ───────────────────
-  const panStart = (e) => {
-    if (e.target.closest('[data-node]')) return;
+  const onUp = (e) => {
+    const wasPinch = !!pinch.current;
+    pointers.current.delete(e.pointerId);
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+
+    if (wasPinch) {
+      // Leaving pinch: drop to 0/1 finger cleanly (rebaseline pan, no jump).
+      if (pointers.current.size < 2) pinch.current = null;
+      pan.current = pointers.current.size === 1
+        ? (() => { const [pt] = [...pointers.current.values()]; return { x: pt.x, y: pt.y, tx: view.tx, ty: view.ty }; })()
+        : null;
+      return;
+    }
+
+    const g = gesture.current;
     gesture.current = null;
-    const start = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty };
-    const onMove = (ev) => setView(v => ({ ...v, tx: start.tx + (ev.clientX - start.x), ty: start.ty + (ev.clientY - start.y) }));
-    const onUp = () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
+    if (g) {
+      clearTimeout(g.timer);
+      if (!g.long) {
+        if (!g.moved) {
+          if (g.node.node_type === 'task') onToggleDone(g.node); else onTapNode(g.node);
+        } else {
+          const final = livePos[g.node.id];
+          setDrag(null);
+          if (final) { clearTimeout(saveTimer.current); saveTimer.current = setTimeout(() => onSavePos(g.node.id, final.x, final.y), 500); }
+        }
+      }
+    }
+    if (pointers.current.size === 0) pan.current = null;
   };
 
-  const zoom = (dir) => setView(v => ({ ...v, scale: Math.min(2, Math.max(0.5, +(v.scale + dir * 0.2).toFixed(2))) }));
+  const onCancel = (e) => {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinch.current = null;
+    if (pointers.current.size === 0) { pan.current = null; if (gesture.current) { clearTimeout(gesture.current.timer); gesture.current = null; } }
+  };
+
+  const zoom = (dir) => setView(v => ({ ...v, scale: clampScale(+(v.scale + dir * 0.2).toFixed(2)) }));
 
   useEffect(() => () => { clearTimeout(saveTimer.current); }, []);
 
@@ -157,12 +221,16 @@ export default function MindMapCanvas({
   }, [selectedId, byId]);
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div
+      style={{ position: 'relative', width: '100%', height: '100%', touchAction: 'none', overscrollBehavior: 'none' }}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onCancel}
+    >
       <svg
         ref={svgRef}
         width="100%" height="100%"
-        onPointerDown={panStart}
-        onPointerMove={nodeMove}
         style={{ touchAction: 'none', background: FOCUS.bg, display: 'block' }}
       >
         <g transform={`translate(${view.tx},${view.ty}) scale(${view.scale})`}>
@@ -181,11 +249,10 @@ export default function MindMapCanvas({
             return (
               <foreignObject key={n.id} x={p.x} y={p.y} width={NODE_W} height={H + 24} style={{ overflow: 'visible' }}>
                 <div
-                  data-node="1"
-                  onPointerDown={(e) => nodeDown(e, n)}
-                  onPointerUp={(e) => nodeUp(e, n)}
+                  data-node-id={n.id}
                   style={{
                     width: NODE_W, boxSizing: 'border-box', cursor: 'pointer', userSelect: 'none',
+                    touchAction: 'none',
                     outline: sel ? `2px solid ${FOCUS.edgeSel}` : 'none', borderRadius: 14,
                     fontFamily: "'Rubik', system-ui, sans-serif",
                   }}
@@ -200,8 +267,8 @@ export default function MindMapCanvas({
 
       {/* Zoom controls */}
       <div style={{ position: 'absolute', left: 12, top: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <button onClick={() => zoom(1)} style={zoomBtn}>+</button>
-        <button onClick={() => zoom(-1)} style={zoomBtn}>−</button>
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => zoom(1)} style={zoomBtn}>+</button>
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => zoom(-1)} style={zoomBtn}>−</button>
       </div>
     </div>
   );

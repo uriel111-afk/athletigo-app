@@ -7,10 +7,10 @@ import FocusChips from '@/components/lifeos/FocusChips';
 import IdeaCaptureButton from '@/components/lifeos/IdeaCaptureButton';
 import NodeDetailSheet from '@/components/lifeos/NodeDetailSheet';
 import MindMapCanvas from '@/components/lifeos/MindMapCanvas';
-import { Plus, Inbox, LayoutGrid, X, Network, Archive, GitBranch } from 'lucide-react';
+import { Plus, Inbox, LayoutGrid, X, Network, Archive, GitBranch, Flame, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  FOCUS, isoDate, addDays,
+  FOCUS, isoDate, addDays, HEB_DAYS, tagColor,
   fetchNodes, fetchLogs, fetchIdeas, logSetFrom, indexNodes,
   ancestorsOf, allDescendants, createNode, updateNode, logTask, unlogTask,
   clearPositions, updateIdea,
@@ -30,7 +30,7 @@ export default function FocusMap() {
   const [expanded, setExpanded] = useState(new Set());
   const [centerId, setCenterId] = useState(null);
   const [sheetNode, setSheetNode] = useState(null);
-  const [addMenu, setAddMenu] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
 
   const load = useCallback(async () => {
@@ -89,17 +89,18 @@ export default function FocusMap() {
     try { await updateNode(id, { pos_x: x, pos_y: y }); } catch { toast.error('שגיאה בשמירת מיקום'); }
   };
 
-  const addChild = async (type) => {
-    setAddMenu(false);
-    const parentId = selectedId || (roots[0] && roots[0].id);
-    if (!parentId) { toast.error('בחר צומת קודם'); return; }
-    try {
-      const created = await createNode(userId, { parent_id: parentId, node_type: type, title: type === 'task' ? 'משימה חדשה' : 'מושג חדש' });
-      setExpanded(prev => new Set(prev).add(parentId));
-      await load();
-      setSelectedId(created.id);
-      setSheetNode(created);
-    } catch (e) { toast.error('שגיאה'); }
+  // Parent for a new node: the selected node, else the main root (or
+  // null → a new top-level node when the tree is still empty).
+  const addParent = selectedId ? byId[selectedId] : (roots[0] || null);
+
+  // A node was created via the inline add panel: close it, refresh, and
+  // select + center the new node so a follow-up add chains under it.
+  const handleCreated = async (created) => {
+    setAddOpen(false);
+    if (created.parent_id) setExpanded(prev => new Set(prev).add(created.parent_id));
+    await load();
+    setSelectedId(created.id);
+    setCenterId(created.id);
   };
 
   const autoArrange = async () => {
@@ -173,20 +174,16 @@ export default function FocusMap() {
           {selectedId ? `נבחר: ${byId[selectedId]?.title || ''} · הוספה תיצור צומת מתחתיו` : 'הקש לבחירה · לחיצה ארוכה לעריכה · גרור להזזה'}
         </div>
 
-        {/* Floating add */}
-        <div style={{ position: 'absolute', left: 12, bottom: 12 }}>
-          {addMenu && (
-            <div style={{ position: 'absolute', bottom: 62, left: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button onClick={() => addChild('branch')} style={addOpt}><GitBranch size={15} /> מושג</button>
-              <button onClick={() => addChild('task')} style={addOpt}><Plus size={15} /> משימה</button>
-            </div>
-          )}
-          <button onClick={() => setAddMenu(m => !m)} aria-label="הוסף צומת"
-            style={{ width: 52, height: 52, borderRadius: '50%', border: 'none', background: FOCUS.orangeGrad, color: '#fff', boxShadow: '0 6px 16px rgba(255,111,32,0.45)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transform: addMenu ? 'rotate(45deg)' : 'none', transition: 'transform .2s' }}>
-            <Plus size={26} />
-          </button>
-        </div>
+        {/* Floating add → opens the full inline add panel */}
+        <button onClick={() => setAddOpen(true)} aria-label="הוסף צומת"
+          style={{ position: 'absolute', left: 12, bottom: 12, width: 52, height: 52, borderRadius: '50%', border: 'none', background: FOCUS.orangeGrad, color: '#fff', boxShadow: '0 6px 16px rgba(255,111,32,0.45)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Plus size={26} />
+        </button>
       </div>
+
+      {addOpen && (
+        <AddNodePanel userId={userId} parent={addParent} onClose={() => setAddOpen(false)} onCreated={handleCreated} />
+      )}
 
       {/* Inbox drawer */}
       {inboxOpen && (
@@ -251,8 +248,162 @@ const toolBtn = {
   border: `1px solid ${FOCUS.border}`, background: '#fff', boxShadow: FOCUS.neu,
   color: FOCUS.ink, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
 };
-const addOpt = {
-  display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 12,
-  border: 'none', background: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-  color: FOCUS.ink, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
-};
+
+// ─── Full inline add panel (slide-up, NOT Radix) ──────────────────
+const pInput = { width: '100%', border: `1px solid ${FOCUS.border}`, borderRadius: 11, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', color: FOCUS.ink, background: '#FFFDFA', outline: 'none', boxSizing: 'border-box' };
+const pLabel = { fontSize: 11, fontWeight: 700, color: FOCUS.muted, margin: '10px 0 5px' };
+
+function Chip({ active, color, onClick, children }) {
+  const c = color || FOCUS.orange;
+  return (
+    <button onClick={onClick} style={{ flex: 1, padding: '9px 4px', borderRadius: 10, cursor: 'pointer', border: `1.5px solid ${active ? c : FOCUS.border}`, background: active ? c : '#fff', color: active ? '#fff' : FOCUS.muted, fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}>{children}</button>
+  );
+}
+
+function AddNodePanel({ userId, parent, onClose, onCreated }) {
+  const [type, setType] = useState('task');
+  const [title, setTitle] = useState('');
+  const [more, setMore] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // task fields
+  const [priority, setPriority] = useState(0);
+  const [fear, setFear] = useState(false);
+  const [taskDate, setTaskDate] = useState('');
+  const [taskTime, setTaskTime] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [contact, setContact] = useState('');
+  const [tags, setTags] = useState([]);
+  const [tagText, setTagText] = useState('');
+  const [freq, setFreq] = useState('once'); // once | daily | weekly
+  const [dow, setDow] = useState(0);
+  // branch fields
+  const [metricTarget, setMetricTarget] = useState('');
+  const [metricUnit, setMetricUnit] = useState('');
+  const [budget, setBudget] = useState('');
+  const [cycleStart, setCycleStart] = useState('');
+  const [cycleEnd, setCycleEnd] = useState('');
+
+  const addTag = () => {
+    const t = tagText.trim(); if (!t) return;
+    setTags(prev => [...new Set([...prev, t])]); setTagText('');
+  };
+
+  const save = async () => {
+    const t = title.trim();
+    if (!t || saving) return;
+    setSaving(true);
+    const fields = { parent_id: parent?.id || null, node_type: type, title: t };
+    if (type === 'task') {
+      fields.priority = priority;
+      fields.is_fear_task = fear;
+      if (freq === 'daily') fields.frequency = 'daily';
+      else if (freq === 'weekly') { fields.frequency = 'weekly'; fields.day_of_week = dow; }
+      else if (taskDate) fields.task_date = taskDate; // one-time
+      if (taskTime) fields.task_time = taskTime;
+      if (dueDate) fields.due_date = dueDate;
+      if (contact.trim()) fields.contact_name = contact.trim();
+      if (tags.length) fields.tags = tags;
+    } else {
+      if (metricTarget !== '') fields.metric_target = Number(metricTarget);
+      if (metricUnit.trim()) fields.metric_unit = metricUnit.trim();
+      if (budget !== '') fields.budget = Number(budget);
+      if (cycleStart) fields.cycle_start = cycleStart;
+      if (cycleEnd) fields.cycle_end = cycleEnd;
+    }
+    try { const created = await createNode(userId, fields); onCreated(created); }
+    catch { toast.error('שגיאה'); setSaving(false); }
+  };
+
+  return (
+    <div dir="rtl" onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, maxHeight: '88vh', overflowY: 'auto', background: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '16px 16px calc(env(safe-area-inset-bottom,0px) + 20px)', boxShadow: '0 -6px 24px rgba(0,0,0,0.15)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div style={{ fontSize: 11, color: FOCUS.muted, fontWeight: 600 }}>{parent ? `תחת: ${parent.title}` : 'צומת ראשי חדש'}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: FOCUS.muted }}><X size={20} /></button>
+        </div>
+
+        {/* Row 1: type + title */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <Chip active={type === 'branch'} onClick={() => setType('branch')}><GitBranch size={13} style={{ verticalAlign: 'middle', marginLeft: 3 }} />מושג</Chip>
+          <Chip active={type === 'task'} onClick={() => setType('task')}><Plus size={13} style={{ verticalAlign: 'middle', marginLeft: 3 }} />משימה</Chip>
+        </div>
+        <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !more && save()} placeholder="כותרת" style={{ ...pInput, fontSize: 16, fontWeight: 700 }} />
+
+        {/* Expander */}
+        <button onClick={() => setMore(m => !m)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: FOCUS.orange, fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: '12px 2px', fontFamily: 'inherit' }}>
+          <ChevronDown size={15} style={{ transform: more ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} /> עוד פרטים
+        </button>
+
+        {more && type === 'task' && (
+          <div>
+            <div style={pLabel}>עדיפות</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[[0, 'רגיל', FOCUS.orange], [1, 'דחוף', '#EF9F27'], [2, 'קריטי', '#E24B4A']].map(([v, l, c]) => (
+                <Chip key={v} active={priority === v} color={c} onClick={() => setPriority(v)}>{l}</Chip>
+              ))}
+            </div>
+            <button onClick={() => setFear(f => !f)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px', borderRadius: 11, margin: '10px 0', cursor: 'pointer', border: `1.5px solid ${fear ? '#E24B4A' : FOCUS.border}`, background: fear ? '#FCEBEB' : '#fff', color: fear ? '#E24B4A' : FOCUS.muted, fontSize: 13, fontWeight: 700, fontFamily: 'inherit' }}>
+              <Flame size={15} /> {fear ? 'משימת אומץ ✓' : 'סמן כמשימת אומץ'}
+            </button>
+
+            <div style={pLabel}>תדירות</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Chip active={freq === 'once'} onClick={() => setFreq('once')}>חד פעמי</Chip>
+              <Chip active={freq === 'daily'} onClick={() => setFreq('daily')}>יומי</Chip>
+              <Chip active={freq === 'weekly'} onClick={() => setFreq('weekly')}>שבועי</Chip>
+            </div>
+            {freq === 'weekly' && (
+              <div style={{ display: 'flex', gap: 5, marginTop: 8 }}>
+                {HEB_DAYS.map((d, i) => (
+                  <button key={i} onClick={() => setDow(i)} style={{ flex: 1, padding: '8px 0', borderRadius: 9, border: 'none', cursor: 'pointer', background: dow === i ? FOCUS.orange : '#F1E7D8', color: dow === i ? '#fff' : FOCUS.muted, fontSize: 13, fontWeight: 700 }}>{d}</button>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              {freq === 'once' && (
+                <div style={{ flex: 1 }}><div style={pLabel}>תאריך</div><input type="date" value={taskDate} onChange={(e) => setTaskDate(e.target.value)} style={pInput} /></div>
+              )}
+              <div style={{ flex: 1 }}><div style={pLabel}>שעה</div><input type="time" value={taskTime} onChange={(e) => setTaskTime(e.target.value)} style={pInput} /></div>
+              <div style={{ flex: 1 }}><div style={pLabel}>דדליין</div><input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={pInput} /></div>
+            </div>
+
+            <div style={pLabel}>איש קשר</div>
+            <input value={contact} onChange={(e) => setContact(e.target.value)} placeholder="שם" style={pInput} />
+
+            <div style={pLabel}>תגיות</div>
+            {tags.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                {tags.map(tg => { const c = tagColor(tg); return <span key={tg} onClick={() => setTags(tags.filter(x => x !== tg))} style={{ background: c.bg, color: c.fg, borderRadius: 8, padding: '3px 8px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{tg} ✕</span>; })}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={tagText} onChange={(e) => setTagText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())} placeholder="הוסף תגית…" style={{ ...pInput, flex: 1 }} />
+              <button onClick={addTag} style={{ padding: '0 14px', borderRadius: 11, border: 'none', background: FOCUS.orange, color: '#fff', cursor: 'pointer', fontWeight: 700 }}>+</button>
+            </div>
+          </div>
+        )}
+
+        {more && type === 'branch' && (
+          <div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 1 }}><div style={pLabel}>מדד יעד</div><input type="number" inputMode="decimal" value={metricTarget} onChange={(e) => setMetricTarget(e.target.value)} style={pInput} /></div>
+              <div style={{ flex: 1 }}><div style={pLabel}>יחידה</div><input value={metricUnit} onChange={(e) => setMetricUnit(e.target.value)} placeholder="₪ / יח׳" style={pInput} /></div>
+            </div>
+            <div style={pLabel}>תקציב</div>
+            <input type="number" inputMode="decimal" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="₪" style={pInput} />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 1 }}><div style={pLabel}>תחילת מחזור</div><input type="date" value={cycleStart} onChange={(e) => setCycleStart(e.target.value)} style={pInput} /></div>
+              <div style={{ flex: 1 }}><div style={pLabel}>סוף מחזור</div><input type="date" value={cycleEnd} onChange={(e) => setCycleEnd(e.target.value)} style={pInput} /></div>
+            </div>
+          </div>
+        )}
+
+        <button onClick={save} disabled={!title.trim() || saving}
+          style={{ width: '100%', marginTop: 16, padding: '14px', borderRadius: 14, border: 'none', background: title.trim() ? FOCUS.orangeGrad : '#E6D8C6', color: '#fff', fontSize: 15, fontWeight: 800, cursor: title.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}>
+          {saving ? 'שומר…' : 'צור צומת'}
+        </button>
+      </div>
+    </div>
+  );
+}
