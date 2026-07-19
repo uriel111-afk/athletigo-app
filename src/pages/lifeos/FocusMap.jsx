@@ -32,6 +32,7 @@ export default function FocusMap() {
   const [sheetNode, setSheetNode] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [captureOpen, setCaptureOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -174,11 +175,15 @@ export default function FocusMap() {
           {selectedId ? `נבחר: ${byId[selectedId]?.title || ''} · הוספה תיצור צומת מתחתיו` : 'הקש לבחירה · לחיצה ארוכה לעריכה · גרור להזזה'}
         </div>
 
-        {/* Floating add → opens the full inline add panel */}
-        <button onClick={() => setAddOpen(true)} aria-label="הוסף צומת"
-          style={{ position: 'absolute', left: 12, bottom: 12, width: 52, height: 52, borderRadius: '50%', border: 'none', background: FOCUS.orangeGrad, color: '#fff', boxShadow: '0 6px 16px rgba(255,111,32,0.45)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Plus size={26} />
-        </button>
+        {/* Floating add (bottom-RIGHT) → opens the full inline add panel.
+            Hidden whenever any sheet/panel/capture overlay is open so it
+            never covers panel content. */}
+        {!(addOpen || sheetNode || inboxOpen || captureOpen) && (
+          <button onClick={() => setAddOpen(true)} aria-label="הוסף צומת"
+            style={{ position: 'absolute', right: 16, bottom: 16, width: 52, height: 52, borderRadius: '50%', border: 'none', background: FOCUS.orangeGrad, color: '#fff', boxShadow: '0 6px 16px rgba(255,111,32,0.45)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Plus size={26} />
+          </button>
+        )}
       </div>
 
       {addOpen && (
@@ -205,7 +210,7 @@ export default function FocusMap() {
         </div>
       )}
 
-      <IdeaCaptureButton onSaved={load} />
+      <IdeaCaptureButton onSaved={load} hidden={!!(sheetNode || addOpen || inboxOpen)} onOpenChange={setCaptureOpen} />
       {sheetNode && <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} onClose={() => setSheetNode(null)} onSaved={load} />}
     </LifeOSLayout>
   );

@@ -1,16 +1,23 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { Lightbulb, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { AuthContext } from '@/lib/AuthContext';
 import { addIdea, FOCUS } from '@/lib/lifeos/focus-api';
 
-// Floating orange-gradient capture button on all 4 Focus screens.
-// Inline overlay (NOT Radix Dialog): one input → idea_inbox → toast.
-export default function IdeaCaptureButton({ onSaved }) {
+// Floating orange-gradient capture button (bottom-LEFT) on every Focus
+// screen. Inline overlay (NOT Radix Dialog): one input → idea_inbox → toast.
+// `hidden` → render null (so it never covers an open sheet/panel).
+// `onOpenChange` → lets the host hide sibling floating buttons while the
+// capture overlay is open.
+export default function IdeaCaptureButton({ onSaved, hidden = false, onOpenChange }) {
   const { user } = useContext(AuthContext);
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => { onOpenChange && onOpenChange(open); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (hidden) return null;
 
   const save = async () => {
     const content = text.trim();

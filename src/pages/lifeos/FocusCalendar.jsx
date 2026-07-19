@@ -200,7 +200,7 @@ export default function FocusCalendar() {
 
       {planOpen && <WeekPlanFlow userId={userId} nodes={nodes} byId={byId} weekDates={weekDates} onClose={() => setPlanOpen(false)} onChanged={loadNodes} />}
 
-      <IdeaCaptureButton />
+      <IdeaCaptureButton hidden={!!(sheetNode || timeMenu || planOpen)} />
       {sheetNode && <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} onClose={() => setSheetNode(null)} onSaved={loadNodes} />}
     </LifeOSLayout>
   );

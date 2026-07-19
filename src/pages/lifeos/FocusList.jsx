@@ -231,7 +231,7 @@ export default function FocusList() {
         })}
       </div>
 
-      <IdeaCaptureButton />
+      <IdeaCaptureButton hidden={!!sheetNode} />
       {sheetNode && (
         <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} onClose={() => setSheetNode(null)} onSaved={load} />
       )}

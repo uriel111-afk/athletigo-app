@@ -210,7 +210,7 @@ export default function FocusToday() {
         )}
       </div>
 
-      <IdeaCaptureButton />
+      <IdeaCaptureButton hidden={!!sheetNode} />
       {sheetNode && (
         <NodeDetailSheet
           node={nodes.find(n => n.id === sheetNode.id) || sheetNode}
