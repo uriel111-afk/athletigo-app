@@ -6,10 +6,10 @@ import { AuthContext } from '@/lib/AuthContext';
 // Bottom navigation for Life OS screens. Five primary tabs; the last
 // one is a "more" sheet that exposes the secondary screens.
 const PRIMARY_TABS = [
-  { to: '/lifeos',          emoji: '🏠', label: 'בית' },
-  { to: '/lifeos/expenses', emoji: '💸', label: 'הוצאות' },
-  { to: '/lifeos/plan',     emoji: '🎯', label: 'תוכנית' },
-  { to: '/lifeos/momentum', emoji: '🚀', label: 'מומנטום' },
+  { to: '/lifeos/focus',     emoji: '🎯', label: 'מיקוד' },
+  { to: '/lifeos/dashboard', emoji: '🏠', label: 'בית' },
+  { to: '/lifeos/expenses',  emoji: '💸', label: 'הוצאות' },
+  { to: '/lifeos/momentum',  emoji: '🚀', label: 'מומנטום' },
 ];
 
 const MORE_ITEMS = [

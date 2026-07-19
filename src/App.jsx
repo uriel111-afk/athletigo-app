@@ -46,6 +46,10 @@ import LifeOSContent from './pages/lifeos/ContentCalendar';
 import LifeOSCommunity from './pages/lifeos/Community';
 import LifeOSMomentum from './pages/lifeos/Momentum';
 import LifeOSSettings from './pages/lifeos/LifeOSSettings';
+import FocusToday from './pages/lifeos/FocusToday';
+import FocusList from './pages/lifeos/FocusList';
+import FocusCalendar from './pages/lifeos/FocusCalendar';
+import FocusMap from './pages/lifeos/FocusMap';
 import PersonalDashboard from './pages/personal/PersonalDashboard';
 import PersonalHabits from './pages/personal/Habits';
 import PersonalPeople from './pages/personal/People';
@@ -582,7 +586,14 @@ const AuthenticatedApp = () => {
       {/* These screens render without the app-wide Layout — they use */}
       {/* their own LifeOSLayout (CoachHub has a custom shell). */}
       <Route path="/hub"                 element={<PageRouteGuard pageKey="CoachHub"><CoachHub /></PageRouteGuard>} />
-      <Route path="/lifeos"              element={<PageRouteGuard pageKey="LifeOS"><LifeOSDashboard /></PageRouteGuard>} />
+      {/* Focus Map (מפת מיקוד) — LifeOS default landing. /lifeos now */}
+      {/* redirects here; the old dashboard stays reachable at /lifeos/dashboard. */}
+      <Route path="/lifeos"              element={<Navigate to="/lifeos/focus" replace />} />
+      <Route path="/lifeos/dashboard"    element={<PageRouteGuard pageKey="LifeOS"><LifeOSDashboard /></PageRouteGuard>} />
+      <Route path="/lifeos/focus"          element={<PageRouteGuard pageKey="LifeOS"><FocusToday /></PageRouteGuard>} />
+      <Route path="/lifeos/focus/list"     element={<PageRouteGuard pageKey="LifeOS"><FocusList /></PageRouteGuard>} />
+      <Route path="/lifeos/focus/calendar" element={<PageRouteGuard pageKey="LifeOS"><FocusCalendar /></PageRouteGuard>} />
+      <Route path="/lifeos/focus/map"      element={<PageRouteGuard pageKey="LifeOS"><FocusMap /></PageRouteGuard>} />
       <Route path="/lifeos/expenses"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSExpenses /></PageRouteGuard>} />
       {/* /new MUST be listed before /:id so React Router doesn't treat */}
       {/* "new" as an expense uuid and try to fetch a row for it. */}

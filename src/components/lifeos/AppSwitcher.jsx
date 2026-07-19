@@ -1,6 +1,6 @@
 import React, { useContext } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Briefcase, Coins, Sprout, HeartHandshake, Clapperboard } from "lucide-react";
+import { Briefcase, Coins, Sprout, HeartHandshake, Clapperboard, Target } from "lucide-react";
 import { AuthContext } from "@/lib/AuthContext";
 import { COACH_USER_ID } from "@/lib/lifeos/lifeos-constants";
 
@@ -21,13 +21,15 @@ export default function AppSwitcher({ wide = false }) {
   const path = location.pathname || "";
   const isPersonal = path.startsWith("/personal");
   const isPro      = path === "/" || path === "/dashboard";
+  const isFocus    = path === "/lifeos" || path.startsWith("/lifeos/focus");
   const isGrowth   = path.startsWith("/lifeos/leads")
                   || path.startsWith("/lifeos/content")
                   || path.startsWith("/lifeos/community");
-  const isFin      = path.startsWith("/lifeos") && !isGrowth;
+  const isFin      = path.startsWith("/lifeos") && !isGrowth && !isFocus;
   const isContent  = path.startsWith("/content");
 
   const tabs = [
+    { key: "focus",    label: "מיקוד",  href: "/lifeos/focus", active: isFocus,    Icon: Target,        iconColor: "#FF6F20" },
     { key: "pro",      label: "מקצועי", href: "/dashboard",    active: isPro,      Icon: Briefcase,     iconColor: "#7F47B5" },
     { key: "fin",      label: "פיננסי", href: "/lifeos/finance-dashboard", active: isFin,      Icon: Coins,     iconColor: "#16a34a" },
     { key: "growth",   label: "לידים",  href: "/lifeos/leads", active: isGrowth,   Icon: Sprout,    iconColor: "#FF6F20" },
