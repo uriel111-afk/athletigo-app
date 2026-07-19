@@ -10,7 +10,11 @@ import DailyStreak from '@/components/lifeos/DailyStreak';
 import PageLoader from '@/components/PageLoader';
 import { MentorChatIconButton } from '@/components/lifeos/MentorChat';
 import PopupNotificationManager from '@/components/PopupNotificationManager';
-import { Briefcase, Coins, Sprout, HeartHandshake, Clapperboard } from 'lucide-react';
+import {
+  fetchNodes, fetchLogs, logSetFrom, harvestToday,
+  indexNodes, ancestorsOf, isoDate, addDays,
+} from '@/lib/lifeos/focus-api';
+import { Briefcase, Coins, Sprout, HeartHandshake, Clapperboard, Target } from 'lucide-react';
 
 const weekRangeFromOffset = (weeksAgo) => {
   const end = new Date();
@@ -37,24 +41,13 @@ function timeGreeting() {
   return                         { text: 'לילה טוב',     emoji: '🌙' };
 }
 
-// Decide the single most-important call-to-action for today.
-function pickDailyFocus({ openLeads, daysSinceContent, pendingTasks }) {
-  if (openLeads > 0) return {
-    emoji: '📞', text: `תענה ל-${openLeads} ${openLeads === 1 ? 'ליד' : 'לידים'}`,
-    href: '/lifeos/leads',
-  };
-  if (daysSinceContent > 1) return {
-    emoji: '🎬', text: 'תפרסם תוכן היום',
-    href: '/lifeos/content',
-  };
-  if (pendingTasks > 3) return {
-    emoji: '✅', text: `תשלים ${pendingTasks} משימות`,
-    href: '/lifeos/tasks',
-  };
-  return {
-    emoji: '🚀', text: 'יום מצוין להשיק משהו חדש',
-    href: '/lifeos/plan',
-  };
+// The single top Focus task for today, using the SAME harvest logic as
+// FocusToday (focus-api). Pick order: overdue due_date → fear → highest
+// priority → first. `main` is already sorted fear→priority→first by
+// harvestToday, so overdue[0] || main[0] || rollover[0] yields that order.
+function pickTopFocusTask(nodes, logSet, today) {
+  const { overdue, main, rollover } = harvestToday(nodes, logSet, today);
+  return overdue[0] || main[0] || rollover[0] || null;
 }
 
 export default function CoachHub() {
@@ -71,6 +64,9 @@ export default function CoachHub() {
   const [weeklyScore, setWeeklyScore] = useState(0);
   const [daysSinceContent, setDaysSinceContent] = useState(99);
   const [loaded, setLoaded] = useState(false);
+  // Real top Focus task for the orange banner (+ its ancestor breadcrumb).
+  const [topTask, setTopTask] = useState(null);
+  const [topCrumb, setTopCrumb] = useState('');
 
   // Overview state — KPI deltas + attention list.
   const [overview, setOverview] = useState({
@@ -200,14 +196,32 @@ export default function CoachHub() {
     return () => { cancelled = true; };
   }, [user?.id]);
 
+  // Compute the real top Focus task for today (banner) — reuses the
+  // FocusToday harvest logic from focus-api; no duplicated logic here.
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const today = isoDate();
+        const [nodes, logs] = await Promise.all([
+          fetchNodes(user.id),
+          fetchLogs(user.id, addDays(today, -62), today),
+        ]);
+        if (cancelled) return;
+        const { byId } = indexNodes(nodes);
+        const pick = pickTopFocusTask(nodes, logSetFrom(logs), today);
+        setTopTask(pick);
+        setTopCrumb(pick ? ancestorsOf(pick, byId).map(a => a.title).join(' › ') : '');
+      } catch { /* banner falls back to the empty state */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
   if (isLoadingAuth || !user) return <PageLoader size={120} fullHeight />;
 
   const firstName = (user.full_name || '').split(' ')[0] || 'אורי';
   const greet = timeGreeting();
-  const focus = pickDailyFocus({
-    openLeads, daysSinceContent,
-    pendingTasks: pendingTasksCount,
-  });
 
   // Lumen card style — replaces LIFEOS_CARD on this screen only so
   // other LifeOS pages keep their existing look. White surface +
@@ -301,6 +315,7 @@ export default function CoachHub() {
           scrollSnapType: 'x proximity',
         }}>
           {[
+            { label: 'מיקוד', path: '/lifeos/focus',  Icon: Target,        iconColor: '#FF6F20' },
             { label: 'מקצועי', path: '/dashboard',    Icon: Briefcase,     iconColor: '#7F47B5' },
             { label: 'פיננסי', path: '/lifeos/finance-dashboard', Icon: Coins,     iconColor: '#16a34a' },
             { label: 'לידים', path: '/lifeos/leads',  Icon: Sprout,    iconColor: '#FF6F20' },
@@ -309,6 +324,7 @@ export default function CoachHub() {
           ].map((tab) => {
             const isActive = location.pathname === tab.path
               || (tab.path === '/dashboard' && location.pathname === '/')
+              || (tab.path === '/lifeos/focus' && location.pathname.startsWith('/lifeos/focus'))
               || (tab.path === '/content' && location.pathname.startsWith('/content'));
             const { Icon } = tab;
             return (
@@ -351,9 +367,11 @@ export default function CoachHub() {
           })}
         </div>
 
-        {/* Daily Focus Card — primary orange CTA, Lumen-skinned */}
+        {/* Daily Focus Card — primary orange CTA, Lumen-skinned. Shows
+            the REAL top Focus task for today (harvest from focus-api).
+            Empty → invites the coach to open the map. */}
         <div
-          onClick={() => navigate(focus.href)}
+          onClick={() => navigate(topTask ? '/lifeos/focus' : '/lifeos/focus/map')}
           style={{
             background: 'var(--ag-grad-orange)',
             borderRadius: 'var(--ag-radius-cta)',
@@ -365,14 +383,17 @@ export default function CoachHub() {
             display: 'flex', alignItems: 'center', gap: 12,
           }}
         >
-          <span style={{ fontSize: 32 }}>{focus.emoji}</span>
-          <div style={{ flex: 1 }}>
+          <span style={{ fontSize: 32 }}>{topTask ? '🎯' : '🗺️'}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.9, letterSpacing: 0.3 }}>
               המיקוד שלך היום
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, marginTop: 2 }}>
-              {focus.text}
+              {topTask ? (topTask.title || 'משימה') : 'אין משימות היום — פתח את המפה והתחל לבנות'}
             </div>
+            {topTask && topCrumb && (
+              <div style={{ fontSize: 11, fontWeight: 500, opacity: 0.85, marginTop: 2 }}>{topCrumb}</div>
+            )}
           </div>
           <span style={{ fontSize: 18 }}>←</span>
         </div>
