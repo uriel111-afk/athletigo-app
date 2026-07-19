@@ -1,10 +1,11 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { X, Trash2, ParkingSquare, CalendarPlus, Plus, Flame, Send } from 'lucide-react';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
+import { X, Trash2, ParkingSquare, CalendarPlus, Plus, Flame, Send, FolderTree, Link2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { AuthContext } from '@/lib/AuthContext';
 import {
   FOCUS, PRIORITY_CHIPS, tagColor, isoDate,
   updateNode, deleteNode, addNote, fetchNotes,
+  indexNodes, allDescendants, ancestorsOf, clearPositions,
 } from '@/lib/lifeos/focus-api';
 
 const fmtMoney = (n) => Number(n || 0).toLocaleString('he-IL');
@@ -18,7 +19,7 @@ const inputStyle = {
 // Slide-up inline overlay (NOT Radix Dialog). Edits one focus node in
 // place; every control persists immediately and calls onSaved so the
 // underlying screen refreshes.
-export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved }) {
+export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved, allNodes = [], onStartLink }) {
   const { user } = useContext(AuthContext);
   const [form, setForm] = useState(node || {});
   const [notes, setNotes] = useState([]);
@@ -27,6 +28,8 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
   const [busy, setBusy] = useState(false);
   const [moneyMode, setMoneyMode] = useState(null); // 'cost_actual' | 'revenue_actual' | null
   const [moneyAmt, setMoneyAmt] = useState('');
+  const [reparentOpen, setReparentOpen] = useState(false);
+  const [parentSearch, setParentSearch] = useState('');
 
   useEffect(() => { setForm(node || {}); }, [node?.id]);
 
@@ -35,6 +38,20 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
     if (node?.id) fetchNotes(node.id).then(n => { if (live) setNotes(n); }).catch(() => {});
     return () => { live = false; };
   }, [node?.id]);
+
+  const idx = useMemo(() => indexNodes(allNodes), [allNodes]);
+
+  // Eligible re-parent targets: branch/root nodes, excluding the node
+  // itself and its whole subtree (cycle prevention) and its current parent.
+  const eligibleParents = useMemo(() => {
+    if (!node) return [];
+    const exclude = new Set([node.id, ...allDescendants(node.id, idx.children).map(d => d.id)]);
+    const q = parentSearch.trim();
+    return allNodes
+      .filter(n => (n.node_type === 'branch' || n.node_type === 'root') && !exclude.has(n.id) && n.id !== node.parent_id)
+      .filter(n => !q || (n.title || '').includes(q))
+      .map(n => ({ ...n, crumb: ancestorsOf(n, idx.byId).map(a => a.title).join(' › ') }));
+  }, [node, allNodes, idx, parentSearch]);
 
   if (!node) return null;
   const isTask = node.node_type === 'task';
@@ -80,6 +97,23 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
   const bumpMetric = async () => {
     await persist({ metric_current: Number(form.metric_current || 0) + 1 });
   };
+
+  // Move this node under a new parent, then clear its subtree's saved
+  // coords so it auto-lays-out under the new parent. Rollups follow.
+  const reparent = async (targetId) => {
+    setReparentOpen(false); setParentSearch('');
+    const subtreeIds = [node.id, ...allDescendants(node.id, idx.children).map(d => d.id)];
+    try {
+      await updateNode(node.id, { parent_id: targetId });
+      await clearPositions(subtreeIds);
+      toast.success('ההורה עודכן');
+      onSaved && onSaved();
+      onClose && onClose();
+    } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
+  };
+
+  const startLink = () => { onStartLink && onStartLink(node); onClose && onClose(); };
+  const canReparent = node.node_type !== 'root' && allNodes.length > 0;
 
   // Add an amount to cost_actual/revenue_actual and log it to the feed.
   const addMoney = async (field) => {
@@ -301,6 +335,39 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
         <textarea value={form.note || ''} onChange={(e) => setForm(f => ({ ...f, note: e.target.value }))}
           onBlur={() => form.note !== node.note && persist({ note: form.note || null })}
           rows={2} placeholder="פרטים נוספים…" style={{ ...inputStyle, resize: 'none', marginBottom: 16 }} />
+
+        {/* Structure actions: re-parent + cross-link */}
+        {(canReparent || onStartLink) && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            {canReparent && (
+              <button onClick={() => setReparentOpen(o => !o)} style={actionBtn('#EEEDFE', '#3C3489')}><FolderTree size={15} /> שנה הורה</button>
+            )}
+            {onStartLink && (
+              <button onClick={startLink} style={actionBtn('#E6F1FB', '#0C447C')}><Link2 size={15} /> הוסף קשר</button>
+            )}
+          </div>
+        )}
+
+        {/* Re-parent picker (searchable) */}
+        {reparentOpen && (
+          <div style={{ border: `1px solid ${FOCUS.border}`, borderRadius: 12, padding: 10, marginBottom: 14, background: '#FBF6EF' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <Search size={14} color={FOCUS.muted} />
+              <input autoFocus value={parentSearch} onChange={(e) => setParentSearch(e.target.value)} placeholder="חפש הורה חדש…" style={{ ...inputStyle, flex: 1, padding: '8px 10px' }} />
+            </div>
+            <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {eligibleParents.length === 0 ? (
+                <div style={{ fontSize: 12, color: FOCUS.muted, textAlign: 'center', padding: '10px 0' }}>אין הורה זמין להעברה</div>
+              ) : eligibleParents.map(p => (
+                <button key={p.id} onClick={() => reparent(p.id)}
+                  style={{ textAlign: 'right', padding: '9px 11px', borderRadius: 10, border: `1px solid ${FOCUS.border}`, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: FOCUS.ink }}>{p.title}{p.node_type === 'root' ? ' (שורש)' : ''}</div>
+                  {p.crumb && <div style={{ fontSize: 11, color: FOCUS.muted, marginTop: 2 }}>{p.crumb}</div>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Action buttons */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>

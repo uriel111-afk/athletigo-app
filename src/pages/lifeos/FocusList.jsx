@@ -233,7 +233,7 @@ export default function FocusList() {
 
       <IdeaCaptureButton hidden={!!sheetNode} />
       {sheetNode && (
-        <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} onClose={() => setSheetNode(null)} onSaved={load} />
+        <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} allNodes={nodes} onClose={() => setSheetNode(null)} onSaved={load} />
       )}
     </LifeOSLayout>
   );

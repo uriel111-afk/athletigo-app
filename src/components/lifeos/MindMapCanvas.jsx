@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Unlink } from 'lucide-react';
 import { FOCUS, urgencyStyle, descendantTasks, allDescendants } from '@/lib/lifeos/focus-api';
 
 // ── Geometry ──────────────────────────────────────────────────────
@@ -31,10 +32,12 @@ function computeLayout(roots, visibleChildrenOf) {
 export default function MindMapCanvas({
   nodes, byId, children, roots, expanded, selectedId,
   isTaskDone, onTapNode, onToggleDone, onLongPress, onSavePos, centerOnId,
+  links = [], onRemoveLink, linkMode = false, onPickLinkTarget,
 }) {
   const [view, setView] = useState({ tx: 20, ty: 20, scale: 1 });
   const [drag, setDrag] = useState(null);      // live node drag
   const [livePos, setLivePos] = useState({});   // id -> {x,y} during drag
+  const [selLink, setSelLink] = useState(null); // selected cross-link id
   const saveTimer = useRef(null);
   const gesture = useRef(null);   // single-finger node gesture (tap/drag/long-press)
   const pan = useRef(null);       // single-finger canvas pan
@@ -60,6 +63,22 @@ export default function MindMapCanvas({
   const layout = useMemo(() => computeLayout(roots, visibleChildrenOf),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [nodes, expanded, children, roots]);
+
+  // Resolve a node to its nearest VISIBLE ancestor (links into a
+  // collapsed subtree attach to the collapsed ancestor that's shown).
+  const visibleIds = useMemo(() => new Set(visibleNodes.map(n => n.id)), [visibleNodes]);
+  const visibleAncestor = (id) => {
+    let cur = byId[id], guard = 0;
+    while (cur && guard++ < 100) { if (visibleIds.has(cur.id)) return cur; cur = byId[cur.parent_id]; }
+    return null;
+  };
+  const resolvedLinks = useMemo(() => links.map(lk => {
+    const a = visibleAncestor(lk.from_node), b = visibleAncestor(lk.to_node);
+    if (!a || !b || a.id === b.id) return null;
+    return { id: lk.id, a, b };
+  }).filter(Boolean),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [links, visibleIds, byId]);
 
   // Resolved position: live drag → saved coords → auto layout.
   const posOf = (n) => livePos[n.id]
@@ -100,7 +119,7 @@ export default function MindMapCanvas({
     if (pointers.current.size === 2) { beginPinch(); return; }
     if (pointers.current.size > 2) return;
 
-    // Single pointer: node gesture if on a node, else canvas pan.
+    // Single pointer: node gesture → link tap → canvas pan.
     const node = findNode(e.target);
     if (node) {
       const start = posOf(node);
@@ -108,9 +127,15 @@ export default function MindMapCanvas({
         node, sx: e.clientX, sy: e.clientY, nx: start.x, ny: start.y, moved: false, long: false,
         timer: setTimeout(() => { if (gesture.current) { gesture.current.long = true; onLongPress(node); } }, 480),
       };
-    } else {
-      pan.current = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty };
+      return;
     }
+    const linkEl = e.target?.closest?.('[data-link-id]');
+    if (linkEl) {
+      gesture.current = { linkId: linkEl.getAttribute('data-link-id'), sx: e.clientX, sy: e.clientY, moved: false };
+      return;
+    }
+    setSelLink(null); // tapping empty canvas deselects any link
+    pan.current = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty };
   };
 
   const onMove = (e) => {
@@ -130,6 +155,11 @@ export default function MindMapCanvas({
     }
 
     const g = gesture.current;
+    if (g && g.linkId) {
+      // Movement past the threshold cancels the link tap.
+      if (Math.abs(e.clientX - g.sx) > 8 || Math.abs(e.clientY - g.sy) > 8) g.moved = true;
+      return;
+    }
     if (g) {
       const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
       if (!g.moved && Math.abs(dx) < 8 && Math.abs(dy) < 8) return; // 8px threshold
@@ -162,11 +192,17 @@ export default function MindMapCanvas({
 
     const g = gesture.current;
     gesture.current = null;
+    if (g && g.linkId) {
+      if (!g.moved) setSelLink(g.linkId); // tap a dashed edge → select it
+      if (pointers.current.size === 0) pan.current = null;
+      return;
+    }
     if (g) {
       clearTimeout(g.timer);
       if (!g.long) {
         if (!g.moved) {
-          if (g.node.node_type === 'task') onToggleDone(g.node); else onTapNode(g.node);
+          if (linkMode) { onPickLinkTarget && onPickLinkTarget(g.node); }
+          else if (g.node.node_type === 'task') onToggleDone(g.node); else onTapNode(g.node);
         } else {
           const final = livePos[g.node.id];
           setDrag(null);
@@ -212,6 +248,20 @@ export default function MindMapCanvas({
     return `M ${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}`;
   };
 
+  // Cross-link path: center-to-center bezier (distinct from hierarchy).
+  const linkPath = (a, b) => {
+    const pa = posOf(a), pb = posOf(b);
+    const x1 = pa.x + NODE_W / 2, y1 = pa.y + heightFor(a) / 2;
+    const x2 = pb.x + NODE_W / 2, y2 = pb.y + heightFor(b) / 2;
+    const mx = (x1 + x2) / 2;
+    return `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`;
+  };
+  const linkMid = (a, b) => {
+    const pa = posOf(a), pb = posOf(b);
+    return { x: (pa.x + pb.x) / 2 + NODE_W / 2, y: (pa.y + heightFor(a) / 2 + pb.y + heightFor(b) / 2) / 2 };
+  };
+  const selLinkObj = resolvedLinks.find(l => l.id === selLink) || null;
+
   // Ancestor chain of selected (to highlight its edges).
   const selChain = useMemo(() => {
     const s = new Set();
@@ -234,12 +284,25 @@ export default function MindMapCanvas({
         style={{ touchAction: 'none', background: FOCUS.bg, display: 'block' }}
       >
         <g transform={`translate(${view.tx},${view.ty}) scale(${view.scale})`}>
-          {/* Edges */}
+          {/* Hierarchy edges (solid) */}
           {visibleNodes.map(p => visibleChildrenOf(p).map(c => {
             const hot = selChain.has(p.id) && selChain.has(c.id);
             return <path key={p.id + '-' + c.id} d={edgePath(p, c)} fill="none"
               stroke={hot ? FOCUS.edgeSel : FOCUS.edge} strokeWidth={hot ? 3 : 2} />;
           }))}
+
+          {/* Cross-links (dashed) — visual references only */}
+          {resolvedLinks.map(l => {
+            const d = linkPath(l.a, l.b);
+            const on = selLink === l.id;
+            return (
+              <g key={l.id}>
+                <path d={d} fill="none" stroke={on ? FOCUS.edgeSel : '#B4B2A9'} strokeWidth={on ? 2.5 : 1.5} strokeDasharray="6 5" style={{ pointerEvents: 'none' }} />
+                {/* fat transparent hit-area for tapping */}
+                <path data-link-id={l.id} d={d} fill="none" stroke="transparent" strokeWidth={16} style={{ pointerEvents: 'stroke', cursor: 'pointer' }} />
+              </g>
+            );
+          })}
 
           {/* Nodes */}
           {visibleNodes.map(n => {
@@ -270,6 +333,21 @@ export default function MindMapCanvas({
         <button onPointerDown={(e) => e.stopPropagation()} onClick={() => zoom(1)} style={zoomBtn}>+</button>
         <button onPointerDown={(e) => e.stopPropagation()} onClick={() => zoom(-1)} style={zoomBtn}>−</button>
       </div>
+
+      {/* Remove-link chip at the selected link's midpoint */}
+      {selLinkObj && (() => {
+        const m = linkMid(selLinkObj.a, selLinkObj.b);
+        const sx = view.tx + m.x * view.scale, sy = view.ty + m.y * view.scale;
+        return (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => { onRemoveLink && onRemoveLink(selLink); setSelLink(null); }}
+            style={{ position: 'absolute', left: sx, top: sy, transform: 'translate(-50%,-50%)', display: 'flex', alignItems: 'center', gap: 5, background: '#fff', border: `1.5px solid ${FOCUS.edgeSel}`, color: FOCUS.edgeSel, borderRadius: 999, padding: '6px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.18)', fontFamily: "'Rubik', system-ui, sans-serif", whiteSpace: 'nowrap' }}
+          >
+            <Unlink size={14} /> הסר קשר
+          </button>
+        );
+      })()}
     </div>
   );
 }

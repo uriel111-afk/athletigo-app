@@ -131,6 +131,39 @@ export async function fetchNoteNodeIds(userId) {
   return new Set((data || []).map(r => r.node_id));
 }
 
+// ─── Cross-links (visual references only) ─────────────────────────
+export async function fetchLinks(userId) {
+  const { data, error } = await supabase
+    .from('focus_node_links')
+    .select('id, from_node, to_node')
+    .eq('user_id', userId);
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createLink(userId, fromNode, toNode) {
+  // Order-insensitive: skip if a link already exists either direction.
+  const { data: existing } = await supabase
+    .from('focus_node_links')
+    .select('id')
+    .eq('user_id', userId)
+    .or(`and(from_node.eq.${fromNode},to_node.eq.${toNode}),and(from_node.eq.${toNode},to_node.eq.${fromNode})`)
+    .limit(1);
+  if (existing && existing.length) return existing[0];
+  const { data, error } = await supabase
+    .from('focus_node_links')
+    .insert([{ user_id: userId, from_node: fromNode, to_node: toNode }])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteLink(id) {
+  const { error } = await supabase.from('focus_node_links').delete().eq('id', id);
+  if (error) throw error;
+}
+
 export async function fetchIdeas(userId) {
   const { data, error } = await supabase
     .from('idea_inbox')

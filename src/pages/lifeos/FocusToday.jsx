@@ -215,6 +215,7 @@ export default function FocusToday() {
         <NodeDetailSheet
           node={nodes.find(n => n.id === sheetNode.id) || sheetNode}
           ancestors={ancestorsOf(sheetNode, byId)}
+          allNodes={nodes}
           onClose={() => setSheetNode(null)}
           onSaved={load}
         />
