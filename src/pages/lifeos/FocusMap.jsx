@@ -1,4 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import PageSkeleton from '@/components/PageSkeleton';
@@ -18,6 +19,7 @@ import {
 export default function FocusMap() {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
+  const location = useLocation();
   const today = isoDate();
 
   const [nodes, setNodes] = useState([]);
@@ -26,6 +28,7 @@ export default function FocusMap() {
   const [loaded, setLoaded] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [expanded, setExpanded] = useState(new Set());
+  const [centerId, setCenterId] = useState(null);
   const [sheetNode, setSheetNode] = useState(null);
   const [addMenu, setAddMenu] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -46,6 +49,15 @@ export default function FocusMap() {
   }, [userId, today]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Deep-link from the Control tower: focus a specific branch.
+  useEffect(() => {
+    const bid = location.state?.focusBranchId;
+    if (!bid) return;
+    setSelectedId(bid);
+    setExpanded(prev => new Set(prev).add(bid));
+    setCenterId(bid);
+  }, [location.state]);
 
   const { byId, children, roots } = useMemo(() => indexNodes(nodes), [nodes]);
   const logSet = useMemo(() => logSetFrom(logs), [logs]);
@@ -152,6 +164,7 @@ export default function FocusMap() {
             onTapNode={tapNode} onToggleDone={toggleDone}
             onLongPress={(n) => { setSelectedId(n.id); setSheetNode(n); }}
             onSavePos={savePos}
+            centerOnId={centerId}
           />
         )}
 

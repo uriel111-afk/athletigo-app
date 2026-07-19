@@ -46,6 +46,7 @@ import LifeOSContent from './pages/lifeos/ContentCalendar';
 import LifeOSCommunity from './pages/lifeos/Community';
 import LifeOSMomentum from './pages/lifeos/Momentum';
 import LifeOSSettings from './pages/lifeos/LifeOSSettings';
+import FocusControl from './pages/lifeos/FocusControl';
 import FocusToday from './pages/lifeos/FocusToday';
 import FocusList from './pages/lifeos/FocusList';
 import FocusCalendar from './pages/lifeos/FocusCalendar';
@@ -591,6 +592,7 @@ const AuthenticatedApp = () => {
       <Route path="/lifeos"              element={<Navigate to="/lifeos/focus" replace />} />
       <Route path="/lifeos/dashboard"    element={<PageRouteGuard pageKey="LifeOS"><LifeOSDashboard /></PageRouteGuard>} />
       <Route path="/lifeos/focus"          element={<PageRouteGuard pageKey="LifeOS"><FocusToday /></PageRouteGuard>} />
+      <Route path="/lifeos/focus/control"  element={<PageRouteGuard pageKey="LifeOS"><FocusControl /></PageRouteGuard>} />
       <Route path="/lifeos/focus/list"     element={<PageRouteGuard pageKey="LifeOS"><FocusList /></PageRouteGuard>} />
       <Route path="/lifeos/focus/calendar" element={<PageRouteGuard pageKey="LifeOS"><FocusCalendar /></PageRouteGuard>} />
       <Route path="/lifeos/focus/map"      element={<PageRouteGuard pageKey="LifeOS"><FocusMap /></PageRouteGuard>} />

@@ -7,6 +7,7 @@ import {
   updateNode, deleteNode, addNote, fetchNotes,
 } from '@/lib/lifeos/focus-api';
 
+const fmtMoney = (n) => Number(n || 0).toLocaleString('he-IL');
 const labelStyle = { fontSize: 12, fontWeight: 700, color: FOCUS.muted, marginBottom: 6, display: 'block' };
 const inputStyle = {
   width: '100%', border: `1px solid ${FOCUS.border}`, borderRadius: 12,
@@ -24,6 +25,8 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
   const [feedText, setFeedText] = useState('');
   const [tagText, setTagText] = useState('');
   const [busy, setBusy] = useState(false);
+  const [moneyMode, setMoneyMode] = useState(null); // 'cost_actual' | 'revenue_actual' | null
+  const [moneyAmt, setMoneyAmt] = useState('');
 
   useEffect(() => { setForm(node || {}); }, [node?.id]);
 
@@ -77,6 +80,21 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
   const bumpMetric = async () => {
     await persist({ metric_current: Number(form.metric_current || 0) + 1 });
   };
+
+  // Add an amount to cost_actual/revenue_actual and log it to the feed.
+  const addMoney = async (field) => {
+    const amt = Number(moneyAmt);
+    if (!amt || !user?.id) { setMoneyMode(null); setMoneyAmt(''); return; }
+    const next = Number(form[field] || 0) + amt;
+    const label = field === 'cost_actual' ? 'הוצאה' : 'הכנסה';
+    setMoneyMode(null); setMoneyAmt('');
+    await persist({ [field]: next });
+    try {
+      const saved = await addNote(user.id, node.id, `${label}: ${fmtMoney(amt)}`);
+      setNotes(n => [saved, ...n]);
+    } catch { /* feed note is best-effort */ }
+  };
+  const profit = Number(form.revenue_actual || 0) - Number(form.cost_actual || 0);
 
   return (
     <div
@@ -225,6 +243,56 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
                 <input type="date" value={form.cycle_end || ''} onChange={(e) => persist({ cycle_end: e.target.value || null })} style={inputStyle} />
               </div>
             </div>
+
+            {/* Economics */}
+            <label style={labelStyle}>כלכלה</label>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, color: FOCUS.muted, marginBottom: 4 }}>תקציב</div>
+                <input type="number" inputMode="decimal" value={form.budget ?? ''} onChange={(e) => setForm(f => ({ ...f, budget: e.target.value }))}
+                  onBlur={() => persist({ budget: form.budget === '' || form.budget == null ? null : Number(form.budget) })} placeholder="₪" style={inputStyle} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, color: FOCUS.muted, marginBottom: 4 }}>הוצאות בפועל</div>
+                <input type="number" inputMode="decimal" value={form.cost_actual ?? 0} onChange={(e) => setForm(f => ({ ...f, cost_actual: e.target.value }))}
+                  onBlur={() => persist({ cost_actual: Number(form.cost_actual || 0) })} style={inputStyle} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, color: FOCUS.muted, marginBottom: 4 }}>הכנסות בפועל</div>
+                <input type="number" inputMode="decimal" value={form.revenue_actual ?? 0} onChange={(e) => setForm(f => ({ ...f, revenue_actual: e.target.value }))}
+                  onBlur={() => persist({ revenue_actual: Number(form.revenue_actual || 0) })} style={inputStyle} />
+              </div>
+            </div>
+
+            {/* Profit (read-only) */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 12px', borderRadius: 12, marginBottom: 10,
+              background: profit >= 0 ? '#E1F5EE' : '#FCEBEB',
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: FOCUS.muted }}>רווח</span>
+              <span style={{ fontSize: 17, fontWeight: 900, color: profit >= 0 ? '#085041' : '#C0392B' }}>
+                {profit >= 0 ? '' : '−'}{fmtMoney(Math.abs(profit))} ₪
+              </span>
+            </div>
+
+            {/* Quick add money */}
+            {!moneyMode ? (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                <button onClick={() => { setMoneyMode('cost_actual'); setMoneyAmt(''); }}
+                  style={{ flex: 1, padding: '10px', borderRadius: 11, border: 'none', background: '#FCEBEB', color: '#C0392B', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>+ הוצאה</button>
+                <button onClick={() => { setMoneyMode('revenue_actual'); setMoneyAmt(''); }}
+                  style={{ flex: 1, padding: '10px', borderRadius: 11, border: 'none', background: '#E1F5EE', color: '#085041', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>+ הכנסה</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                <input autoFocus type="number" inputMode="decimal" value={moneyAmt} onChange={(e) => setMoneyAmt(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addMoney(moneyMode)}
+                  placeholder={moneyMode === 'cost_actual' ? 'סכום הוצאה' : 'סכום הכנסה'} style={{ ...inputStyle, flex: 1 }} />
+                <button onClick={() => addMoney(moneyMode)} style={{ padding: '0 16px', borderRadius: 11, border: 'none', background: moneyMode === 'cost_actual' ? '#C0392B' : '#085041', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>הוסף</button>
+                <button onClick={() => { setMoneyMode(null); setMoneyAmt(''); }} style={{ padding: '0 12px', borderRadius: 11, border: `1px solid ${FOCUS.border}`, background: '#fff', color: FOCUS.muted, fontWeight: 700, cursor: 'pointer' }}>ביטול</button>
+              </div>
+            )}
           </>
         )}
 

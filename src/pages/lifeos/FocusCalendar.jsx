@@ -1,4 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import PageSkeleton from '@/components/PageSkeleton';
@@ -27,16 +28,23 @@ function occursOn(n, date) {
 export default function FocusCalendar() {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
+  const location = useLocation();
   const today = isoDate();
 
   const [nodes, setNodes] = useState([]);
   const [sessions, setSessions] = useState([]);
-  const [selected, setSelected] = useState(today);
+  const [selected, setSelected] = useState(location.state?.date || today);
   const [loaded, setLoaded] = useState(false);
   const [sheetNode, setSheetNode] = useState(null);
   const [timeMenu, setTimeMenu] = useState(null); // node awaiting a time
-  const [planOpen, setPlanOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(!!location.state?.openPlan);
   const swipe = useRef({ x: 0 });
+
+  // Apply deep-link state on later navigations too (not just first mount).
+  useEffect(() => {
+    if (location.state?.date) setSelected(location.state.date);
+    if (location.state?.openPlan) setPlanOpen(true);
+  }, [location.state]);
 
   const loadNodes = useCallback(async () => {
     if (!userId) return;

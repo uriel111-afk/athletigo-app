@@ -30,7 +30,7 @@ function computeLayout(roots, visibleChildrenOf) {
 
 export default function MindMapCanvas({
   nodes, byId, children, roots, expanded, selectedId,
-  isTaskDone, onTapNode, onToggleDone, onLongPress, onSavePos,
+  isTaskDone, onTapNode, onToggleDone, onLongPress, onSavePos, centerOnId,
 }) {
   const [view, setView] = useState({ tx: 20, ty: 20, scale: 1 });
   const [drag, setDrag] = useState(null);      // live node drag
@@ -122,6 +122,22 @@ export default function MindMapCanvas({
   const zoom = (dir) => setView(v => ({ ...v, scale: Math.min(2, Math.max(0.5, +(v.scale + dir * 0.2).toFixed(2))) }));
 
   useEffect(() => () => { clearTimeout(saveTimer.current); }, []);
+
+  // Center the view on a requested node (e.g. arriving from the Control
+  // tower "tap a branch"). Runs once positions are available.
+  useEffect(() => {
+    if (!centerOnId) return;
+    const n = byId[centerOnId];
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!n || !rect) return;
+    const p = posOf(n);
+    setView(v => ({
+      ...v,
+      tx: rect.width / 2 - (p.x + NODE_W / 2) * v.scale,
+      ty: Math.max(16, rect.height * 0.26 - p.y * v.scale),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [centerOnId, nodes]);
 
   // Path from parent to a visible child (bottom-center → top-center).
   const edgePath = (p, c) => {

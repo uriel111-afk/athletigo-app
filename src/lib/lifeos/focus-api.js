@@ -374,6 +374,15 @@ export function harvestToday(nodes, logSet, today = isoDate()) {
   return { overdue, rollover, main };
 }
 
+// Does an active task occur on a given date (recurring or one-time)?
+export function occursOn(n, date) {
+  if (n.node_type !== 'task' || n.status !== 'active') return false;
+  if (n.frequency === 'daily') return true;
+  if (n.frequency === 'weekly') return n.day_of_week === dowOf(date);
+  if (n.frequency === 'monthly') { const d = new Date(date + 'T00:00:00').getDate(); return d >= 1 && d <= 3; }
+  return n.task_date === date;
+}
+
 // Ring stats for today: how many "relevant today" tasks are done.
 export function todayStats(nodes, logSet, today = isoDate()) {
   const dow = dowOf(today);
