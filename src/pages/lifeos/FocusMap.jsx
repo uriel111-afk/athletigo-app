@@ -119,7 +119,13 @@ export default function FocusMap() {
   // select + center the new node so a follow-up add chains under it.
   const handleCreated = async (created) => {
     setAddOpen(false);
-    if (created.parent_id) setExpanded(prev => new Set(prev).add(created.parent_id));
+    // Expand the parent AND the new node so a concept's chain is visible.
+    setExpanded(prev => {
+      const s = new Set(prev);
+      if (created.parent_id) s.add(created.parent_id);
+      s.add(created.id);
+      return s;
+    });
     await load();
     setSelectedId(created.id);
     setCenterId(created.id);
@@ -289,6 +295,21 @@ const toolBtn = {
 const pInput = { width: '100%', border: `1px solid ${FOCUS.border}`, borderRadius: 11, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', color: FOCUS.ink, background: '#FFFDFA', outline: 'none', boxSizing: 'border-box' };
 const pLabel = { fontSize: 11, fontWeight: 700, color: FOCUS.muted, margin: '10px 0 5px' };
 
+// Concept templates: pre-configure fields + an optional task chain. They
+// only affect CREATION — nothing new is stored beyond the resulting nodes.
+const TEMPLATES = {
+  general:  { label: 'כללי' },
+  product:  { label: 'מוצר',   unit: 'יחידות', tag: 'מוצר',  autoExpand: true, highlightBudget: true,
+              chain: ['עמוד מוצר עם תשלום', 'סרטון מוצר', 'תמחור ומשלוח', 'פרסום ראשון'] },
+  service:  { label: 'שירות',  unit: 'לקוחות', tag: 'שירות',
+              chain: ['הגדרת מסלול ותמחור', 'עמוד שירות', 'לקוח ניסיון ראשון'] },
+  campaign: { label: 'קמפיין', unit: 'מכירות', tag: 'קמפיין', requireBudget: true,
+              chain: ['הגדרת תקציב', 'תסריט הקליפ', 'צילום', 'עריכה', 'דף נחיתה', 'חיבור תשלום', 'פרסום', 'מעקב תוצאות שבועי'],
+              weeklyLast: true },
+};
+const TEMPLATE_TAGS = new Set(['מוצר', 'שירות', 'קמפיין']);
+const TEMPLATE_ORDER = ['general', 'product', 'service', 'campaign'];
+
 function Chip({ active, color, onClick, children }) {
   const c = color || FOCUS.orange;
   return (
@@ -318,11 +339,33 @@ function AddNodePanel({ userId, parent, onClose, onCreated }) {
   const [budget, setBudget] = useState('');
   const [cycleStart, setCycleStart] = useState('');
   const [cycleEnd, setCycleEnd] = useState('');
+  // template + task chain
+  const [template, setTemplate] = useState('general');
+  const [chain, setChain] = useState([]);       // [{title, checked, weekly}]
+  const [chainOpen, setChainOpen] = useState(false);
 
   const addTag = () => {
     const t = tagText.trim(); if (!t) return;
     setTags(prev => [...new Set([...prev, t])]); setTagText('');
   };
+
+  // Selecting a template pre-configures fields (all still editable).
+  const applyTemplate = (key) => {
+    setTemplate(key);
+    const tpl = TEMPLATES[key];
+    // Swap the auto-added template tag (keep any user tags).
+    setTags(prev => {
+      const kept = prev.filter(t => !TEMPLATE_TAGS.has(t));
+      return tpl.tag ? [...new Set([...kept, tpl.tag])] : kept;
+    });
+    if (tpl.unit) setMetricUnit(tpl.unit);
+    if (tpl.autoExpand) setMore(true);
+    const c = (tpl.chain || []).map((t, i) => ({ title: t, checked: true, weekly: !!(tpl.weeklyLast && i === tpl.chain.length - 1) }));
+    setChain(c);
+    setChainOpen(false);
+  };
+  const checkedCount = chain.filter(c => c.checked).length;
+  const campaignBudgetMissing = template === 'campaign' && budget === '';
 
   const save = async () => {
     const t = title.trim();
@@ -345,9 +388,22 @@ function AddNodePanel({ userId, parent, onClose, onCreated }) {
       if (budget !== '') fields.budget = Number(budget);
       if (cycleStart) fields.cycle_start = cycleStart;
       if (cycleEnd) fields.cycle_end = cycleEnd;
+      if (tags.length) fields.tags = tags;
     }
-    try { const created = await createNode(userId, fields); onCreated(created); }
-    catch { toast.error('שגיאה'); setSaving(false); }
+    try {
+      const created = await createNode(userId, fields);
+      // Concept templates: create the checked chain items as child tasks.
+      if (type === 'branch') {
+        const checked = chain.filter(c => c.checked);
+        for (let i = 0; i < checked.length; i++) {
+          const c = checked[i];
+          const cf = { parent_id: created.id, node_type: 'task', title: c.title, sort_order: i };
+          if (c.weekly) { cf.frequency = 'weekly'; cf.day_of_week = 5; }
+          await createNode(userId, cf);
+        }
+      }
+      onCreated(created);
+    } catch { toast.error('שגיאה'); setSaving(false); }
   };
 
   return (
@@ -363,6 +419,19 @@ function AddNodePanel({ userId, parent, onClose, onCreated }) {
           <Chip active={type === 'branch'} onClick={() => setType('branch')}><GitBranch size={13} style={{ verticalAlign: 'middle', marginLeft: 3 }} />מושג</Chip>
           <Chip active={type === 'task'} onClick={() => setType('task')}><Plus size={13} style={{ verticalAlign: 'middle', marginLeft: 3 }} />משימה</Chip>
         </div>
+
+        {/* Row 2: template (concepts only) */}
+        {type === 'branch' && (
+          <>
+            <div style={pLabel}>תבנית</div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              {TEMPLATE_ORDER.map(k => (
+                <Chip key={k} active={template === k} onClick={() => applyTemplate(k)}>{TEMPLATES[k].label}</Chip>
+              ))}
+            </div>
+          </>
+        )}
+
         <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !more && save()} placeholder="כותרת" style={{ ...pInput, fontSize: 16, fontWeight: 700 }} />
 
         {/* Expander */}
@@ -426,12 +495,48 @@ function AddNodePanel({ userId, parent, onClose, onCreated }) {
               <div style={{ flex: 1 }}><div style={pLabel}>מדד יעד</div><input type="number" inputMode="decimal" value={metricTarget} onChange={(e) => setMetricTarget(e.target.value)} style={pInput} /></div>
               <div style={{ flex: 1 }}><div style={pLabel}>יחידה</div><input value={metricUnit} onChange={(e) => setMetricUnit(e.target.value)} placeholder="₪ / יח׳" style={pInput} /></div>
             </div>
-            <div style={pLabel}>תקציב</div>
-            <input type="number" inputMode="decimal" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="₪" style={pInput} />
+            <div style={pLabel}>תקציב{campaignBudgetMissing ? ' · חובה לקמפיין' : ''}</div>
+            <input type="number" inputMode="decimal" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="₪"
+              style={{ ...pInput, ...(campaignBudgetMissing ? { border: '2px solid #FF6F20' } : TEMPLATES[template]?.highlightBudget ? { border: `1.5px solid ${FOCUS.orange}` } : {}) }} />
             <div style={{ display: 'flex', gap: 10 }}>
               <div style={{ flex: 1 }}><div style={pLabel}>תחילת מחזור</div><input type="date" value={cycleStart} onChange={(e) => setCycleStart(e.target.value)} style={pInput} /></div>
               <div style={{ flex: 1 }}><div style={pLabel}>סוף מחזור</div><input type="date" value={cycleEnd} onChange={(e) => setCycleEnd(e.target.value)} style={pInput} /></div>
             </div>
+
+            <div style={pLabel}>תגיות</div>
+            {tags.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                {tags.map(tg => { const c = tagColor(tg); return <span key={tg} onClick={() => setTags(tags.filter(x => x !== tg))} style={{ background: c.bg, color: c.fg, borderRadius: 8, padding: '3px 8px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{tg} ✕</span>; })}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={tagText} onChange={(e) => setTagText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())} placeholder="הוסף תגית…" style={{ ...pInput, flex: 1 }} />
+              <button onClick={addTag} style={{ padding: '0 14px', borderRadius: 11, border: 'none', background: FOCUS.orange, color: '#fff', cursor: 'pointer', fontWeight: 700 }}>+</button>
+            </div>
+          </div>
+        )}
+
+        {/* Ready-made task chain (concept templates only) */}
+        {type === 'branch' && chain.length > 0 && (
+          <div style={{ marginTop: 12, border: `1px solid ${FOCUS.border}`, borderRadius: 12, overflow: 'hidden' }}>
+            <button onClick={() => setChainOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#FBF6EF', border: 'none', padding: '11px 12px', cursor: 'pointer', fontFamily: 'inherit' }}>
+              <span style={{ fontSize: 13.5, fontWeight: 800, color: FOCUS.ink }}>שרשרת משימות מוכנה</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: FOCUS.muted, fontWeight: 700 }}>
+                {checkedCount}/{chain.length}
+                <ChevronDown size={15} style={{ transform: chainOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
+              </span>
+            </button>
+            {chainOpen && (
+              <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {chain.map((c, i) => (
+                  <button key={i} onClick={() => setChain(prev => prev.map((x, j) => j === i ? { ...x, checked: !x.checked } : x))}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 10, border: 'none', background: c.checked ? '#FFF6EE' : '#fff', cursor: 'pointer', textAlign: 'right', fontFamily: 'inherit' }}>
+                    <span style={{ width: 20, height: 20, flexShrink: 0, borderRadius: 6, border: `2px solid ${c.checked ? FOCUS.orange : FOCUS.border}`, background: c.checked ? FOCUS.orange : '#fff', color: '#fff', fontSize: 13, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{c.checked ? '✓' : ''}</span>
+                    <span style={{ fontSize: 13.5, fontWeight: 600, color: FOCUS.ink }}>{c.title}{c.weekly ? ' · שבועי' : ''}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
