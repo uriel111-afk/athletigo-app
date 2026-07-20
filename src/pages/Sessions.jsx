@@ -15,6 +15,7 @@ import {
 } from "../components/hooks/useServiceDeduction";
 import { syncPackageStatus } from "@/lib/packageStatus";
 import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
+import { createCoachSession } from "@/lib/sessions/createCoachSession";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -288,48 +289,10 @@ export default function Sessions() {
     onError: () => toast.error('שגיאה בעדכון נוכחות')
   });
 
-  const createSessionMutation = useMutation({
-    mutationFn: (sessionData) => {
-      console.log("[Sessions] Creating session with data:", sessionData);
-      return base44.entities.Session.create(sessionData);
-    },
-    onSuccess: async (createdSession) => {
-      queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['my-sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
-      invalidateDashboard(queryClient);
-      setShowSessionDialog(false);
-      setEditingSession(null);
-      toast.success("✅ המפגש נוצר בהצלחה");
-
-      // Notify participants
-      if (createdSession?.participants && coach) {
-        for (const participant of createdSession.participants) {
-          await notifySessionScheduled({
-            traineeId: participant.trainee_id,
-            sessionId: createdSession.id,
-            sessionDate: createdSession.date,
-            sessionTime: createdSession.time,
-            sessionType: createdSession.session_type,
-            coachName: coach.full_name
-          });
-        }
-        queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      }
-    },
-    onError: (error) => {
-      console.error("[Sessions] Create error details:", {
-        message: error.message,
-        status: error.status,
-        statusText: error.statusText,
-        body: error.body,
-        error: error
-      });
-      toast.error("❌ שגיאה ביצירת המפגש. אנא נסה שוב.");
-    }
-  });
+  // Session CREATE now lives in the shared createCoachSession helper
+  // (src/lib/sessions/createCoachSession.js) so the Focus Calendar runs
+  // the identical path. This local flag drives the dialog's loading UI.
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const updateSessionMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Session.update(id, data),
@@ -406,92 +369,35 @@ export default function Sessions() {
       return;
     }
 
-    // Require an identifiable trainee on new sessions. Without a picked
-    // participant the row saves with trainee_id null and then vanishes
-    // from every .eq('trainee_id', …) list (trainee profile, etc.).
-    // Block the save rather than persist a ghost session.
-    if (!editingSession) {
-      const hasTrainee = !!sessionData?.trainee_id
-        || (Array.isArray(sessionData?.participants)
-            && sessionData.participants.some((p) => p?.trainee_id));
-      if (!hasTrainee) {
-        toast.error("יש לבחור מתאמן למפגש");
-        return;
-      }
-    }
-
-    // Casual-trainee gate: when the booked trainee's client_status is
-    // 'casual', the session is saved as 'pending_approval' so the
-    // TraineeHome banner can offer the health-declaration → confirm
-    // flow. Anything else (active / suspended / legacy Hebrew status
-    // / no row) keeps the existing 'ממתין לאישור' default. Best-effort
-    // — if the lookup fails for any reason we fall back to the legacy
-    // status rather than blocking the save.
-    let traineeStatus = null;
-    const traineeIds = [];
-    if (sessionData?.trainee_id) traineeIds.push(sessionData.trainee_id);
-    if (Array.isArray(sessionData?.participants)) {
-      for (const p of sessionData.participants) {
-        if (p?.trainee_id) traineeIds.push(p.trainee_id);
-      }
-    }
-    if (traineeIds.length > 0) {
-      try {
-        const { data } = await supabase
-          .from('users')
-          .select('client_status')
-          .in('id', traineeIds);
-        // If ANY participant is casual, the whole session waits for
-        // their approval — safer side of the gate.
-        if ((data || []).some((row) => row?.client_status === 'casual')) {
-          traineeStatus = 'casual';
-        }
-      } catch (e) {
-        console.warn('[Sessions] client_status lookup failed:', e?.message);
-      }
-    }
-
-    // Pull off the dialog-only `additional_participants` array — it's
-    // not a column on sessions and needs its own write into the
-    // session_participants table after the row exists.
-    const { additional_participants, ...sessionDataNoExtras } = sessionData;
-
-    // Status precedence:
-    //   1) sessionData.status === 'הושלם' (coach logged a past
-    //      session — keep as completed, no approval needed)
-    //   2) casual trainee → 'pending_approval' (needs trainee gate)
-    //   3) default → 'ממתין לאישור'
-    const fullSessionData = {
-      ...sessionDataNoExtras,
-      location: sessionDataNoExtras.location || "לא צוין",
-      duration: sessionDataNoExtras.duration || 60,
-      coach_id: coach.id,
-      status: sessionDataNoExtras.status === 'הושלם'
-        ? 'הושלם'
-        : (traineeStatus === 'casual' ? 'pending_approval' : 'ממתין לאישור'),
-    };
-
-    let savedId = null;
+    // EDIT path (unchanged): update the existing row + sync participants.
     if (editingSession) {
+      const { additional_participants, ...sessionDataNoExtras } = sessionData;
       await updateSessionMutation.mutateAsync({
         id: editingSession.id,
         data: sessionDataNoExtras,
       });
-      savedId = editingSession.id;
-    } else {
-      const created = await createSessionMutation.mutateAsync(fullSessionData);
-      savedId = created?.id || null;
+      if (Array.isArray(additional_participants)) {
+        try {
+          await syncSessionParticipants(editingSession.id, additional_participants);
+        } catch (e) {
+          console.warn('[Sessions] participants sync failed:', e?.message);
+        }
+      }
+      return;
     }
 
-    // Persist the additional-participants picker into the dedicated
-    // table. Run after the session row exists so the FK lands. Errors
-    // here log but don't block — the session itself already saved.
-    if (savedId && Array.isArray(additional_participants)) {
-      try {
-        await syncSessionParticipants(savedId, additional_participants);
-      } catch (e) {
-        console.warn('[Sessions] participants sync failed:', e?.message);
-      }
+    // CREATE path: the shared helper runs the exact same logic
+    // (trainee check → casual gate → status → Session.create →
+    // participants sync → trainee notifications → invalidations).
+    setIsCreatingSession(true);
+    try {
+      await createCoachSession({ coach, sessionData, queryClient });
+      setShowSessionDialog(false);
+      setEditingSession(null);
+    } catch (e) {
+      toast.error(e?.message || "❌ שגיאה ביצירת המפגש. אנא נסה שוב.");
+    } finally {
+      setIsCreatingSession(false);
     }
   };
 
@@ -2229,7 +2135,7 @@ export default function Sessions() {
             coachId={coach?.id}
             sessions={sessions}
             editingSession={editingSession}
-            isLoading={createSessionMutation.isPending || updateSessionMutation.isPending} />
+            isLoading={isCreatingSession || updateSessionMutation.isPending} />
 
 
           {/* Delete Confirmation Dialog */}

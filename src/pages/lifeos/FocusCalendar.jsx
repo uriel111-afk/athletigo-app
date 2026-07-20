@@ -1,12 +1,16 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AuthContext } from '@/lib/AuthContext';
+import { base44 } from '@/api/base44Client';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import PageSkeleton from '@/components/PageSkeleton';
 import FocusChips from '@/components/lifeos/FocusChips';
 import IdeaCaptureButton from '@/components/lifeos/IdeaCaptureButton';
 import NodeDetailSheet from '@/components/lifeos/NodeDetailSheet';
-import { CalendarRange, Dumbbell, Clock, X, ChevronLeft, Check, Plus } from 'lucide-react';
+import SessionFormDialog from '@/components/forms/SessionFormDialog';
+import { createCoachSession } from '@/lib/sessions/createCoachSession';
+import { CalendarRange, Dumbbell, Clock, X, ChevronLeft, Check, Plus, ListChecks } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   FOCUS, urgencyStyle, tagColor, isoDate, addDays, dowOf, HEB_DAYS, HEB_DAYS_FULL,
@@ -16,6 +20,7 @@ import {
 
 const HOURS = Array.from({ length: 17 }, (_, i) => i + 6); // 06:00..22:00
 const hourOf = (t) => (t ? parseInt(String(t).slice(0, 2), 10) : null);
+const pad2 = (h) => String(h).padStart(2, '0');
 
 function occursOn(n, date) {
   if (n.node_type !== 'task' || n.status !== 'active') return false;
@@ -60,7 +65,61 @@ export default function FocusCalendar() {
   useEffect(() => { loadNodes(); }, [loadNodes]);
   useEffect(() => { loadSessions(); }, [loadSessions]);
 
-  const { byId } = useMemo(() => indexNodes(nodes), [nodes]);
+  const { byId, roots } = useMemo(() => indexNodes(nodes), [nodes]);
+
+  // ── Add-event flow (task or training session) ─────────────────
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [addSlot, setAddSlot] = useState(null);       // { hour } | null
+  const [chooserMode, setChooserMode] = useState('pick'); // 'pick' | 'task'
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [sessionOpen, setSessionOpen] = useState(false);
+  const [sessionPreset, setSessionPreset] = useState({ date: null, time: null });
+
+  // Trainees for the reused session form (shares cache with מפגשים).
+  const { data: trainees = [] } = useQuery({
+    queryKey: ['trainees-list'],
+    queryFn: async () => {
+      try {
+        const all = await base44.entities.User.list('-created_at', 1000);
+        return all.filter((u) => !u.account_deleted && u.role !== 'admin' && u.user_role !== 'coach' && (u.role === 'user' || u.role === 'trainee'));
+      } catch { return []; }
+    },
+    initialData: [], staleTime: 30000, retry: 2,
+  });
+
+  const openAdd = (hour = null) => { setAddSlot({ hour }); setChooserMode('pick'); setNewTaskTitle(''); };
+
+  const createTaskAtSlot = async () => {
+    const title = newTaskTitle.trim();
+    if (!title) return;
+    const hour = addSlot?.hour;
+    const fields = { parent_id: roots[0]?.id || null, node_type: 'task', title, task_date: selected };
+    if (hour != null) fields.task_time = `${pad2(hour)}:00`;
+    setAddSlot(null); setNewTaskTitle('');
+    try { await createNode(userId, fields); loadNodes(); toast.success('נוספה משימה'); }
+    catch { toast.error('שגיאה'); }
+  };
+
+  const openSessionForm = () => {
+    const hour = addSlot?.hour;
+    setSessionPreset({ date: selected, time: hour != null ? `${pad2(hour)}:00` : null });
+    setAddSlot(null);
+    setSessionOpen(true);
+  };
+
+  // Reuse the PROVEN מפגשים creation path (shared helper → trainees see it).
+  const submitSession = async (sessionData) => {
+    await createCoachSession({ coach: user, sessionData, queryClient });
+    setSessionOpen(false);
+    loadSessions(); // refresh the day → blue card appears immediately
+  };
+
+  // Tapping an existing session deep-links to its מפגשים detail.
+  const openSessionDetail = (s) => {
+    if (s.trainee_id) navigate(`/TraineeProfile?userId=${s.trainee_id}&tab=attendance&sessionId=${s.id}`);
+    else navigate('/sessions');
+  };
 
   // Week strip (Sun..Sat containing `selected`).
   const weekDates = useMemo(() => {
@@ -120,6 +179,12 @@ export default function FocusCalendar() {
             );
           })}
         </div>
+
+        {/* Add-event button on the day header */}
+        <button onClick={() => openAdd(null)}
+          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px', borderRadius: 12, border: `1px dashed ${FOCUS.border}`, background: '#fff', color: FOCUS.orange, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 14, fontFamily: 'inherit' }}>
+          <Plus size={16} /> אירוע חדש
+        </button>
       </div>
 
       <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 14px 24px' }}>
@@ -150,18 +215,18 @@ export default function FocusCalendar() {
           {HOURS.map(h => {
             const items = itemsAtHour(h);
             return (
-              <div key={h} style={{ display: 'flex', gap: 10, minHeight: 46, borderTop: `1px solid ${FOCUS.border}`, padding: '6px 0' }}>
+              <div key={h} onClick={() => openAdd(h)} style={{ display: 'flex', gap: 10, minHeight: 46, borderTop: `1px solid ${FOCUS.border}`, padding: '6px 0', cursor: 'pointer' }}>
                 <div style={{ width: 42, flexShrink: 0, fontSize: 12, color: FOCUS.muted, fontWeight: 700 }}>{String(h).padStart(2, '0')}:00</div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {items.map((it, i) => it.kind === 'session' ? (
-                    <div key={'s' + i} style={{ background: '#fff', borderRight: `4px solid ${FOCUS.session}`, border: `1px solid ${FOCUS.border}`, borderRadius: 10, padding: '8px 11px', boxShadow: FOCUS.neu }}>
+                    <div key={'s' + i} onClick={(e) => { e.stopPropagation(); openSessionDetail(it.s); }} style={{ background: '#fff', borderRight: `4px solid ${FOCUS.session}`, border: `1px solid ${FOCUS.border}`, borderRadius: 10, padding: '8px 11px', boxShadow: FOCUS.neu, cursor: 'pointer' }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: FOCUS.ink }}>{it.s.displayName}</div>
                       <div style={{ fontSize: 11, color: FOCUS.session, fontWeight: 600, marginTop: 2 }}>
                         {String(it.s.time).slice(0, 5)} · {it.s.session_type || 'אימון'}
                       </div>
                     </div>
                   ) : (
-                    <div key={'t' + i} onClick={() => setSheetNode(it.n)} style={{ ...urgencyStyle(it.n), borderRadius: 10, padding: '8px 11px', boxShadow: FOCUS.neu, cursor: 'pointer' }}>
+                    <div key={'t' + i} onClick={(e) => { e.stopPropagation(); setSheetNode(it.n); }} style={{ ...urgencyStyle(it.n), borderRadius: 10, padding: '8px 11px', boxShadow: FOCUS.neu, cursor: 'pointer' }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: FOCUS.ink }}>{it.n.title || 'משימה'}</div>
                       <div style={{ display: 'flex', gap: 5, marginTop: 3, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 11, color: FOCUS.orange, fontWeight: 700 }}>{String(it.n.task_time).slice(0, 5)}</span>
@@ -200,7 +265,47 @@ export default function FocusCalendar() {
 
       {planOpen && <WeekPlanFlow userId={userId} nodes={nodes} byId={byId} weekDates={weekDates} onClose={() => setPlanOpen(false)} onChanged={loadNodes} />}
 
-      <IdeaCaptureButton hidden={!!(sheetNode || timeMenu || planOpen)} />
+      {/* Add-event chooser: task or training session */}
+      {addSlot && (
+        <div onClick={() => setAddSlot(null)} dir="rtl" style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, background: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '18px 18px calc(env(safe-area-inset-bottom,0px) + 20px)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>אירוע חדש{addSlot.hour != null ? ` · ${pad2(addSlot.hour)}:00` : ''}</div>
+              <button onClick={() => setAddSlot(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: FOCUS.muted }}><X size={20} /></button>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginBottom: chooserMode === 'task' ? 14 : 0 }}>
+              <button onClick={() => setChooserMode('task')}
+                style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '16px 8px', borderRadius: 14, cursor: 'pointer', border: `1.5px solid ${chooserMode === 'task' ? FOCUS.orange : FOCUS.border}`, background: chooserMode === 'task' ? '#FFF3E9' : '#fff', color: chooserMode === 'task' ? '#B4531A' : FOCUS.ink, fontFamily: 'inherit' }}>
+                <ListChecks size={22} /> <span style={{ fontSize: 14, fontWeight: 800 }}>משימה</span>
+              </button>
+              <button onClick={openSessionForm}
+                style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '16px 8px', borderRadius: 14, cursor: 'pointer', border: `1.5px solid ${FOCUS.border}`, background: '#fff', color: FOCUS.session, fontFamily: 'inherit' }}>
+                <Dumbbell size={22} /> <span style={{ fontSize: 14, fontWeight: 800, color: FOCUS.ink }}>אימון</span>
+              </button>
+            </div>
+            {chooserMode === 'task' && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input autoFocus value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && createTaskAtSlot()}
+                  placeholder="שם המשימה…" style={{ flex: 1, border: `1px solid ${FOCUS.border}`, borderRadius: 12, padding: '11px 12px', fontSize: 14, fontFamily: 'inherit', background: '#FFFDFA', outline: 'none' }} />
+                <button onClick={createTaskAtSlot} disabled={!newTaskTitle.trim()} style={{ padding: '0 18px', borderRadius: 12, border: 'none', background: newTaskTitle.trim() ? FOCUS.orangeGrad : '#E6D8C6', color: '#fff', fontWeight: 800, cursor: newTaskTitle.trim() ? 'pointer' : 'default' }}>הוסף</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Reused מפגשים session form (creates a trainee-visible session) */}
+      <SessionFormDialog
+        isOpen={sessionOpen}
+        onClose={() => setSessionOpen(false)}
+        onSubmit={submitSession}
+        trainees={trainees}
+        coachId={user?.id}
+        presetDate={sessionPreset.date}
+        presetTime={sessionPreset.time}
+      />
+
+      <IdeaCaptureButton hidden={!!(sheetNode || timeMenu || planOpen || addSlot || sessionOpen)} />
       {sheetNode && <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} allNodes={nodes} onClose={() => setSheetNode(null)} onSaved={loadNodes} />}
     </LifeOSLayout>
   );

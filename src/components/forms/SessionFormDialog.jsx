@@ -76,6 +76,10 @@ export default function SessionFormDialog({
   // most-recent trainees for the quick-select chips. Optional; absent
   // → no recent chips, full list still works.
   sessions = [],
+  // Optional preset for a NEW session (e.g. opened from the Focus
+  // Calendar on a tapped day/hour). Ignored when editing.
+  presetDate = null,
+  presetTime = null,
 }) {
   const { user: currentCoach } = useContext(AuthContext);
   // Single source for "who is the coach" — prop wins, AuthContext is
@@ -211,7 +215,7 @@ export default function SessionFormDialog({
     recurEndType: 'date',
     recurEndDate: '',
     recurEndCount: 4,
-  } : { ...INITIAL_DATA, date: new Date().toISOString().split('T')[0] };
+  } : { ...INITIAL_DATA, date: presetDate || new Date().toISOString().split('T')[0], time: presetTime || INITIAL_DATA.time };
 
   const scopeKey = `${currentCoach?.id ?? 'no-coach'}_${editingSession?.id ?? 'new'}`;
   // Draft context = who the session is for (first participant) so the
