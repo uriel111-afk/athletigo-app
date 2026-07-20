@@ -142,20 +142,18 @@ export async function fetchLinks(userId) {
 }
 
 export async function createLink(userId, fromNode, toNode) {
-  // Order-insensitive: skip if a link already exists either direction.
-  const { data: existing } = await supabase
-    .from('focus_node_links')
-    .select('id')
-    .eq('user_id', userId)
-    .or(`and(from_node.eq.${fromNode},to_node.eq.${toNode}),and(from_node.eq.${toNode},to_node.eq.${fromNode})`)
-    .limit(1);
-  if (existing && existing.length) return existing[0];
+  // Links are undirected. Normalize the pair so (a,b) and (b,a) collapse
+  // onto the same row via the UNIQUE(from_node,to_node) constraint.
+  const [f, t] = fromNode < toNode ? [fromNode, toNode] : [toNode, fromNode];
   const { data, error } = await supabase
     .from('focus_node_links')
-    .insert([{ user_id: userId, from_node: fromNode, to_node: toNode }])
+    .insert([{ user_id: userId, from_node: f, to_node: t }])
     .select()
-    .single();
-  if (error) throw error;
+    .maybeSingle();
+  if (error) {
+    if (error.code === '23505') return null; // already linked — fine
+    throw error;
+  }
   return data;
 }
 

@@ -93,16 +93,20 @@ export default function FocusMap() {
     try { await updateNode(id, { pos_x: x, pos_y: y }); } catch { toast.error('שגיאה בשמירת מיקום'); }
   };
 
-  // Linking mode: a node was tapped as the link TARGET.
+  // Linking mode: a node was tapped as the link TARGET. Keeps the source
+  // node handy so the user can chain more links from it (1-to-N).
   const pickLinkTarget = async (target) => {
     const from = linkFrom;
     setLinkFrom(null);
-    if (!from || target.id === from.id) { if (target.id === from?.id) toast.error('לא ניתן לקשר צומת לעצמו'); return; }
+    if (!from) return;
+    if (target.id === from.id) { toast.error('לא ניתן לקשר צומת לעצמו'); return; }
     try {
       await createLink(userId, from.id, target.id);
       setLinks(await fetchLinks(userId));
-      toast.success('נוצר קשר');
-    } catch { toast.error('שגיאה'); }
+      toast('קשר נוצר · להוסיף עוד קשר מאותו צומת?', {
+        action: { label: 'עוד קשר', onClick: () => setLinkFrom(from) },
+      });
+    } catch { toast.error('שגיאה ביצירת קשר'); }
   };
 
   const removeLink = async (linkId) => {
@@ -157,12 +161,12 @@ export default function FocusMap() {
 
   const branchOptions = useMemo(() => nodes.filter(n => n.node_type !== 'task'), [nodes]);
 
-  if (!loaded) return <LifeOSLayout title="מיקוד"><FocusChips /><PageSkeleton rows={6} /></LifeOSLayout>;
+  if (!loaded) return <LifeOSLayout title="מיקוד" hideFab><FocusChips /><PageSkeleton rows={6} /></LifeOSLayout>;
 
   const empty = nodes.length === 0;
 
   return (
-    <LifeOSLayout title="מיקוד" fullBleed>
+    <LifeOSLayout title="מיקוד" fullBleed hideFab>
       <FocusChips />
 
       {/* Toolbar — compact, wraps on narrow screens */}
@@ -193,7 +197,7 @@ export default function FocusMap() {
             onTapNode={tapNode} onToggleDone={toggleDone}
             onLongPress={(n) => { setSelectedId(n.id); setSheetNode(n); }}
             onSavePos={savePos}
-            centerOnId={centerId}
+            centerOnId={centerId} onCentered={() => setCenterId(null)}
             links={links} onRemoveLink={removeLink}
             linkMode={!!linkFrom} onPickLinkTarget={pickLinkTarget}
           />

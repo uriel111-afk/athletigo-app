@@ -66,12 +66,12 @@ export default function FocusControl() {
     { label: 'תכנון שבוע', Icon: CalendarRange, onClick: () => navigate('/lifeos/focus/calendar', { state: { openPlan: true } }) },
   ];
 
-  if (!loaded) return <LifeOSLayout title="מיקוד" fullBleed><FocusChips /><PageSkeleton rows={6} /></LifeOSLayout>;
+  if (!loaded) return <LifeOSLayout title="מיקוד" fullBleed hideFab><FocusChips /><PageSkeleton rows={6} /></LifeOSLayout>;
 
   const noData = nodes.length === 0;
 
   return (
-    <LifeOSLayout title="מיקוד" fullBleed>
+    <LifeOSLayout title="מיקוד" fullBleed hideFab>
       <FocusChips />
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 14px 24px' }}>
 

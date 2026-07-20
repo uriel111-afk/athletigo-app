@@ -89,10 +89,10 @@ export default function FocusCalendar() {
     if (Math.abs(dx) > 55) setSelected(s => addDays(s, dx > 0 ? -1 : 1)); // RTL: swipe right → previous
   };
 
-  if (!loaded) return <LifeOSLayout title="מיקוד"><FocusChips /><PageSkeleton rows={6} /></LifeOSLayout>;
+  if (!loaded) return <LifeOSLayout title="מיקוד" hideFab><FocusChips /><PageSkeleton rows={6} /></LifeOSLayout>;
 
   return (
-    <LifeOSLayout title="מיקוד" fullBleed>
+    <LifeOSLayout title="מיקוד" fullBleed hideFab>
       <FocusChips />
       <div style={{ padding: '0 14px', flexShrink: 0 }}>
         <button onClick={() => setPlanOpen(true)}

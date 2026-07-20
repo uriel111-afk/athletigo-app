@@ -15,7 +15,7 @@ import { LIFEOS_COLORS, COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 // the content area gets flex:1 and fills the viewport edge-to-edge between
 // the header and the bottom nav — no max-width, no side gutters. Existing
 // pages don't pass it, so their scrolling/centered layout is unchanged.
-export default function LifeOSLayout({ title, children, rightSlot = null, onQuickSaved, fullBleed = false }) {
+export default function LifeOSLayout({ title, children, rightSlot = null, onQuickSaved, fullBleed = false, hideFab = false }) {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const isCoordinator = user?.role === 'coordinator';
@@ -126,7 +126,10 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
 
       <LifeOSNav />
       {/* Coordinator can't create finance/quick items — hide the FAB. */}
-      {!isCoordinator && <QuickActionFAB onSaved={onQuickSaved} />}
+      {/* Focus screens render their own floating buttons (bulb + plus),
+          so the generic quick-action FAB is suppressed there to avoid a
+          duplicate/overlapping plus. */}
+      {!isCoordinator && !hideFab && <QuickActionFAB onSaved={onQuickSaved} />}
       {/* MentorChat sheet is mounted globally in App.jsx — the
           header's MentorChatIconButton triggers it via window event. */}
     </div>

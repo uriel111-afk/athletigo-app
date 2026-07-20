@@ -154,13 +154,13 @@ export default function FocusToday() {
   };
 
   if (!loaded) {
-    return <LifeOSLayout title="מיקוד"><FocusChips /><PageSkeleton rows={5} /></LifeOSLayout>;
+    return <LifeOSLayout title="מיקוד" hideFab><FocusChips /><PageSkeleton rows={5} /></LifeOSLayout>;
   }
 
   const nothing = overdue.length + rollover.length + main.length === 0;
 
   return (
-    <LifeOSLayout title="מיקוד">
+    <LifeOSLayout title="מיקוד" hideFab>
       <FocusChips />
       <div style={{ padding: '0 14px' }}>
         {/* Header card */}

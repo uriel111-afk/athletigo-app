@@ -102,10 +102,10 @@ export default function FocusList() {
     catch (e) { toast.error('שגיאה'); }
   };
 
-  if (!loaded) return <LifeOSLayout title="מיקוד"><FocusChips /><PageSkeleton rows={5} /></LifeOSLayout>;
+  if (!loaded) return <LifeOSLayout title="מיקוד" hideFab><FocusChips /><PageSkeleton rows={5} /></LifeOSLayout>;
 
   return (
-    <LifeOSLayout title="מיקוד" fullBleed>
+    <LifeOSLayout title="מיקוד" fullBleed hideFab>
       <FocusChips />
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 14px 24px' }}>
         {/* Filters */}

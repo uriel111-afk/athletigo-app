@@ -7,6 +7,7 @@ const NODE_W = 138;
 const HGAP = 22;
 const VGAP = 104;
 const heightFor = (n) => (n.node_type === 'root' ? 48 : n.node_type === 'branch' ? 74 : 54);
+const trStr = (v) => `translate(${v.tx},${v.ty}) scale(${v.scale})`;
 
 // Tidy-tree auto layout over the VISIBLE tree. Returns layout coords
 // (top-left of each node) in map space.
@@ -31,19 +32,44 @@ function computeLayout(roots, visibleChildrenOf) {
 
 export default function MindMapCanvas({
   nodes, byId, children, roots, expanded, selectedId,
-  isTaskDone, onTapNode, onToggleDone, onLongPress, onSavePos, centerOnId,
+  isTaskDone, onTapNode, onToggleDone, onLongPress, onSavePos, centerOnId, onCentered,
   links = [], onRemoveLink, linkMode = false, onPickLinkTarget,
 }) {
+  // `view` state is the COMMITTED transform (used for render + chip pos).
+  // During a gesture we mutate viewRef + move the <g> imperatively (rAF)
+  // and only commit to state on pointer-up — so panning/pinching never
+  // re-renders the node tree.
   const [view, setView] = useState({ tx: 20, ty: 20, scale: 1 });
-  const [drag, setDrag] = useState(null);      // live node drag
   const [livePos, setLivePos] = useState({});   // id -> {x,y} during drag
   const [selLink, setSelLink] = useState(null); // selected cross-link id
+
+  const viewRef = useRef({ tx: 20, ty: 20, scale: 1 });
+  const gRef = useRef(null);
+  const svgRef = useRef(null);
   const saveTimer = useRef(null);
-  const gesture = useRef(null);   // single-finger node gesture (tap/drag/long-press)
+  const gesture = useRef(null);   // single-finger node/link gesture
   const pan = useRef(null);       // single-finger canvas pan
   const pinch = useRef(null);     // two-finger pinch-zoom
-  const pointers = useRef(new Map()); // active pointerId -> {x,y}
-  const svgRef = useRef(null);
+  const pointers = useRef(new Map());
+  const viewRaf = useRef(0);
+  const dragRaf = useRef(0);
+  const dragPending = useRef(null);
+  const centeredRef = useRef(null);
+
+  const commitView = (v) => { viewRef.current = v; setView(v); };
+  const scheduleView = () => {
+    if (viewRaf.current) return;
+    viewRaf.current = requestAnimationFrame(() => {
+      viewRaf.current = 0;
+      if (gRef.current) gRef.current.setAttribute('transform', trStr(viewRef.current));
+    });
+  };
+  const flushDrag = () => {
+    dragRaf.current = 0;
+    const d = dragPending.current;
+    if (d) setLivePos(p => ({ ...p, [d.id]: { x: d.x, y: d.y } }));
+  };
+  const scheduleDrag = () => { if (!dragRaf.current) dragRaf.current = requestAnimationFrame(flushDrag); };
 
   const visibleChildrenOf = (node) => {
     if (node.node_type === 'task') return [];
@@ -51,7 +77,6 @@ export default function MindMapCanvas({
     return isExpanded ? (children[node.id] || []) : [];
   };
 
-  // Which nodes are visible at all (walk from roots through expanded).
   const visibleNodes = useMemo(() => {
     const out = [];
     const walk = (n) => { out.push(n); visibleChildrenOf(n).forEach(walk); };
@@ -64,8 +89,6 @@ export default function MindMapCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [nodes, expanded, children, roots]);
 
-  // Resolve a node to its nearest VISIBLE ancestor (links into a
-  // collapsed subtree attach to the collapsed ancestor that's shown).
   const visibleIds = useMemo(() => new Set(visibleNodes.map(n => n.id)), [visibleNodes]);
   const visibleAncestor = (id) => {
     let cur = byId[id], guard = 0;
@@ -85,33 +108,29 @@ export default function MindMapCanvas({
     || (n.pos_x != null && n.pos_y != null ? { x: Number(n.pos_x), y: Number(n.pos_y) } : layout[n.id])
     || { x: 0, y: 0 };
 
-  // Canvas bounds → svg height.
-  const maxX = Math.max(200, ...visibleNodes.map(n => posOf(n).x + NODE_W));
-  const maxY = Math.max(200, ...visibleNodes.map(n => posOf(n).y + 90));
-
   const clampScale = (s) => Math.min(2, Math.max(0.5, s));
   const findNode = (target) => {
     const el = target?.closest?.('[data-node-id]');
     return el ? byId[el.getAttribute('data-node-id')] : null;
   };
+
   const beginPinch = () => {
-    // Two fingers → cancel any single-finger gesture and start pinching.
     if (gesture.current) clearTimeout(gesture.current.timer);
     gesture.current = null;
     pan.current = null;
-    setDrag(null);
     const pts = [...pointers.current.values()];
     const rect = svgRef.current?.getBoundingClientRect();
     if (!rect || pts.length < 2) return;
-    const midX = (pts[0].x + pts[1].x) / 2 - rect.left;
-    const midY = (pts[0].y + pts[1].y) / 2 - rect.top;
+    const v = viewRef.current;
     pinch.current = {
       startDist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1,
-      startScale: view.scale, startTx: view.tx, startTy: view.ty, midX, midY,
+      startScale: v.scale, startTx: v.tx, startTy: v.ty,
+      midX: (pts[0].x + pts[1].x) / 2 - rect.left,
+      midY: (pts[0].y + pts[1].y) / 2 - rect.top,
     };
   };
 
-  // ── Unified pointer handling: tap / long-press / drag / pan / pinch ──
+  // ── Unified pointer handling ──────────────────────────────────
   const onDown = (e) => {
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* noop */ }
@@ -124,8 +143,9 @@ export default function MindMapCanvas({
     if (node) {
       const start = posOf(node);
       gesture.current = {
-        node, sx: e.clientX, sy: e.clientY, nx: start.x, ny: start.y, moved: false, long: false,
-        timer: setTimeout(() => { if (gesture.current) { gesture.current.long = true; onLongPress(node); } }, 480),
+        node, sx: e.clientX, sy: e.clientY, nx: start.x, ny: start.y, lastX: start.x, lastY: start.y, moved: false, long: false,
+        // In linking mode a tap PICKS the target — no long-press-to-edit.
+        timer: linkMode ? null : setTimeout(() => { if (gesture.current) { gesture.current.long = true; onLongPress(node); } }, 480),
       };
       return;
     }
@@ -134,29 +154,28 @@ export default function MindMapCanvas({
       gesture.current = { linkId: linkEl.getAttribute('data-link-id'), sx: e.clientX, sy: e.clientY, moved: false };
       return;
     }
-    setSelLink(null); // tapping empty canvas deselects any link
-    pan.current = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty };
+    setSelLink(null);
+    pan.current = { x: e.clientX, y: e.clientY, tx: viewRef.current.tx, ty: viewRef.current.ty };
   };
 
   const onMove = (e) => {
     if (!pointers.current.has(e.pointerId)) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-    // Pinch takes priority whenever two fingers are down.
     if (pinch.current && pointers.current.size >= 2) {
       const pts = [...pointers.current.values()];
       const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-      const newScale = clampScale(pinch.current.startScale * (dist / pinch.current.startDist));
-      // Keep the world point under the finger-midpoint fixed while scaling.
-      const worldX = (pinch.current.midX - pinch.current.startTx) / pinch.current.startScale;
-      const worldY = (pinch.current.midY - pinch.current.startTy) / pinch.current.startScale;
-      setView(v => ({ ...v, scale: newScale, tx: pinch.current.midX - worldX * newScale, ty: pinch.current.midY - worldY * newScale }));
+      const pc = pinch.current;
+      const newScale = clampScale(pc.startScale * (dist / pc.startDist));
+      const worldX = (pc.midX - pc.startTx) / pc.startScale;
+      const worldY = (pc.midY - pc.startTy) / pc.startScale;
+      viewRef.current = { scale: newScale, tx: pc.midX - worldX * newScale, ty: pc.midY - worldY * newScale };
+      scheduleView();
       return;
     }
 
     const g = gesture.current;
     if (g && g.linkId) {
-      // Movement past the threshold cancels the link tap.
       if (Math.abs(e.clientX - g.sx) > 8 || Math.abs(e.clientY - g.sy) > 8) g.moved = true;
       return;
     }
@@ -165,14 +184,17 @@ export default function MindMapCanvas({
       if (!g.moved && Math.abs(dx) < 8 && Math.abs(dy) < 8) return; // 8px threshold
       g.moved = true;
       clearTimeout(g.timer);
-      setDrag({ id: g.node.id });
-      setLivePos(p => ({ ...p, [g.node.id]: { x: g.nx + dx / view.scale, y: g.ny + dy / view.scale } }));
+      g.lastX = g.nx + dx / viewRef.current.scale;
+      g.lastY = g.ny + dy / viewRef.current.scale;
+      dragPending.current = { id: g.node.id, x: g.lastX, y: g.lastY };
+      scheduleDrag();
       return;
     }
 
     if (pan.current) {
       const p = pan.current;
-      setView(v => ({ ...v, tx: p.tx + (e.clientX - p.x), ty: p.ty + (e.clientY - p.y) }));
+      viewRef.current = { scale: viewRef.current.scale, tx: p.tx + (e.clientX - p.x), ty: p.ty + (e.clientY - p.y) };
+      scheduleView();
     }
   };
 
@@ -182,64 +204,80 @@ export default function MindMapCanvas({
     try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ }
 
     if (wasPinch) {
-      // Leaving pinch: drop to 0/1 finger cleanly (rebaseline pan, no jump).
       if (pointers.current.size < 2) pinch.current = null;
       pan.current = pointers.current.size === 1
-        ? (() => { const [pt] = [...pointers.current.values()]; return { x: pt.x, y: pt.y, tx: view.tx, ty: view.ty }; })()
+        ? (() => { const [pt] = [...pointers.current.values()]; return { x: pt.x, y: pt.y, tx: viewRef.current.tx, ty: viewRef.current.ty }; })()
         : null;
+      commitView(viewRef.current);
       return;
     }
 
     const g = gesture.current;
     gesture.current = null;
+
     if (g && g.linkId) {
-      if (!g.moved) setSelLink(g.linkId); // tap a dashed edge → select it
+      if (!g.moved) setSelLink(g.linkId);
       if (pointers.current.size === 0) pan.current = null;
       return;
     }
+
     if (g) {
       clearTimeout(g.timer);
       if (!g.long) {
         if (!g.moved) {
           if (linkMode) { onPickLinkTarget && onPickLinkTarget(g.node); }
-          else if (g.node.node_type === 'task') onToggleDone(g.node); else onTapNode(g.node);
+          else if (g.node.node_type === 'task') onToggleDone(g.node);
+          else onTapNode(g.node);
         } else {
-          const final = livePos[g.node.id];
-          setDrag(null);
-          if (final) { clearTimeout(saveTimer.current); saveTimer.current = setTimeout(() => onSavePos(g.node.id, final.x, final.y), 500); }
+          if (dragRaf.current) { cancelAnimationFrame(dragRaf.current); dragRaf.current = 0; }
+          const fx = g.lastX, fy = g.lastY;
+          setLivePos(p => ({ ...p, [g.node.id]: { x: fx, y: fy } }));
+          clearTimeout(saveTimer.current);
+          saveTimer.current = setTimeout(() => onSavePos(g.node.id, fx, fy), 500);
         }
       }
     }
-    if (pointers.current.size === 0) pan.current = null;
+
+    if (pan.current && pointers.current.size === 0) { commitView(viewRef.current); pan.current = null; }
+    else if (pointers.current.size === 0) pan.current = null;
   };
 
   const onCancel = (e) => {
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinch.current = null;
-    if (pointers.current.size === 0) { pan.current = null; if (gesture.current) { clearTimeout(gesture.current.timer); gesture.current = null; } }
+    if (pointers.current.size === 0) {
+      if (pan.current) commitView(viewRef.current);
+      pan.current = null;
+      if (gesture.current) { clearTimeout(gesture.current.timer); gesture.current = null; }
+    }
   };
 
-  const zoom = (dir) => setView(v => ({ ...v, scale: clampScale(+(v.scale + dir * 0.2).toFixed(2)) }));
+  const zoom = (dir) => commitView({ ...viewRef.current, scale: clampScale(+(viewRef.current.scale + dir * 0.2).toFixed(2)) });
 
-  useEffect(() => () => { clearTimeout(saveTimer.current); }, []);
+  useEffect(() => () => {
+    clearTimeout(saveTimer.current);
+    if (viewRaf.current) cancelAnimationFrame(viewRaf.current);
+    if (dragRaf.current) cancelAnimationFrame(dragRaf.current);
+  }, []);
 
-  // Center the view on a requested node (e.g. arriving from the Control
-  // tower "tap a branch"). Runs once positions are available.
+  // Center the view on a requested node — ONLY changes the transform.
+  // Never writes pos_x/pos_y, never re-lays-out, never moves a node.
+  // One-shot per centerOnId (guarded + cleared by onCentered).
   useEffect(() => {
-    if (!centerOnId) return;
+    if (!centerOnId) { centeredRef.current = null; return; }
+    if (centeredRef.current === centerOnId) return;
     const n = byId[centerOnId];
     const rect = svgRef.current?.getBoundingClientRect();
-    if (!n || !rect) return;
+    if (!n || !rect) return; // wait until the node + canvas exist
     const p = posOf(n);
-    setView(v => ({
-      ...v,
-      tx: rect.width / 2 - (p.x + NODE_W / 2) * v.scale,
-      ty: Math.max(16, rect.height * 0.26 - p.y * v.scale),
-    }));
+    const v = viewRef.current;
+    commitView({ scale: v.scale, tx: rect.width / 2 - (p.x + NODE_W / 2) * v.scale, ty: Math.max(16, rect.height * 0.26 - p.y * v.scale) });
+    centeredRef.current = centerOnId;
+    onCentered && onCentered();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [centerOnId, nodes]);
+  }, [centerOnId, layout]);
 
-  // Path from parent to a visible child (bottom-center → top-center).
+  // Edge/link geometry (recomputed each render → follows live drag).
   const edgePath = (p, c) => {
     const pp = posOf(p), cp = posOf(c);
     const x1 = pp.x + NODE_W / 2, y1 = pp.y + heightFor(p);
@@ -247,8 +285,6 @@ export default function MindMapCanvas({
     const my = (y1 + y2) / 2;
     return `M ${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}`;
   };
-
-  // Cross-link path: center-to-center bezier (distinct from hierarchy).
   const linkPath = (a, b) => {
     const pa = posOf(a), pb = posOf(b);
     const x1 = pa.x + NODE_W / 2, y1 = pa.y + heightFor(a) / 2;
@@ -262,7 +298,6 @@ export default function MindMapCanvas({
   };
   const selLinkObj = resolvedLinks.find(l => l.id === selLink) || null;
 
-  // Ancestor chain of selected (to highlight its edges).
   const selChain = useMemo(() => {
     const s = new Set();
     let cur = selectedId ? byId[selectedId] : null, guard = 0;
@@ -278,12 +313,8 @@ export default function MindMapCanvas({
       onPointerUp={onUp}
       onPointerCancel={onCancel}
     >
-      <svg
-        ref={svgRef}
-        width="100%" height="100%"
-        style={{ touchAction: 'none', background: FOCUS.bg, display: 'block' }}
-      >
-        <g transform={`translate(${view.tx},${view.ty}) scale(${view.scale})`}>
+      <svg ref={svgRef} width="100%" height="100%" style={{ touchAction: 'none', background: FOCUS.bg, display: 'block' }}>
+        <g ref={gRef} transform={trStr(view)}>
           {/* Hierarchy edges (solid) */}
           {visibleNodes.map(p => visibleChildrenOf(p).map(c => {
             const hot = selChain.has(p.id) && selChain.has(c.id);
@@ -298,31 +329,17 @@ export default function MindMapCanvas({
             return (
               <g key={l.id}>
                 <path d={d} fill="none" stroke={on ? FOCUS.edgeSel : '#B4B2A9'} strokeWidth={on ? 2.5 : 1.5} strokeDasharray="6 5" style={{ pointerEvents: 'none' }} />
-                {/* fat transparent hit-area for tapping */}
                 <path data-link-id={l.id} d={d} fill="none" stroke="transparent" strokeWidth={16} style={{ pointerEvents: 'stroke', cursor: 'pointer' }} />
               </g>
             );
           })}
 
-          {/* Nodes */}
+          {/* Nodes (memoized so drag only re-renders the moved node) */}
           {visibleNodes.map(n => {
             const p = posOf(n);
-            const H = heightFor(n);
-            const sel = selectedId === n.id;
             return (
-              <foreignObject key={n.id} x={p.x} y={p.y} width={NODE_W} height={H + 24} style={{ overflow: 'visible' }}>
-                <div
-                  data-node-id={n.id}
-                  style={{
-                    width: NODE_W, boxSizing: 'border-box', cursor: 'pointer', userSelect: 'none',
-                    touchAction: 'none',
-                    outline: sel ? `2px solid ${FOCUS.edgeSel}` : 'none', borderRadius: 14,
-                    fontFamily: "'Rubik', system-ui, sans-serif",
-                  }}
-                >
-                  <NodeCard node={n} children={children} expanded={expanded} isTaskDone={isTaskDone} sel={sel} />
-                </div>
-              </foreignObject>
+              <MapNode key={n.id} x={p.x} y={p.y} node={n} sel={selectedId === n.id}
+                childrenIdx={children} expanded={expanded} isTaskDone={isTaskDone} />
             );
           })}
         </g>
@@ -358,7 +375,26 @@ const zoomBtn = {
   color: FOCUS.ink, cursor: 'pointer', lineHeight: 1,
 };
 
-function NodeCard({ node, children, expanded, isTaskDone, sel }) {
+// One node — memoized on primitive x/y so only the dragged node re-renders.
+const MapNode = React.memo(function MapNode({ x, y, node, sel, childrenIdx, expanded, isTaskDone }) {
+  const H = heightFor(node);
+  return (
+    <foreignObject x={x} y={y} width={NODE_W} height={H + 24} style={{ overflow: 'visible' }}>
+      <div
+        data-node-id={node.id}
+        style={{
+          width: NODE_W, boxSizing: 'border-box', cursor: 'pointer', userSelect: 'none', touchAction: 'none',
+          outline: sel ? `2px solid ${FOCUS.edgeSel}` : 'none', borderRadius: 14,
+          fontFamily: "'Rubik', system-ui, sans-serif",
+        }}
+      >
+        <NodeCard node={node} children={childrenIdx} expanded={expanded} isTaskDone={isTaskDone} />
+      </div>
+    </foreignObject>
+  );
+});
+
+function NodeCard({ node, children, expanded, isTaskDone }) {
   if (node.node_type === 'root') {
     return (
       <div style={{ background: FOCUS.orange, color: '#fff', borderRadius: 999, padding: '12px 10px', textAlign: 'center', fontSize: 15, fontWeight: 800, boxShadow: '0 4px 12px rgba(255,111,32,0.4)' }}>

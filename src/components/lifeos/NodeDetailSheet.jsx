@@ -340,7 +340,7 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
         {(canReparent || onStartLink) && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
             {canReparent && (
-              <button onClick={() => setReparentOpen(o => !o)} style={actionBtn('#EEEDFE', '#3C3489')}><FolderTree size={15} /> שנה הורה</button>
+              <button onClick={() => setReparentOpen(o => !o)} style={actionBtn('#EEEDFE', '#3C3489')}><FolderTree size={15} /> העבר לענף אחר</button>
             )}
             {onStartLink && (
               <button onClick={startLink} style={actionBtn('#E6F1FB', '#0C447C')}><Link2 size={15} /> הוסף קשר</button>
@@ -353,11 +353,11 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
           <div style={{ border: `1px solid ${FOCUS.border}`, borderRadius: 12, padding: 10, marginBottom: 14, background: '#FBF6EF' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
               <Search size={14} color={FOCUS.muted} />
-              <input autoFocus value={parentSearch} onChange={(e) => setParentSearch(e.target.value)} placeholder="חפש הורה חדש…" style={{ ...inputStyle, flex: 1, padding: '8px 10px' }} />
+              <input autoFocus value={parentSearch} onChange={(e) => setParentSearch(e.target.value)} placeholder="חפש ענף חדש…" style={{ ...inputStyle, flex: 1, padding: '8px 10px' }} />
             </div>
             <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {eligibleParents.length === 0 ? (
-                <div style={{ fontSize: 12, color: FOCUS.muted, textAlign: 'center', padding: '10px 0' }}>אין הורה זמין להעברה</div>
+                <div style={{ fontSize: 12, color: FOCUS.muted, textAlign: 'center', padding: '10px 0' }}>אין ענף זמין להעברה</div>
               ) : eligibleParents.map(p => (
                 <button key={p.id} onClick={() => reparent(p.id)}
                   style={{ textAlign: 'right', padding: '9px 11px', borderRadius: 10, border: `1px solid ${FOCUS.border}`, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
