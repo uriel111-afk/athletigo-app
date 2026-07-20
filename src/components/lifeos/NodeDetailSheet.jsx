@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
-import { X, Trash2, ParkingSquare, CalendarPlus, Plus, Flame, Send, FolderTree, Link2, Search } from 'lucide-react';
+import { X, Trash2, ParkingSquare, CalendarPlus, Plus, Flame, Send, FolderTree, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { AuthContext } from '@/lib/AuthContext';
 import {
@@ -19,7 +19,7 @@ const inputStyle = {
 // Slide-up inline overlay (NOT Radix Dialog). Edits one focus node in
 // place; every control persists immediately and calls onSaved so the
 // underlying screen refreshes.
-export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved, allNodes = [], onStartLink }) {
+export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved, allNodes = [] }) {
   const { user } = useContext(AuthContext);
   const [form, setForm] = useState(node || {});
   const [notes, setNotes] = useState([]);
@@ -112,7 +112,6 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
     } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
   };
 
-  const startLink = () => { onStartLink && onStartLink(node); onClose && onClose(); };
   const canReparent = node.node_type !== 'root' && allNodes.length > 0;
 
   // Add an amount to cost_actual/revenue_actual and log it to the feed.
@@ -336,15 +335,11 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
           onBlur={() => form.note !== node.note && persist({ note: form.note || null })}
           rows={2} placeholder="פרטים נוספים…" style={{ ...inputStyle, resize: 'none', marginBottom: 16 }} />
 
-        {/* Structure actions: re-parent + cross-link */}
-        {(canReparent || onStartLink) && (
+        {/* Structure action: re-parent (linking is done on the map via
+            each node's connection handle, n8n-style). */}
+        {canReparent && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-            {canReparent && (
-              <button onClick={() => setReparentOpen(o => !o)} style={actionBtn('#EEEDFE', '#3C3489')}><FolderTree size={15} /> העבר לענף אחר</button>
-            )}
-            {onStartLink && (
-              <button onClick={startLink} style={actionBtn('#E6F1FB', '#0C447C')}><Link2 size={15} /> הוסף קשר</button>
-            )}
+            <button onClick={() => setReparentOpen(o => !o)} style={actionBtn('#EEEDFE', '#3C3489')}><FolderTree size={15} /> העבר לענף אחר</button>
           </div>
         )}
 

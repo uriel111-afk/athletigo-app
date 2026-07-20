@@ -34,7 +34,6 @@ export default function FocusMap() {
   const [inboxOpen, setInboxOpen] = useState(false);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [links, setLinks] = useState([]);
-  const [linkFrom, setLinkFrom] = useState(null); // node we're linking FROM
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -93,19 +92,13 @@ export default function FocusMap() {
     try { await updateNode(id, { pos_x: x, pos_y: y }); } catch { toast.error('שגיאה בשמירת מיקום'); }
   };
 
-  // Linking mode: a node was tapped as the link TARGET. Keeps the source
-  // node handy so the user can chain more links from it (1-to-N).
-  const pickLinkTarget = async (target) => {
-    const from = linkFrom;
-    setLinkFrom(null);
-    if (!from) return;
-    if (target.id === from.id) { toast.error('לא ניתן לקשר צומת לעצמו'); return; }
+  // n8n-style: dragged from a node's handle and dropped on another node.
+  const createLinkBetween = async (fromId, toId) => {
+    if (fromId === toId) return;
     try {
-      await createLink(userId, from.id, target.id);
+      await createLink(userId, fromId, toId);
       setLinks(await fetchLinks(userId));
-      toast('קשר נוצר · להוסיף עוד קשר מאותו צומת?', {
-        action: { label: 'עוד קשר', onClick: () => setLinkFrom(from) },
-      });
+      toast.success('קשר נוצר');
     } catch { toast.error('שגיאה ביצירת קשר'); }
   };
 
@@ -199,27 +192,19 @@ export default function FocusMap() {
             onSavePos={savePos}
             centerOnId={centerId} onCentered={() => setCenterId(null)}
             links={links} onRemoveLink={removeLink}
-            linkMode={!!linkFrom} onPickLinkTarget={pickLinkTarget}
+            onCreateLink={createLinkBetween}
           />
         )}
 
-        {/* Linking-mode sticky banner */}
-        {linkFrom ? (
-          <div style={{ position: 'absolute', top: 8, left: 12, right: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#0C447C', color: '#fff', borderRadius: 12, padding: '9px 12px', boxShadow: '0 4px 14px rgba(0,0,0,0.25)', zIndex: 5 }}>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>הקש על הצומת שאליו מתחבר הקשר</span>
-            <button onClick={() => setLinkFrom(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 8, padding: '5px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>ביטול</button>
-          </div>
-        ) : (
-          /* Floating selection hint — overlays, no layout height */
-          <div style={{ position: 'absolute', top: 8, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: FOCUS.muted, pointerEvents: 'none' }}>
-            {selectedId ? `נבחר: ${byId[selectedId]?.title || ''} · הוספה תיצור צומת מתחתיו` : 'הקש לבחירה · לחיצה ארוכה לעריכה · גרור להזזה'}
-          </div>
-        )}
+        {/* Floating selection hint — overlays, no layout height */}
+        <div style={{ position: 'absolute', top: 8, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: FOCUS.muted, pointerEvents: 'none' }}>
+          {selectedId ? `נבחר: ${byId[selectedId]?.title || ''} · גרור מהנקודה כדי לקשר` : 'הקש לבחירה · לחיצה ארוכה לעריכה · גרור להזזה'}
+        </div>
 
         {/* Floating add (bottom-RIGHT) → opens the full inline add panel.
             Hidden whenever any sheet/panel/capture overlay is open so it
             never covers panel content. */}
-        {!(addOpen || sheetNode || inboxOpen || captureOpen || linkFrom) && (
+        {!(addOpen || sheetNode || inboxOpen || captureOpen) && (
           <button onClick={() => setAddOpen(true)} aria-label="הוסף צומת"
             style={{ position: 'absolute', right: 16, bottom: 16, width: 52, height: 52, borderRadius: '50%', border: 'none', background: FOCUS.orangeGrad, color: '#fff', boxShadow: '0 6px 16px rgba(255,111,32,0.45)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Plus size={26} />
@@ -251,8 +236,8 @@ export default function FocusMap() {
         </div>
       )}
 
-      <IdeaCaptureButton onSaved={load} hidden={!!(sheetNode || addOpen || inboxOpen || linkFrom)} onOpenChange={setCaptureOpen} />
-      {sheetNode && <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} allNodes={nodes} onStartLink={(n) => setLinkFrom(n)} onClose={() => setSheetNode(null)} onSaved={load} />}
+      <IdeaCaptureButton onSaved={load} hidden={!!(sheetNode || addOpen || inboxOpen)} onOpenChange={setCaptureOpen} />
+      {sheetNode && <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} allNodes={nodes} onClose={() => setSheetNode(null)} onSaved={load} />}
     </LifeOSLayout>
   );
 }
