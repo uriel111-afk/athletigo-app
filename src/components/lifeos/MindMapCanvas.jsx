@@ -43,10 +43,12 @@ export default function MindMapCanvas({
   isTaskDone, onTapNode, onToggleDone, onLongPress, onSavePos, centerOnId, onCentered,
   links = [], onRemoveLink, onCreateLink,
   connectFromId = null, onHandleTap, onConnectTap, onConnectCancel,
+  onConnect, onDisconnect, onDetails,
 }) {
   const [view, setView] = useState({ tx: 20, ty: 20, scale: 1 });
   const [livePos, setLivePos] = useState({});
   const [selLink, setSelLink] = useState(null);
+  const [busy, setBusy] = useState(false); // any active gesture → hide the action bar
 
   const viewRef = useRef({ tx: 20, ty: 20, scale: 1 });
   const gRef = useRef(null);
@@ -135,6 +137,7 @@ export default function MindMapCanvas({
     if (connect.current) {
       const c = connect.current;
       if (!c.moved && Math.abs(e.clientX - c.sx) < 8 && Math.abs(e.clientY - c.sy) < 8) return;
+      if (!c.moved) setBusy(true);
       c.moved = true;
       const pt = toCanvas(e.clientX, e.clientY);
       connectPending.current = curve(c.x1, c.y1, pt.x, pt.y);
@@ -147,7 +150,7 @@ export default function MindMapCanvas({
     if (g) {
       const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
       if (!g.moved && Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-      if (!g.moved) { g.moved = true; clearTimeout(g.timer); } // kill long-press FIRST
+      if (!g.moved) { g.moved = true; clearTimeout(g.timer); setBusy(true); } // kill long-press FIRST, hide bar
       g.lastX = g.nx + dx / viewRef.current.scale;
       g.lastY = g.ny + dy / viewRef.current.scale;
       dragPending.current = { id: g.node.id, x: g.lastX, y: g.lastY };
@@ -156,7 +159,8 @@ export default function MindMapCanvas({
     }
 
     if (pan.current) {
-      const p = pan.current; p.moved = p.moved || Math.abs(e.clientX - p.x) > 6 || Math.abs(e.clientY - p.y) > 6;
+      const p = pan.current;
+      if (!p.moved && (Math.abs(e.clientX - p.x) > 6 || Math.abs(e.clientY - p.y) > 6)) { p.moved = true; setBusy(true); }
       viewRef.current = { scale: viewRef.current.scale, tx: p.tx + (e.clientX - p.x), ty: p.ty + (e.clientY - p.y) };
       if (!viewRaf.current) viewRaf.current = requestAnimationFrame(() => { viewRaf.current = 0; if (gRef.current) gRef.current.setAttribute('transform', trStr(viewRef.current)); });
     }
@@ -180,7 +184,7 @@ export default function MindMapCanvas({
         ? (() => { const [pt] = [...pointers.current.values()]; return { x: pt.x, y: pt.y, tx: viewRef.current.tx, ty: viewRef.current.ty, moved: false }; })()
         : null;
       commitView(viewRef.current);
-      if (pointers.current.size === 0) detachWindow();
+      if (pointers.current.size === 0) { setBusy(false); detachWindow(); }
       return;
     }
 
@@ -195,7 +199,7 @@ export default function MindMapCanvas({
       } else {
         ctx.current.onHandleTap && ctx.current.onHandleTap(c.fromId);   // tap handle → enter two-tap connect
       }
-      if (pointers.current.size === 0) { pan.current = null; detachWindow(); }
+      if (pointers.current.size === 0) { pan.current = null; setBusy(false); detachWindow(); }
       return;
     }
 
@@ -223,7 +227,7 @@ export default function MindMapCanvas({
       if (!pan.current.moved && ctx.current.connectFromId) ctx.current.onConnectCancel && ctx.current.onConnectCancel();
     }
 
-    if (pointers.current.size === 0) { pan.current = null; detachWindow(); }
+    if (pointers.current.size === 0) { pan.current = null; setBusy(false); detachWindow(); }
   }, [commitView, detachWindow]);
 
   // pointercancel: DON'T commit-and-die. Keep the gesture alive so the
@@ -233,6 +237,7 @@ export default function MindMapCanvas({
     if (gesture.current?.moved || connect.current?.moved) console.warn('[MindMap] pointercancel mid-gesture — keeping gesture alive');
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinch.current = null;
+    if (pointers.current.size === 0) setBusy(false);
     // gesture/pan/connect intentionally preserved — a follow-up
     // pointermove/up resumes/ends them. If nothing follows, the next
     // pointerdown self-heals (pointers is empty there).
@@ -257,6 +262,7 @@ export default function MindMapCanvas({
     if (pointers.current.size === 2) {
       if (gesture.current) clearTimeout(gesture.current.timer);
       gesture.current = null; pan.current = null; connect.current = null;
+      setBusy(true);
       const pts = [...pointers.current.values()];
       const rect = svgRef.current?.getBoundingClientRect();
       if (rect && pts.length >= 2) {
@@ -388,9 +394,33 @@ export default function MindMapCanvas({
           </button>
         );
       })()}
+
+      {/* Selection action bar — moves with the node, hidden while
+          dragging/panning/connecting. Primary way to connect/disconnect. */}
+      {selectedId && !busy && !connectFromId && (() => {
+        const sel = byId[selectedId];
+        if (!sel) return null;
+        const p = posOf(sel);
+        const bx = view.tx + (p.x + NODE_W / 2) * view.scale;
+        const by = view.ty + (p.y + heightFor(sel)) * view.scale + 22;
+        return (
+          <div onPointerDown={(e) => e.stopPropagation()}
+            style={{ position: 'absolute', left: bx, top: by, transform: 'translateX(-50%)', display: 'flex', gap: 6, background: '#fff', border: `1px solid ${FOCUS.border}`, borderRadius: 12, padding: 5, boxShadow: '0 4px 14px rgba(0,0,0,0.18)', zIndex: 6, whiteSpace: 'nowrap' }}>
+            <button onClick={() => onConnect && onConnect(sel.id)} style={barBtn('#E6F1FB', '#0C447C')}>+ חבר</button>
+            <button onClick={() => onDisconnect && onDisconnect(sel)} style={barBtn('#FCEBEB', '#C0392B')}>✂ נתק</button>
+            <button onClick={() => onDetails && onDetails(sel)} style={barBtn('#F1F3F6', '#3C3489')}>✏ פרטים</button>
+          </div>
+        );
+      })()}
     </div>
   );
 }
+
+const barBtn = (bg, fg) => ({
+  minHeight: 44, padding: '0 14px', borderRadius: 9, border: 'none',
+  background: bg, color: fg, fontSize: 13.5, fontWeight: 800, cursor: 'pointer',
+  fontFamily: "'Rubik', system-ui, sans-serif",
+});
 
 const zoomBtn = {
   width: 36, height: 36, borderRadius: 10, border: `1px solid ${FOCUS.border}`,

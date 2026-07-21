@@ -35,6 +35,8 @@ export default function FocusMap() {
   const [captureOpen, setCaptureOpen] = useState(false);
   const [links, setLinks] = useState([]);
   const [connectFrom, setConnectFrom] = useState(null); // two-tap connect source id
+  const [disconnectNode, setDisconnectNode] = useState(null); // node whose connections are listed
+  const [sheetReparent, setSheetReparent] = useState(false);  // open NodeDetailSheet with reparent picker
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -109,8 +111,8 @@ export default function FocusMap() {
   const connectTo = (targetId) => { if (connectFrom && targetId !== connectFrom) createLinkBetween(connectFrom, targetId); };
   const cancelConnect = () => setConnectFrom(null);
 
-  const removeLink = async (linkId) => {
-    if (!window.confirm('להסיר את הקשר?')) return;
+  const removeLink = async (linkId, skipConfirm = false) => {
+    if (!skipConfirm && !window.confirm('להסיר את הקשר?')) return;
     try { await deleteLink(linkId); setLinks(await fetchLinks(userId)); toast.success('הקשר הוסר'); }
     catch { toast.error('שגיאה'); }
   };
@@ -200,6 +202,7 @@ export default function FocusMap() {
             centerOnId={centerId} onCentered={() => setCenterId(null)}
             links={links} onRemoveLink={removeLink} onCreateLink={createLinkBetween}
             connectFromId={connectFrom} onHandleTap={startConnect} onConnectTap={connectTo} onConnectCancel={cancelConnect}
+            onConnect={startConnect} onDisconnect={(n) => setDisconnectNode(n)} onDetails={(n) => { setSelectedId(n.id); setSheetNode(n); }}
           />
         )}
 
@@ -211,7 +214,7 @@ export default function FocusMap() {
           </div>
         ) : (
           <div style={{ position: 'absolute', top: 8, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: FOCUS.muted, pointerEvents: 'none' }}>
-            {selectedId ? `נבחר: ${byId[selectedId]?.title || ''} · הקש על הנקודה כדי לקשר` : 'הקש לבחירה · הקש על הנקודה כדי לקשר · גרור להזזה'}
+            הקש לבחירה · גרור להזזה
           </div>
         )}
 
@@ -250,9 +253,81 @@ export default function FocusMap() {
         </div>
       )}
 
-      <IdeaCaptureButton onSaved={load} hidden={!!(sheetNode || addOpen || inboxOpen || connectFrom)} onOpenChange={setCaptureOpen} />
-      {sheetNode && <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} allNodes={nodes} onClose={() => setSheetNode(null)} onSaved={load} />}
+      {/* Disconnect sheet — all of a node's connections in one place */}
+      {disconnectNode && (
+        <DisconnectSheet
+          node={nodes.find(n => n.id === disconnectNode.id) || disconnectNode}
+          links={links} byId={byId}
+          onRemoveLink={(id) => removeLink(id, true)}
+          onReparent={(n) => { setDisconnectNode(null); setSelectedId(n.id); setSheetReparent(true); setSheetNode(n); }}
+          onClose={() => setDisconnectNode(null)}
+        />
+      )}
+
+      <IdeaCaptureButton onSaved={load} hidden={!!(sheetNode || addOpen || inboxOpen || connectFrom || disconnectNode)} onOpenChange={setCaptureOpen} />
+      {sheetNode && <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} allNodes={nodes} initialReparentOpen={sheetReparent} onClose={() => { setSheetNode(null); setSheetReparent(false); }} onSaved={load} />}
     </LifeOSLayout>
+  );
+}
+
+// Lists every connection of a node: cross-links + its hierarchy parent.
+function DisconnectSheet({ node, links, byId, onRemoveLink, onReparent, onClose }) {
+  const crossLinks = links
+    .filter(l => l.from_node === node.id || l.to_node === node.id)
+    .map(l => {
+      const otherId = l.from_node === node.id ? l.to_node : l.from_node;
+      const other = byId[otherId];
+      return other ? { linkId: l.id, other } : null;
+    })
+    .filter(Boolean);
+  const parent = node.parent_id ? byId[node.parent_id] : null;
+  const crumb = (n) => ancestorsOf(n, byId).map(a => a.title).join(' › ');
+  const empty = crossLinks.length === 0 && !parent;
+
+  return (
+    <div onClick={onClose} dir="rtl" style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, maxHeight: '80vh', overflowY: 'auto', background: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '16px 16px calc(env(safe-area-inset-bottom,0px) + 20px)', boxShadow: '0 -6px 24px rgba(0,0,0,0.15)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: FOCUS.ink }}>קשרים · {node.title || 'צומת'}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: FOCUS.muted }}><X size={20} /></button>
+        </div>
+
+        {empty && (
+          <div style={{ textAlign: 'center', padding: '32px 20px', color: FOCUS.muted }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: FOCUS.ink }}>אין קשרים לצומת הזה</div>
+            <div style={{ fontSize: 13, marginTop: 6 }}>השתמש ב"+ חבר" כדי ליצור קשר</div>
+          </div>
+        )}
+
+        {parent && (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 800, color: FOCUS.muted, margin: '2px 0 6px' }}>הורה במבנה</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#FBF6EF', borderRadius: 12, padding: '10px 12px', marginBottom: 12 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: FOCUS.ink }}>{parent.title}</div>
+                {crumb(parent) && <div style={{ fontSize: 11, color: FOCUS.muted, marginTop: 2 }}>{crumb(parent)}</div>}
+              </div>
+              <button onClick={() => onReparent(node)} style={{ flexShrink: 0, background: '#EEEDFE', color: '#3C3489', border: 'none', borderRadius: 9, padding: '9px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>העבר לענף אחר</button>
+            </div>
+          </>
+        )}
+
+        {crossLinks.length > 0 && (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 800, color: FOCUS.muted, margin: '2px 0 6px' }}>קשרים ({crossLinks.length})</div>
+            {crossLinks.map(({ linkId, other }) => (
+              <div key={linkId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#fff', border: `1px solid ${FOCUS.border}`, borderRadius: 12, padding: '10px 12px', marginBottom: 8 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: FOCUS.ink }}>{other.title || 'צומת'}</div>
+                  {crumb(other) && <div style={{ fontSize: 11, color: FOCUS.muted, marginTop: 2 }}>{crumb(other)}</div>}
+                </div>
+                <button onClick={() => onRemoveLink(linkId)} style={{ flexShrink: 0, background: '#FCEBEB', color: '#C0392B', border: 'none', borderRadius: 9, padding: '9px 14px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>הסר</button>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

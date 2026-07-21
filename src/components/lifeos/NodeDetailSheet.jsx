@@ -19,7 +19,7 @@ const inputStyle = {
 // Slide-up inline overlay (NOT Radix Dialog). Edits one focus node in
 // place; every control persists immediately and calls onSaved so the
 // underlying screen refreshes.
-export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved, allNodes = [] }) {
+export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved, allNodes = [], initialReparentOpen = false }) {
   const { user } = useContext(AuthContext);
   const [form, setForm] = useState(node || {});
   const [notes, setNotes] = useState([]);
@@ -28,7 +28,7 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
   const [busy, setBusy] = useState(false);
   const [moneyMode, setMoneyMode] = useState(null); // 'cost_actual' | 'revenue_actual' | null
   const [moneyAmt, setMoneyAmt] = useState('');
-  const [reparentOpen, setReparentOpen] = useState(false);
+  const [reparentOpen, setReparentOpen] = useState(initialReparentOpen);
   const [parentSearch, setParentSearch] = useState('');
 
   useEffect(() => { setForm(node || {}); }, [node?.id]);
