@@ -62,7 +62,7 @@ function computeLayout(roots, visibleChildrenOf) {
 export default function MindMapCanvas({
   nodes, byId, children, roots, expanded, selectedId,
   isTaskDone, onTapNode, onToggleDone, onLongPress, onSavePos, centerOnId, onCentered,
-  links = [], onRemoveLink, onCreateLink, onHierEdgeTap,
+  links = [], onRemoveLink, onCreateLink, onHierEdgeTap, onEmptyTap,
   connectFromId = null, onHandleTap, onConnectTap, onConnectCancel,
   onConnect, onDisconnect, onDetails, tools = null,
 }) {
@@ -97,7 +97,7 @@ export default function MindMapCanvas({
   const lastTap = useRef(0);
 
   const ctx = useRef({});
-  ctx.current = { connectFromId, byId, onCreateLink, onHandleTap, onConnectTap, onConnectCancel, onTapNode, onToggleDone, onSavePos, onRemoveLink, onHierEdgeTap };
+  ctx.current = { connectFromId, byId, onCreateLink, onHandleTap, onConnectTap, onConnectCancel, onTapNode, onToggleDone, onSavePos, onRemoveLink, onHierEdgeTap, onEmptyTap };
 
   const commitView = useCallback((v) => { viewRef.current = v; setView(v); }, []);
 
@@ -244,7 +244,10 @@ export default function MindMapCanvas({
     if (g && g.linkId) {
       if (!g.moved) ctx.current.onRemoveLink && ctx.current.onRemoveLink(g.linkId); // tap dashed link → instant remove (+undo)
     } else if (g && g.hierEdge) {
-      if (!g.moved) ctx.current.onHierEdgeTap && ctx.current.onHierEdgeTap(); // tap solid edge → explainer toast
+      if (!g.moved && ctx.current.onHierEdgeTap) { // tap solid edge → mini action bar at the tap point
+        const r = containerRef.current?.getBoundingClientRect();
+        ctx.current.onHierEdgeTap(g.hierChild, r ? e.clientX - r.left : e.clientX, r ? e.clientY - r.top : e.clientY);
+      }
     } else if (g) {
       clearTimeout(g.timer);
       if (!g.long) {
@@ -263,8 +266,12 @@ export default function MindMapCanvas({
     } else if (pan.current) {
       commitView(viewRef.current);
       if (!pan.current.moved) {
-        if (ctx.current.connectFromId) ctx.current.onConnectCancel && ctx.current.onConnectCancel();
-        else { const now = e.timeStamp || 0; if (now - lastTap.current < 320) fitFn.current && fitFn.current(); lastTap.current = now; } // double-tap empty → fit
+        // Single empty-canvas tap dismisses everything (connect/hint/banner/
+        // action bar/toasts — handled by the host). Double-tap = fit.
+        ctx.current.onEmptyTap && ctx.current.onEmptyTap();
+        const now = e.timeStamp || 0;
+        if (now - lastTap.current < 320) fitFn.current && fitFn.current();
+        lastTap.current = now;
       }
     }
 
@@ -328,7 +335,7 @@ export default function MindMapCanvas({
     const linkEl = e.target?.closest?.('[data-link-id]');
     if (linkEl) { gesture.current = { linkId: linkEl.getAttribute('data-link-id'), sx: e.clientX, sy: e.clientY, moved: false }; return; }
     const hierEl = e.target?.closest?.('[data-hier-edge]');
-    if (hierEl) { gesture.current = { hierEdge: true, sx: e.clientX, sy: e.clientY, moved: false }; return; }
+    if (hierEl) { gesture.current = { hierEdge: true, hierChild: hierEl.getAttribute('data-hier-edge'), sx: e.clientX, sy: e.clientY, moved: false }; return; }
     pan.current = { x: e.clientX, y: e.clientY, tx: viewRef.current.tx, ty: viewRef.current.ty, moved: false };
   };
 
@@ -421,7 +428,7 @@ export default function MindMapCanvas({
             const hitW = Math.max(16, 26 / view.scale);
             return (
               <g key={p.id + '-' + c.id}>
-                <path data-hier-edge="1" d={d} fill="none" stroke="transparent" strokeWidth={hitW} style={{ pointerEvents: 'stroke', cursor: 'help' }} />
+                <path data-hier-edge={c.id} d={d} fill="none" stroke="transparent" strokeWidth={hitW} style={{ pointerEvents: 'stroke', cursor: 'pointer' }} />
                 <path d={d} fill="none" stroke={HIER_EDGE} strokeWidth={2} style={{ pointerEvents: 'none' }} />
               </g>
             );

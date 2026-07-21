@@ -37,6 +37,7 @@ export default function FocusMap() {
   const [connectFrom, setConnectFrom] = useState(null); // two-tap connect source id
   const [disconnectNode, setDisconnectNode] = useState(null); // node whose connections are listed
   const [sheetReparent, setSheetReparent] = useState(false);  // open NodeDetailSheet with reparent picker
+  const [hierMenu, setHierMenu] = useState(null); // { childId, x, y } — solid-edge mini action bar
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -52,13 +53,17 @@ export default function FocusMap() {
       // endpoint node is missing OR parked — these render as untappable
       // "stuck" dashed lines. Logged so cleanups are visible.
       const liveIds = new Set(n.filter(x => x.status !== 'parked').map(x => x.id));
-      const good = lk.filter(x => liveIds.has(x.from_node) && liveIds.has(x.to_node));
-      const orphans = lk.filter(x => !liveIds.has(x.from_node) || !liveIds.has(x.to_node));
+      const byIdMap = Object.fromEntries(n.map(x => [x.id, x]));
+      // Redundant: a cross-link whose endpoints are already parent-child in
+      // the hierarchy (it just duplicates the solid edge).
+      const isRedundant = (x) => byIdMap[x.from_node]?.parent_id === x.to_node || byIdMap[x.to_node]?.parent_id === x.from_node;
+      const good = lk.filter(x => liveIds.has(x.from_node) && liveIds.has(x.to_node) && !isRedundant(x));
+      const dead = lk.filter(x => !(liveIds.has(x.from_node) && liveIds.has(x.to_node)) || isRedundant(x));
       setLinks(good);
-      if (orphans.length) {
+      if (dead.length) {
         // eslint-disable-next-line no-console
-        console.log(`[FocusMap] cleaned ${orphans.length} orphan link(s) (missing/parked endpoints)`);
-        orphans.forEach(o => { deleteLink(o.id).catch(() => {}); });
+        console.log(`[FocusMap] cleaned ${dead.length} link(s) (missing/parked endpoint or parent-child redundant)`);
+        dead.forEach(o => { deleteLink(o.id).catch(() => {}); });
       }
       // Expand all branches by default on first load.
       setExpanded(prev => prev.size ? prev : new Set(n.filter(x => x.node_type !== 'task').map(x => x.id)));
@@ -107,7 +112,7 @@ export default function FocusMap() {
     try { await updateNode(id, { pos_x: x, pos_y: y }); } catch { toast.error('שגיאה בשמירת מיקום'); }
   };
 
-  const UNDO = { duration: 5000 };
+  const UNDO = { duration: 3000 };
 
   // Create a link — instant, with an undo toast that deletes it again.
   const createLinkBetween = async (fromId, toId) => {
@@ -155,8 +160,11 @@ export default function FocusMap() {
     } catch { toast.error('שגיאה'); load(); }
   };
 
-  // Tapping a solid hierarchy edge — explain it isn't a removable link.
-  const hierEdgeExplain = () => toast('זהו קו מבנה · להעברת הענף השתמש בכפתור נתק');
+  // Tapping a solid hierarchy edge → mini action bar at the tap point.
+  const openHierMenu = (childId, x, y) => { setConnectFrom(null); setHierMenu({ childId, x, y }); };
+
+  // Single empty-canvas tap dismisses everything lingering.
+  const dismissAll = () => { setConnectFrom(null); setHierMenu(null); setSelectedId(null); toast.dismiss(); };
 
   // Parent for a new node: the selected node, else the main root (or
   // null → a new top-level node when the tree is still empty).
@@ -254,7 +262,7 @@ export default function FocusMap() {
             onLongPress={(n) => { setSelectedId(n.id); setSheetNode(n); }}
             onSavePos={savePos}
             centerOnId={centerId} onCentered={() => setCenterId(null)}
-            links={links} onRemoveLink={removeLink} onCreateLink={createLinkBetween} onHierEdgeTap={hierEdgeExplain}
+            links={links} onRemoveLink={removeLink} onCreateLink={createLinkBetween} onHierEdgeTap={openHierMenu} onEmptyTap={dismissAll}
             connectFromId={connectFrom} onHandleTap={startConnect} onConnectTap={connectTo} onConnectCancel={cancelConnect}
             onConnect={startConnect} onDisconnect={(n) => setDisconnectNode(n)} onDetails={(n) => { setSelectedId(n.id); setSheetNode(n); }}
             tools={tools}
@@ -269,12 +277,26 @@ export default function FocusMap() {
           </div>
         )}
 
-        {/* Hint — overlay only, and only on a small/new map (≤5 nodes). */}
-        {!connectFrom && !empty && nodes.length <= 5 && (
+        {/* Hint — only on an EMPTY selection AND a small/new map (≤5). */}
+        {!connectFrom && !hierMenu && !selectedId && !empty && nodes.length <= 5 && (
           <div style={{ position: 'absolute', top: 8, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: FOCUS.muted, pointerEvents: 'none' }}>
             הקש לבחירה · גרור להזזה · הקש ⊕ להוספה
           </div>
         )}
+
+        {/* Solid-edge mini action bar at the tap point */}
+        {hierMenu && (() => {
+          const child = byId[hierMenu.childId];
+          if (!child) return null;
+          return (
+            <div style={{ position: 'absolute', left: Math.max(8, Math.min(hierMenu.x, 340)), top: Math.max(8, hierMenu.y), transform: 'translate(-50%,8px)', display: 'flex', gap: 6, background: '#fff', border: `1px solid ${FOCUS.border}`, borderRadius: 12, padding: 5, boxShadow: '0 4px 14px rgba(0,0,0,0.2)', zIndex: 7, whiteSpace: 'nowrap' }}>
+              <button onClick={() => { setHierMenu(null); setSelectedId(child.id); setSheetReparent(true); setSheetNode(child); }}
+                style={{ minHeight: 40, padding: '0 12px', borderRadius: 9, border: 'none', background: '#EEEDFE', color: '#3C3489', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>העבר לענף אחר</button>
+              <button onClick={() => setHierMenu(null)}
+                style={{ minHeight: 40, padding: '0 12px', borderRadius: 9, border: `1px solid ${FOCUS.border}`, background: '#fff', color: FOCUS.muted, fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>סגור</button>
+            </div>
+          );
+        })()}
 
         {/* Floating add (bottom-RIGHT) → opens the full inline add panel.
             Hidden whenever any sheet/panel/capture overlay is open so it
