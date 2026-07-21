@@ -15,7 +15,7 @@ import { LIFEOS_COLORS, COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 // the content area gets flex:1 and fills the viewport edge-to-edge between
 // the header and the bottom nav — no max-width, no side gutters. Existing
 // pages don't pass it, so their scrolling/centered layout is unchanged.
-export default function LifeOSLayout({ title, children, rightSlot = null, onQuickSaved, fullBleed = false, hideFab = false }) {
+export default function LifeOSLayout({ title, children, rightSlot = null, onQuickSaved, fullBleed = false, hideFab = false, hideHeader = false }) {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const isCoordinator = user?.role === 'coordinator';
@@ -41,7 +41,9 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
         </div>
       )}
 
-      {/* Top bar */}
+      {/* Top bar — suppressed on screens that pass hideHeader (map only),
+          reclaiming ~50px of vertical space for the canvas. */}
+      {!hideHeader && (
       <div
         className="safe-area-top"
         style={{
@@ -109,6 +111,7 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
           <NotificationBell userId={user?.id} leadsOnly={isCoordinator} />
         </div>
       </div>
+      )}
 
       {/* Content */}
       <div
@@ -117,7 +120,9 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
               flex: 1, minHeight: 0, width: '100%',
               display: 'flex', flexDirection: 'column', overflow: 'hidden',
               // Reserve the fixed bottom nav so flex:1 children end above it.
-              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)',
+              // Nav is ~77px tall; 82 clears it with a small gap and hands the
+              // extra vertical space back to the canvas.
+              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 82px)',
             }
           : { padding: '16px 0 100px', maxWidth: 560, margin: '0 auto' }}
       >

@@ -163,26 +163,28 @@ export default function FocusMap() {
 
   const branchOptions = useMemo(() => nodes.filter(n => n.node_type !== 'task'), [nodes]);
 
-  if (!loaded) return <LifeOSLayout title="מיקוד" hideFab><FocusChips /><PageSkeleton rows={6} /></LifeOSLayout>;
+  if (!loaded) return <LifeOSLayout title="מיקוד" fullBleed hideFab hideHeader><FocusChips compact /><PageSkeleton rows={6} /></LifeOSLayout>;
 
   const empty = nodes.length === 0;
 
-  return (
-    <LifeOSLayout title="מיקוד" fullBleed hideFab>
-      <FocusChips />
+  // Chips + map tools merged into ONE compact scrollable row.
+  const tools = (
+    <>
+      <button onClick={autoArrange} style={compactTool}>
+        <LayoutGrid size={14} /> סידור
+      </button>
+      <button onClick={() => setInboxOpen(true)} style={{ ...compactTool, position: 'relative' }}>
+        <Inbox size={14} /> תיבה
+        {ideas.length > 0 && (
+          <span style={{ position: 'absolute', top: -5, left: -5, background: FOCUS.orange, color: '#fff', borderRadius: 999, minWidth: 16, height: 16, fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{ideas.length}</span>
+        )}
+      </button>
+    </>
+  );
 
-      {/* Toolbar — compact, wraps on narrow screens */}
-      <div style={{ display: 'flex', gap: 8, padding: '0 12px 8px', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
-        <button onClick={autoArrange} style={toolBtn}>
-          <LayoutGrid size={15} /> סידור אוטומטי
-        </button>
-        <button onClick={() => setInboxOpen(true)} style={{ ...toolBtn, position: 'relative' }}>
-          <Inbox size={15} /> תיבה
-          {ideas.length > 0 && (
-            <span style={{ position: 'absolute', top: -6, left: -6, background: FOCUS.orange, color: '#fff', borderRadius: 999, minWidth: 18, height: 18, fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>{ideas.length}</span>
-          )}
-        </button>
-      </div>
+  return (
+    <LifeOSLayout title="מיקוד" fullBleed hideFab hideHeader>
+      <FocusChips compact trailing={tools} />
 
       {/* Canvas — fills all remaining space, edge to edge */}
       <div style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%', overflow: 'hidden', background: FOCUS.bg }}>
@@ -206,15 +208,18 @@ export default function FocusMap() {
           />
         )}
 
-        {/* Connect-mode banner OR the selection hint */}
-        {connectFrom ? (
+        {/* Connect-mode banner (functional, always shown while connecting) */}
+        {connectFrom && (
           <div style={{ position: 'absolute', top: 8, left: 12, right: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#3A3450', color: '#fff', borderRadius: 12, padding: '9px 12px', boxShadow: '0 4px 14px rgba(0,0,0,0.25)', zIndex: 5 }}>
             <span style={{ fontSize: 13, fontWeight: 700 }}>🔗 בחר צומת לחיבור{byId[connectFrom]?.title ? ` מ"${byId[connectFrom].title}"` : ''} · ניתן לחבר לכמה</span>
             <button onClick={cancelConnect} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 8, padding: '5px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>סיום</button>
           </div>
-        ) : (
+        )}
+
+        {/* Hint — overlay only, and only on a small/new map (≤5 nodes). */}
+        {!connectFrom && !empty && nodes.length <= 5 && (
           <div style={{ position: 'absolute', top: 8, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: FOCUS.muted, pointerEvents: 'none' }}>
-            הקש לבחירה · גרור להזזה
+            הקש לבחירה · גרור להזזה · הקש ⊕ להוספה
           </div>
         )}
 
@@ -363,10 +368,11 @@ function IdeaRow({ idea, branchOptions, onConvert, onArchive }) {
   );
 }
 
-const toolBtn = {
-  display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 12,
-  border: `1px solid ${FOCUS.border}`, background: '#fff', boxShadow: FOCUS.neu,
-  color: FOCUS.ink, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+// Compact map tools that sit in the merged chips row (32px tall to match).
+const compactTool = {
+  flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 4, minHeight: 32, padding: '0 12px',
+  borderRadius: 10, border: `1px solid ${FOCUS.border}`, background: '#fff', boxShadow: FOCUS.neu,
+  color: FOCUS.ink, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
 };
 
 // ─── Full inline add panel (slide-up, NOT Radix) ──────────────────

@@ -12,13 +12,17 @@ const CHIPS = [
   { to: '/lifeos/focus/map',      label: 'מפה',    Icon: Network,       end: false },
 ];
 
-export default function FocusChips() {
+// `compact` (map only) → 32px chips, tight vertical padding, chips shrink to
+// content so `trailing` tools share one horizontally-scrollable row.
+// `trailing` → extra buttons rendered after the chips in the same row.
+// Default (no props) keeps the original look for the other four screens.
+export default function FocusChips({ compact = false, trailing = null }) {
   return (
     <div
       dir="rtl"
       style={{
-        display: 'flex', gap: 6,
-        padding: '4px 14px 12px',
+        display: 'flex', gap: 6, alignItems: 'center',
+        padding: compact ? '4px 8px' : '4px 14px 12px',
         overflowX: 'auto',
         flexShrink: 0,
       }}
@@ -29,26 +33,28 @@ export default function FocusChips() {
           to={c.to}
           end={c.end}
           style={({ isActive }) => ({
-            flex: '1 1 0',
-            minWidth: 72,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-            padding: '9px 6px',
-            borderRadius: 12,
+            flex: compact ? '0 0 auto' : '1 1 0',
+            minWidth: compact ? 0 : 72,
+            minHeight: compact ? 32 : undefined,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: compact ? 4 : 5,
+            padding: compact ? '0 10px' : '9px 6px',
+            borderRadius: compact ? 10 : 12,
             textDecoration: 'none',
             whiteSpace: 'nowrap',
             backgroundColor: isActive ? FOCUS.orange : '#FFFFFF',
             color: isActive ? '#FFFFFF' : '#9A6A3A',
             border: isActive ? 'none' : `1px solid ${FOCUS.border}`,
             boxShadow: isActive ? 'none' : FOCUS.neu,
-            fontSize: 13, fontWeight: isActive ? 700 : 600,
+            fontSize: compact ? 12.5 : 13, fontWeight: isActive ? 700 : 600,
             fontFamily: 'inherit',
             transition: 'background-color .15s, color .15s',
           })}
         >
-          <c.Icon size={15} />
+          <c.Icon size={compact ? 14 : 15} />
           <span>{c.label}</span>
         </NavLink>
       ))}
+      {trailing}
     </div>
   );
 }
