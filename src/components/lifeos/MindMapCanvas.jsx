@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Unlink, Maximize } from 'lucide-react';
+import { Maximize } from 'lucide-react';
 import { FOCUS, urgencyStyle, descendantTasks, allDescendants } from '@/lib/lifeos/focus-api';
 
 // ── Geometry ──────────────────────────────────────────────────────
@@ -62,13 +62,12 @@ function computeLayout(roots, visibleChildrenOf) {
 export default function MindMapCanvas({
   nodes, byId, children, roots, expanded, selectedId,
   isTaskDone, onTapNode, onToggleDone, onLongPress, onSavePos, centerOnId, onCentered,
-  links = [], onRemoveLink, onCreateLink,
+  links = [], onRemoveLink, onCreateLink, onHierEdgeTap,
   connectFromId = null, onHandleTap, onConnectTap, onConnectCancel,
   onConnect, onDisconnect, onDetails, tools = null,
 }) {
   const [view, setView] = useState({ tx: 20, ty: 20, scale: 1 });
   const [livePos, setLivePos] = useState({});
-  const [selLink, setSelLink] = useState(null);
   const [busy, setBusy] = useState(false);
   const [hoverId, setHoverId] = useState(null); // node under the wire / just-tapped target
 
@@ -98,7 +97,7 @@ export default function MindMapCanvas({
   const lastTap = useRef(0);
 
   const ctx = useRef({});
-  ctx.current = { connectFromId, byId, onCreateLink, onHandleTap, onConnectTap, onConnectCancel, onTapNode, onToggleDone, onSavePos };
+  ctx.current = { connectFromId, byId, onCreateLink, onHandleTap, onConnectTap, onConnectCancel, onTapNode, onToggleDone, onSavePos, onRemoveLink, onHierEdgeTap };
 
   const commitView = useCallback((v) => { viewRef.current = v; setView(v); }, []);
 
@@ -176,7 +175,7 @@ export default function MindMapCanvas({
     }
 
     const g = gesture.current;
-    if (g && g.linkId) { if (Math.abs(e.clientX - g.sx) > 8 || Math.abs(e.clientY - g.sy) > 8) g.moved = true; return; }
+    if (g && (g.linkId || g.hierEdge)) { if (Math.abs(e.clientX - g.sx) > 8 || Math.abs(e.clientY - g.sy) > 8) g.moved = true; return; }
     if (g) {
       const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
       if (!g.moved && Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
@@ -243,7 +242,9 @@ export default function MindMapCanvas({
     const g = gesture.current;
     gesture.current = null;
     if (g && g.linkId) {
-      if (!g.moved) setSelLink(g.linkId);
+      if (!g.moved) ctx.current.onRemoveLink && ctx.current.onRemoveLink(g.linkId); // tap dashed link → instant remove (+undo)
+    } else if (g && g.hierEdge) {
+      if (!g.moved) ctx.current.onHierEdgeTap && ctx.current.onHierEdgeTap(); // tap solid edge → explainer toast
     } else if (g) {
       clearTimeout(g.timer);
       if (!g.long) {
@@ -326,7 +327,8 @@ export default function MindMapCanvas({
     }
     const linkEl = e.target?.closest?.('[data-link-id]');
     if (linkEl) { gesture.current = { linkId: linkEl.getAttribute('data-link-id'), sx: e.clientX, sy: e.clientY, moved: false }; return; }
-    setSelLink(null);
+    const hierEl = e.target?.closest?.('[data-hier-edge]');
+    if (hierEl) { gesture.current = { hierEdge: true, sx: e.clientX, sy: e.clientY, moved: false }; return; }
     pan.current = { x: e.clientX, y: e.clientY, tx: viewRef.current.tx, ty: viewRef.current.ty, moved: false };
   };
 
@@ -403,8 +405,6 @@ export default function MindMapCanvas({
 
   const edgePath = (p, c) => { const { a, b } = anchored(p, c); return pathBetween(a, b); };
   const linkPath = (A, B) => { const { a, b } = anchored(A, B); return pathBetween(a, b); };
-  const linkMid = (A, B) => { const { a, b } = anchored(A, B); return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
-  const selLinkObj = resolvedLinks.find(l => l.id === selLink) || null;
 
   return (
     <div
@@ -414,21 +414,27 @@ export default function MindMapCanvas({
     >
       <svg ref={svgRef} width="100%" height="100%" style={{ touchAction: 'none', background: FOCUS.bg, display: 'block' }}>
         <g ref={gRef} transform={trStr(view)}>
-          {/* Hierarchy edges — solid, auto-anchored */}
-          {visibleNodes.map(p => visibleChildrenOf(p).map(c => (
-            <path key={p.id + '-' + c.id} d={edgePath(p, c)} fill="none" stroke={HIER_EDGE} strokeWidth={2} />
-          )))}
+          {/* Hierarchy edges — solid, auto-anchored. Tapping one shows the
+              structure-line explainer (not removable like a cross-link). */}
+          {visibleNodes.map(p => visibleChildrenOf(p).map(c => {
+            const d = edgePath(p, c);
+            const hitW = Math.max(16, 26 / view.scale);
+            return (
+              <g key={p.id + '-' + c.id}>
+                <path data-hier-edge="1" d={d} fill="none" stroke="transparent" strokeWidth={hitW} style={{ pointerEvents: 'stroke', cursor: 'help' }} />
+                <path d={d} fill="none" stroke={HIER_EDGE} strokeWidth={2} style={{ pointerEvents: 'none' }} />
+              </g>
+            );
+          }))}
 
-          {/* Cross-links — dashed purple-gray, auto-anchored. The fat
-              transparent hit-path scales with 1/zoom so it stays ≥28
-              screen-px tappable at every zoom level. */}
+          {/* Cross-links — dashed purple-gray, auto-anchored. Tap → remove. */}
           {resolvedLinks.map(l => {
             const d = linkPath(l.a, l.b);
-            const hitW = Math.max(18, 28 / view.scale);
+            const hitW = Math.max(18, 30 / view.scale);
             return (
               <g key={l.id}>
                 <path data-link-id={l.id} d={d} fill="none" stroke="transparent" strokeWidth={hitW} style={{ pointerEvents: 'stroke', cursor: 'pointer' }} />
-                <path d={d} fill="none" stroke={selLink === l.id ? FOCUS.edgeSel : LINK_EDGE} strokeWidth={selLink === l.id ? 3 : 2} strokeDasharray="6 5" style={{ pointerEvents: 'none' }} />
+                <path d={d} fill="none" stroke={LINK_EDGE} strokeWidth={2} strokeDasharray="6 5" style={{ pointerEvents: 'none' }} />
               </g>
             );
           })}
@@ -454,21 +460,6 @@ export default function MindMapCanvas({
         <button onPointerDown={(e) => e.stopPropagation()} onClick={() => zoom(-1)} style={zoomBtn}>−</button>
         {tools}
       </div>
-
-      {/* Remove-link chip */}
-      {selLinkObj && (() => {
-        const m = linkMid(selLinkObj.a, selLinkObj.b);
-        const sx = view.tx + m.x * view.scale, sy = view.ty + m.y * view.scale;
-        return (
-          <button
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => { onRemoveLink && onRemoveLink(selLink); setSelLink(null); }}
-            style={{ position: 'absolute', left: sx, top: sy, transform: 'translate(-50%,-50%)', display: 'flex', alignItems: 'center', gap: 5, background: '#fff', border: `1.5px solid ${LINK_EDGE}`, color: '#5B5480', borderRadius: 999, padding: '6px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.18)', fontFamily: "'Rubik', system-ui, sans-serif", whiteSpace: 'nowrap' }}
-          >
-            <Unlink size={14} /> הסר קשר
-          </button>
-        );
-      })()}
 
       {/* Selection action bar — primary connect/disconnect UX */}
       {selectedId && !busy && !connectFromId && (() => {

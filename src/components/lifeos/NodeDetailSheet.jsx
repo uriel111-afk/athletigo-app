@@ -87,7 +87,10 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
   const scheduleToday = async () => { await persist({ task_date: isoDate(), status: 'active' }); toast.success('שובץ להיום'); };
   const park = async () => { await persist({ status: 'parked' }); toast.success('הועבר להחניה'); onClose && onClose(); };
   const remove = async () => {
-    if (!window.confirm('למחוק את הצומת וכל מה שמתחתיו? פעולה זו אינה הפיכה.')) return;
+    // The ONLY remaining confirm on the map: deleting a node WITH children
+    // (a leaf deletes instantly).
+    const kids = allDescendants(node.id, idx.children);
+    if (kids.length && !window.confirm(`למחוק את "${node.title || 'הצומת'}" ו-${kids.length} צמתים שמתחתיו? פעולה זו אינה הפיכה.`)) return;
     setBusy(true);
     try { await deleteNode(node.id); toast.success('נמחק'); onSaved && onSaved(); onClose && onClose(); }
     catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }

@@ -48,13 +48,18 @@ export default function FocusMap() {
         fetchLinks(userId),
       ]);
       setNodes(n); setLogs(l); setIdeas(i);
-      // Orphan-link cleanup: drop (and delete) any link whose endpoint node
-      // no longer exists — these render as untappable "stuck" dashed lines.
-      const ids = new Set(n.map(x => x.id));
-      const good = lk.filter(x => ids.has(x.from_node) && ids.has(x.to_node));
-      const orphans = lk.filter(x => !ids.has(x.from_node) || !ids.has(x.to_node));
+      // Orphan-link cleanup on EVERY load: drop (and delete) any link whose
+      // endpoint node is missing OR parked — these render as untappable
+      // "stuck" dashed lines. Logged so cleanups are visible.
+      const liveIds = new Set(n.filter(x => x.status !== 'parked').map(x => x.id));
+      const good = lk.filter(x => liveIds.has(x.from_node) && liveIds.has(x.to_node));
+      const orphans = lk.filter(x => !liveIds.has(x.from_node) || !liveIds.has(x.to_node));
       setLinks(good);
-      orphans.forEach(o => { deleteLink(o.id).catch(() => {}); });
+      if (orphans.length) {
+        // eslint-disable-next-line no-console
+        console.log(`[FocusMap] cleaned ${orphans.length} orphan link(s) (missing/parked endpoints)`);
+        orphans.forEach(o => { deleteLink(o.id).catch(() => {}); });
+      }
       // Expand all branches by default on first load.
       setExpanded(prev => prev.size ? prev : new Set(n.filter(x => x.node_type !== 'task').map(x => x.id)));
     } catch (e) { toast.error('שגיאה בטעינה'); }
@@ -102,13 +107,18 @@ export default function FocusMap() {
     try { await updateNode(id, { pos_x: x, pos_y: y }); } catch { toast.error('שגיאה בשמירת מיקום'); }
   };
 
-  // Create a link (used by both handle-drag and two-tap connect).
+  const UNDO = { duration: 5000 };
+
+  // Create a link — instant, with an undo toast that deletes it again.
   const createLinkBetween = async (fromId, toId) => {
     if (fromId === toId) return;
     try {
-      await createLink(userId, fromId, toId);
+      const created = await createLink(userId, fromId, toId);
       setLinks(await fetchLinks(userId));
-      toast.success('קשר נוצר');
+      toast('קשר נוצר · בטל', {
+        ...UNDO,
+        action: created ? { label: 'בטל', onClick: async () => { try { await deleteLink(created.id); setLinks(await fetchLinks(userId)); } catch { /* noop */ } } } : undefined,
+      });
     } catch { toast.error('שגיאה ביצירת קשר'); }
   };
 
@@ -118,11 +128,35 @@ export default function FocusMap() {
   const connectTo = (targetId) => { if (connectFrom && targetId !== connectFrom) createLinkBetween(connectFrom, targetId); };
   const cancelConnect = () => setConnectFrom(null);
 
-  const removeLink = async (linkId, skipConfirm = false) => {
-    if (!skipConfirm && !window.confirm('להסיר את הקשר?')) return;
-    try { await deleteLink(linkId); setLinks(await fetchLinks(userId)); toast.success('הקשר הוסר'); }
-    catch { toast.error('שגיאה'); }
+  // Remove a link — instant, with an undo toast that re-creates it.
+  const removeLink = async (linkId) => {
+    const gone = links.find(l => l.id === linkId);
+    setLinks(prev => prev.filter(l => l.id !== linkId)); // optimistic
+    try {
+      await deleteLink(linkId);
+      toast('הקשר הוסר · בטל', {
+        ...UNDO,
+        action: gone ? { label: 'בטל', onClick: async () => { try { await createLink(userId, gone.from_node, gone.to_node); setLinks(await fetchLinks(userId)); } catch { /* noop */ } } } : undefined,
+      });
+    } catch { toast.error('שגיאה'); load(); }
   };
+
+  // Guaranteed removal: wipe ALL cross-links of a node, undo restores them.
+  const removeAllLinks = async (nodeId) => {
+    const touching = links.filter(l => l.from_node === nodeId || l.to_node === nodeId);
+    if (!touching.length) return;
+    setLinks(prev => prev.filter(l => l.from_node !== nodeId && l.to_node !== nodeId));
+    try {
+      await Promise.all(touching.map(l => deleteLink(l.id)));
+      toast(`${touching.length} קשרים הוסרו · בטל`, {
+        ...UNDO,
+        action: { label: 'בטל', onClick: async () => { try { await Promise.all(touching.map(l => createLink(userId, l.from_node, l.to_node))); setLinks(await fetchLinks(userId)); } catch { /* noop */ } } },
+      });
+    } catch { toast.error('שגיאה'); load(); }
+  };
+
+  // Tapping a solid hierarchy edge — explain it isn't a removable link.
+  const hierEdgeExplain = () => toast('זהו קו מבנה · להעברת הענף השתמש בכפתור נתק');
 
   // Parent for a new node: the selected node, else the main root (or
   // null → a new top-level node when the tree is still empty).
@@ -144,14 +178,24 @@ export default function FocusMap() {
     setCenterId(created.id);
   };
 
+  // Instant auto-arrange (no confirm) — undo restores the prior coords.
   const autoArrange = async () => {
     const target = selectedId ? byId[selectedId] : null;
     const scope = target ? [target, ...allDescendants(target.id, children)] : nodes;
     if (!scope.length) return;
-    if (!window.confirm(target ? `לסדר מחדש את "${target.title}" וכל מה שמתחתיו?` : 'לסדר מחדש את כל המפה?')) return;
     const ids = scope.map(n => n.id);
+    const prior = scope.map(n => ({ id: n.id, pos_x: n.pos_x ?? null, pos_y: n.pos_y ?? null }));
     setNodes(p => p.map(n => ids.includes(n.id) ? { ...n, pos_x: null, pos_y: null } : n));
-    try { await clearPositions(ids); toast.success('סודר אוטומטית'); } catch { toast.error('שגיאה'); load(); }
+    try {
+      await clearPositions(ids);
+      toast('סודר אוטומטית · בטל', {
+        ...UNDO,
+        action: { label: 'בטל', onClick: async () => {
+          setNodes(p => p.map(n => { const o = prior.find(x => x.id === n.id); return o ? { ...n, pos_x: o.pos_x, pos_y: o.pos_y } : n; }));
+          try { await Promise.all(prior.filter(o => o.pos_x != null).map(o => updateNode(o.id, { pos_x: o.pos_x, pos_y: o.pos_y }))); } catch { /* noop */ }
+        } },
+      });
+    } catch { toast.error('שגיאה'); load(); }
   };
 
   const convertIdea = async (idea, parentId, type) => {
@@ -210,7 +254,7 @@ export default function FocusMap() {
             onLongPress={(n) => { setSelectedId(n.id); setSheetNode(n); }}
             onSavePos={savePos}
             centerOnId={centerId} onCentered={() => setCenterId(null)}
-            links={links} onRemoveLink={removeLink} onCreateLink={createLinkBetween}
+            links={links} onRemoveLink={removeLink} onCreateLink={createLinkBetween} onHierEdgeTap={hierEdgeExplain}
             connectFromId={connectFrom} onHandleTap={startConnect} onConnectTap={connectTo} onConnectCancel={cancelConnect}
             onConnect={startConnect} onDisconnect={(n) => setDisconnectNode(n)} onDetails={(n) => { setSelectedId(n.id); setSheetNode(n); }}
             tools={tools}
@@ -272,7 +316,8 @@ export default function FocusMap() {
         <DisconnectSheet
           node={nodes.find(n => n.id === disconnectNode.id) || disconnectNode}
           links={links} byId={byId}
-          onRemoveLink={(id) => removeLink(id, true)}
+          onRemoveLink={(id) => removeLink(id)}
+          onRemoveAll={(id) => removeAllLinks(id)}
           onReparent={(n) => { setDisconnectNode(null); setSelectedId(n.id); setSheetReparent(true); setSheetNode(n); }}
           onClose={() => setDisconnectNode(null)}
         />
@@ -285,7 +330,7 @@ export default function FocusMap() {
 }
 
 // Lists every connection of a node: cross-links + its hierarchy parent.
-function DisconnectSheet({ node, links, byId, onRemoveLink, onReparent, onClose }) {
+function DisconnectSheet({ node, links, byId, onRemoveLink, onRemoveAll, onReparent, onClose }) {
   const crossLinks = links
     .filter(l => l.from_node === node.id || l.to_node === node.id)
     .map(l => {
@@ -311,6 +356,14 @@ function DisconnectSheet({ node, links, byId, onRemoveLink, onReparent, onClose 
             <div style={{ fontSize: 15, fontWeight: 700, color: FOCUS.ink }}>אין קשרים לצומת הזה</div>
             <div style={{ fontSize: 13, marginTop: 6 }}>השתמש ב"+ חבר" כדי ליצור קשר</div>
           </div>
+        )}
+
+        {/* Guaranteed removal: wipe ALL cross-links of this node at once. */}
+        {crossLinks.length > 0 && (
+          <button onClick={() => { onRemoveAll(node.id); onClose(); }}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: '#FCEBEB', color: '#C0392B', border: `1px solid #F3C7C2`, borderRadius: 12, padding: '12px', fontSize: 13.5, fontWeight: 800, cursor: 'pointer', marginBottom: 12 }}>
+            הסר את כל הקשרים של הצומת ({crossLinks.length})
+          </button>
         )}
 
         {parent && (
