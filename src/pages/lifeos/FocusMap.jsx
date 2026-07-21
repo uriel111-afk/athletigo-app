@@ -34,6 +34,7 @@ export default function FocusMap() {
   const [inboxOpen, setInboxOpen] = useState(false);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [links, setLinks] = useState([]);
+  const [connectFrom, setConnectFrom] = useState(null); // two-tap connect source id
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -92,7 +93,7 @@ export default function FocusMap() {
     try { await updateNode(id, { pos_x: x, pos_y: y }); } catch { toast.error('שגיאה בשמירת מיקום'); }
   };
 
-  // n8n-style: dragged from a node's handle and dropped on another node.
+  // Create a link (used by both handle-drag and two-tap connect).
   const createLinkBetween = async (fromId, toId) => {
     if (fromId === toId) return;
     try {
@@ -101,6 +102,12 @@ export default function FocusMap() {
       toast.success('קשר נוצר');
     } catch { toast.error('שגיאה ביצירת קשר'); }
   };
+
+  // Two-tap connect: tap a handle → enter mode; tap a node → link (stay in
+  // mode for 1-to-N); tap empty / ביטול → cancel.
+  const startConnect = (id) => setConnectFrom(id);
+  const connectTo = (targetId) => { if (connectFrom && targetId !== connectFrom) createLinkBetween(connectFrom, targetId); };
+  const cancelConnect = () => setConnectFrom(null);
 
   const removeLink = async (linkId) => {
     if (!window.confirm('להסיר את הקשר?')) return;
@@ -191,20 +198,27 @@ export default function FocusMap() {
             onLongPress={(n) => { setSelectedId(n.id); setSheetNode(n); }}
             onSavePos={savePos}
             centerOnId={centerId} onCentered={() => setCenterId(null)}
-            links={links} onRemoveLink={removeLink}
-            onCreateLink={createLinkBetween}
+            links={links} onRemoveLink={removeLink} onCreateLink={createLinkBetween}
+            connectFromId={connectFrom} onHandleTap={startConnect} onConnectTap={connectTo} onConnectCancel={cancelConnect}
           />
         )}
 
-        {/* Floating selection hint — overlays, no layout height */}
-        <div style={{ position: 'absolute', top: 8, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: FOCUS.muted, pointerEvents: 'none' }}>
-          {selectedId ? `נבחר: ${byId[selectedId]?.title || ''} · גרור מהנקודה כדי לקשר` : 'הקש לבחירה · לחיצה ארוכה לעריכה · גרור להזזה'}
-        </div>
+        {/* Connect-mode banner OR the selection hint */}
+        {connectFrom ? (
+          <div style={{ position: 'absolute', top: 8, left: 12, right: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#3A3450', color: '#fff', borderRadius: 12, padding: '9px 12px', boxShadow: '0 4px 14px rgba(0,0,0,0.25)', zIndex: 5 }}>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>🔗 בחר צומת לחיבור{byId[connectFrom]?.title ? ` מ"${byId[connectFrom].title}"` : ''} · ניתן לחבר לכמה</span>
+            <button onClick={cancelConnect} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 8, padding: '5px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>סיום</button>
+          </div>
+        ) : (
+          <div style={{ position: 'absolute', top: 8, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: FOCUS.muted, pointerEvents: 'none' }}>
+            {selectedId ? `נבחר: ${byId[selectedId]?.title || ''} · הקש על הנקודה כדי לקשר` : 'הקש לבחירה · הקש על הנקודה כדי לקשר · גרור להזזה'}
+          </div>
+        )}
 
         {/* Floating add (bottom-RIGHT) → opens the full inline add panel.
             Hidden whenever any sheet/panel/capture overlay is open so it
             never covers panel content. */}
-        {!(addOpen || sheetNode || inboxOpen || captureOpen) && (
+        {!(addOpen || sheetNode || inboxOpen || captureOpen || connectFrom) && (
           <button onClick={() => setAddOpen(true)} aria-label="הוסף צומת"
             style={{ position: 'absolute', right: 16, bottom: 16, width: 52, height: 52, borderRadius: '50%', border: 'none', background: FOCUS.orangeGrad, color: '#fff', boxShadow: '0 6px 16px rgba(255,111,32,0.45)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Plus size={26} />
@@ -236,7 +250,7 @@ export default function FocusMap() {
         </div>
       )}
 
-      <IdeaCaptureButton onSaved={load} hidden={!!(sheetNode || addOpen || inboxOpen)} onOpenChange={setCaptureOpen} />
+      <IdeaCaptureButton onSaved={load} hidden={!!(sheetNode || addOpen || inboxOpen || connectFrom)} onOpenChange={setCaptureOpen} />
       {sheetNode && <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} allNodes={nodes} onClose={() => setSheetNode(null)} onSaved={load} />}
     </LifeOSLayout>
   );
