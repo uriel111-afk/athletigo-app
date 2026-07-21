@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Unlink } from 'lucide-react';
+import { Unlink, Maximize } from 'lucide-react';
 import { FOCUS, urgencyStyle, descendantTasks, allDescendants } from '@/lib/lifeos/focus-api';
 
 // ── Geometry ──────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ export default function MindMapCanvas({
   isTaskDone, onTapNode, onToggleDone, onLongPress, onSavePos, centerOnId, onCentered,
   links = [], onRemoveLink, onCreateLink,
   connectFromId = null, onHandleTap, onConnectTap, onConnectCancel,
-  onConnect, onDisconnect, onDetails,
+  onConnect, onDisconnect, onDetails, tools = null,
 }) {
   const [view, setView] = useState({ tx: 20, ty: 20, scale: 1 });
   const [livePos, setLivePos] = useState({});
@@ -92,6 +92,10 @@ export default function MindMapCanvas({
   const connectRaf = useRef(0);
   const connectPending = useRef(null);
   const centeredRef = useRef(null);
+  const fitRaf = useRef(0);
+  const fitFn = useRef(null);
+  const didAutoFit = useRef(false);
+  const lastTap = useRef(0);
 
   const ctx = useRef({});
   ctx.current = { connectFromId, byId, onCreateLink, onHandleTap, onConnectTap, onConnectCancel, onTapNode, onToggleDone, onSavePos };
@@ -257,7 +261,10 @@ export default function MindMapCanvas({
       }
     } else if (pan.current) {
       commitView(viewRef.current);
-      if (!pan.current.moved && ctx.current.connectFromId) ctx.current.onConnectCancel && ctx.current.onConnectCancel();
+      if (!pan.current.moved) {
+        if (ctx.current.connectFromId) ctx.current.onConnectCancel && ctx.current.onConnectCancel();
+        else { const now = e.timeStamp || 0; if (now - lastTap.current < 320) fitFn.current && fitFn.current(); lastTap.current = now; } // double-tap empty → fit
+      }
     }
 
     if (pointers.current.size === 0) { pan.current = null; setBusy(false); detachWindow(); }
@@ -336,7 +343,7 @@ export default function MindMapCanvas({
   useEffect(() => () => {
     clearTimeout(saveTimer.current); clearTimeout(flashTimer.current);
     detachWindow();
-    [viewRaf, dragRaf, connectRaf].forEach(r => { if (r.current) cancelAnimationFrame(r.current); });
+    [viewRaf, dragRaf, connectRaf, fitRaf].forEach(r => { if (r.current) cancelAnimationFrame(r.current); });
   }, [detachWindow]);
 
   useEffect(() => {
@@ -352,6 +359,47 @@ export default function MindMapCanvas({
     onCentered && onCentered();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [centerOnId, layout]);
+
+  // Fit all visible nodes into the canvas with a 24px margin. Fit may
+  // zoom out below the 0.5 interactive floor (down to 0.25).
+  const fitView = useCallback((animate = true) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect || !visibleNodes.length) return;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    visibleNodes.forEach(n => {
+      const p = posOf(n), h = heightFor(n);
+      minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x + NODE_W); maxY = Math.max(maxY, p.y + h);
+    });
+    const M = 24, bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY);
+    const scale = Math.min(2, Math.max(0.25, Math.min((rect.width - 2 * M) / bw, (rect.height - 2 * M) / bh)));
+    const target = { scale, tx: rect.width / 2 - ((minX + maxX) / 2) * scale, ty: rect.height / 2 - ((minY + maxY) / 2) * scale };
+    if (fitRaf.current) cancelAnimationFrame(fitRaf.current);
+    if (!animate) { commitView(target); return; }
+    const start = { ...viewRef.current };
+    let t0 = 0;
+    const step = (t) => {
+      if (!t0) t0 = t;
+      const k = Math.min(1, (t - t0) / 320), e = 1 - Math.pow(1 - k, 3);
+      const v = { tx: start.tx + (target.tx - start.tx) * e, ty: start.ty + (target.ty - start.ty) * e, scale: start.scale + (target.scale - start.scale) * e };
+      viewRef.current = v;
+      if (gRef.current) gRef.current.setAttribute('transform', trStr(v));
+      if (k < 1) fitRaf.current = requestAnimationFrame(step);
+      else { fitRaf.current = 0; setView(v); }
+    };
+    fitRaf.current = requestAnimationFrame(step);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleNodes, commitView]);
+  fitFn.current = fitView;
+
+  // Auto-fit once on load (no saved view), unless deep-linked to a branch.
+  useEffect(() => {
+    if (didAutoFit.current || centerOnId) return;
+    if (!visibleNodes.length || !svgRef.current) return;
+    didAutoFit.current = true;
+    fitView(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleNodes, centerOnId]);
 
   const edgePath = (p, c) => { const { a, b } = anchored(p, c); return pathBetween(a, b); };
   const linkPath = (A, B) => { const { a, b } = anchored(A, B); return pathBetween(a, b); };
@@ -371,13 +419,16 @@ export default function MindMapCanvas({
             <path key={p.id + '-' + c.id} d={edgePath(p, c)} fill="none" stroke={HIER_EDGE} strokeWidth={2} />
           )))}
 
-          {/* Cross-links — dashed purple-gray, auto-anchored */}
+          {/* Cross-links — dashed purple-gray, auto-anchored. The fat
+              transparent hit-path scales with 1/zoom so it stays ≥28
+              screen-px tappable at every zoom level. */}
           {resolvedLinks.map(l => {
             const d = linkPath(l.a, l.b);
+            const hitW = Math.max(18, 28 / view.scale);
             return (
               <g key={l.id}>
-                <path d={d} fill="none" stroke={LINK_EDGE} strokeWidth={2} strokeDasharray="6 5" style={{ pointerEvents: 'none' }} />
-                <path data-link-id={l.id} d={d} fill="none" stroke="transparent" strokeWidth={18} style={{ pointerEvents: 'stroke', cursor: 'pointer' }} />
+                <path data-link-id={l.id} d={d} fill="none" stroke="transparent" strokeWidth={hitW} style={{ pointerEvents: 'stroke', cursor: 'pointer' }} />
+                <path d={d} fill="none" stroke={selLink === l.id ? FOCUS.edgeSel : LINK_EDGE} strokeWidth={selLink === l.id ? 3 : 2} strokeDasharray="6 5" style={{ pointerEvents: 'none' }} />
               </g>
             );
           })}
@@ -396,10 +447,12 @@ export default function MindMapCanvas({
         </g>
       </svg>
 
-      {/* Zoom controls */}
-      <div style={{ position: 'absolute', left: 12, top: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {/* Floating control cluster (semi-transparent) — fit, zoom, tools */}
+      <div style={{ position: 'absolute', left: 10, top: 10, display: 'flex', flexDirection: 'column', gap: 5, background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', borderRadius: 12, padding: 5, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => fitFn.current && fitFn.current()} style={zoomBtn} title="התאם לתצוגה"><Maximize size={17} /></button>
         <button onPointerDown={(e) => e.stopPropagation()} onClick={() => zoom(1)} style={zoomBtn}>+</button>
         <button onPointerDown={(e) => e.stopPropagation()} onClick={() => zoom(-1)} style={zoomBtn}>−</button>
+        {tools}
       </div>
 
       {/* Remove-link chip */}
@@ -448,12 +501,13 @@ const barBtn = (bg, fg) => ({
   fontFamily: "'Rubik', system-ui, sans-serif",
 });
 
-// 4 side handles rendered only on the SELECTED node (10px dot / 24px hit).
+// 4 side "+" badges on the SELECTED node (18px visible / 32px hit).
+// Centered on each side; drag → wire, tap → connect mode.
 const HANDLE_SIDES = [
-  { key: 't', pos: { top: -12, left: '50%', marginLeft: -12 } },
-  { key: 'b', pos: { bottom: -12, left: '50%', marginLeft: -12 } },
-  { key: 'l', pos: { left: -12, top: '50%', marginTop: -12 } },
-  { key: 'r', pos: { right: -12, top: '50%', marginTop: -12 } },
+  { key: 't', pos: { top: -16, left: '50%', marginLeft: -16 } },
+  { key: 'b', pos: { bottom: -16, left: '50%', marginLeft: -16 } },
+  { key: 'l', pos: { left: -16, top: '50%', marginTop: -16 } },
+  { key: 'r', pos: { right: -16, top: '50%', marginTop: -16 } },
 ];
 
 // One node — bigger hit box + whole-rect connect target. Memoized on
@@ -467,8 +521,8 @@ const MapNode = React.memo(function MapNode({ x, y, node, sel, highlight, childr
           <NodeCard node={node} children={childrenIdx} expanded={expanded} isTaskDone={isTaskDone} />
           {sel && HANDLE_SIDES.map(s => (
             <div key={s.key} data-handle-id={node.id} title="גרור או הקש כדי לקשר"
-              style={{ position: 'absolute', width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'crosshair', touchAction: 'none', zIndex: 3, ...s.pos }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: FOCUS.edgeSel, border: '2px solid #fff', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+              style={{ position: 'absolute', width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'crosshair', touchAction: 'none', zIndex: 3, ...s.pos }}>
+              <div style={{ width: 18, height: 18, borderRadius: '50%', background: FOCUS.edgeSel, border: '2px solid #fff', boxShadow: '0 1px 4px rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 900, lineHeight: 1 }}>+</div>
             </div>
           ))}
         </div>

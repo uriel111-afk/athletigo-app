@@ -35,7 +35,7 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
           top safe-area inset (camera cutout). For other roles the
           AppSwitcher is null and the sticky top bar below owns the
           inset instead (so no empty double gap). */}
-      {user?.id === COACH_USER_ID && (
+      {user?.id === COACH_USER_ID && !hideHeader && (
         <div className="safe-area-top" style={{ background: '#FFFFFF', flexShrink: 0 }}>
           <AppSwitcher />
         </div>
@@ -119,6 +119,9 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
           ? {
               flex: 1, minHeight: 0, width: '100%',
               display: 'flex', flexDirection: 'column', overflow: 'hidden',
+              // When the header + app-switcher are hidden (map), the content
+              // is topmost → carry the top safe-area inset (camera cutout).
+              ...(hideHeader ? { paddingTop: 'env(safe-area-inset-top, 0px)' } : {}),
               // Reserve the fixed bottom nav so flex:1 children end above it.
               // Nav is ~77px tall; 82 clears it with a small gap and hands the
               // extra vertical space back to the canvas.

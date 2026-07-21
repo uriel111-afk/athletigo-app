@@ -47,7 +47,14 @@ export default function FocusMap() {
         fetchIdeas(userId),
         fetchLinks(userId),
       ]);
-      setNodes(n); setLogs(l); setIdeas(i); setLinks(lk);
+      setNodes(n); setLogs(l); setIdeas(i);
+      // Orphan-link cleanup: drop (and delete) any link whose endpoint node
+      // no longer exists — these render as untappable "stuck" dashed lines.
+      const ids = new Set(n.map(x => x.id));
+      const good = lk.filter(x => ids.has(x.from_node) && ids.has(x.to_node));
+      const orphans = lk.filter(x => !ids.has(x.from_node) || !ids.has(x.to_node));
+      setLinks(good);
+      orphans.forEach(o => { deleteLink(o.id).catch(() => {}); });
       // Expand all branches by default on first load.
       setExpanded(prev => prev.size ? prev : new Set(n.filter(x => x.node_type !== 'task').map(x => x.id)));
     } catch (e) { toast.error('שגיאה בטעינה'); }
@@ -167,16 +174,17 @@ export default function FocusMap() {
 
   const empty = nodes.length === 0;
 
-  // Chips + map tools merged into ONE compact scrollable row.
+  // Map tools live INSIDE the canvas cluster (top-left) so the chips row
+  // is the only thing above the canvas.
   const tools = (
     <>
-      <button onClick={autoArrange} style={compactTool}>
-        <LayoutGrid size={14} /> סידור
+      <button onPointerDown={(e) => e.stopPropagation()} onClick={autoArrange} style={clusterBtn} title="סידור אוטומטי">
+        <LayoutGrid size={16} />
       </button>
-      <button onClick={() => setInboxOpen(true)} style={{ ...compactTool, position: 'relative' }}>
-        <Inbox size={14} /> תיבה
+      <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setInboxOpen(true)} style={{ ...clusterBtn, position: 'relative' }} title="תיבת רעיונות">
+        <Inbox size={16} />
         {ideas.length > 0 && (
-          <span style={{ position: 'absolute', top: -5, left: -5, background: FOCUS.orange, color: '#fff', borderRadius: 999, minWidth: 16, height: 16, fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{ideas.length}</span>
+          <span style={{ position: 'absolute', top: -4, left: -4, background: FOCUS.orange, color: '#fff', borderRadius: 999, minWidth: 15, height: 15, fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px' }}>{ideas.length}</span>
         )}
       </button>
     </>
@@ -184,7 +192,7 @@ export default function FocusMap() {
 
   return (
     <LifeOSLayout title="מיקוד" fullBleed hideFab hideHeader>
-      <FocusChips compact trailing={tools} />
+      <FocusChips compact />
 
       {/* Canvas — fills all remaining space, edge to edge */}
       <div style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%', overflow: 'hidden', background: FOCUS.bg }}>
@@ -205,6 +213,7 @@ export default function FocusMap() {
             links={links} onRemoveLink={removeLink} onCreateLink={createLinkBetween}
             connectFromId={connectFrom} onHandleTap={startConnect} onConnectTap={connectTo} onConnectCancel={cancelConnect}
             onConnect={startConnect} onDisconnect={(n) => setDisconnectNode(n)} onDetails={(n) => { setSelectedId(n.id); setSheetNode(n); }}
+            tools={tools}
           />
         )}
 
@@ -368,11 +377,11 @@ function IdeaRow({ idea, branchOptions, onConvert, onArchive }) {
   );
 }
 
-// Compact map tools that sit in the merged chips row (32px tall to match).
-const compactTool = {
-  flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 4, minHeight: 32, padding: '0 12px',
-  borderRadius: 10, border: `1px solid ${FOCUS.border}`, background: '#fff', boxShadow: FOCUS.neu,
-  color: FOCUS.ink, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+// Icon buttons for the in-canvas floating cluster (match the zoom buttons).
+const clusterBtn = {
+  width: 36, height: 36, borderRadius: 10, border: `1px solid ${FOCUS.border}`,
+  background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  color: FOCUS.ink, cursor: 'pointer', fontFamily: 'inherit',
 };
 
 // ─── Full inline add panel (slide-up, NOT Radix) ──────────────────
