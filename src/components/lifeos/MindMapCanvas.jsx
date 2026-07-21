@@ -15,11 +15,32 @@ const HIER_EDGE = '#E8D5BC';       // solid = מבנה (hierarchy)
 const LINK_EDGE = '#9A93B8';       // dashed purple-gray = קשר (cross-link)
 const LIVE_EDGE = FOCUS.edgeSel;   // dashed red = חיבור בתהליך (only live wire)
 
-// n8n-style edge: exit source bottom, enter target top.
-const curve = (x1, y1, x2, y2) => {
-  const dy = Math.max(24, Math.abs(y2 - y1) * 0.5);
-  return `M ${x1} ${y1} C ${x1} ${y1 + dy}, ${x2} ${y2 - dy}, ${x2} ${y2}`;
-};
+// ── Auto-anchoring (pure, module-level) ───────────────────────────
+// Pick the anchor on `rect` = midpoint of the side whose outward ray
+// toward (tx,ty) exits the rectangle first, with the outward normal.
+function sideAnchor(rect, tx, ty) {
+  const dx = tx - rect.cx, dy = ty - rect.cy;
+  const kx = Math.abs(dx) < 1e-6 ? Infinity : (rect.w / 2) / Math.abs(dx);
+  const ky = Math.abs(dy) < 1e-6 ? Infinity : (rect.h / 2) / Math.abs(dy);
+  if (kx <= ky) {
+    return dx >= 0
+      ? { x: rect.x + rect.w, y: rect.cy, nx: 1, ny: 0 }   // right
+      : { x: rect.x, y: rect.cy, nx: -1, ny: 0 };          // left
+  }
+  return dy >= 0
+    ? { x: rect.cx, y: rect.y + rect.h, nx: 0, ny: 1 }     // bottom
+    : { x: rect.cx, y: rect.y, nx: 0, ny: -1 };            // top
+}
+// Bezier whose control points extend perpendicular from each side (n8n).
+function pathBetween(a, b) {
+  const off = Math.max(28, Math.hypot(b.x - a.x, b.y - a.y) * 0.35);
+  return `M ${a.x} ${a.y} C ${a.x + a.nx * off} ${a.y + a.ny * off}, ${b.x + b.nx * off} ${b.y + b.ny * off}, ${b.x} ${b.y}`;
+}
+// Live wire: anchored source side → free end (the finger).
+function wirePath(a, px, py) {
+  const off = Math.max(28, Math.hypot(px - a.x, py - a.y) * 0.35);
+  return `M ${a.x} ${a.y} C ${a.x + a.nx * off} ${a.y + a.ny * off}, ${px} ${py}, ${px} ${py}`;
+}
 
 function computeLayout(roots, visibleChildrenOf) {
   const layout = {};
@@ -48,7 +69,8 @@ export default function MindMapCanvas({
   const [view, setView] = useState({ tx: 20, ty: 20, scale: 1 });
   const [livePos, setLivePos] = useState({});
   const [selLink, setSelLink] = useState(null);
-  const [busy, setBusy] = useState(false); // any active gesture → hide the action bar
+  const [busy, setBusy] = useState(false);
+  const [hoverId, setHoverId] = useState(null); // node under the wire / just-tapped target
 
   const viewRef = useRef({ tx: 20, ty: 20, scale: 1 });
   const gRef = useRef(null);
@@ -56,12 +78,14 @@ export default function MindMapCanvas({
   const containerRef = useRef(null);
   const connectRef = useRef(null);
   const saveTimer = useRef(null);
+  const flashTimer = useRef(null);
   const gesture = useRef(null);
   const pan = useRef(null);
   const pinch = useRef(null);
   const connect = useRef(null);
   const pointers = useRef(new Map());
   const winAttached = useRef(false);
+  const hoverRef = useRef(null);
   const viewRaf = useRef(0);
   const dragRaf = useRef(0);
   const dragPending = useRef(null);
@@ -69,8 +93,6 @@ export default function MindMapCanvas({
   const connectPending = useRef(null);
   const centeredRef = useRef(null);
 
-  // Latest dynamic props for the window-level handlers (which capture an
-  // old closure) — always read through this ref so nothing goes stale.
   const ctx = useRef({});
   ctx.current = { connectFromId, byId, onCreateLink, onHandleTap, onConnectTap, onConnectCancel, onTapNode, onToggleDone, onSavePos };
 
@@ -109,6 +131,8 @@ export default function MindMapCanvas({
   const posOf = (n) => livePos[n.id]
     || (n.pos_x != null && n.pos_y != null ? { x: Number(n.pos_x), y: Number(n.pos_y) } : layout[n.id])
     || { x: 0, y: 0 };
+  const rectOf = (n) => { const p = posOf(n); const h = heightFor(n); return { x: p.x, y: p.y, w: NODE_W, h, cx: p.x + NODE_W / 2, cy: p.y + h / 2 }; };
+  const anchored = (A, B) => { const ra = rectOf(A), rb = rectOf(B); return { a: sideAnchor(ra, rb.cx, rb.cy), b: sideAnchor(rb, ra.cx, ra.cy) }; };
 
   const clampScale = (s) => Math.min(2, Math.max(0.5, s));
   const nodeAt = (el) => { const e = el?.closest?.('[data-node-id]'); return e ? ctx.current.byId[e.getAttribute('data-node-id')] : null; };
@@ -117,11 +141,12 @@ export default function MindMapCanvas({
     const v = viewRef.current;
     return { x: (cx - rect.left - v.tx) / v.scale, y: (cy - rect.top - v.ty) / v.scale };
   };
+  const setHover = (id) => { if (hoverRef.current !== id) { hoverRef.current = id; setHoverId(id); } };
 
-  // ── Stable window-level move/up/cancel (attached for a gesture) ──
+  // ── Window-level move/up/cancel ───────────────────────────────
   const onMove = useCallback((e) => {
     if (pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    else if (pinch.current) return; // stray pointer during pinch
+    else if (pinch.current) return;
 
     if (pinch.current && pointers.current.size >= 2) {
       const pts = [...pointers.current.values()];
@@ -137,11 +162,12 @@ export default function MindMapCanvas({
     if (connect.current) {
       const c = connect.current;
       if (!c.moved && Math.abs(e.clientX - c.sx) < 8 && Math.abs(e.clientY - c.sy) < 8) return;
-      if (!c.moved) setBusy(true);
-      c.moved = true;
+      if (!c.moved) { c.moved = true; setBusy(true); }
       const pt = toCanvas(e.clientX, e.clientY);
-      connectPending.current = curve(c.x1, c.y1, pt.x, pt.y);
+      connectPending.current = wirePath(sideAnchor(c.srcRect, pt.x, pt.y), pt.x, pt.y);
       if (!connectRaf.current) connectRaf.current = requestAnimationFrame(() => { connectRaf.current = 0; if (connectRef.current && connectPending.current != null) connectRef.current.setAttribute('d', connectPending.current); });
+      const t = nodeAt(document.elementFromPoint(e.clientX, e.clientY));
+      setHover(t && t.id !== c.fromId ? t.id : null);
       return;
     }
 
@@ -150,7 +176,7 @@ export default function MindMapCanvas({
     if (g) {
       const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
       if (!g.moved && Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-      if (!g.moved) { g.moved = true; clearTimeout(g.timer); setBusy(true); } // kill long-press FIRST, hide bar
+      if (!g.moved) { g.moved = true; clearTimeout(g.timer); setBusy(true); }
       g.lastX = g.nx + dx / viewRef.current.scale;
       g.lastY = g.ny + dy / viewRef.current.scale;
       dragPending.current = { id: g.node.id, x: g.lastX, y: g.lastY };
@@ -174,6 +200,12 @@ export default function MindMapCanvas({
     window.removeEventListener('pointercancel', onCancel);
   }, [onMove]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const flashTarget = (id) => {
+    setHover(id);
+    clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setHover(null), 450);
+  };
+
   const onUp = useCallback((e) => {
     const wasPinch = !!pinch.current;
     pointers.current.delete(e.pointerId);
@@ -191,13 +223,14 @@ export default function MindMapCanvas({
     if (connect.current) {
       const c = connect.current; connect.current = null;
       if (connectRef.current) connectRef.current.setAttribute('d', '');
+      setHover(null);
       if (c.moved) {
-        const target = nodeAt(document.elementFromPoint(e.clientX, e.clientY));
-        if (target && target.id !== c.fromId) ctx.current.onCreateLink && ctx.current.onCreateLink(c.fromId, target.id);
+        const target = nodeAt(document.elementFromPoint(e.clientX, e.clientY)); // drop anywhere on a node's rect
+        if (target && target.id !== c.fromId) { ctx.current.onCreateLink && ctx.current.onCreateLink(c.fromId, target.id); flashTarget(target.id); }
       } else if (ctx.current.connectFromId) {
-        ctx.current.onConnectTap && ctx.current.onConnectTap(c.fromId); // tap handle while connecting → link to it
+        ctx.current.onConnectTap && ctx.current.onConnectTap(c.fromId);
       } else {
-        ctx.current.onHandleTap && ctx.current.onHandleTap(c.fromId);   // tap handle → enter two-tap connect
+        ctx.current.onHandleTap && ctx.current.onHandleTap(c.fromId);
       }
       if (pointers.current.size === 0) { pan.current = null; setBusy(false); detachWindow(); }
       return;
@@ -211,7 +244,7 @@ export default function MindMapCanvas({
       clearTimeout(g.timer);
       if (!g.long) {
         if (!g.moved) {
-          if (ctx.current.connectFromId) ctx.current.onConnectTap && ctx.current.onConnectTap(g.node.id);
+          if (ctx.current.connectFromId) { flashTarget(g.node.id); ctx.current.onConnectTap && ctx.current.onConnectTap(g.node.id); } // whole-node connect
           else if (g.node.node_type === 'task') ctx.current.onToggleDone(g.node);
           else ctx.current.onTapNode(g.node);
         } else {
@@ -230,17 +263,12 @@ export default function MindMapCanvas({
     if (pointers.current.size === 0) { pan.current = null; setBusy(false); detachWindow(); }
   }, [commitView, detachWindow]);
 
-  // pointercancel: DON'T commit-and-die. Keep the gesture alive so the
-  // next pointer event continues it; only drop the cancelled pointer.
   const onCancel = useCallback((e) => {
     // eslint-disable-next-line no-console
     if (gesture.current?.moved || connect.current?.moved) console.warn('[MindMap] pointercancel mid-gesture — keeping gesture alive');
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinch.current = null;
     if (pointers.current.size === 0) setBusy(false);
-    // gesture/pan/connect intentionally preserved — a follow-up
-    // pointermove/up resumes/ends them. If nothing follows, the next
-    // pointerdown self-heals (pointers is empty there).
   }, []);
 
   const attachWindow = () => {
@@ -251,18 +279,15 @@ export default function MindMapCanvas({
     window.addEventListener('pointercancel', onCancel);
   };
 
-  // ── Container pointerdown: figure out what was grabbed ──────────
+  // ── Container pointerdown ──────────────────────────────────────
   const onDown = (e) => {
-    if (pointers.current.size === 0) { // self-heal any stale gesture
-      gesture.current = null; pan.current = null; connect.current = null; pinch.current = null;
-    }
+    if (pointers.current.size === 0) { gesture.current = null; pan.current = null; connect.current = null; pinch.current = null; }
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     attachWindow();
 
     if (pointers.current.size === 2) {
       if (gesture.current) clearTimeout(gesture.current.timer);
-      gesture.current = null; pan.current = null; connect.current = null;
-      setBusy(true);
+      gesture.current = null; pan.current = null; connect.current = null; setBusy(true);
       const pts = [...pointers.current.values()];
       const rect = svgRef.current?.getBoundingClientRect();
       if (rect && pts.length >= 2) {
@@ -280,7 +305,7 @@ export default function MindMapCanvas({
     const handleEl = e.target?.closest?.('[data-handle-id]');
     if (handleEl) {
       const src = byId[handleEl.getAttribute('data-handle-id')];
-      if (src) { const p = posOf(src); connect.current = { fromId: src.id, x1: p.x + NODE_W / 2, y1: p.y + heightFor(src), sx: e.clientX, sy: e.clientY, moved: false }; }
+      if (src) connect.current = { fromId: src.id, srcRect: rectOf(src), sx: e.clientX, sy: e.clientY, moved: false };
       return;
     }
     const node = nodeAt(e.target);
@@ -300,7 +325,6 @@ export default function MindMapCanvas({
 
   const zoom = (dir) => commitView({ ...viewRef.current, scale: clampScale(+(viewRef.current.scale + dir * 0.2).toFixed(2)) });
 
-  // Native non-passive touchmove → stop the WebView scrolling/cancelling.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -310,12 +334,11 @@ export default function MindMapCanvas({
   }, []);
 
   useEffect(() => () => {
-    clearTimeout(saveTimer.current);
+    clearTimeout(saveTimer.current); clearTimeout(flashTimer.current);
     detachWindow();
     [viewRaf, dragRaf, connectRaf].forEach(r => { if (r.current) cancelAnimationFrame(r.current); });
   }, [detachWindow]);
 
-  // Center on a node — ONLY the transform.
   useEffect(() => {
     if (!centerOnId) { centeredRef.current = null; return; }
     if (centeredRef.current === centerOnId) return;
@@ -330,9 +353,9 @@ export default function MindMapCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [centerOnId, layout]);
 
-  const edgePath = (p, c) => { const pp = posOf(p), cp = posOf(c); return curve(pp.x + NODE_W / 2, pp.y + heightFor(p), cp.x + NODE_W / 2, cp.y); };
-  const linkPath = (a, b) => { const pa = posOf(a), pb = posOf(b); return curve(pa.x + NODE_W / 2, pa.y + heightFor(a), pb.x + NODE_W / 2, pb.y); };
-  const linkMid = (a, b) => { const pa = posOf(a), pb = posOf(b); return { x: (pa.x + pb.x) / 2 + NODE_W / 2, y: (pa.y + heightFor(a) + pb.y) / 2 }; };
+  const edgePath = (p, c) => { const { a, b } = anchored(p, c); return pathBetween(a, b); };
+  const linkPath = (A, B) => { const { a, b } = anchored(A, B); return pathBetween(a, b); };
+  const linkMid = (A, B) => { const { a, b } = anchored(A, B); return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
   const selLinkObj = resolvedLinks.find(l => l.id === selLink) || null;
 
   return (
@@ -341,15 +364,14 @@ export default function MindMapCanvas({
       style={{ position: 'relative', width: '100%', height: '100%', touchAction: 'none', overscrollBehavior: 'none' }}
       onPointerDown={onDown}
     >
-      <style>{'@keyframes focuspulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.55}}'}</style>
       <svg ref={svgRef} width="100%" height="100%" style={{ touchAction: 'none', background: FOCUS.bg, display: 'block' }}>
         <g ref={gRef} transform={trStr(view)}>
-          {/* Hierarchy edges — solid, one color, no path emphasis */}
+          {/* Hierarchy edges — solid, auto-anchored */}
           {visibleNodes.map(p => visibleChildrenOf(p).map(c => (
             <path key={p.id + '-' + c.id} d={edgePath(p, c)} fill="none" stroke={HIER_EDGE} strokeWidth={2} />
           )))}
 
-          {/* Cross-links — dashed purple-gray */}
+          {/* Cross-links — dashed purple-gray, auto-anchored */}
           {resolvedLinks.map(l => {
             const d = linkPath(l.a, l.b);
             return (
@@ -360,15 +382,15 @@ export default function MindMapCanvas({
             );
           })}
 
-          {/* Live connection line — dashed red (only red on any line) */}
+          {/* Live connection wire — dashed red */}
           <path ref={connectRef} d="" fill="none" stroke={LIVE_EDGE} strokeWidth={2} strokeDasharray="6 5" style={{ pointerEvents: 'none' }} />
 
           {/* Nodes */}
           {visibleNodes.map(n => {
             const p = posOf(n);
             return (
-              <MapNode key={n.id} x={p.x} y={p.y} node={n} sel={selectedId === n.id} pulsing={connectFromId === n.id}
-                childrenIdx={children} expanded={expanded} isTaskDone={isTaskDone} />
+              <MapNode key={n.id} x={p.x} y={p.y} node={n} sel={selectedId === n.id}
+                highlight={hoverId === n.id} childrenIdx={children} expanded={expanded} isTaskDone={isTaskDone} />
             );
           })}
         </g>
@@ -380,7 +402,7 @@ export default function MindMapCanvas({
         <button onPointerDown={(e) => e.stopPropagation()} onClick={() => zoom(-1)} style={zoomBtn}>−</button>
       </div>
 
-      {/* Remove-link chip (selection shown by the chip, never on the edge) */}
+      {/* Remove-link chip */}
       {selLinkObj && (() => {
         const m = linkMid(selLinkObj.a, selLinkObj.b);
         const sx = view.tx + m.x * view.scale, sy = view.ty + m.y * view.scale;
@@ -395,8 +417,7 @@ export default function MindMapCanvas({
         );
       })()}
 
-      {/* Selection action bar — moves with the node, hidden while
-          dragging/panning/connecting. Primary way to connect/disconnect. */}
+      {/* Selection action bar — primary connect/disconnect UX */}
       {selectedId && !busy && !connectFromId && (() => {
         const sel = byId[selectedId];
         if (!sel) return null;
@@ -416,33 +437,40 @@ export default function MindMapCanvas({
   );
 }
 
+const zoomBtn = {
+  width: 36, height: 36, borderRadius: 10, border: `1px solid ${FOCUS.border}`,
+  background: '#fff', boxShadow: FOCUS.neu, fontSize: 20, fontWeight: 700,
+  color: FOCUS.ink, cursor: 'pointer', lineHeight: 1,
+};
 const barBtn = (bg, fg) => ({
   minHeight: 44, padding: '0 14px', borderRadius: 9, border: 'none',
   background: bg, color: fg, fontSize: 13.5, fontWeight: 800, cursor: 'pointer',
   fontFamily: "'Rubik', system-ui, sans-serif",
 });
 
-const zoomBtn = {
-  width: 36, height: 36, borderRadius: 10, border: `1px solid ${FOCUS.border}`,
-  background: '#fff', boxShadow: FOCUS.neu, fontSize: 20, fontWeight: 700,
-  color: FOCUS.ink, cursor: 'pointer', lineHeight: 1,
-};
+// 4 side handles rendered only on the SELECTED node (10px dot / 24px hit).
+const HANDLE_SIDES = [
+  { key: 't', pos: { top: -12, left: '50%', marginLeft: -12 } },
+  { key: 'b', pos: { bottom: -12, left: '50%', marginLeft: -12 } },
+  { key: 'l', pos: { left: -12, top: '50%', marginTop: -12 } },
+  { key: 'r', pos: { right: -12, top: '50%', marginTop: -12 } },
+];
 
-// One node — bigger hit box (HIT_PAD) + a 28px handle hit circle around a
-// 14px visible dot. Memoized on primitives so a drag only re-renders this.
-const MapNode = React.memo(function MapNode({ x, y, node, sel, pulsing, childrenIdx, expanded, isTaskDone }) {
+// One node — bigger hit box + whole-rect connect target. Memoized on
+// primitives so a drag only re-renders this node.
+const MapNode = React.memo(function MapNode({ x, y, node, sel, highlight, childrenIdx, expanded, isTaskDone }) {
   const H = heightFor(node);
   return (
     <foreignObject x={x - HIT_PAD} y={y - HIT_PAD} width={NODE_W + HIT_PAD * 2} height={H + HIT_PAD * 2 + 34} style={{ overflow: 'visible' }}>
       <div data-node-id={node.id} style={{ padding: HIT_PAD, width: NODE_W + HIT_PAD * 2, boxSizing: 'border-box', cursor: 'grab', userSelect: 'none', touchAction: 'none', fontFamily: "'Rubik', system-ui, sans-serif" }}>
-        <div style={{ position: 'relative', outline: sel ? `2px solid ${FOCUS.edgeSel}` : 'none', borderRadius: 14 }}>
+        <div style={{ position: 'relative', borderRadius: 14, outline: sel ? `2px solid ${FOCUS.edgeSel}` : 'none', boxShadow: highlight ? '0 0 0 3px rgba(22,163,74,0.55)' : 'none', transition: 'box-shadow .12s' }}>
           <NodeCard node={node} children={childrenIdx} expanded={expanded} isTaskDone={isTaskDone} />
-          {/* 28px invisible hit circle */}
-          <div data-handle-id={node.id} title="הקש או גרור כדי לקשר"
-            style={{ position: 'absolute', bottom: -20, left: '50%', transform: 'translateX(-50%)', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'crosshair', touchAction: 'none', zIndex: 3 }}>
-            {/* 14px visible dot */}
-            <div style={{ width: 14, height: 14, borderRadius: '50%', background: FOCUS.edgeSel, border: '2px solid #fff', boxShadow: '0 1px 3px rgba(0,0,0,0.3)', opacity: sel || pulsing ? 1 : 0.4, animation: pulsing ? 'focuspulse 1s ease-in-out infinite' : 'none' }} />
-          </div>
+          {sel && HANDLE_SIDES.map(s => (
+            <div key={s.key} data-handle-id={node.id} title="גרור או הקש כדי לקשר"
+              style={{ position: 'absolute', width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'crosshair', touchAction: 'none', zIndex: 3, ...s.pos }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: FOCUS.edgeSel, border: '2px solid #fff', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
+            </div>
+          ))}
         </div>
       </div>
     </foreignObject>
