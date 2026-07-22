@@ -7,6 +7,7 @@ const NODE_W = 138;
 const HGAP = 22;
 const VGAP = 104;
 const HIT_PAD = 8;                 // invisible hit padding around each node
+const SIMPLE_H = 34;               // node height in "simple" (title-only) mode
 const heightFor = (n) => (n.node_type === 'root' ? 48 : n.node_type === 'branch' ? 74 : 54);
 const trStr = (v) => `translate(${v.tx},${v.ty}) scale(${v.scale})`;
 
@@ -64,8 +65,10 @@ export default function MindMapCanvas({
   isTaskDone, onTapNode, onToggleDone, onLongPress, onSavePos, centerOnId, onCentered,
   links = [], onRemoveLink, onCreateLink, onHierEdgeTap, onEmptyTap,
   connectFromId = null, onHandleTap, onConnectTap, onConnectCancel,
-  onConnect, onDisconnect, onDetails, tools = null,
+  onConnect, onDisconnect, onDetails, tools = null, simple = false, fitApi = null,
 }) {
+  // Node height depends on the view mode (simple = short title-only pills).
+  const hOf = (n) => (simple ? SIMPLE_H : heightFor(n));
   const [view, setView] = useState({ tx: 20, ty: 20, scale: 1 });
   const [livePos, setLivePos] = useState({});
   const [busy, setBusy] = useState(false);
@@ -138,7 +141,7 @@ export default function MindMapCanvas({
   // Arm colors: top-level branch → color; subtree inherits it.
   const armMap = useMemo(() => armColorMap(children, roots), [children, roots]);
   const armOf = (n) => armColorFor(n, byId, armMap);
-  const rectOf = (n) => { const p = posOf(n); const h = heightFor(n); return { x: p.x, y: p.y, w: NODE_W, h, cx: p.x + NODE_W / 2, cy: p.y + h / 2 }; };
+  const rectOf = (n) => { const p = posOf(n); const h = hOf(n); return { x: p.x, y: p.y, w: NODE_W, h, cx: p.x + NODE_W / 2, cy: p.y + h / 2 }; };
   const anchored = (A, B) => { const ra = rectOf(A), rb = rectOf(B); return { a: sideAnchor(ra, rb.cx, rb.cy), b: sideAnchor(rb, ra.cx, ra.cy) }; };
 
   const clampScale = (s) => Math.min(2, Math.max(0.5, s));
@@ -380,7 +383,7 @@ export default function MindMapCanvas({
     if (!rect || !visibleNodes.length) return;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     visibleNodes.forEach(n => {
-      const p = posOf(n), h = heightFor(n);
+      const p = posOf(n), h = hOf(n);
       minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
       maxX = Math.max(maxX, p.x + NODE_W); maxY = Math.max(maxY, p.y + h);
     });
@@ -402,8 +405,9 @@ export default function MindMapCanvas({
     };
     fitRaf.current = requestAnimationFrame(step);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleNodes, commitView]);
+  }, [visibleNodes, commitView, simple]);
   fitFn.current = fitView;
+  if (fitApi) fitApi.current = fitView; // let the host trigger a refit (e.g. on view toggle)
 
   // Auto-fit once on load (no saved view), unless deep-linked to a branch.
   useEffect(() => {
@@ -458,7 +462,7 @@ export default function MindMapCanvas({
           {visibleNodes.map(n => {
             const p = posOf(n);
             return (
-              <MapNode key={n.id} x={p.x} y={p.y} node={n} sel={selectedId === n.id} armColor={armOf(n)}
+              <MapNode key={n.id} x={p.x} y={p.y} node={n} sel={selectedId === n.id} armColor={armOf(n)} simple={simple}
                 highlight={hoverId === n.id} childrenIdx={children} expanded={expanded} isTaskDone={isTaskDone} />
             );
           })}
@@ -479,7 +483,7 @@ export default function MindMapCanvas({
         if (!sel) return null;
         const p = posOf(sel);
         const bx = view.tx + (p.x + NODE_W / 2) * view.scale;
-        const by = view.ty + (p.y + heightFor(sel)) * view.scale + 22;
+        const by = view.ty + (p.y + hOf(sel)) * view.scale + 22;
         return (
           <div onPointerDown={(e) => e.stopPropagation()}
             style={{ position: 'absolute', left: bx, top: by, transform: 'translateX(-50%)', display: 'flex', gap: 6, background: '#fff', border: `1px solid ${FOCUS.border}`, borderRadius: 12, padding: 5, boxShadow: '0 4px 14px rgba(0,0,0,0.18)', zIndex: 6, whiteSpace: 'nowrap' }}>
@@ -515,13 +519,15 @@ const HANDLE_SIDES = [
 
 // One node — bigger hit box + whole-rect connect target. Memoized on
 // primitives so a drag only re-renders this node.
-const MapNode = React.memo(function MapNode({ x, y, node, sel, armColor, highlight, childrenIdx, expanded, isTaskDone }) {
-  const H = heightFor(node);
+const MapNode = React.memo(function MapNode({ x, y, node, sel, armColor, simple, highlight, childrenIdx, expanded, isTaskDone }) {
+  const H = simple ? SIMPLE_H : heightFor(node);
   return (
     <foreignObject x={x - HIT_PAD} y={y - HIT_PAD} width={NODE_W + HIT_PAD * 2} height={H + HIT_PAD * 2 + 34} style={{ overflow: 'visible' }}>
       <div data-node-id={node.id} style={{ padding: HIT_PAD, width: NODE_W + HIT_PAD * 2, boxSizing: 'border-box', cursor: 'grab', userSelect: 'none', touchAction: 'none', fontFamily: "'Rubik', system-ui, sans-serif" }}>
         <div style={{ position: 'relative', borderRadius: 14, outline: sel ? `2px solid ${FOCUS.edgeSel}` : 'none', boxShadow: highlight ? '0 0 0 3px rgba(22,163,74,0.55)' : 'none', transition: 'box-shadow .12s' }}>
-          <NodeCard node={node} armColor={armColor} children={childrenIdx} expanded={expanded} isTaskDone={isTaskDone} />
+          {simple
+            ? <SimpleCard node={node} armColor={armColor} isTaskDone={isTaskDone} />
+            : <NodeCard node={node} armColor={armColor} children={childrenIdx} expanded={expanded} isTaskDone={isTaskDone} />}
           {sel && HANDLE_SIDES.map(s => (
             <div key={s.key} data-handle-id={node.id} title="גרור או הקש כדי לקשר"
               style={{ position: 'absolute', width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'crosshair', touchAction: 'none', zIndex: 3, ...s.pos }}>
@@ -533,6 +539,20 @@ const MapNode = React.memo(function MapNode({ x, y, node, sel, armColor, highlig
     </foreignObject>
   );
 });
+
+// Simple mode: title-only compact pill, arm color kept.
+function SimpleCard({ node, armColor, isTaskDone }) {
+  if (node.node_type === 'root') {
+    return <div style={{ background: FOCUS.orange, color: '#fff', borderRadius: 999, padding: '7px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, boxShadow: '0 3px 10px rgba(255,111,32,0.4)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.title || 'שורש'}</div>;
+  }
+  const done = node.node_type === 'task' && isTaskDone(node);
+  const accent = node.is_fear_task ? '#E24B4A' : (armColor || FOCUS.border);
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${FOCUS.border}`, borderRight: `3px solid ${accent}`, borderRadius: 999, padding: '7px 12px', boxShadow: FOCUS.neu, fontSize: 12.5, fontWeight: 700, color: armColor ? darken(armColor) : FOCUS.ink, textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: done ? 0.55 : 1, textDecoration: done ? 'line-through' : 'none' }}>
+      {node.title || (node.node_type === 'task' ? 'משימה' : 'מושג')}
+    </div>
+  );
+}
 
 function NodeCard({ node, armColor, children, expanded, isTaskDone }) {
   // Root stays solid orange — no arm accent.

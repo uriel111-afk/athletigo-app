@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
@@ -7,14 +7,17 @@ import FocusChips from '@/components/lifeos/FocusChips';
 import IdeaCaptureButton from '@/components/lifeos/IdeaCaptureButton';
 import NodeDetailSheet from '@/components/lifeos/NodeDetailSheet';
 import MindMapCanvas from '@/components/lifeos/MindMapCanvas';
-import { Plus, Inbox, LayoutGrid, X, Network, Archive, GitBranch, Flame, ChevronDown } from 'lucide-react';
+import { Plus, Inbox, LayoutGrid, X, Network, Archive, GitBranch, Flame, ChevronDown, Undo2, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   FOCUS, isoDate, addDays, HEB_DAYS, tagColor,
   fetchNodes, fetchLogs, fetchIdeas, logSetFrom, indexNodes,
   ancestorsOf, allDescendants, createNode, updateNode, logTask, unlogTask,
   clearPositions, updateIdea, fetchLinks, createLink, deleteLink,
+  getLinkById, getAuthUid, repairLinkOwnership, deleteNode,
 } from '@/lib/lifeos/focus-api';
+
+const VIEW_KEY = 'focus_map_view'; // 'simple' | 'detailed'
 
 export default function FocusMap() {
   const { user } = useContext(AuthContext);
@@ -38,17 +41,52 @@ export default function FocusMap() {
   const [disconnectNode, setDisconnectNode] = useState(null); // node whose connections are listed
   const [sheetReparent, setSheetReparent] = useState(false);  // open NodeDetailSheet with reparent picker
   const [hierMenu, setHierMenu] = useState(null); // { childId, x, y } — solid-edge mini action bar
+  const [simple, setSimple] = useState(null); // null until resolved; then true/false
+  const [histLen, setHistLen] = useState(0);   // undo-stack depth (for the button)
+  const history = useRef([]);                  // last-20 inverse-action stack
+  const fitRef = useRef(null);                 // MindMapCanvas.fit() bridge
+  const viewResolved = useRef(false);
+  const repairedRef = useRef(false);
+
+  // ── Global undo stack ─────────────────────────────────────────
+  const pushHistory = useCallback((entry) => {
+    history.current.push(entry);
+    if (history.current.length > 20) history.current.shift();
+    setHistLen(history.current.length);
+  }, []);
+  const doUndo = useCallback(async () => {
+    const entry = history.current.pop();
+    setHistLen(history.current.length);
+    if (!entry) return;
+    try { await entry.undo(); toast('הפעולה בוטלה'); }
+    catch (e) { toast.error('לא ניתן לבטל: ' + (e?.message || '')); }
+  }, []);
 
   const load = useCallback(async () => {
     if (!userId) return;
     try {
+      // One-time link-ownership repair before fetching links, so rows
+      // with a stale/wrong user_id (created before user_id was set right)
+      // become owned + deletable. Logged for visibility.
+      if (!repairedRef.current) {
+        repairedRef.current = true;
+        try { const r = await repairLinkOwnership(); if (r.wrong) console.log('[FocusMap] link ownership repair:', r); } // eslint-disable-line no-console
+        catch (e) { console.warn('[FocusMap] link repair skipped:', e?.message); } // eslint-disable-line no-console
+      }
       const [n, l, i, lk] = await Promise.all([
         fetchNodes(userId),
         fetchLogs(userId, addDays(today, -40), today),
         fetchIdeas(userId),
-        fetchLinks(userId),
+        fetchLinks(),
       ]);
       setNodes(n); setLogs(l); setIdeas(i);
+      // Resolve the view mode once: stored choice, else default by size.
+      if (!viewResolved.current) {
+        viewResolved.current = true;
+        let stored = null;
+        try { stored = localStorage.getItem(VIEW_KEY); } catch { /* noop */ }
+        setSimple(stored ? stored === 'simple' : n.length > 12);
+      }
       // Orphan-link cleanup on EVERY load: drop (and delete) any link whose
       // endpoint node is missing OR parked — these render as untappable
       // "stuck" dashed lines. Logged so cleanups are visible.
@@ -96,68 +134,78 @@ export default function FocusMap() {
   const toggleDone = async (node) => {
     const done = isTaskDone(node);
     setSelectedId(node.id);
-    if (done) {
-      setLogs(p => p.filter(l => !(l.node_id === node.id && l.log_date === today)));
-      if (!node.frequency) setNodes(p => p.map(x => x.id === node.id ? { ...x, status: 'active' } : x));
-      try { await unlogTask(node, today); } catch { load(); }
-    } else {
+    const applyDone = async () => {
       setLogs(p => [...p, { node_id: node.id, log_date: today }]);
       if (!node.frequency) setNodes(p => p.map(x => x.id === node.id ? { ...x, status: 'done' } : x));
-      try { await logTask(userId, node, today); } catch { load(); }
-    }
+      await logTask(userId, node, today);
+    };
+    const applyUndone = async () => {
+      setLogs(p => p.filter(l => !(l.node_id === node.id && l.log_date === today)));
+      if (!node.frequency) setNodes(p => p.map(x => x.id === node.id ? { ...x, status: 'active' } : x));
+      await unlogTask(node, today);
+    };
+    try {
+      if (done) { await applyUndone(); pushHistory({ label: 'ביטול השלמה', undo: applyDone }); }
+      else { await applyDone(); pushHistory({ label: 'השלמת משימה', undo: applyUndone }); }
+    } catch { load(); }
   };
 
   const savePos = async (id, x, y) => {
+    const prev = nodes.find(n => n.id === id);
+    const px = prev?.pos_x ?? null, py = prev?.pos_y ?? null;
     setNodes(p => p.map(n => n.id === id ? { ...n, pos_x: x, pos_y: y } : n));
-    try { await updateNode(id, { pos_x: x, pos_y: y }); } catch { toast.error('שגיאה בשמירת מיקום'); }
+    try {
+      await updateNode(id, { pos_x: x, pos_y: y });
+      pushHistory({ label: 'הזזת צומת', undo: async () => { setNodes(p => p.map(n => n.id === id ? { ...n, pos_x: px, pos_y: py } : n)); await updateNode(id, { pos_x: px, pos_y: py }); } });
+    } catch { toast.error('שגיאה בשמירת מיקום'); }
   };
 
-  const UNDO = { duration: 3000 };
-
-  // Create a link — instant, with an undo toast that deletes it again.
+  // Create a link — instant. Global undo (not a toast button) reverses it.
   const createLinkBetween = async (fromId, toId) => {
     if (fromId === toId) return;
     try {
       const created = await createLink(userId, fromId, toId);
-      setLinks(await fetchLinks(userId));
-      toast('קשר נוצר · בטל', {
-        ...UNDO,
-        action: created ? { label: 'בטל', onClick: async () => { try { await deleteLink(created.id); setLinks(await fetchLinks(userId)); } catch { /* noop */ } } } : undefined,
-      });
+      setLinks(await fetchLinks());
+      if (created) pushHistory({ label: 'יצירת קשר', undo: async () => { await deleteLink(created.id); setLinks(await fetchLinks()); } });
+      toast('קשר נוצר');
     } catch { toast.error('שגיאה ביצירת קשר'); }
   };
 
-  // Two-tap connect: tap a handle → enter mode; tap a node → link (stay in
-  // mode for 1-to-N); tap empty / ביטול → cancel.
   const startConnect = (id) => setConnectFrom(id);
   const connectTo = (targetId) => { if (connectFrom && targetId !== connectFrom) createLinkBetween(connectFrom, targetId); };
   const cancelConnect = () => setConnectFrom(null);
 
-  // Remove a link — instant, with an undo toast that re-creates it.
+  // Remove a link — AWAITED + VERIFIED. On 0 rows deleted, surface the
+  // actual reason (RLS/ownership/missing) instead of silently reverting.
   const removeLink = async (linkId) => {
     const gone = links.find(l => l.id === linkId);
-    setLinks(prev => prev.filter(l => l.id !== linkId)); // optimistic
     try {
-      await deleteLink(linkId);
-      toast('הקשר הוסר · בטל', {
-        ...UNDO,
-        action: gone ? { label: 'בטל', onClick: async () => { try { await createLink(userId, gone.from_node, gone.to_node); setLinks(await fetchLinks(userId)); } catch { /* noop */ } } } : undefined,
-      });
-    } catch { toast.error('שגיאה'); load(); }
+      const n = await deleteLink(linkId);
+      if (n === 0) {
+        const [row, authUid] = await Promise.all([getLinkById(linkId), getAuthUid()]);
+        console.warn('[FocusMap] link delete removed 0 rows', { linkId, row, authUid }); // eslint-disable-line no-console
+        toast.error(!row ? 'הקשר כבר לא קיים — רענן' : (row.user_id !== authUid ? 'הקשר שייך למשתמש אחר — לא נמחק' : 'המחיקה נחסמה'));
+        load();
+        return;
+      }
+      setLinks(prev => prev.filter(l => l.id !== linkId));
+      if (gone) pushHistory({ label: 'מחיקת קשר', undo: async () => { await createLink(userId, gone.from_node, gone.to_node); setLinks(await fetchLinks()); } });
+      toast('הקשר הוסר');
+    } catch (e) { toast.error('שגיאה במחיקה: ' + (e?.message || '')); load(); }
   };
 
-  // Guaranteed removal: wipe ALL cross-links of a node, undo restores them.
+  // Guaranteed removal: wipe ALL cross-links of a node (awaited+verified).
   const removeAllLinks = async (nodeId) => {
     const touching = links.filter(l => l.from_node === nodeId || l.to_node === nodeId);
     if (!touching.length) return;
-    setLinks(prev => prev.filter(l => l.from_node !== nodeId && l.to_node !== nodeId));
     try {
-      await Promise.all(touching.map(l => deleteLink(l.id)));
-      toast(`${touching.length} קשרים הוסרו · בטל`, {
-        ...UNDO,
-        action: { label: 'בטל', onClick: async () => { try { await Promise.all(touching.map(l => createLink(userId, l.from_node, l.to_node))); setLinks(await fetchLinks(userId)); } catch { /* noop */ } } },
-      });
-    } catch { toast.error('שגיאה'); load(); }
+      const counts = await Promise.all(touching.map(l => deleteLink(l.id).catch(() => 0)));
+      const removed = counts.filter(Boolean).length;
+      setLinks(await fetchLinks());
+      if (removed < touching.length) toast.error(`${removed}/${touching.length} הוסרו — חלק נחסמו (בעלות)`);
+      else toast(`${removed} קשרים הוסרו`);
+      if (removed) pushHistory({ label: 'הסרת כל הקשרים', undo: async () => { await Promise.all(touching.map(l => createLink(userId, l.from_node, l.to_node))); setLinks(await fetchLinks()); } });
+    } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); load(); }
   };
 
   // Tapping a solid hierarchy edge → mini action bar at the tap point.
@@ -184,9 +232,11 @@ export default function FocusMap() {
     await load();
     setSelectedId(created.id);
     setCenterId(created.id);
+    // Undo a freshly-added node → delete it (cascades its chain children).
+    pushHistory({ label: 'הוספת צומת', undo: async () => { await deleteNode(created.id); await load(); } });
   };
 
-  // Instant auto-arrange (no confirm) — undo restores the prior coords.
+  // Instant auto-arrange (no confirm) — global undo restores prior coords.
   const autoArrange = async () => {
     const target = selectedId ? byId[selectedId] : null;
     const scope = target ? [target, ...allDescendants(target.id, children)] : nodes;
@@ -196,13 +246,11 @@ export default function FocusMap() {
     setNodes(p => p.map(n => ids.includes(n.id) ? { ...n, pos_x: null, pos_y: null } : n));
     try {
       await clearPositions(ids);
-      toast('סודר אוטומטית · בטל', {
-        ...UNDO,
-        action: { label: 'בטל', onClick: async () => {
-          setNodes(p => p.map(n => { const o = prior.find(x => x.id === n.id); return o ? { ...n, pos_x: o.pos_x, pos_y: o.pos_y } : n; }));
-          try { await Promise.all(prior.filter(o => o.pos_x != null).map(o => updateNode(o.id, { pos_x: o.pos_x, pos_y: o.pos_y }))); } catch { /* noop */ }
-        } },
-      });
+      pushHistory({ label: 'סידור אוטומטי', undo: async () => {
+        setNodes(p => p.map(n => { const o = prior.find(x => x.id === n.id); return o ? { ...n, pos_x: o.pos_x, pos_y: o.pos_y } : n; }));
+        await Promise.all(prior.filter(o => o.pos_x != null).map(o => updateNode(o.id, { pos_x: o.pos_x, pos_y: o.pos_y })));
+      } });
+      toast('סודר אוטומטית');
     } catch { toast.error('שגיאה'); load(); }
   };
 
@@ -226,10 +274,24 @@ export default function FocusMap() {
 
   const empty = nodes.length === 0;
 
+  const toggleView = () => {
+    const next = !simple;
+    setSimple(next);
+    try { localStorage.setItem(VIEW_KEY, next ? 'simple' : 'detailed'); } catch { /* noop */ }
+    // Node sizes change → refit after the re-render.
+    setTimeout(() => fitRef.current && fitRef.current(), 60);
+  };
+
   // Map tools live INSIDE the canvas cluster (top-left) so the chips row
   // is the only thing above the canvas.
   const tools = (
     <>
+      <button onPointerDown={(e) => e.stopPropagation()} onClick={doUndo} disabled={histLen === 0} style={{ ...clusterBtn, opacity: histLen === 0 ? 0.4 : 1, cursor: histLen === 0 ? 'default' : 'pointer' }} title="בטל פעולה">
+        <Undo2 size={16} />
+      </button>
+      <button onPointerDown={(e) => e.stopPropagation()} onClick={toggleView} style={{ ...clusterBtn, background: simple ? '#FFF3E9' : '#fff' }} title={simple ? 'מצב מפורט' : 'מצב פשוט'}>
+        <Eye size={16} color={simple ? '#B4531A' : FOCUS.ink} />
+      </button>
       <button onPointerDown={(e) => e.stopPropagation()} onClick={autoArrange} style={clusterBtn} title="סידור אוטומטי">
         <LayoutGrid size={16} />
       </button>
@@ -265,7 +327,7 @@ export default function FocusMap() {
             links={links} onRemoveLink={removeLink} onCreateLink={createLinkBetween} onHierEdgeTap={openHierMenu} onEmptyTap={dismissAll}
             connectFromId={connectFrom} onHandleTap={startConnect} onConnectTap={connectTo} onConnectCancel={cancelConnect}
             onConnect={startConnect} onDisconnect={(n) => setDisconnectNode(n)} onDetails={(n) => { setSelectedId(n.id); setSheetNode(n); }}
-            tools={tools}
+            tools={tools} simple={!!simple} fitApi={fitRef}
           />
         )}
 
@@ -346,7 +408,7 @@ export default function FocusMap() {
       )}
 
       <IdeaCaptureButton onSaved={load} hidden={!!(sheetNode || addOpen || inboxOpen || connectFrom || disconnectNode)} onOpenChange={setCaptureOpen} />
-      {sheetNode && <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} allNodes={nodes} initialReparentOpen={sheetReparent} onClose={() => { setSheetNode(null); setSheetReparent(false); }} onSaved={load} />}
+      {sheetNode && <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} allNodes={nodes} initialReparentOpen={sheetReparent} pushHistory={pushHistory} onClose={() => { setSheetNode(null); setSheetReparent(false); }} onSaved={load} />}
     </LifeOSLayout>
   );
 }

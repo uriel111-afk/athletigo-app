@@ -20,7 +20,7 @@ const inputStyle = {
 // Slide-up inline overlay (NOT Radix Dialog). Edits one focus node in
 // place; every control persists immediately and calls onSaved so the
 // underlying screen refreshes.
-export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved, allNodes = [], initialReparentOpen = false }) {
+export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved, allNodes = [], initialReparentOpen = false, pushHistory }) {
   const { user } = useContext(AuthContext);
   const [form, setForm] = useState(node || {});
   const [notes, setNotes] = useState([]);
@@ -62,9 +62,15 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
   const currentColor = colorTag(form);
 
   const persist = async (patch) => {
+    // Snapshot the pre-edit values of the patched keys for global undo.
+    const before = {};
+    Object.keys(patch).forEach(k => { before[k] = node[k] === undefined ? null : node[k]; });
     setForm(f => ({ ...f, ...patch }));
-    try { await updateNode(node.id, patch); onSaved && onSaved(); }
-    catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
+    try {
+      await updateNode(node.id, patch);
+      onSaved && onSaved();
+      if (pushHistory) pushHistory({ label: 'עריכת צומת', undo: async () => { await updateNode(node.id, before); onSaved && onSaved(); } });
+    } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
   };
 
   // Set/clear the arm color, stored as a special 'color:#hex' tag.
@@ -116,10 +122,12 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
   const reparent = async (targetId) => {
     setReparentOpen(false); setParentSearch('');
     const subtreeIds = [node.id, ...allDescendants(node.id, idx.children).map(d => d.id)];
+    const prevParent = node.parent_id;
     try {
       await updateNode(node.id, { parent_id: targetId });
       await clearPositions(subtreeIds);
       toast.success('ההורה עודכן');
+      if (pushHistory) pushHistory({ label: 'העברת ענף', undo: async () => { await updateNode(node.id, { parent_id: prevParent }); onSaved && onSaved(); } });
       onSaved && onSaved();
       onClose && onClose();
     } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }

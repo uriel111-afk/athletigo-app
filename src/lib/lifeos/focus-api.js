@@ -132,13 +132,50 @@ export async function fetchNoteNodeIds(userId) {
 }
 
 // ─── Cross-links (visual references only) ─────────────────────────
-export async function fetchLinks(userId) {
+// The current auth uid (the value RLS compares user_id against). The
+// app's `user.id` should equal this, but link fetch/delete must agree on
+// the SAME predicate or you get rows you can see but can't delete.
+export async function getAuthUid() {
+  const { data } = await supabase.auth.getUser();
+  return data?.user?.id || null;
+}
+
+// Fetch links by the SAME predicate RLS uses (auth.uid() = user_id) — no
+// client-side user_id filter, so every fetched row is guaranteed
+// deletable. (The old `.eq('user_id', appUserId)` could diverge from
+// auth.uid() and surface undeletable rows.)
+export async function fetchLinks() {
   const { data, error } = await supabase
     .from('focus_node_links')
-    .select('id, from_node, to_node')
-    .eq('user_id', userId);
+    .select('id, from_node, to_node');
   if (error) throw error;
   return data || [];
+}
+
+export async function getLinkById(id) {
+  const { data } = await supabase
+    .from('focus_node_links')
+    .select('id, user_id, from_node, to_node')
+    .eq('id', id)
+    .maybeSingle();
+  return data || null;
+}
+
+// One-time ownership repair: any link the session can see whose user_id
+// differs from auth.uid() gets fixed. (Rows fully invisible under RLS
+// cannot be repaired from the client — those need a service-role run.)
+export async function repairLinkOwnership() {
+  const authUid = await getAuthUid();
+  if (!authUid) return { authUid: null, seen: 0, wrong: 0, fixed: 0 };
+  const { data } = await supabase.from('focus_node_links').select('id, user_id');
+  const rows = data || [];
+  const wrong = rows.filter(r => r.user_id !== authUid);
+  let fixed = 0;
+  for (const r of wrong) {
+    const { data: upd } = await supabase.from('focus_node_links').update({ user_id: authUid }).eq('id', r.id).select('id');
+    if ((upd || []).length) fixed++;
+  }
+  return { authUid, seen: rows.length, wrong: wrong.length, fixed };
 }
 
 export async function createLink(userId, fromNode, toNode) {
@@ -157,9 +194,13 @@ export async function createLink(userId, fromNode, toNode) {
   return data;
 }
 
+// Delete by id only (RLS enforces ownership). Returns the number of rows
+// ACTUALLY deleted — 0 means RLS/ownership blocked it or it was already
+// gone, so callers can surface a real reason instead of failing silently.
 export async function deleteLink(id) {
-  const { error } = await supabase.from('focus_node_links').delete().eq('id', id);
+  const { data, error } = await supabase.from('focus_node_links').delete().eq('id', id).select('id');
   if (error) throw error;
+  return (data || []).length;
 }
 
 export async function fetchIdeas(userId) {
