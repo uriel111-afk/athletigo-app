@@ -442,6 +442,13 @@ function DisconnectSheet({ node, links, byId, onRemoveLink, onRemoveAll, onRepar
           </div>
         )}
 
+        {/* Explain: no dashed cross-links (any solid lines are structure). */}
+        {crossLinks.length === 0 && (
+          <div style={{ fontSize: 12.5, color: FOCUS.muted, textAlign: 'center', background: '#FBF6EF', borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
+            אין קשרים מקווקווים · הקווים המחוברים הם קווי מבנה
+          </div>
+        )}
+
         {/* Guaranteed removal: wipe ALL cross-links of this node at once. */}
         {crossLinks.length > 0 && (
           <button onClick={() => { onRemoveAll(node.id); onClose(); }}

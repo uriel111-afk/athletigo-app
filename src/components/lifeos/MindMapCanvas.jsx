@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize } from 'lucide-react';
+import { Maximize, Link2 } from 'lucide-react';
 import { FOCUS, urgencyStyle, descendantTasks, allDescendants, armColorMap, armColorFor, darken, hexAlpha } from '@/lib/lifeos/focus-api';
 
 // ── Geometry ──────────────────────────────────────────────────────
@@ -420,6 +420,7 @@ export default function MindMapCanvas({
 
   const edgePath = (p, c) => { const { a, b } = anchored(p, c); return pathBetween(a, b); };
   const linkPath = (A, B) => { const { a, b } = anchored(A, B); return pathBetween(a, b); };
+  const linkMid = (A, B) => { const { a, b } = anchored(A, B); return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
 
   return (
     <div
@@ -438,7 +439,7 @@ export default function MindMapCanvas({
             return (
               <g key={p.id + '-' + c.id}>
                 <path data-hier-edge={c.id} d={d} fill="none" stroke="transparent" strokeWidth={hitW} style={{ pointerEvents: 'stroke', cursor: 'pointer' }} />
-                <path d={d} fill="none" stroke={arm ? hexAlpha(arm, 0.35) : HIER_EDGE} strokeWidth={2} style={{ pointerEvents: 'none' }} />
+                <path d={d} fill="none" stroke={arm ? hexAlpha(arm, 0.55) : HIER_EDGE} strokeWidth={3} style={{ pointerEvents: 'none' }} />
               </g>
             );
           }))}
@@ -468,6 +469,22 @@ export default function MindMapCanvas({
           })}
         </g>
       </svg>
+
+      {/* Cross-link chips — a ⛓ button at each link midpoint. Makes links
+          visibly distinct from structure edges AND easy to delete. */}
+      {resolvedLinks.map(l => {
+        const m = linkMid(l.a, l.b);
+        const cx = view.tx + m.x * view.scale, cy = view.ty + m.y * view.scale;
+        return (
+          <button key={'chip' + l.id}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => onRemoveLink && onRemoveLink(l.id)}
+            title="הסר קשר"
+            style={{ position: 'absolute', left: cx, top: cy, transform: 'translate(-50%,-50%)', width: 26, height: 26, borderRadius: '50%', background: '#fff', border: `1.5px solid ${LINK_EDGE}`, color: '#5B5480', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.2)', padding: 0, zIndex: 4 }}>
+            <Link2 size={14} />
+          </button>
+        );
+      })}
 
       {/* Floating control cluster (semi-transparent) — fit, zoom, tools */}
       <div style={{ position: 'absolute', left: 10, top: 10, display: 'flex', flexDirection: 'column', gap: 5, background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', borderRadius: 12, padding: 5, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
