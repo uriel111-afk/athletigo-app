@@ -64,6 +64,7 @@ export default function MindMapCanvas({
   nodes, byId, children, roots, expanded, selectedId,
   isTaskDone, onTapNode, onToggleDone, onLongPress, onSavePos, centerOnId, onCentered,
   links = [], onRemoveLink, onCreateLink, onHierEdgeTap, onEmptyTap,
+  onLinkChipTap, rerouteActive = false, onRerouteTap,
   connectFromId = null, onHandleTap, onConnectTap, onConnectCancel,
   onConnect, onDisconnect, onDetails, tools = null, simple = false, fitApi = null,
 }) {
@@ -100,7 +101,7 @@ export default function MindMapCanvas({
   const lastTap = useRef(0);
 
   const ctx = useRef({});
-  ctx.current = { connectFromId, byId, onCreateLink, onHandleTap, onConnectTap, onConnectCancel, onTapNode, onToggleDone, onSavePos, onRemoveLink, onHierEdgeTap, onEmptyTap };
+  ctx.current = { connectFromId, byId, onCreateLink, onHandleTap, onConnectTap, onConnectCancel, onTapNode, onToggleDone, onSavePos, onRemoveLink, onHierEdgeTap, onEmptyTap, onLinkChipTap, rerouteActive, onRerouteTap };
 
   const commitView = useCallback((v) => { viewRef.current = v; setView(v); }, []);
 
@@ -249,7 +250,10 @@ export default function MindMapCanvas({
     const g = gesture.current;
     gesture.current = null;
     if (g && g.linkId) {
-      if (!g.moved) ctx.current.onRemoveLink && ctx.current.onRemoveLink(g.linkId); // tap dashed link → instant remove (+undo)
+      if (!g.moved && ctx.current.onLinkChipTap) { // tap dashed link → link action menu at the tap point
+        const r = containerRef.current?.getBoundingClientRect();
+        ctx.current.onLinkChipTap(g.linkId, r ? e.clientX - r.left : e.clientX, r ? e.clientY - r.top : e.clientY);
+      }
     } else if (g && g.hierEdge) {
       if (!g.moved && ctx.current.onHierEdgeTap) { // tap solid edge → mini action bar at the tap point
         const r = containerRef.current?.getBoundingClientRect();
@@ -259,7 +263,8 @@ export default function MindMapCanvas({
       clearTimeout(g.timer);
       if (!g.long) {
         if (!g.moved) {
-          if (ctx.current.connectFromId) { flashTarget(g.node.id); ctx.current.onConnectTap && ctx.current.onConnectTap(g.node.id); } // whole-node connect
+          if (ctx.current.rerouteActive) { flashTarget(g.node.id); ctx.current.onRerouteTap && ctx.current.onRerouteTap(g.node.id); } // re-route link target
+          else if (ctx.current.connectFromId) { flashTarget(g.node.id); ctx.current.onConnectTap && ctx.current.onConnectTap(g.node.id); } // whole-node connect
           else if (g.node.node_type === 'task') ctx.current.onToggleDone(g.node);
           else ctx.current.onTapNode(g.node);
         } else {
@@ -335,7 +340,7 @@ export default function MindMapCanvas({
       const start = posOf(node);
       gesture.current = {
         node, sx: e.clientX, sy: e.clientY, nx: start.x, ny: start.y, lastX: start.x, lastY: start.y, moved: false, long: false,
-        timer: connectFromId ? null : setTimeout(() => { if (gesture.current && !gesture.current.moved) { gesture.current.long = true; onLongPress(node); } }, 480),
+        timer: (connectFromId || rerouteActive) ? null : setTimeout(() => { if (gesture.current && !gesture.current.moved) { gesture.current.long = true; onLongPress(node); } }, 480),
       };
       return;
     }
@@ -478,8 +483,8 @@ export default function MindMapCanvas({
         return (
           <button key={'chip' + l.id}
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => onRemoveLink && onRemoveLink(l.id)}
-            title="הסר קשר"
+            onClick={() => onLinkChipTap && onLinkChipTap(l.id, cx, cy)}
+            title="פעולות קשר"
             style={{ position: 'absolute', left: cx, top: cy, transform: 'translate(-50%,-50%)', width: 26, height: 26, borderRadius: '50%', background: '#fff', border: `1.5px solid ${LINK_EDGE}`, color: '#5B5480', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.2)', padding: 0, zIndex: 4 }}>
             <Link2 size={14} />
           </button>

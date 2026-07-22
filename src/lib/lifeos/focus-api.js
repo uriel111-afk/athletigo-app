@@ -203,6 +203,17 @@ export async function deleteLink(id) {
   return (data || []).length;
 }
 
+// Re-route a link: replace one endpoint column (from_node/to_node) in place.
+export async function updateLinkEndpoint(id, patch) {
+  const { data, error } = await supabase
+    .from('focus_node_links')
+    .update(patch)
+    .eq('id', id)
+    .select('id, from_node, to_node');
+  if (error) throw error;
+  return (data && data[0]) || null;
+}
+
 export async function fetchIdeas(userId) {
   const { data, error } = await supabase
     .from('idea_inbox')
