@@ -332,6 +332,48 @@ export function topBranchOf(node, byId) {
   return cur;
 }
 
+// ─── Arm color-coding ─────────────────────────────────────────────
+// Each top-level branch (arm) gets a color by sort order; the whole
+// subtree inherits it. A branch may override via a 'color:#hex' tag.
+export const ARM_PALETTE = ['#FF6F20', '#3B82F6', '#16a34a', '#9333EA', '#D97706', '#DB2777'];
+
+export function colorTag(node) {
+  const t = (node?.tags || []).find(x => typeof x === 'string' && x.startsWith('color:'));
+  return t ? t.slice(6) : null;
+}
+
+const hexToRgb = (hex) => {
+  let h = String(hex || '').replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const n = parseInt(h || '0', 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+export function darken(hex, k = 0.72) {
+  const [r, g, b] = hexToRgb(hex);
+  const f = (x) => Math.round(x * k);
+  return `rgb(${f(r)},${f(g)},${f(b)})`;
+}
+export function hexAlpha(hex, a) {
+  const [r, g, b] = hexToRgb(hex);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+// Map of top-level-branch id → arm color, assigned by sort order (with
+// per-branch 'color:#hex' overrides). Screens iterate roots' children in
+// the same sorted order, so indices — and colors — line up everywhere.
+export function armColorMap(children, roots) {
+  const map = {};
+  const tops = [];
+  roots.forEach(r => (children[r.id] || []).forEach(c => { if (c.node_type !== 'task') tops.push(c); }));
+  tops.forEach((b, i) => { map[b.id] = colorTag(b) || ARM_PALETTE[i % ARM_PALETTE.length]; });
+  return map;
+}
+// The arm color a node inherits (null for the root itself).
+export function armColorFor(node, byId, armMap) {
+  const top = topBranchOf(node, byId);
+  return top ? (armMap[top.id] || null) : null;
+}
+
 // All descendant task nodes under a node (inclusive of task children).
 export function descendantTasks(nodeId, children) {
   const out = [];

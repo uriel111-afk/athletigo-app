@@ -11,6 +11,7 @@ import {
   FOCUS, isoDate, addDays, dowOf, HEB_DAYS,
   fetchNodes, fetchLogs, logSetFrom, indexNodes,
   harvestToday, computeStreak, todayStats, descendantTasks, allDescendants, occursOn,
+  ARM_PALETTE, colorTag, darken,
 } from '@/lib/lifeos/focus-api';
 
 const money = (n) => Number(n || 0).toLocaleString('he-IL');
@@ -90,7 +91,8 @@ export default function FocusControl() {
         {branches.length === 0 ? (
           <EmptyBox icon={<Gauge size={34} color={FOCUS.orange} style={{ opacity: 0.5 }} />} title="אין זרועות עדיין" sub="עבור למפה כדי להוסיף ענף ראשון" />
         ) : (
-          branches.map(b => {
+          branches.map((b, bi) => {
+            const arm = colorTag(b) || ARM_PALETTE[bi % ARM_PALETTE.length];
             const tasks = descendantTasks(b.id, children);
             const doneCount = tasks.filter(isDone).length;
             const taskPct = tasks.length ? doneCount / tasks.length : 0;
@@ -109,15 +111,15 @@ export default function FocusControl() {
 
             return (
               <div key={b.id} onClick={() => navigate('/lifeos/focus/map', { state: { focusBranchId: b.id } })}
-                style={{ background: FOCUS.card, border: `1px solid ${FOCUS.border}`, borderRadius: 16, boxShadow: FOCUS.neu, padding: 14, marginBottom: 12, cursor: 'pointer' }}>
+                style={{ background: FOCUS.card, border: `1px solid ${FOCUS.border}`, borderRight: `4px solid ${arm}`, borderRadius: 16, boxShadow: FOCUS.neu, padding: 14, marginBottom: 12, cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 16, fontWeight: 800, color: FOCUS.ink }}>{b.title}</span>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: darken(arm) }}>{b.title}</span>
                   <span style={{ fontSize: 12, fontWeight: 700, color: FOCUS.muted }}>{tasks.length ? `${doneCount}/${tasks.length}` : 'ריק'}</span>
                 </div>
 
                 {tasks.length > 0 ? (
                   <div style={{ height: 6, borderRadius: 4, background: '#F1E7D8', marginTop: 9, overflow: 'hidden' }}>
-                    <div style={{ width: `${taskPct * 100}%`, height: '100%', background: FOCUS.orange, borderRadius: 4 }} />
+                    <div style={{ width: `${taskPct * 100}%`, height: '100%', background: arm, borderRadius: 4 }} />
                   </div>
                 ) : (
                   <div style={{ fontSize: 11, color: FOCUS.muted, marginTop: 8 }}>אין משימות בזרוע — הוסף במפה</div>

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Maximize } from 'lucide-react';
-import { FOCUS, urgencyStyle, descendantTasks, allDescendants } from '@/lib/lifeos/focus-api';
+import { FOCUS, urgencyStyle, descendantTasks, allDescendants, armColorMap, armColorFor, darken, hexAlpha } from '@/lib/lifeos/focus-api';
 
 // ── Geometry ──────────────────────────────────────────────────────
 const NODE_W = 138;
@@ -134,6 +134,10 @@ export default function MindMapCanvas({
   const posOf = (n) => livePos[n.id]
     || (n.pos_x != null && n.pos_y != null ? { x: Number(n.pos_x), y: Number(n.pos_y) } : layout[n.id])
     || { x: 0, y: 0 };
+
+  // Arm colors: top-level branch → color; subtree inherits it.
+  const armMap = useMemo(() => armColorMap(children, roots), [children, roots]);
+  const armOf = (n) => armColorFor(n, byId, armMap);
   const rectOf = (n) => { const p = posOf(n); const h = heightFor(n); return { x: p.x, y: p.y, w: NODE_W, h, cx: p.x + NODE_W / 2, cy: p.y + h / 2 }; };
   const anchored = (A, B) => { const ra = rectOf(A), rb = rectOf(B); return { a: sideAnchor(ra, rb.cx, rb.cy), b: sideAnchor(rb, ra.cx, ra.cy) }; };
 
@@ -426,10 +430,11 @@ export default function MindMapCanvas({
           {visibleNodes.map(p => visibleChildrenOf(p).map(c => {
             const d = edgePath(p, c);
             const hitW = Math.max(16, 26 / view.scale);
+            const arm = armOf(c);
             return (
               <g key={p.id + '-' + c.id}>
                 <path data-hier-edge={c.id} d={d} fill="none" stroke="transparent" strokeWidth={hitW} style={{ pointerEvents: 'stroke', cursor: 'pointer' }} />
-                <path d={d} fill="none" stroke={HIER_EDGE} strokeWidth={2} style={{ pointerEvents: 'none' }} />
+                <path d={d} fill="none" stroke={arm ? hexAlpha(arm, 0.35) : HIER_EDGE} strokeWidth={2} style={{ pointerEvents: 'none' }} />
               </g>
             );
           }))}
@@ -453,7 +458,7 @@ export default function MindMapCanvas({
           {visibleNodes.map(n => {
             const p = posOf(n);
             return (
-              <MapNode key={n.id} x={p.x} y={p.y} node={n} sel={selectedId === n.id}
+              <MapNode key={n.id} x={p.x} y={p.y} node={n} sel={selectedId === n.id} armColor={armOf(n)}
                 highlight={hoverId === n.id} childrenIdx={children} expanded={expanded} isTaskDone={isTaskDone} />
             );
           })}
@@ -510,13 +515,13 @@ const HANDLE_SIDES = [
 
 // One node — bigger hit box + whole-rect connect target. Memoized on
 // primitives so a drag only re-renders this node.
-const MapNode = React.memo(function MapNode({ x, y, node, sel, highlight, childrenIdx, expanded, isTaskDone }) {
+const MapNode = React.memo(function MapNode({ x, y, node, sel, armColor, highlight, childrenIdx, expanded, isTaskDone }) {
   const H = heightFor(node);
   return (
     <foreignObject x={x - HIT_PAD} y={y - HIT_PAD} width={NODE_W + HIT_PAD * 2} height={H + HIT_PAD * 2 + 34} style={{ overflow: 'visible' }}>
       <div data-node-id={node.id} style={{ padding: HIT_PAD, width: NODE_W + HIT_PAD * 2, boxSizing: 'border-box', cursor: 'grab', userSelect: 'none', touchAction: 'none', fontFamily: "'Rubik', system-ui, sans-serif" }}>
         <div style={{ position: 'relative', borderRadius: 14, outline: sel ? `2px solid ${FOCUS.edgeSel}` : 'none', boxShadow: highlight ? '0 0 0 3px rgba(22,163,74,0.55)' : 'none', transition: 'box-shadow .12s' }}>
-          <NodeCard node={node} children={childrenIdx} expanded={expanded} isTaskDone={isTaskDone} />
+          <NodeCard node={node} armColor={armColor} children={childrenIdx} expanded={expanded} isTaskDone={isTaskDone} />
           {sel && HANDLE_SIDES.map(s => (
             <div key={s.key} data-handle-id={node.id} title="גרור או הקש כדי לקשר"
               style={{ position: 'absolute', width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'crosshair', touchAction: 'none', zIndex: 3, ...s.pos }}>
@@ -529,7 +534,8 @@ const MapNode = React.memo(function MapNode({ x, y, node, sel, highlight, childr
   );
 });
 
-function NodeCard({ node, children, expanded, isTaskDone }) {
+function NodeCard({ node, armColor, children, expanded, isTaskDone }) {
+  // Root stays solid orange — no arm accent.
   if (node.node_type === 'root') {
     return (
       <div style={{ background: FOCUS.orange, color: '#fff', borderRadius: 999, padding: '12px 10px', textAlign: 'center', fontSize: 15, fontWeight: 800, boxShadow: '0 4px 12px rgba(255,111,32,0.4)' }}>
@@ -537,13 +543,16 @@ function NodeCard({ node, children, expanded, isTaskDone }) {
       </div>
     );
   }
+  // 3px RIGHT accent in the arm color (fear tasks keep their red accent).
+  const armAccent = armColor ? { borderRight: `3px solid ${armColor}` } : null;
+  const armDark = armColor ? darken(armColor) : FOCUS.ink;
   if (node.node_type === 'task') {
     const done = isTaskDone(node);
     const st = urgencyStyle(node);
     return (
-      <div style={{ ...st, borderRadius: 12, padding: '9px 10px', boxShadow: FOCUS.neu, opacity: done ? 0.6 : 1 }}>
+      <div style={{ ...st, ...(node.is_fear_task ? null : armAccent), borderRadius: 12, padding: '9px 10px', boxShadow: FOCUS.neu, opacity: done ? 0.6 : 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 15, height: 15, borderRadius: 5, flexShrink: 0, border: `2px solid ${done ? '#16a34a' : FOCUS.orange}`, background: done ? '#16a34a' : 'transparent', color: '#fff', fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{done ? '✓' : ''}</span>
+          <span style={{ width: 15, height: 15, borderRadius: 5, flexShrink: 0, border: `2px solid ${done ? '#16a34a' : (armColor || FOCUS.orange)}`, background: done ? '#16a34a' : 'transparent', color: '#fff', fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{done ? '✓' : ''}</span>
           <span style={{ fontSize: 12.5, fontWeight: 700, color: FOCUS.ink, textDecoration: done ? 'line-through' : 'none' }}>{node.title || 'משימה'}</span>
         </div>
         {node.is_fear_task && <div style={{ fontSize: 9, color: '#C0392B', fontWeight: 800, marginTop: 3 }}>🔥 אומץ</div>}
@@ -561,19 +570,19 @@ function NodeCard({ node, children, expanded, isTaskDone }) {
     const desc = allDescendants(node.id, children);
     const branches = desc.filter(d => d.node_type !== 'task').length;
     return (
-      <div style={{ background: '#fff', border: `1px solid ${FOCUS.border}`, borderRadius: 14, padding: '10px', textAlign: 'center', boxShadow: FOCUS.neu }}>
-        <div style={{ fontSize: 13.5, fontWeight: 800, color: FOCUS.ink }}>{node.title}</div>
+      <div style={{ background: '#fff', border: `1px solid ${FOCUS.border}`, ...armAccent, borderRadius: 14, padding: '10px', textAlign: 'center', boxShadow: FOCUS.neu }}>
+        <div style={{ fontSize: 13.5, fontWeight: 800, color: armDark }}>{node.title}</div>
         <div style={{ fontSize: 10, color: FOCUS.muted, marginTop: 3 }}>{branches} מושגים · {tasks.length} משימות</div>
       </div>
     );
   }
   return (
-    <div style={{ background: '#fff', border: `1px solid ${FOCUS.border}`, borderRadius: 14, padding: '10px', boxShadow: FOCUS.neu }}>
-      <div style={{ fontSize: 13.5, fontWeight: 800, color: FOCUS.ink, textAlign: 'center' }}>{node.title}</div>
+    <div style={{ background: '#fff', border: `1px solid ${FOCUS.border}`, ...armAccent, borderRadius: 14, padding: '10px', boxShadow: FOCUS.neu }}>
+      <div style={{ fontSize: 13.5, fontWeight: 800, color: armDark, textAlign: 'center' }}>{node.title}</div>
       {tasks.length > 0 ? (
         <>
           <div style={{ height: 4, borderRadius: 3, background: '#F1E7D8', marginTop: 7, overflow: 'hidden' }}>
-            <div style={{ width: `${taskPct * 100}%`, height: '100%', background: FOCUS.orange }} />
+            <div style={{ width: `${taskPct * 100}%`, height: '100%', background: armColor || FOCUS.orange }} />
           </div>
           {hasMetric && (
             <div style={{ height: 4, borderRadius: 3, background: '#F1E7D8', marginTop: 4, overflow: 'hidden' }}>

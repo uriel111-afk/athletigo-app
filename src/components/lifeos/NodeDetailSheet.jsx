@@ -6,6 +6,7 @@ import {
   FOCUS, PRIORITY_CHIPS, tagColor, isoDate,
   updateNode, deleteNode, addNote, fetchNotes,
   indexNodes, allDescendants, ancestorsOf, clearPositions,
+  ARM_PALETTE, colorTag,
 } from '@/lib/lifeos/focus-api';
 
 const fmtMoney = (n) => Number(n || 0).toLocaleString('he-IL');
@@ -56,11 +57,20 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
   if (!node) return null;
   const isTask = node.node_type === 'task';
   const isBranchLike = node.node_type === 'branch' || node.node_type === 'root';
+  // Top-level branch (arm): a branch whose parent is a root → gets a color picker.
+  const isTopBranch = node.node_type === 'branch' && idx.byId[node.parent_id]?.node_type === 'root';
+  const currentColor = colorTag(form);
 
   const persist = async (patch) => {
     setForm(f => ({ ...f, ...patch }));
     try { await updateNode(node.id, patch); onSaved && onSaved(); }
     catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
+  };
+
+  // Set/clear the arm color, stored as a special 'color:#hex' tag.
+  const setArmColor = async (hex) => {
+    const base = (form.tags || []).filter(t => !(typeof t === 'string' && t.startsWith('color:')));
+    await persist({ tags: hex ? [...base, `color:${hex}`] : base });
   };
 
   const addTag = async () => {
@@ -195,10 +205,28 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
           <Flame size={16} /> {form.is_fear_task ? 'משימת אומץ ✓' : 'סמן כמשימת אומץ'}
         </button>
 
-        {/* Tags */}
+        {/* Arm color — top-level branches only. Overrides the auto color. */}
+        {isTopBranch && (
+          <>
+            <label style={labelStyle}>צבע הזרוע</label>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+              {ARM_PALETTE.map(hex => {
+                const on = currentColor === hex;
+                return (
+                  <button key={hex} onClick={() => setArmColor(hex)} aria-label={hex}
+                    style={{ width: 28, height: 28, borderRadius: '50%', background: hex, cursor: 'pointer', border: on ? '3px solid #1a1a1a' : '2px solid #fff', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }} />
+                );
+              })}
+              <button onClick={() => setArmColor(null)}
+                style={{ minHeight: 28, padding: '0 12px', borderRadius: 14, border: `1px solid ${FOCUS.border}`, background: currentColor ? '#fff' : '#F1F3F6', color: FOCUS.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>אוטומטי</button>
+            </div>
+          </>
+        )}
+
+        {/* Tags (the internal color:#hex tag is hidden from this list) */}
         <label style={labelStyle}>תגיות</label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-          {(form.tags || []).map(t => {
+          {(form.tags || []).filter(t => !(typeof t === 'string' && t.startsWith('color:'))).map(t => {
             const c = tagColor(t);
             return (
               <span key={t} onClick={() => removeTag(t)}
@@ -207,7 +235,7 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
               </span>
             );
           })}
-          {!(form.tags || []).length && <span style={{ fontSize: 12, color: FOCUS.muted }}>אין תגיות עדיין</span>}
+          {!(form.tags || []).filter(t => !(typeof t === 'string' && t.startsWith('color:'))).length && <span style={{ fontSize: 12, color: FOCUS.muted }}>אין תגיות עדיין</span>}
         </div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
           <input value={tagText} onChange={(e) => setTagText(e.target.value)}

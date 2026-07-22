@@ -11,6 +11,7 @@ import {
   FOCUS, urgencyStyle, tagColor, isoDate, addDays,
   fetchNodes, fetchLogs, fetchNoteNodeIds, logSetFrom, indexNodes,
   ancestorsOf, descendantTasks, logTask, unlogTask, createNode,
+  ARM_PALETTE, colorTag, darken,
 } from '@/lib/lifeos/focus-api';
 
 const FILTERS = [
@@ -143,7 +144,8 @@ export default function FocusList() {
           </div>
         )}
 
-        {groups.map(g => {
+        {groups.map((g, gi) => {
+          const arm = colorTag(g) || ARM_PALETTE[gi % ARM_PALETTE.length];
           const subTasks = descendantTasks(g.id, children);
           const shown = subTasks.filter(passesFilter);
           const doneCount = subTasks.filter(isDone).length;
@@ -156,11 +158,11 @@ export default function FocusList() {
             <div key={g.id} style={{ marginBottom: 16 }}>
               {/* Group header */}
               <div onClick={() => setCollapsed(c => ({ ...c, [g.id]: isOpen }))}
-                style={{ background: FOCUS.card, border: `1px solid ${FOCUS.border}`, borderRadius: 14, boxShadow: FOCUS.neu, padding: '12px 14px', cursor: 'pointer' }}>
+                style={{ background: FOCUS.card, border: `1px solid ${FOCUS.border}`, borderRight: `4px solid ${arm}`, borderRadius: 14, boxShadow: FOCUS.neu, padding: '12px 14px', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {isOpen ? <ChevronDown size={18} color={FOCUS.muted} /> : <ChevronLeft size={18} color={FOCUS.muted} />}
-                    <span style={{ fontSize: 16, fontWeight: 800, color: FOCUS.ink }}>{g.title}</span>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: darken(arm) }}>{g.title}</span>
                   </div>
                   <span style={{ fontSize: 13, fontWeight: 700, color: FOCUS.muted }}>
                     {subTasks.length ? `${doneCount}/${subTasks.length}` : 'ריק'}
@@ -173,7 +175,7 @@ export default function FocusList() {
                 )}
                 {subTasks.length > 0 && (
                   <div style={{ height: 5, borderRadius: 4, background: '#F1E7D8', marginTop: 8, overflow: 'hidden' }}>
-                    <div style={{ width: `${taskPct * 100}%`, height: '100%', background: FOCUS.orange, borderRadius: 4 }} />
+                    <div style={{ width: `${taskPct * 100}%`, height: '100%', background: arm, borderRadius: 4 }} />
                   </div>
                 )}
                 {hasMetric && (
