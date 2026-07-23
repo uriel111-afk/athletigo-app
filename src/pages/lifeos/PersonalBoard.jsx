@@ -2,15 +2,18 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LayoutGrid } from 'lucide-react';
 import FocusTracker from './FocusTracker';
-import { FOCUS } from '@/lib/lifeos/focus-api';
+import { FOCUS, BOARD_TAG } from '@/lib/lifeos/focus-api';
 
-// The אישי (personal) world's home. It is the SAME tracker board as the
-// business focus view — one tracker, one home — reused (not forked) with
-// the personal affordances turned on:
-//   • quick-add row pinned on top (build recurring tasks without the map)
-//   • checking a cell opens the documentation sheet automatically
-//   • a day-summary strip + chronological feed of today's docs
-//   • the 'החיים שלי' arm is seeded once on first load
+// The אישי (personal) world's home — the SAME tracker component, curated
+// into a clean, page-scrolling board:
+//   • boardTag → shows ONLY tasks the user kept on the board (tag 'לוח');
+//     quick-add is born on the board, long-press removes/deletes, and a
+//     'מהקיים' picker adds existing recurring tasks. First run tags the
+//     'החיים שלי' arm so the board opens personal-only.
+//   • pageScroll → no inner scrolling; the page scrolls, week fits 380px.
+//   • defaultPeriod 'week' · collapsible quick-add · one-row controls.
+//   • row tap opens the item's home (NodeDetailSheet + streak/% line).
+//   • checking a cell opens the documentation sheet automatically.
 // No FocusChips here: the AppSwitcher is the cross-world nav. The old
 // personal tools hub stays reachable via the 'עוד כלים' button below.
 export default function PersonalBoard() {
@@ -42,6 +45,9 @@ export default function PersonalBoard() {
       docOnCheck
       daySummary
       seedPersonal
+      boardTag={BOARD_TAG}
+      pageScroll
+      defaultPeriod="week"
       footerSlot={moreTools}
     />
   );

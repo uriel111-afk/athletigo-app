@@ -418,6 +418,31 @@ export async function seedPersonalArm(userId) {
   return arm;
 }
 
+// ─── Personal board membership (tag-based, no schema change) ──────
+// A focus_node is "on the board" when it carries this tag. Nothing else
+// changes: the node still lives in its arm on the map/list/tracker.
+export const BOARD_TAG = 'לוח';
+
+// First-run curation: put every task under the 'החיים שלי' arm on the
+// board, so the board opens showing ONLY the personal world. Business
+// tasks join later by explicit add. Idempotent per task; run once (the
+// caller guards with a localStorage flag so later removals stick).
+export async function migratePersonalToBoard(userId, tag = BOARD_TAG) {
+  const nodes = await fetchNodes(userId);
+  const { children } = indexNodes(nodes);
+  const root = nodes.find(n => n.node_type === 'root') || nodes.find(n => !n.parent_id);
+  if (!root) return 0;
+  const arm = nodes.find(n => n.parent_id === root.id && n.node_type !== 'task' && n.title === PERSONAL_ARM_TITLE);
+  if (!arm) return 0;
+  const tasks = descendantTasks(arm.id, children);
+  let count = 0;
+  for (const t of tasks) {
+    const tags = t.tags || [];
+    if (!tags.includes(tag)) { await updateNode(t.id, { tags: [...tags, tag] }); count++; }
+  }
+  return count;
+}
+
 export async function addIdea(userId, content) {
   const { data, error } = await supabase
     .from('idea_inbox')

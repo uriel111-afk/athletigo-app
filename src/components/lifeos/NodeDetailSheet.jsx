@@ -20,7 +20,7 @@ const inputStyle = {
 // Slide-up inline overlay (NOT Radix Dialog). Edits one focus node in
 // place; every control persists immediately and calls onSaved so the
 // underlying screen refreshes.
-export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved, allNodes = [], initialReparentOpen = false, pushHistory }) {
+export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved, allNodes = [], initialReparentOpen = false, pushHistory, statLine = null }) {
   const { user } = useContext(AuthContext);
   const [form, setForm] = useState(node || {});
   const [notes, setNotes] = useState([]);
@@ -180,8 +180,15 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
           onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))}
           onBlur={() => form.title !== node.title && persist({ title: form.title })}
           placeholder="כותרת"
-          style={{ ...inputStyle, fontSize: 18, fontWeight: 700, marginBottom: 14 }}
+          style={{ ...inputStyle, fontSize: 18, fontWeight: 700, marginBottom: statLine ? 8 : 14 }}
         />
+
+        {/* Optional stats line (personal board: 'רצף N · החודש X%') */}
+        {statLine && (
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: FOCUS.orange, background: '#FFF3E9', borderRadius: 10, padding: '7px 11px', marginBottom: 14, display: 'inline-block' }}>
+            {statLine}
+          </div>
+        )}
 
         {/* Priority chips */}
         <label style={labelStyle}>עדיפות</label>
