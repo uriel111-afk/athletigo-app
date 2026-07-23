@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize, Link2 } from 'lucide-react';
+import { Maximize, Link2, GitBranch } from 'lucide-react';
 import { FOCUS, urgencyStyle, descendantTasks, allDescendants, armColorMap, armColorFor, darken, hexAlpha } from '@/lib/lifeos/focus-api';
 
 // ── Geometry ──────────────────────────────────────────────────────
@@ -63,8 +63,8 @@ function computeLayout(roots, visibleChildrenOf) {
 export default function MindMapCanvas({
   nodes, byId, children, roots, expanded, selectedId,
   isTaskDone, onTapNode, onToggleDone, onLongPress, onSavePos, centerOnId, onCentered,
-  links = [], onRemoveLink, onCreateLink, onHierEdgeTap, onEmptyTap,
-  onLinkChipTap, rerouteActive = false, onRerouteTap,
+  links = [], onCreateLink, onEmptyTap,
+  onLineTap, reconnectActive = false, onReconnectTap,
   connectFromId = null, onHandleTap, onConnectTap, onConnectCancel,
   onConnect, onDisconnect, onDetails, tools = null, simple = false, fitApi = null,
 }) {
@@ -101,7 +101,7 @@ export default function MindMapCanvas({
   const lastTap = useRef(0);
 
   const ctx = useRef({});
-  ctx.current = { connectFromId, byId, onCreateLink, onHandleTap, onConnectTap, onConnectCancel, onTapNode, onToggleDone, onSavePos, onRemoveLink, onHierEdgeTap, onEmptyTap, onLinkChipTap, rerouteActive, onRerouteTap };
+  ctx.current = { connectFromId, byId, onCreateLink, onHandleTap, onConnectTap, onConnectCancel, onTapNode, onToggleDone, onSavePos, onEmptyTap, onLineTap, reconnectActive, onReconnectTap };
 
   const commitView = useCallback((v) => { viewRef.current = v; setView(v); }, []);
 
@@ -249,21 +249,19 @@ export default function MindMapCanvas({
 
     const g = gesture.current;
     gesture.current = null;
-    if (g && g.linkId) {
-      if (!g.moved && ctx.current.onLinkChipTap) { // tap dashed link → link action menu at the tap point
+    // ONE RULE: tapping any line (dashed link OR solid structure edge)
+    // opens the same tiny bar at the tap point.
+    if (g && (g.linkId || g.hierEdge)) {
+      if (!g.moved && ctx.current.onLineTap) {
         const r = containerRef.current?.getBoundingClientRect();
-        ctx.current.onLinkChipTap(g.linkId, r ? e.clientX - r.left : e.clientX, r ? e.clientY - r.top : e.clientY);
-      }
-    } else if (g && g.hierEdge) {
-      if (!g.moved && ctx.current.onHierEdgeTap) { // tap solid edge → mini action bar at the tap point
-        const r = containerRef.current?.getBoundingClientRect();
-        ctx.current.onHierEdgeTap(g.hierChild, r ? e.clientX - r.left : e.clientX, r ? e.clientY - r.top : e.clientY);
+        const desc = g.linkId ? { type: 'link', linkId: g.linkId } : { type: 'hier', childId: g.hierChild };
+        ctx.current.onLineTap(desc, r ? e.clientX - r.left : e.clientX, r ? e.clientY - r.top : e.clientY);
       }
     } else if (g) {
       clearTimeout(g.timer);
       if (!g.long) {
         if (!g.moved) {
-          if (ctx.current.rerouteActive) { flashTarget(g.node.id); ctx.current.onRerouteTap && ctx.current.onRerouteTap(g.node.id); } // re-route link target
+          if (ctx.current.reconnectActive) { flashTarget(g.node.id); ctx.current.onReconnectTap && ctx.current.onReconnectTap(g.node.id); } // reconnect target
           else if (ctx.current.connectFromId) { flashTarget(g.node.id); ctx.current.onConnectTap && ctx.current.onConnectTap(g.node.id); } // whole-node connect
           else if (g.node.node_type === 'task') ctx.current.onToggleDone(g.node);
           else ctx.current.onTapNode(g.node);
@@ -340,7 +338,7 @@ export default function MindMapCanvas({
       const start = posOf(node);
       gesture.current = {
         node, sx: e.clientX, sy: e.clientY, nx: start.x, ny: start.y, lastX: start.x, lastY: start.y, moved: false, long: false,
-        timer: (connectFromId || rerouteActive) ? null : setTimeout(() => { if (gesture.current && !gesture.current.moved) { gesture.current.long = true; onLongPress(node); } }, 480),
+        timer: (connectFromId || reconnectActive) ? null : setTimeout(() => { if (gesture.current && !gesture.current.moved) { gesture.current.long = true; onLongPress(node); } }, 480),
       };
       return;
     }
@@ -475,16 +473,30 @@ export default function MindMapCanvas({
         </g>
       </svg>
 
-      {/* Cross-link chips — a ⛓ button at each link midpoint. Makes links
-          visibly distinct from structure edges AND easy to delete. */}
+      {/* Line chips — EVERY line (solid structure + dashed cross-link) gets
+          a midpoint button; tapping it opens the same tiny bar. */}
+      {visibleNodes.flatMap(p => visibleChildrenOf(p).map(c => {
+        const m = linkMid(p, c);
+        const cx = view.tx + m.x * view.scale, cy = view.ty + m.y * view.scale;
+        const arm = armOf(c) || '#B48A5A';
+        return (
+          <button key={'hchip' + c.id}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => onLineTap && onLineTap({ type: 'hier', childId: c.id }, cx, cy)}
+            title="פעולות קו"
+            style={{ position: 'absolute', left: cx, top: cy, transform: 'translate(-50%,-50%)', width: 26, height: 26, borderRadius: '50%', background: '#fff', border: `1.5px solid ${arm}`, color: arm, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.2)', padding: 0, zIndex: 4 }}>
+            <GitBranch size={13} />
+          </button>
+        );
+      }))}
       {resolvedLinks.map(l => {
         const m = linkMid(l.a, l.b);
         const cx = view.tx + m.x * view.scale, cy = view.ty + m.y * view.scale;
         return (
           <button key={'chip' + l.id}
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => onLinkChipTap && onLinkChipTap(l.id, cx, cy)}
-            title="פעולות קשר"
+            onClick={() => onLineTap && onLineTap({ type: 'link', linkId: l.id }, cx, cy)}
+            title="פעולות קו"
             style={{ position: 'absolute', left: cx, top: cy, transform: 'translate(-50%,-50%)', width: 26, height: 26, borderRadius: '50%', background: '#fff', border: `1.5px solid ${LINK_EDGE}`, color: '#5B5480', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.2)', padding: 0, zIndex: 4 }}>
             <Link2 size={14} />
           </button>

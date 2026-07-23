@@ -38,11 +38,10 @@ export default function FocusMap() {
   const [captureOpen, setCaptureOpen] = useState(false);
   const [links, setLinks] = useState([]);
   const [connectFrom, setConnectFrom] = useState(null); // two-tap connect source id
-  const [disconnectNode, setDisconnectNode] = useState(null); // node whose connections are listed
   const [sheetReparent, setSheetReparent] = useState(false);  // open NodeDetailSheet with reparent picker
-  const [hierMenu, setHierMenu] = useState(null); // { childId, x, y } — solid-edge mini action bar
-  const [linkMenu, setLinkMenu] = useState(null); // { linkId, x, y } — cross-link chip menu
-  const [rerouteLink, setRerouteLink] = useState(null); // { linkId, keep } — re-route in progress
+  const [lineMenu, setLineMenu] = useState(null); // { desc, x, y } — tiny bar for a tapped line
+  const [reconnect, setReconnect] = useState(null); // desc — reconnect in progress
+  const [nodeLines, setNodeLines] = useState(null); // node whose lines are listed (action-bar נתק)
   const [simple, setSimple] = useState(null); // null until resolved; then true/false
   const [histLen, setHistLen] = useState(0);   // undo-stack depth (for the button)
   const history = useRef([]);                  // last-20 inverse-action stack
@@ -177,80 +176,97 @@ export default function FocusMap() {
   const connectTo = (targetId) => { if (connectFrom && targetId !== connectFrom) createLinkBetween(connectFrom, targetId); };
   const cancelConnect = () => setConnectFrom(null);
 
-  // Remove a link — AWAITED + VERIFIED. On 0 rows deleted, surface the
-  // actual reason (RLS/ownership/missing) instead of silently reverting.
-  const removeLink = async (linkId) => {
-    const gone = links.find(l => l.id === linkId);
-    try {
-      const n = await deleteLink(linkId);
-      if (n === 0) {
-        const [row, authUid] = await Promise.all([getLinkById(linkId), getAuthUid()]);
-        console.warn('[FocusMap] link delete removed 0 rows', { linkId, row, authUid }); // eslint-disable-line no-console
-        toast.error(!row ? 'הקשר כבר לא קיים — רענן' : (row.user_id !== authUid ? 'הקשר שייך למשתמש אחר — לא נמחק' : 'המחיקה נחסמה'));
-        load();
-        return;
-      }
-      setLinks(prev => prev.filter(l => l.id !== linkId));
-      if (gone) pushHistory({ label: 'מחיקת קשר', undo: async () => { await createLink(userId, gone.from_node, gone.to_node); setLinks(await fetchLinks()); } });
-      toast('הקשר הוסר');
-    } catch (e) { toast.error('שגיאה במחיקה: ' + (e?.message || '')); load(); }
+  // ── ONE RULE for every line: disconnect or reconnect ───────────
+  // Tapping any line/chip → tiny bar at the tap point.
+  const openLineMenu = (desc, x, y) => { setConnectFrom(null); setNodeLines(null); setLineMenu({ desc, x, y }); };
+
+  // נתק a line — instant, undo-able.
+  const disconnectLine = async (desc) => {
+    setLineMenu(null); setNodeLines(null);
+    if (desc.type === 'link') {
+      const gone = links.find(l => l.id === desc.linkId);
+      try {
+        const n = await deleteLink(desc.linkId);
+        if (n === 0) {
+          const [row, authUid] = await Promise.all([getLinkById(desc.linkId), getAuthUid()]);
+          console.warn('[FocusMap] link delete removed 0 rows', { desc, row, authUid }); // eslint-disable-line no-console
+          toast.error(!row ? 'הקו כבר לא קיים' : (row.user_id !== authUid ? 'הקו שייך למשתמש אחר' : 'הניתוק נחסם'));
+          load(); return;
+        }
+        setLinks(prev => prev.filter(l => l.id !== desc.linkId));
+        if (gone) pushHistory({ label: 'ניתוק קשר', undo: async () => { await createLink(userId, gone.from_node, gone.to_node); setLinks(await fetchLinks()); } });
+        toast('נותק');
+      } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); load(); }
+    } else {
+      // Structure line נתק → re-home the CHILD to the root (standalone arm).
+      const child = byId[desc.childId];
+      const rootId = roots[0]?.id;
+      if (!child || !rootId || child.parent_id === rootId) return;
+      const oldParent = child.parent_id;
+      try {
+        await updateNode(child.id, { parent_id: rootId });
+        pushHistory({ label: 'ניתוק ענף', undo: async () => { await updateNode(child.id, { parent_id: oldParent }); await load(); } });
+        await load();
+        toast('נותק');
+      } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); load(); }
+    }
   };
 
-  // Guaranteed removal: wipe ALL cross-links of a node (awaited+verified).
-  const removeAllLinks = async (nodeId) => {
-    const touching = links.filter(l => l.from_node === nodeId || l.to_node === nodeId);
-    if (!touching.length) return;
-    try {
-      const counts = await Promise.all(touching.map(l => deleteLink(l.id).catch(() => 0)));
-      const removed = counts.filter(Boolean).length;
-      setLinks(await fetchLinks());
-      if (removed < touching.length) toast.error(`${removed}/${touching.length} הוסרו — חלק נחסמו (בעלות)`);
-      else toast(`${removed} קשרים הוסרו`);
-      if (removed) pushHistory({ label: 'הסרת כל הקשרים', undo: async () => { await Promise.all(touching.map(l => createLink(userId, l.from_node, l.to_node))); setLinks(await fetchLinks()); } });
-    } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); load(); }
+  // חבר למקום אחר → enter reconnect mode; the next node tap is the target.
+  const startReconnect = (desc) => { setLineMenu(null); setNodeLines(null); setReconnect(desc); };
+
+  const reconnectTo = async (newId) => {
+    const desc = reconnect;
+    setReconnect(null);
+    if (!desc) return;
+    if (desc.type === 'link') {
+      const l = links.find(x => x.id === desc.linkId);
+      if (!l) return;
+      // Keep the endpoint shared with the selected node, else keep from_node.
+      const keep = selectedId === l.from_node ? l.from_node : selectedId === l.to_node ? l.to_node : l.from_node;
+      if (newId === keep) { toast.error('לא ניתן לחבר צומת לעצמו'); return; }
+      const dup = links.some(x => x.id !== l.id && ((x.from_node === keep && x.to_node === newId) || (x.from_node === newId && x.to_node === keep)));
+      if (dup) { toast.error('כבר קיים קשר בין הצמתים'); return; }
+      const farCol = l.from_node === keep ? 'to_node' : 'from_node';
+      const oldFar = l[farCol];
+      try {
+        await updateLinkEndpoint(l.id, { [farCol]: newId });
+        setLinks(await fetchLinks());
+        pushHistory({ label: 'חיבור מחדש', undo: async () => { await updateLinkEndpoint(l.id, { [farCol]: oldFar }); setLinks(await fetchLinks()); } });
+        toast('חובר');
+      } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); load(); }
+    } else {
+      // Structure reconnect → re-parent the child under the tapped node.
+      const child = byId[desc.childId];
+      if (!child) return;
+      if (newId === child.id) { toast.error('לא ניתן לחבר צומת לעצמו'); return; }
+      const subtree = new Set([child.id, ...allDescendants(child.id, children).map(d => d.id)]);
+      if (subtree.has(newId)) { toast.error('לא ניתן לחבר מתחת לצאצא'); return; }
+      const oldParent = child.parent_id;
+      try {
+        await updateNode(child.id, { parent_id: newId });
+        setExpanded(prev => new Set(prev).add(newId));
+        pushHistory({ label: 'חיבור מחדש', undo: async () => { await updateNode(child.id, { parent_id: oldParent }); await load(); } });
+        await load();
+        toast('חובר');
+      } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); load(); }
+    }
   };
 
-  // Tapping a solid hierarchy edge → mini action bar at the tap point.
-  const openHierMenu = (childId, x, y) => { setConnectFrom(null); setLinkMenu(null); setHierMenu({ childId, x, y }); };
-
-  // Tapping a cross-link (chip or edge) → link action menu at the tap point.
-  const openLinkMenu = (linkId, x, y) => { setConnectFrom(null); setHierMenu(null); setLinkMenu({ linkId, x, y }); };
-
-  // Start re-route: keep the endpoint shared with the selected node (else
-  // keep from_node); the FAR endpoint is what the next node tap replaces.
-  const startReroute = () => {
-    const l = links.find(x => x.id === linkMenu?.linkId);
-    setLinkMenu(null);
-    if (!l) return;
-    const keep = selectedId === l.from_node ? l.from_node
-               : selectedId === l.to_node ? l.to_node
-               : l.from_node; // no/unrelated selection → far = to_node
-    setRerouteLink({ linkId: l.id, keep });
-  };
-
-  // A node was tapped as the new far endpoint.
-  const rerouteTo = async (newId) => {
-    const rl = rerouteLink;
-    setRerouteLink(null);
-    if (!rl) return;
-    const l = links.find(x => x.id === rl.linkId);
-    if (!l) return;
-    if (newId === rl.keep) { toast.error('לא ניתן לקשר צומת לעצמו'); return; }
-    // Duplicate guard: is there already a link between keep and newId?
-    const dup = links.some(x => x.id !== l.id && ((x.from_node === rl.keep && x.to_node === newId) || (x.from_node === newId && x.to_node === rl.keep)));
-    if (dup) { toast.error('כבר קיים קשר בין הצמתים'); return; }
-    const farCol = l.from_node === rl.keep ? 'to_node' : 'from_node';
-    const oldFar = l[farCol];
-    try {
-      await updateLinkEndpoint(l.id, { [farCol]: newId });
-      setLinks(await fetchLinks());
-      pushHistory({ label: 'ניתוב קשר', undo: async () => { await updateLinkEndpoint(l.id, { [farCol]: oldFar }); setLinks(await fetchLinks()); } });
-      toast('הקשר נותב מחדש');
-    } catch (e) { toast.error('שגיאה בניתוב: ' + (e?.message || '')); load(); }
+  // The action-bar נתק button: list this node's lines (parent + cross-links).
+  const linesOf = (node) => {
+    if (!node) return [];
+    const out = [];
+    if (node.parent_id && byId[node.parent_id]) out.push({ type: 'hier', childId: node.id, label: `מבנה · ${byId[node.parent_id].title || ''}` });
+    links.filter(l => l.from_node === node.id || l.to_node === node.id).forEach(l => {
+      const other = byId[l.from_node === node.id ? l.to_node : l.from_node];
+      out.push({ type: 'link', linkId: l.id, label: other?.title || 'קשר' });
+    });
+    return out;
   };
 
   // Single empty-canvas tap dismisses everything lingering.
-  const dismissAll = () => { setConnectFrom(null); setHierMenu(null); setLinkMenu(null); setRerouteLink(null); setSelectedId(null); toast.dismiss(); };
+  const dismissAll = () => { setConnectFrom(null); setLineMenu(null); setReconnect(null); setNodeLines(null); setSelectedId(null); toast.dismiss(); };
 
   // Parent for a new node: the selected node, else the main root (or
   // null → a new top-level node when the tree is still empty).
@@ -362,10 +378,10 @@ export default function FocusMap() {
             onLongPress={(n) => { setSelectedId(n.id); setSheetNode(n); }}
             onSavePos={savePos}
             centerOnId={centerId} onCentered={() => setCenterId(null)}
-            links={links} onRemoveLink={removeLink} onCreateLink={createLinkBetween} onHierEdgeTap={openHierMenu} onEmptyTap={dismissAll}
-            onLinkChipTap={openLinkMenu} rerouteActive={!!rerouteLink} onRerouteTap={rerouteTo}
+            links={links} onCreateLink={createLinkBetween} onEmptyTap={dismissAll}
+            onLineTap={openLineMenu} reconnectActive={!!reconnect} onReconnectTap={reconnectTo}
             connectFromId={connectFrom} onHandleTap={startConnect} onConnectTap={connectTo} onConnectCancel={cancelConnect}
-            onConnect={startConnect} onDisconnect={(n) => setDisconnectNode(n)} onDetails={(n) => { setSelectedId(n.id); setSheetNode(n); }}
+            onConnect={startConnect} onDisconnect={(n) => { setSelectedId(n.id); setNodeLines(n); }} onDetails={(n) => { setSelectedId(n.id); setSheetNode(n); }}
             tools={tools} simple={!!simple} fitApi={fitRef}
           />
         )}
@@ -378,51 +394,57 @@ export default function FocusMap() {
           </div>
         )}
 
-        {/* Re-route-mode banner */}
-        {rerouteLink && (
+        {/* Reconnect-mode banner — the ONLY text on screen during the flow */}
+        {reconnect && (
           <div style={{ position: 'absolute', top: 8, left: 12, right: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#5B5480', color: '#fff', borderRadius: 12, padding: '9px 12px', boxShadow: '0 4px 14px rgba(0,0,0,0.25)', zIndex: 5 }}>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>⛓ הקש על הצומת החדש</span>
-            <button onClick={() => setRerouteLink(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 8, padding: '5px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>ביטול</button>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>הקש על היעד החדש</span>
+            <button onClick={() => setReconnect(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 8, padding: '5px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>ביטול</button>
           </div>
         )}
 
         {/* Hint — only on an EMPTY selection AND a small/new map (≤5). */}
-        {!connectFrom && !hierMenu && !selectedId && !empty && nodes.length <= 5 && (
+        {!connectFrom && !reconnect && !lineMenu && !selectedId && !empty && nodes.length <= 5 && (
           <div style={{ position: 'absolute', top: 8, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: FOCUS.muted, pointerEvents: 'none' }}>
             הקש לבחירה · גרור להזזה · הקש ⊕ להוספה
           </div>
         )}
 
-        {/* Solid-edge mini action bar at the tap point */}
-        {hierMenu && (() => {
-          const child = byId[hierMenu.childId];
-          if (!child) return null;
+        {/* THE tiny bar — same for every line: נתק / חבר למקום אחר / סגור */}
+        {lineMenu && (
+          <div style={{ position: 'absolute', left: Math.max(8, Math.min(lineMenu.x, 300)), top: Math.max(8, lineMenu.y), transform: 'translate(-50%,8px)', display: 'flex', gap: 6, background: '#fff', border: `1px solid ${FOCUS.border}`, borderRadius: 12, padding: 5, boxShadow: '0 4px 14px rgba(0,0,0,0.2)', zIndex: 7, whiteSpace: 'nowrap' }}>
+            <button onClick={() => disconnectLine(lineMenu.desc)}
+              style={lineBtn('#FCEBEB', '#C0392B')}>נתק</button>
+            <button onClick={() => startReconnect(lineMenu.desc)}
+              style={lineBtn('#EEEDFE', '#3C3489')}>חבר למקום אחר</button>
+            <button onClick={() => setLineMenu(null)}
+              style={{ ...lineBtn('#fff', FOCUS.muted), border: `1px solid ${FOCUS.border}` }}>סגור</button>
+          </div>
+        )}
+
+        {/* Action-bar נתק → one compact row per line of the selected node. */}
+        {nodeLines && (() => {
+          const rows = linesOf(nodeLines);
           return (
-            <div style={{ position: 'absolute', left: Math.max(8, Math.min(hierMenu.x, 340)), top: Math.max(8, hierMenu.y), transform: 'translate(-50%,8px)', display: 'flex', gap: 6, background: '#fff', border: `1px solid ${FOCUS.border}`, borderRadius: 12, padding: 5, boxShadow: '0 4px 14px rgba(0,0,0,0.2)', zIndex: 7, whiteSpace: 'nowrap' }}>
-              <button onClick={() => { setHierMenu(null); setSelectedId(child.id); setSheetReparent(true); setSheetNode(child); }}
-                style={{ minHeight: 40, padding: '0 12px', borderRadius: 9, border: 'none', background: '#EEEDFE', color: '#3C3489', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>העבר לענף אחר</button>
-              <button onClick={() => setHierMenu(null)}
-                style={{ minHeight: 40, padding: '0 12px', borderRadius: 9, border: `1px solid ${FOCUS.border}`, background: '#fff', color: FOCUS.muted, fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>סגור</button>
+            <div onClick={() => setNodeLines(null)} dir="rtl" style={{ position: 'absolute', inset: 0, zIndex: 8, background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: '#fff', border: `1px solid ${FOCUS.border}`, borderRadius: 16, padding: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>
+                {rows.length === 0 ? (
+                  <div style={{ fontSize: 13, color: FOCUS.muted, textAlign: 'center', padding: '14px 8px' }}>אין קווים לצומת הזה</div>
+                ) : rows.map((r, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', borderBottom: i < rows.length - 1 ? `1px solid ${FOCUS.border}` : 'none' }}>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: FOCUS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</span>
+                    <button onClick={() => disconnectLine(r)} style={lineBtn('#FCEBEB', '#C0392B')}>נתק</button>
+                    <button onClick={() => startReconnect(r)} style={lineBtn('#EEEDFE', '#3C3489')}>חבר למקום אחר</button>
+                  </div>
+                ))}
+              </div>
             </div>
           );
         })()}
 
-        {/* Cross-link chip menu at the tap point: remove OR re-route. */}
-        {linkMenu && (
-          <div style={{ position: 'absolute', left: Math.max(8, Math.min(linkMenu.x, 300)), top: Math.max(8, linkMenu.y), transform: 'translate(-50%,8px)', display: 'flex', gap: 6, background: '#fff', border: `1px solid ${FOCUS.border}`, borderRadius: 12, padding: 5, boxShadow: '0 4px 14px rgba(0,0,0,0.2)', zIndex: 7, whiteSpace: 'nowrap' }}>
-            <button onClick={() => { const id = linkMenu.linkId; setLinkMenu(null); removeLink(id); }}
-              style={{ minHeight: 40, padding: '0 14px', borderRadius: 9, border: 'none', background: '#FCEBEB', color: '#C0392B', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>הסר</button>
-            <button onClick={startReroute}
-              style={{ minHeight: 40, padding: '0 12px', borderRadius: 9, border: 'none', background: '#EEEDFE', color: '#3C3489', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>חבר לצומת אחר</button>
-            <button onClick={() => setLinkMenu(null)}
-              style={{ minHeight: 40, padding: '0 12px', borderRadius: 9, border: `1px solid ${FOCUS.border}`, background: '#fff', color: FOCUS.muted, fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>סגור</button>
-          </div>
-        )}
-
         {/* Floating add (bottom-RIGHT) → opens the full inline add panel.
             Hidden whenever any sheet/panel/capture overlay is open so it
             never covers panel content. */}
-        {!(addOpen || sheetNode || inboxOpen || captureOpen || connectFrom || rerouteLink || linkMenu) && (
+        {!(addOpen || sheetNode || inboxOpen || captureOpen || connectFrom || reconnect || lineMenu || nodeLines) && (
           <button onClick={() => setAddOpen(true)} aria-label="הוסף צומת"
             style={{ position: 'absolute', right: 16, bottom: 16, width: 52, height: 52, borderRadius: '50%', border: 'none', background: FOCUS.orangeGrad, color: '#fff', boxShadow: '0 6px 16px rgba(255,111,32,0.45)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Plus size={26} />
@@ -454,97 +476,9 @@ export default function FocusMap() {
         </div>
       )}
 
-      {/* Disconnect sheet — all of a node's connections in one place */}
-      {disconnectNode && (
-        <DisconnectSheet
-          node={nodes.find(n => n.id === disconnectNode.id) || disconnectNode}
-          links={links} byId={byId}
-          onRemoveLink={(id) => removeLink(id)}
-          onRemoveAll={(id) => removeAllLinks(id)}
-          onReparent={(n) => { setDisconnectNode(null); setSelectedId(n.id); setSheetReparent(true); setSheetNode(n); }}
-          onClose={() => setDisconnectNode(null)}
-        />
-      )}
-
-      <IdeaCaptureButton onSaved={load} hidden={!!(sheetNode || addOpen || inboxOpen || connectFrom || disconnectNode || rerouteLink)} onOpenChange={setCaptureOpen} />
+      <IdeaCaptureButton onSaved={load} hidden={!!(sheetNode || addOpen || inboxOpen || connectFrom || reconnect || nodeLines)} onOpenChange={setCaptureOpen} />
       {sheetNode && <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} allNodes={nodes} initialReparentOpen={sheetReparent} pushHistory={pushHistory} onClose={() => { setSheetNode(null); setSheetReparent(false); }} onSaved={load} />}
     </LifeOSLayout>
-  );
-}
-
-// Lists every connection of a node: cross-links + its hierarchy parent.
-function DisconnectSheet({ node, links, byId, onRemoveLink, onRemoveAll, onReparent, onClose }) {
-  const crossLinks = links
-    .filter(l => l.from_node === node.id || l.to_node === node.id)
-    .map(l => {
-      const otherId = l.from_node === node.id ? l.to_node : l.from_node;
-      const other = byId[otherId];
-      return other ? { linkId: l.id, other } : null;
-    })
-    .filter(Boolean);
-  const parent = node.parent_id ? byId[node.parent_id] : null;
-  const crumb = (n) => ancestorsOf(n, byId).map(a => a.title).join(' › ');
-  const empty = crossLinks.length === 0 && !parent;
-
-  return (
-    <div onClick={onClose} dir="rtl" style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, maxHeight: '80vh', overflowY: 'auto', background: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '16px 16px calc(env(safe-area-inset-bottom,0px) + 20px)', boxShadow: '0 -6px 24px rgba(0,0,0,0.15)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: FOCUS.ink }}>קשרים · {node.title || 'צומת'}</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: FOCUS.muted }}><X size={20} /></button>
-        </div>
-
-        {empty && (
-          <div style={{ textAlign: 'center', padding: '32px 20px', color: FOCUS.muted }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: FOCUS.ink }}>אין קשרים לצומת הזה</div>
-            <div style={{ fontSize: 13, marginTop: 6 }}>השתמש ב"+ חבר" כדי ליצור קשר</div>
-          </div>
-        )}
-
-        {/* Explain: no dashed cross-links (any solid lines are structure). */}
-        {crossLinks.length === 0 && (
-          <div style={{ fontSize: 12.5, color: FOCUS.muted, textAlign: 'center', background: '#FBF6EF', borderRadius: 10, padding: '10px 12px', marginBottom: 12 }}>
-            אין קשרים מקווקווים · הקווים המחוברים הם קווי מבנה
-          </div>
-        )}
-
-        {/* Guaranteed removal: wipe ALL cross-links of this node at once. */}
-        {crossLinks.length > 0 && (
-          <button onClick={() => { onRemoveAll(node.id); onClose(); }}
-            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: '#FCEBEB', color: '#C0392B', border: `1px solid #F3C7C2`, borderRadius: 12, padding: '12px', fontSize: 13.5, fontWeight: 800, cursor: 'pointer', marginBottom: 12 }}>
-            הסר את כל הקשרים של הצומת ({crossLinks.length})
-          </button>
-        )}
-
-        {parent && (
-          <>
-            <div style={{ fontSize: 11, fontWeight: 800, color: FOCUS.muted, margin: '2px 0 6px' }}>הורה במבנה</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#FBF6EF', borderRadius: 12, padding: '10px 12px', marginBottom: 12 }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: FOCUS.ink }}>{parent.title}</div>
-                {crumb(parent) && <div style={{ fontSize: 11, color: FOCUS.muted, marginTop: 2 }}>{crumb(parent)}</div>}
-              </div>
-              <button onClick={() => onReparent(node)} style={{ flexShrink: 0, background: '#EEEDFE', color: '#3C3489', border: 'none', borderRadius: 9, padding: '9px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>העבר לענף אחר</button>
-            </div>
-          </>
-        )}
-
-        {crossLinks.length > 0 && (
-          <>
-            <div style={{ fontSize: 11, fontWeight: 800, color: FOCUS.muted, margin: '2px 0 6px' }}>קשרים ({crossLinks.length})</div>
-            {crossLinks.map(({ linkId, other }) => (
-              <div key={linkId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#fff', border: `1px solid ${FOCUS.border}`, borderRadius: 12, padding: '10px 12px', marginBottom: 8 }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: FOCUS.ink }}>{other.title || 'צומת'}</div>
-                  {crumb(other) && <div style={{ fontSize: 11, color: FOCUS.muted, marginTop: 2 }}>{crumb(other)}</div>}
-                </div>
-                <button onClick={() => onRemoveLink(linkId)} style={{ flexShrink: 0, background: '#FCEBEB', color: '#C0392B', border: 'none', borderRadius: 9, padding: '9px 14px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>הסר</button>
-              </div>
-            ))}
-          </>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -586,6 +520,12 @@ const clusterBtn = {
   background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
   color: FOCUS.ink, cursor: 'pointer', fontFamily: 'inherit',
 };
+// Buttons for the unified line action bar (נתק / חבר למקום אחר / סגור).
+const lineBtn = (bg, fg) => ({
+  minHeight: 40, padding: '0 12px', borderRadius: 9, border: 'none',
+  background: bg, color: fg, fontSize: 13, fontWeight: 800, cursor: 'pointer',
+  fontFamily: 'inherit', whiteSpace: 'nowrap',
+});
 
 // ─── Full inline add panel (slide-up, NOT Radix) ──────────────────
 const pInput = { width: '100%', border: `1px solid ${FOCUS.border}`, borderRadius: 11, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', color: FOCUS.ink, background: '#FFFDFA', outline: 'none', boxSizing: 'border-box' };
