@@ -5,6 +5,7 @@ import PageSkeleton from '@/components/PageSkeleton';
 import FocusChips from '@/components/lifeos/FocusChips';
 import IdeaCaptureButton from '@/components/lifeos/IdeaCaptureButton';
 import NodeDetailSheet from '@/components/lifeos/NodeDetailSheet';
+import FocusDocSheet, { doneToast } from '@/components/lifeos/FocusDocSheet';
 import { AlarmClock, Flame, Phone, CalendarClock, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -123,6 +124,7 @@ export default function FocusToday() {
   const [logs, setLogs] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [sheetNode, setSheetNode] = useState(null);
+  const [docNode, setDocNode] = useState(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -149,7 +151,7 @@ export default function FocusToday() {
     // optimistic
     setLogs(prev => [...prev, { node_id: node.id, log_date: today }]);
     if (!node.frequency) setNodes(prev => prev.map(x => x.id === node.id ? { ...x, status: 'done', done_at: new Date().toISOString() } : x));
-    try { await logTask(userId, node, today); toast.success('כל הכבוד! ✓'); }
+    try { await logTask(userId, node, today); doneToast('כל הכבוד! ✓', node, setDocNode); }
     catch (e) { toast.error('שגיאה'); load(); }
   };
 
@@ -210,6 +212,7 @@ export default function FocusToday() {
         )}
       </div>
 
+      {docNode && <FocusDocSheet node={docNode} userId={userId} onClose={() => setDocNode(null)} onSaved={load} />}
       <IdeaCaptureButton hidden={!!sheetNode} />
       {sheetNode && (
         <NodeDetailSheet

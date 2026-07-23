@@ -86,6 +86,42 @@ export function hebrewDateLabel(iso = isoDate()) {
   } catch { return iso; }
 }
 
+// ─── Month / week grid helpers (Tracker) ──────────────────────────
+export const HEB_MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+
+// Every ISO date in the month that contains `iso`.
+export function monthDays(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  const y = d.getFullYear(), m = d.getMonth();
+  const n = new Date(y, m + 1, 0).getDate();
+  return Array.from({ length: n }, (_, i) => isoDate(new Date(y, m, i + 1)));
+}
+// The 7 ISO dates (Sun→Sat) of the week that contains `iso`.
+export function weekDays(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  const start = addDays(iso, -d.getDay());
+  return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+}
+// 'YYYY-MM' → Hebrew "month year".
+export function monthLabel(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  return `${HEB_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// ─── Optional documentation note formatter ────────────────────────
+// Combine the three optional fields into ONE formatted focus_node_notes
+// body. Returns '' when the coach filled nothing in (caller skips saving).
+export function formatDocNote({ number, feeling, insight } = {}) {
+  const parts = [];
+  const num = String(number || '').trim();
+  if (num) parts.push(`📊 ${num}`);
+  const f = Number(feeling || 0);
+  if (f > 0) parts.push(`תחושה: ${'●'.repeat(f)}${'○'.repeat(Math.max(0, 5 - f))} (${f}/5)`);
+  const ins = String(insight || '').trim();
+  if (ins) parts.push(`💡 ${ins}`);
+  return parts.join('\n');
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Reads
 // ═══════════════════════════════════════════════════════════════════
@@ -528,6 +564,53 @@ export function todayStats(nodes, logSet, today = isoDate()) {
     if (relevant) { total++; if (isDone) done++; }
   });
   return { done, total };
+}
+
+// ─── Tracker helpers (per-task recurring grid) ────────────────────
+// Recurring tasks only (daily/weekly/monthly), still active.
+export function recurringTasks(nodes) {
+  return nodes.filter(n => n.node_type === 'task' && n.status === 'active'
+    && (n.frequency === 'daily' || n.frequency === 'weekly' || n.frequency === 'monthly'));
+}
+// Is this recurring task expected on `date`? (monthly → the 1st only.)
+export function taskExpectedOn(n, date) {
+  if (n.frequency === 'daily') return true;
+  if (n.frequency === 'weekly') return n.day_of_week === dowOf(date);
+  if (n.frequency === 'monthly') return new Date(date + 'T00:00:00').getDate() === 1;
+  return false;
+}
+// Was it logged/done for `date`? (monthly → any log that month.)
+export function taskLoggedOn(n, logSet, date) {
+  if (n.frequency === 'monthly') {
+    const ym = date.slice(0, 7);
+    return [...logSet].some(k => k.startsWith(n.id + '|' + ym));
+  }
+  return logSet.has(n.id + '|' + date);
+}
+// {done, expected} for one task across a list of dates, counting only
+// dates on/before `upTo` (future days don't drag the percentage down).
+export function taskMonthStats(n, logSet, dates, upTo = isoDate()) {
+  let expected = 0, done = 0;
+  dates.forEach(d => {
+    if (d > upTo) return;
+    if (taskExpectedOn(n, d)) { expected++; if (taskLoggedOn(n, logSet, d)) done++; }
+  });
+  return { done, expected };
+}
+// Current streak: walking back from today over EXPECTED days only, count
+// consecutive expected days that were logged. An unmet expected day (in
+// the past) breaks it; today-not-yet-done doesn't zero a real streak.
+export function taskStreak(n, logSet, today = isoDate()) {
+  let streak = 0, cursor = today, guard = 0, started = false;
+  while (guard++ < 400) {
+    if (taskExpectedOn(n, cursor)) {
+      const done = taskLoggedOn(n, logSet, cursor);
+      if (done) { streak++; started = true; }
+      else if (started || cursor !== today) break; // past miss ends it
+    }
+    cursor = addDays(cursor, -1);
+  }
+  return streak;
 }
 
 // Streak: consecutive days (ending today or yesterday) on which every

@@ -1,13 +1,17 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Gauge, CalendarCheck, ListChecks, CalendarDays, Network } from 'lucide-react';
+import { Gauge, CalendarCheck, ListChecks, CalendarDays, Network, LayoutGrid, AlignLeft } from 'lucide-react';
 import { FOCUS } from '@/lib/lifeos/focus-api';
 
-// The chip sub-nav shared by every Focus screen: בקרה / היום / רשימה / יומן / מפה.
+// The chip sub-nav shared by every Focus screen:
+// בקרה / מעקב / היום / רשימה / מתאר / יומן / מפה.
+// מעקב is the landing (end:true → /lifeos/focus renders the Tracker).
 const CHIPS = [
   { to: '/lifeos/focus/control',  label: 'בקרה',   Icon: Gauge,         end: false },
-  { to: '/lifeos/focus',          label: 'היום',   Icon: CalendarCheck, end: true },
+  { to: '/lifeos/focus',          label: 'מעקב',   Icon: LayoutGrid,    end: true },
+  { to: '/lifeos/focus/today',    label: 'היום',   Icon: CalendarCheck, end: false },
   { to: '/lifeos/focus/list',     label: 'רשימה',  Icon: ListChecks,    end: false },
+  { to: '/lifeos/focus/outline',  label: 'מתאר',   Icon: AlignLeft,     end: false },
   { to: '/lifeos/focus/calendar', label: 'יומן',   Icon: CalendarDays,  end: false },
   { to: '/lifeos/focus/map',      label: 'מפה',    Icon: Network,       end: false },
 ];

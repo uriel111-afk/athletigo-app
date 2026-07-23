@@ -51,6 +51,8 @@ import FocusToday from './pages/lifeos/FocusToday';
 import FocusList from './pages/lifeos/FocusList';
 import FocusCalendar from './pages/lifeos/FocusCalendar';
 import FocusMap from './pages/lifeos/FocusMap';
+import FocusTracker from './pages/lifeos/FocusTracker';
+import FocusOutline from './pages/lifeos/FocusOutline';
 import PersonalDashboard from './pages/personal/PersonalDashboard';
 import PersonalHabits from './pages/personal/Habits';
 import PersonalPeople from './pages/personal/People';
@@ -591,9 +593,13 @@ const AuthenticatedApp = () => {
       {/* redirects here; the old dashboard stays reachable at /lifeos/dashboard. */}
       <Route path="/lifeos"              element={<Navigate to="/lifeos/focus" replace />} />
       <Route path="/lifeos/dashboard"    element={<PageRouteGuard pageKey="LifeOS"><LifeOSDashboard /></PageRouteGuard>} />
-      <Route path="/lifeos/focus"          element={<PageRouteGuard pageKey="LifeOS"><FocusToday /></PageRouteGuard>} />
+      {/* Landing = the Tracker board (מעקב). Today moved to /today. */}
+      <Route path="/lifeos/focus"          element={<PageRouteGuard pageKey="LifeOS"><FocusTracker /></PageRouteGuard>} />
+      <Route path="/lifeos/focus/tracker"  element={<PageRouteGuard pageKey="LifeOS"><FocusTracker /></PageRouteGuard>} />
+      <Route path="/lifeos/focus/today"    element={<PageRouteGuard pageKey="LifeOS"><FocusToday /></PageRouteGuard>} />
       <Route path="/lifeos/focus/control"  element={<PageRouteGuard pageKey="LifeOS"><FocusControl /></PageRouteGuard>} />
       <Route path="/lifeos/focus/list"     element={<PageRouteGuard pageKey="LifeOS"><FocusList /></PageRouteGuard>} />
+      <Route path="/lifeos/focus/outline"  element={<PageRouteGuard pageKey="LifeOS"><FocusOutline /></PageRouteGuard>} />
       <Route path="/lifeos/focus/calendar" element={<PageRouteGuard pageKey="LifeOS"><FocusCalendar /></PageRouteGuard>} />
       <Route path="/lifeos/focus/map"      element={<PageRouteGuard pageKey="LifeOS"><FocusMap /></PageRouteGuard>} />
       <Route path="/lifeos/expenses"     element={<PageRouteGuard pageKey="LifeOS"><LifeOSExpenses /></PageRouteGuard>} />

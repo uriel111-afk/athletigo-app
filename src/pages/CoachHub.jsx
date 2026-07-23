@@ -371,7 +371,7 @@ export default function CoachHub() {
             the REAL top Focus task for today (harvest from focus-api).
             Empty → invites the coach to open the map. */}
         <div
-          onClick={() => navigate(topTask ? '/lifeos/focus' : '/lifeos/focus/map')}
+          onClick={() => navigate(topTask ? '/lifeos/focus/today' : '/lifeos/focus/map')}
           style={{
             background: 'var(--ag-grad-orange)',
             borderRadius: 'var(--ag-radius-cta)',

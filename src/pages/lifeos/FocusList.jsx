@@ -5,6 +5,7 @@ import PageSkeleton from '@/components/PageSkeleton';
 import FocusChips from '@/components/lifeos/FocusChips';
 import IdeaCaptureButton from '@/components/lifeos/IdeaCaptureButton';
 import NodeDetailSheet from '@/components/lifeos/NodeDetailSheet';
+import FocusDocSheet, { doneToast } from '@/components/lifeos/FocusDocSheet';
 import { ChevronDown, ChevronLeft, Flame, Phone, CalendarClock, MessageSquare, Plus, ListChecks } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -36,6 +37,7 @@ export default function FocusList() {
   const [collapsed, setCollapsed] = useState({});
   const [quick, setQuick] = useState({});
   const [sheetNode, setSheetNode] = useState(null);
+  const [docNode, setDocNode] = useState(null);
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -91,7 +93,7 @@ export default function FocusList() {
     } else {
       setLogs(prev => [...prev, { node_id: n.id, log_date: today }]);
       if (!n.frequency) setNodes(prev => prev.map(x => x.id === n.id ? { ...x, status: 'done' } : x));
-      try { await logTask(userId, n, today); } catch { load(); }
+      try { await logTask(userId, n, today); doneToast('בוצע ✓', n, setDocNode); } catch { load(); }
     }
   };
 
@@ -233,6 +235,7 @@ export default function FocusList() {
         })}
       </div>
 
+      {docNode && <FocusDocSheet node={docNode} userId={userId} onClose={() => setDocNode(null)} onSaved={load} />}
       <IdeaCaptureButton hidden={!!sheetNode} />
       {sheetNode && (
         <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} allNodes={nodes} onClose={() => setSheetNode(null)} onSaved={load} />
