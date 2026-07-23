@@ -5,6 +5,7 @@ import { base44 } from "@/api/base44Client";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import PageLoader from "@/components/PageLoader";
 import AppSwitcher from "@/components/lifeos/AppSwitcher";
+import VersionStamp from "@/components/lifeos/VersionStamp";
 import { toast } from "sonner";
 import { NOTIFICATION_TYPES, isEnabled } from "@/lib/notify";
 
@@ -438,11 +439,10 @@ export default function CoachProfile() {
           }}>🚪 יציאה מהחשבון</button>
         </div>
 
-        {/* Footer */}
-        <div style={{
-          textAlign: "center", padding: "12px 12px 100px",
-          fontSize: 11, color: "#888",
-        }}>AthletiGo · גרסה 2.0</div>
+        {/* Footer — coach-only version stamp (private, not on Login) */}
+        <div style={{ padding: "4px 12px 100px" }}>
+          <VersionStamp />
+        </div>
 
         {/* ─── Password dialog (2 tabs) ─── */}
         {showPwDialog && (

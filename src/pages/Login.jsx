@@ -11,7 +11,6 @@ import { toast } from "sonner";
 import { COACH_USER_ID } from "@/lib/lifeos/lifeos-constants";
 import InstallPrompt from "@/components/InstallPrompt";
 import { useIsPWA } from "@/hooks/useIsPWA";
-import VersionStamp from "@/components/lifeos/VersionStamp";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -285,7 +284,6 @@ export default function Login() {
               שכחת סיסמה? פנה למאמן שלך
             </div>
           </form>
-          <VersionStamp style={{ marginTop: 18 }} />
         </div>
         </div>
       </div>
