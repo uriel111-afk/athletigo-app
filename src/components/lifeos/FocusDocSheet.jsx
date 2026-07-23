@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { FOCUS, addNote, logTaskDetails, isoDate } from '@/lib/lifeos/focus-api';
+import { FOCUS, addNote, logTaskDetails, isoDate, hexAlpha } from '@/lib/lifeos/focus-api';
 
 // ─── Done toast with an optional "add documentation" action ───────
 // One tap to complete stays one tap — the mini-form is opt-in. Tapping
@@ -17,6 +17,26 @@ export function doneToast(message, node, onDoc) {
 }
 
 const hhmm = (t) => (t ? String(t).slice(0, 5) : '');
+
+// Minutes between two HH:MM strings. An end earlier than the start is treated
+// as having crossed midnight (realistic for late-evening habits). Null if
+// either bound is missing.
+const durationMin = (start, end) => {
+  if (!start || !end) return null;
+  const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  let d = toMin(end) - toMin(start);
+  if (d < 0) d += 1440;           // crossed midnight
+  return d;
+};
+const fmtDuration = (min) => {
+  if (min == null) return '';
+  const h = Math.floor(min / 60), m = min % 60;
+  const hp = h ? `${h} ${h === 1 ? 'שעה' : 'שעות'}` : '';
+  const mp = m ? `${m} דקות` : '';
+  return [hp, mp].filter(Boolean).join(' ') || '0 דקות';
+};
+// Satisfaction-on-completion icon scale — stores the same feeling smallint 1-5.
+const SAT_ICONS = [{ v: 1, icon: '😞' }, { v: 2, icon: '😕' }, { v: 3, icon: '😐' }, { v: 4, icon: '🙂' }, { v: 5, icon: '😄' }];
 
 // ─── Rich documentation sheet — ALL fields optional ───────────────
 // summary (short cell label) · start/end time · מה עשיתי בפועל · תחושה
@@ -34,6 +54,11 @@ export default function FocusDocSheet({ node, userId, date = isoDate(), existing
   const [improve, setImprove] = useState(existing?.improve || '');
   const [saving, setSaving] = useState(false);
   const isMonthly = node?.frequency === 'monthly';
+  // Completion context = opened to mark a fresh done (no saved row yet). The
+  // satisfaction question only frames THIS case; editing an existing entry
+  // keeps the neutral mood label.
+  const completion = !existing;
+  const durMin = isMonthly ? null : durationMin(startTime, endTime);
 
   const buildFeedNote = () => {
     const parts = [];
@@ -92,18 +117,41 @@ export default function FocusDocSheet({ node, userId, date = isoDate(), existing
           </div>
         )}
 
+        {/* Auto-derived duration — read-only, no manual field. */}
+        {durMin != null && (
+          <div style={{ fontSize: 12, color: '#B4531A', fontWeight: 700, margin: '6px 2px 0', background: hexAlpha(FOCUS.orange, 0.1), borderRadius: 9, padding: '6px 10px', display: 'inline-block' }}>
+            משך: {fmtDuration(durMin)} (מחושב אוטומטית)
+          </div>
+        )}
+
         <div style={label}>מה עשיתי בפועל</div>
         <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="תיאור חופשי…" style={{ ...input, resize: 'none', lineHeight: 1.4 }} />
 
-        <div style={label}>תחושה</div>
-        <div style={{ display: 'flex', gap: 10, marginBottom: 4 }}>
-          {[1, 2, 3, 4, 5].map(v => (
-            <button key={v} onClick={() => setFeeling(feeling === v ? 0 : v)} aria-label={`תחושה ${v}`}
-              style={{ width: 34, height: 34, borderRadius: '50%', cursor: 'pointer', flexShrink: 0,
-                border: `2px solid ${v <= feeling ? FOCUS.orange : FOCUS.border}`,
-                background: v <= feeling ? FOCUS.orange : '#fff' }} />
-          ))}
-        </div>
+        <div style={label}>{completion ? 'כמה מספק היה לסיים את זה?' : 'תחושה'}</div>
+        {completion ? (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+            {SAT_ICONS.map(({ v, icon }) => {
+              const on = feeling === v;
+              return (
+                <button key={v} onClick={() => setFeeling(on ? 0 : v)} aria-label={`שביעות רצון ${v}`}
+                  style={{ width: 46, height: 46, borderRadius: 12, cursor: 'pointer', flexShrink: 0, fontSize: 24, lineHeight: 1, padding: 0,
+                    border: `2px solid ${on ? FOCUS.orange : FOCUS.border}`, background: on ? hexAlpha(FOCUS.orange, 0.14) : '#fff',
+                    filter: feeling && !on ? 'grayscale(0.7)' : 'none', opacity: feeling && !on ? 0.55 : 1, transition: 'filter .1s, opacity .1s' }}>
+                  {icon}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 10, marginBottom: 4 }}>
+            {[1, 2, 3, 4, 5].map(v => (
+              <button key={v} onClick={() => setFeeling(feeling === v ? 0 : v)} aria-label={`תחושה ${v}`}
+                style={{ width: 34, height: 34, borderRadius: '50%', cursor: 'pointer', flexShrink: 0,
+                  border: `2px solid ${v <= feeling ? FOCUS.orange : FOCUS.border}`,
+                  background: v <= feeling ? FOCUS.orange : '#fff' }} />
+            ))}
+          </div>
+        )}
 
         <div style={label}>מסקנה לפעם הבאה</div>
         <textarea value={improve} onChange={(e) => setImprove(e.target.value)} rows={2} placeholder="מה לשפר?" style={{ ...input, resize: 'none', lineHeight: 1.4 }} />

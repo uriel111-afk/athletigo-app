@@ -26,6 +26,31 @@ const pctColor = (p) => (p >= 0.8 ? GREEN : p >= 0.5 ? FOCUS.amber : FOCUS.red);
 const pctText = (done, expected) => (expected ? `${Math.round((done / expected) * 100)}%` : '—');
 const onBoard = (t, tag) => !tag || (t.tags || []).includes(tag);
 
+// Minutes logged on one done row from its start/end times; an end before start
+// is treated as crossing midnight. 0 when either time is missing.
+const rowDurationMin = (row) => {
+  if (!row || !row.start_time || !row.end_time) return 0;
+  const toMin = (t) => { const [h, m] = String(t).slice(0, 5).split(':').map(Number); return h * 60 + m; };
+  let d = toMin(row.end_time) - toMin(row.start_time);
+  if (d < 0) d += 1440;
+  return d > 0 ? d : 0;
+};
+// Total minutes invested in a habit during the month of cursorIso — summed
+// client-side over its DONE rows (start_time/end_time already exist; no query).
+const monthInvestedMin = (task, logs, cursorIso) => {
+  const ym = cursorIso.slice(0, 7);
+  return logs.reduce((s, l) => (
+    l.node_id === task.id && (!l.status || l.status === 'done') && String(l.log_date).slice(0, 7) === ym
+      ? s + rowDurationMin(l) : s
+  ), 0);
+};
+const fmtInvested = (min) => {
+  const h = Math.floor(min / 60), m = min % 60;
+  if (h && m) return `${h} שעות ${m}'`;
+  if (h) return `${h} שעות`;
+  return `${m}'`;
+};
+
 // The tracker board is reused by the personal board (one tracker, one
 // home). Props toggle the personal-only affordances:
 //   title/chips   — header + sub-nav slot.
@@ -341,9 +366,11 @@ export default function FocusTracker({
               : taskMonthStats(task, logSet, columns, today);
             const p = rowStat.expected ? rowStat.done / rowStat.expected : 0;
             const streak = taskStreak(task, logSet, today);
+            const invested = period === 'month' ? monthInvestedMin(task, logs, cursor) : 0;
             return (
               <div key={task.id} style={{ display: 'flex', alignItems: 'center', borderBottom: `1px solid ${FOCUS.border}` }}>
                 <RowLabel task={task} style={sStart}
+                  subline={invested > 0 ? `⏱ ${fmtInvested(invested)}` : null}
                   onTap={() => setSheetNode(task)}
                   onLongPress={boardTag ? (x, y) => setRowMenu({ task, x, y }) : null} />
                 {columns.map(col => (
@@ -460,7 +487,7 @@ export default function FocusTracker({
 
       {/* ── Monthly single-habit trend line across the weeks ── */}
       {period === 'month' && allRows.length === 1 && (
-        <MonthSparkline task={allRows[0]} logSet={logSet} cursor={cursor} />
+        <MonthSparkline task={allRows[0]} logSet={logSet} logs={logs} cursor={cursor} />
       )}
 
       {/* ── The view — day checklist, or the grid (page-scroll / fullBleed) ── */}
@@ -515,7 +542,7 @@ export default function FocusTracker({
 }
 
 // ── Row label: tap = open home sheet, long-press = mini bar ─────────
-function RowLabel({ task, style, onTap, onLongPress }) {
+function RowLabel({ task, style, onTap, onLongPress, subline = null }) {
   const t = useRef({ x: 0, y: 0, moved: false, long: false, timer: null });
   const start = (e) => {
     const p = e.touches ? e.touches[0] : e;
@@ -529,10 +556,13 @@ function RowLabel({ task, style, onTap, onLongPress }) {
   const end = () => { clearTimeout(t.current.timer); if (!t.current.long && !t.current.moved) onTap(); };
   return (
     <div onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerLeave={() => clearTimeout(t.current.timer)}
-      style={{ ...style, minHeight: 32, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', userSelect: 'none', touchAction: 'pan-y' }}>
-      {task.is_fear_task && <Flame size={11} color={FOCUS.red} style={{ flexShrink: 0 }} />}
-      <span style={{ fontSize: 12.5, fontWeight: 600, color: FOCUS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title || 'משימה'}</span>
-      <span style={{ fontSize: 9, color: FOCUS.muted, flexShrink: 0 }}>{task.frequency === 'daily' ? 'יומי' : task.frequency === 'weekly' ? HEB_DAYS[task.day_of_week] : 'חודשי'}</span>
+      style={{ ...style, minHeight: 32, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1, cursor: 'pointer', userSelect: 'none', touchAction: 'pan-y' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+        {task.is_fear_task && <Flame size={11} color={FOCUS.red} style={{ flexShrink: 0 }} />}
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: FOCUS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title || 'משימה'}</span>
+        <span style={{ fontSize: 9, color: FOCUS.muted, flexShrink: 0 }}>{task.frequency === 'daily' ? 'יומי' : task.frequency === 'weekly' ? HEB_DAYS[task.day_of_week] : 'חודשי'}</span>
+      </div>
+      {subline && <div style={{ fontSize: 9.5, color: '#B4531A', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subline}</div>}
     </div>
   );
 }
@@ -769,9 +799,10 @@ function DayChecklist({ groups, date, logSet, logMap, onCheck, onUncheck, onEdit
 }
 
 // ── Monthly single-habit trend line across the weeks of the month ──
-function MonthSparkline({ task, logSet, cursor }) {
+function MonthSparkline({ task, logSet, logs = [], cursor }) {
   const days = monthDays(cursor);
   const today = isoDate();
+  const invested = monthInvestedMin(task, logs, cursor);
   // Group the month's days into weeks (Sun-start), compute each week's %.
   const weeks = [];
   let cur = [];
@@ -795,7 +826,10 @@ function MonthSparkline({ task, logSet, cursor }) {
   const d = line.map((o, i) => `${i ? 'L' : 'M'} ${o.x.toFixed(1)} ${o.y.toFixed(1)}`).join(' ');
   return (
     <div style={{ margin: '4px 12px 10px', background: FOCUS.card, border: `1px solid ${FOCUS.border}`, borderRadius: 14, boxShadow: FOCUS.neu, padding: '10px 14px' }}>
-      <div style={{ fontSize: 12, fontWeight: 800, color: FOCUS.ink, marginBottom: 6 }}>מגמה שבועית · {task.title || 'הרגל'}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 12, fontWeight: 800, color: FOCUS.ink }}>מגמה שבועית · {task.title || 'הרגל'}</span>
+        {invested > 0 && <span style={{ fontSize: 11.5, fontWeight: 800, color: '#B4531A' }}>{fmtInvested(invested)} — סה״כ הושקע החודש</span>}
+      </div>
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: 'block', height: 40 }}>
         <line x1={pad} y1={H - pad} x2={W - pad} y2={H - pad} stroke={FOCUS.border} strokeWidth="1" />
         {d && <path d={d} fill="none" stroke={FOCUS.orange} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
