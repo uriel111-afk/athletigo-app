@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LayoutGrid } from 'lucide-react';
 import FocusTracker from './FocusTracker';
+import HouseholdSpendCard from '@/components/lifeos/HouseholdSpendCard';
+import { AuthContext } from '@/lib/AuthContext';
 import { FOCUS, BOARD_TAG } from '@/lib/lifeos/focus-api';
 
 // The אישי (personal) world's home — the SAME tracker component, curated
@@ -18,6 +20,7 @@ import { FOCUS, BOARD_TAG } from '@/lib/lifeos/focus-api';
 // personal tools hub stays reachable via the 'עוד כלים' button below.
 export default function PersonalBoard() {
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
 
   const moreTools = (
     <div style={{ padding: '20px 12px 8px', display: 'flex', justifyContent: 'center' }}>
@@ -45,9 +48,12 @@ export default function PersonalBoard() {
       docOnCheck
       daySummary
       seedPersonal
+      seedDomains
+      groupByDomain
       boardTag={BOARD_TAG}
       pageScroll
-      defaultPeriod="week"
+      defaultPeriod="day"
+      headerSlot={<HouseholdSpendCard userId={user?.id} />}
       footerSlot={moreTools}
     />
   );

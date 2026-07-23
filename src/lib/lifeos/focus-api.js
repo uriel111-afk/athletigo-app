@@ -144,13 +144,28 @@ export async function fetchNodes(userId) {
 }
 
 export async function fetchLogs(userId, from, to) {
+  // Pull the richer per-day fields too so the tracker can render a cell's
+  // summary and the doc sheet can prefill an edit — all in one query.
   const { data, error } = await supabase
     .from('focus_task_logs')
-    .select('node_id, log_date')
+    .select('node_id, log_date, status, summary, note, start_time, end_time, feeling, improve, reason')
     .eq('user_id', userId)
     .gte('log_date', from)
     .lte('log_date', to);
-  if (error) throw error;
+  if (error) {
+    // The new columns may not exist yet (migration not applied). Fall back to
+    // the legacy shape so EVERY Focus screen keeps working; rich fields simply
+    // stay empty (logSetFrom treats a status-less row as done) until the
+    // migration runs. Remove this fallback once the column is guaranteed live.
+    const legacy = await supabase
+      .from('focus_task_logs')
+      .select('node_id, log_date')
+      .eq('user_id', userId)
+      .gte('log_date', from)
+      .lte('log_date', to);
+    if (legacy.error) throw legacy.error;
+    return legacy.data || [];
+  }
   return data || [];
 }
 
@@ -357,14 +372,58 @@ export async function addNote(userId, nodeId, content) {
 // Mark a task complete for a date. Recurring → log only. One-time
 // (no frequency) → log + set status done.
 export async function logTask(userId, node, dateIso = isoDate()) {
+  // status:'done' + reason:null flips a previously-'skipped' day back to done.
+  // Only these columns are written, so any saved summary/note/feeling on an
+  // existing row is left intact by the upsert's ON CONFLICT DO UPDATE.
+  let { error } = await supabase
+    .from('focus_task_logs')
+    .upsert([{ user_id: userId, node_id: node.id, log_date: dateIso, status: 'done', reason: null }], {
+      onConflict: 'node_id,log_date',
+    });
+  if (error) {
+    // status/reason may not exist yet (migration pending) → core upsert so the
+    // business map + trackers can still mark done. Rich statuses arrive later.
+    const r = await supabase
+      .from('focus_task_logs')
+      .upsert([{ user_id: userId, node_id: node.id, log_date: dateIso }], { onConflict: 'node_id,log_date' });
+    if (r.error) throw r.error;
+  }
+  if (!node.frequency) {
+    await updateNode(node.id, { status: 'done', done_at: new Date().toISOString() });
+  }
+}
+
+// Save/overwrite the rich documentation for a done day. patch may hold any of
+// { summary, note, start_time, end_time, feeling, improve }. Always marks the
+// day done, so filling the sheet also completes the habit if it wasn't.
+export async function logTaskDetails(userId, node, dateIso, patch = {}) {
+  const clean = {};
+  ['summary', 'note', 'start_time', 'end_time', 'feeling', 'improve'].forEach(k => {
+    if (patch[k] !== undefined) clean[k] = patch[k] === '' ? null : patch[k];
+  });
   const { error } = await supabase
     .from('focus_task_logs')
-    .upsert([{ user_id: userId, node_id: node.id, log_date: dateIso }], {
+    .upsert([{ user_id: userId, node_id: node.id, log_date: dateIso, status: 'done', reason: null, ...clean }], {
       onConflict: 'node_id,log_date',
     });
   if (error) throw error;
   if (!node.frequency) {
     await updateNode(node.id, { status: 'done', done_at: new Date().toISOString() });
+  }
+}
+
+// Record a NOT-done day with an optional reason + note as a 'skipped' row.
+// It occupies the same (node_id, log_date) slot but never reads as done.
+export async function skipTask(userId, node, dateIso, { reason = null, note = null } = {}) {
+  const { error } = await supabase
+    .from('focus_task_logs')
+    .upsert([{ user_id: userId, node_id: node.id, log_date: dateIso, status: 'skipped', reason: reason || null, note: note || null }], {
+      onConflict: 'node_id,log_date',
+    });
+  if (error) throw error;
+  // A one-time task that was 'done' and is now marked skipped returns to active.
+  if (!node.frequency && node.status === 'done') {
+    await updateNode(node.id, { status: 'active', done_at: null });
   }
 }
 
@@ -416,6 +475,45 @@ export async function seedPersonalArm(userId) {
     });
   }
   return arm;
+}
+
+// ─── Personal domains (habit categories under the personal arm) ───
+// A separate category layer BELOW the 'החיים שלי' arm. Habits live under
+// one of these branches; the tracker groups rows by domain. Additive —
+// the legacy PERSONAL_ARM_CHILDREN stay as-is.
+export const PERSONAL_DOMAINS = ['שגרה', 'אכילה', 'תפילה', 'אימונים', 'חברים ומשפחה', 'תחביבים', 'משק בית'];
+
+// Idempotently ensure the 7 domain branches exist under the personal arm.
+// Creates the arm first if missing (via seedPersonalArm). Never deletes.
+// Callers guard with a localStorage flag so it runs once per user.
+export async function seedPersonalDomains(userId) {
+  let nodes = await fetchNodes(userId);
+  const root = nodes.find(n => n.node_type === 'root') || nodes.find(n => !n.parent_id);
+  if (!root) return null;                          // no root → nothing to seed under
+  let arm = nodes.find(n => n.parent_id === root.id && n.node_type !== 'task' && n.title === PERSONAL_ARM_TITLE);
+  if (!arm) { arm = await seedPersonalArm(userId); nodes = await fetchNodes(userId); }
+  if (!arm) return null;
+  const existing = new Set(nodes.filter(n => n.parent_id === arm.id && n.node_type !== 'task').map(n => n.title));
+  for (let i = 0; i < PERSONAL_DOMAINS.length; i++) {
+    const title = PERSONAL_DOMAINS[i];
+    if (!existing.has(title)) {
+      await createNode(userId, { parent_id: arm.id, node_type: 'branch', title, sort_order: 200 + i });
+    }
+  }
+  return arm;
+}
+
+// The category branch a node belongs to = its ancestor whose parent is
+// `armId` (one level under the arm). Used to group personal habits by
+// domain, since topBranchOf() resolves to the arm itself. Falls back to
+// the node's own top branch when it isn't under the arm.
+export function branchUnderArm(node, byId, armId) {
+  let cur = node, guard = 0;
+  while (cur && guard++ < 50) {
+    if (cur.parent_id === armId) return cur;
+    cur = byId[cur.parent_id];
+  }
+  return null;
 }
 
 // ─── Personal board membership (tag-based, no schema change) ──────
@@ -568,9 +666,25 @@ export function isDoneForDate(node, logSet, dateIso) {
   return logSet.has(node.id + '|' + dateIso);
 }
 
-// Build a Set of "nodeId|log_date" for O(1) lookups.
+// Build a Set of "nodeId|log_date" for O(1) DONE lookups. A row counts as
+// done ONLY when status is 'done'; a 'skipped' row records a not-done day
+// (with a reason) and must NOT read as completed. Legacy rows (predating the
+// status column) and any row missing status default to done. Because every
+// completion check funnels through this Set (taskLoggedOn / todayStats /
+// harvestToday / isDoneForDate) or through computeStreak (which calls this),
+// filtering here fixes the whole "row exists ⇒ done" assumption in one place.
 export function logSetFrom(logs) {
-  return new Set(logs.map(l => `${l.node_id}|${l.log_date}`));
+  return new Set(
+    logs.filter(l => !l.status || l.status === 'done').map(l => `${l.node_id}|${l.log_date}`)
+  );
+}
+
+// Full per-day rows keyed "nodeId|log_date" (done AND skipped) so a cell can
+// render its saved summary and a sheet can prefill for edit. Later rows win.
+export function logByKey(logs) {
+  const m = {};
+  logs.forEach(l => { m[`${l.node_id}|${l.log_date}`] = l; });
+  return m;
 }
 
 // ─── Today harvest ────────────────────────────────────────────────
