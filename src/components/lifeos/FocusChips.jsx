@@ -26,6 +26,10 @@ export default function FocusChips({ compact = false, trailing = null }) {
     <div
       dir="rtl"
       style={{
+        // Own stacking context above the canvas/content so a stray overlay
+        // can never sit on top and swallow chip taps (NavLinks are wired to
+        // real routes; the failure mode would be a covering element).
+        position: 'relative', zIndex: 20,
         display: 'flex', gap: 6, alignItems: 'center',
         padding: compact ? '4px 8px' : '4px 14px 12px',
         overflowX: 'auto',

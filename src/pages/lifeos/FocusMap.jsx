@@ -186,12 +186,22 @@ export default function FocusMap() {
     if (desc.type === 'link') {
       const gone = links.find(l => l.id === desc.linkId);
       try {
-        const n = await deleteLink(desc.linkId);
+        let n = await deleteLink(desc.linkId);
         if (n === 0) {
+          // 0 rows removed can mean the row's user_id drifted from auth.uid()
+          // (a known legacy issue) so RLS silently blocked the delete. Repair
+          // ownership the same way load() does, then retry once — turning a
+          // silent no-op into a real disconnect instead of a dead button.
           const [row, authUid] = await Promise.all([getLinkById(desc.linkId), getAuthUid()]);
-          console.warn('[FocusMap] link delete removed 0 rows', { desc, row, authUid }); // eslint-disable-line no-console
-          toast.error(!row ? 'הקו כבר לא קיים' : (row.user_id !== authUid ? 'הקו שייך למשתמש אחר' : 'הניתוק נחסם'));
-          load(); return;
+          if (row && authUid && row.user_id !== authUid) {
+            try { await repairLinkOwnership(); } catch { /* best-effort */ }
+            n = await deleteLink(desc.linkId);
+          }
+          if (n === 0) {
+            console.warn('[FocusMap] link delete removed 0 rows', { desc, row, authUid }); // eslint-disable-line no-console
+            toast.error(!row ? 'הקו כבר לא קיים' : (row?.user_id !== authUid ? 'הקו שייך למשתמש אחר' : 'הניתוק נחסם'));
+            load(); return;
+          }
         }
         setLinks(prev => prev.filter(l => l.id !== desc.linkId));
         if (gone) pushHistory({ label: 'ניתוק קשר', undo: async () => { await createLink(userId, gone.from_node, gone.to_node); setLinks(await fetchLinks()); } });
@@ -201,7 +211,10 @@ export default function FocusMap() {
       // Structure line נתק → re-home the CHILD to the root (standalone arm).
       const child = byId[desc.childId];
       const rootId = roots[0]?.id;
-      if (!child || !rootId || child.parent_id === rootId) return;
+      if (!child || !rootId) return;
+      // A top-level arm is already anchored directly to the root — there's no
+      // parent link to cut. Say so instead of the button doing nothing.
+      if (child.parent_id === rootId) { toast('זהו כבר ענף עצמאי מתחת לשורש'); return; }
       const oldParent = child.parent_id;
       try {
         await updateNode(child.id, { parent_id: rootId });
