@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize, Link2, GitBranch, ZoomIn, ZoomOut } from 'lucide-react';
+import { Maximize, ZoomIn, ZoomOut } from 'lucide-react';
 import { FOCUS, urgencyStyle, descendantTasks, allDescendants, armColorMap, armColorFor, darken, hexAlpha } from '@/lib/lifeos/focus-api';
 
 // ── Geometry ──────────────────────────────────────────────────────
@@ -477,7 +477,6 @@ export default function MindMapCanvas({
 
   const edgePath = (p, c) => { const { a, b } = anchored(p, c); return pathBetween(a, b); };
   const linkPath = (A, B) => { const { a, b } = anchored(A, B); return pathBetween(a, b); };
-  const linkMid = (A, B) => { const { a, b } = anchored(A, B); return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
 
   return (
     <div
@@ -537,35 +536,9 @@ export default function MindMapCanvas({
         </g>
       </svg>
 
-      {/* Line chips — EVERY line (solid structure + dashed cross-link) gets
-          a midpoint button; tapping it opens the same tiny bar. */}
-      {visibleNodes.flatMap(p => visibleChildrenOf(p).map(c => {
-        const m = linkMid(p, c);
-        const cx = view.tx + m.x * view.scale, cy = view.ty + m.y * view.scale;
-        const arm = armOf(c) || '#B48A5A';
-        return (
-          <button key={'hchip' + c.id}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => onLineTap && onLineTap({ type: 'hier', childId: c.id }, cx, cy)}
-            title="פעולות קו"
-            style={{ position: 'absolute', left: cx, top: cy, transform: 'translate(-50%,-50%)', width: 26, height: 26, borderRadius: '50%', background: '#fff', border: `1.5px solid ${arm}`, color: arm, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.2)', padding: 0, zIndex: 4 }}>
-            <GitBranch size={13} />
-          </button>
-        );
-      }))}
-      {resolvedLinks.map(l => {
-        const m = linkMid(l.a, l.b);
-        const cx = view.tx + m.x * view.scale, cy = view.ty + m.y * view.scale;
-        return (
-          <button key={'chip' + l.id}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => onLineTap && onLineTap({ type: 'link', linkId: l.id }, cx, cy)}
-            title="פעולות קו"
-            style={{ position: 'absolute', left: cx, top: cy, transform: 'translate(-50%,-50%)', width: 26, height: 26, borderRadius: '50%', background: '#fff', border: `1.5px solid ${LINK_EDGE}`, color: '#5B5480', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.2)', padding: 0, zIndex: 4 }}>
-            <Link2 size={14} />
-          </button>
-        );
-      })}
+      {/* No midpoint handles at rest — every edge is tapped directly via its
+          wide transparent hit-path (data-hier-edge / data-link-id, above),
+          which opens the same lineMenu at the exact tap point. */}
 
       {/* Floating tool cluster — one elegant vertical pill-shaped toolbar */}
       <div style={toolbar}>
