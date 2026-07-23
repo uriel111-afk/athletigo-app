@@ -341,16 +341,16 @@ export default function FocusMap() {
   const tools = (
     <>
       <button onPointerDown={(e) => e.stopPropagation()} onClick={doUndo} disabled={histLen === 0} style={{ ...clusterBtn, opacity: histLen === 0 ? 0.4 : 1, cursor: histLen === 0 ? 'default' : 'pointer' }} title="בטל פעולה">
-        <Undo2 size={16} />
+        <Undo2 size={16} /><span style={clusterLabel}>בטל</span>
       </button>
       <button onPointerDown={(e) => e.stopPropagation()} onClick={toggleView} style={{ ...clusterBtn, background: simple ? '#FFF3E9' : 'transparent' }} title={simple ? 'מצב מפורט' : 'מצב פשוט'}>
-        <Eye size={16} color={simple ? '#B4531A' : FOCUS.ink} />
+        <Eye size={16} color={simple ? '#B4531A' : FOCUS.ink} /><span style={{ ...clusterLabel, color: simple ? '#B4531A' : FOCUS.ink }}>{simple ? 'מפורט' : 'פשוט'}</span>
       </button>
       <button onPointerDown={(e) => e.stopPropagation()} onClick={autoArrange} style={clusterBtn} title="סידור אוטומטי">
-        <LayoutGrid size={16} />
+        <LayoutGrid size={16} /><span style={clusterLabel}>סדר</span>
       </button>
       <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setInboxOpen(true)} style={{ ...clusterBtn, position: 'relative' }} title="תיבת רעיונות">
-        <Inbox size={16} />
+        <Inbox size={16} /><span style={clusterLabel}>רעיונות</span>
         {ideas.length > 0 && (
           <span style={{ position: 'absolute', top: -4, left: -4, background: FOCUS.orange, color: '#fff', borderRadius: 999, minWidth: 15, height: 15, fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px' }}>{ideas.length}</span>
         )}
@@ -517,10 +517,12 @@ function IdeaRow({ idea, branchOptions, onConvert, onArchive }) {
 // Icon buttons for the in-canvas floating pill toolbar (icons only, no
 // borders/fills — the toolbar itself carries the shadow & shape).
 const clusterBtn = {
-  width: 40, height: 40, borderRadius: 14, border: 'none',
-  background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center',
-  color: FOCUS.ink, cursor: 'pointer', fontFamily: 'inherit', padding: 0,
+  width: 48, minHeight: 44, borderRadius: 14, border: 'none',
+  background: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+  color: FOCUS.ink, cursor: 'pointer', fontFamily: 'inherit', padding: '5px 0',
 };
+// 10px caption under each tool icon — matches MindMapCanvas toolLabel.
+const clusterLabel = { fontSize: 10, fontWeight: 700, lineHeight: 1 };
 // Buttons for the unified line action bar (נתק / חבר למקום אחר / סגור).
 const lineBtn = (bg, fg) => ({
   minHeight: 40, padding: '0 12px', borderRadius: 9, border: 'none',

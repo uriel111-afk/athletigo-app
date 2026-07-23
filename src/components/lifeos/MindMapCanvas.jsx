@@ -569,9 +569,9 @@ export default function MindMapCanvas({
 
       {/* Floating tool cluster — one elegant vertical pill-shaped toolbar */}
       <div style={toolbar}>
-        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => fitFn.current && fitFn.current()} style={toolBtn} title="התאם לתצוגה"><Maximize size={18} /></button>
-        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => zoom(1)} style={toolBtn} title="הגדל"><ZoomIn size={18} /></button>
-        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => zoom(-1)} style={toolBtn} title="הקטן"><ZoomOut size={18} /></button>
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => fitFn.current && fitFn.current()} style={toolBtn} title="התאם לתצוגה"><Maximize size={17} /><span style={toolLabel}>התאם</span></button>
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => zoom(1)} style={toolBtn} title="הגדל"><ZoomIn size={17} /><span style={toolLabel}>הגדל</span></button>
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => zoom(-1)} style={toolBtn} title="הקטן"><ZoomOut size={17} /><span style={toolLabel}>הקטן</span></button>
         {tools && <div style={toolDivider} />}
         {tools}
       </div>
@@ -603,9 +603,12 @@ const toolbar = {
   borderRadius: 22, padding: 6, boxShadow: '0 4px 16px rgba(90,60,25,0.14)', border: '1px solid rgba(240,228,208,0.9)',
 };
 const toolBtn = {
-  width: 40, height: 40, borderRadius: 14, border: 'none', background: 'transparent',
-  color: FOCUS.ink, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+  width: 48, minHeight: 44, borderRadius: 14, border: 'none', background: 'transparent',
+  color: FOCUS.ink, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, padding: '5px 0',
 };
+// 10px caption under each toolbar icon so buttons are tellable apart on
+// mobile (native `title` tooltips never surface in the webview).
+const toolLabel = { fontSize: 10, fontWeight: 700, lineHeight: 1 };
 const toolDivider = { height: 1, background: 'rgba(140,110,70,0.14)', margin: '3px 7px' };
 const barBtn = (bg, fg) => ({
   minHeight: 44, padding: '0 14px', borderRadius: 9, border: 'none',
