@@ -51,7 +51,7 @@ import FocusToday from './pages/lifeos/FocusToday';
 import FocusList from './pages/lifeos/FocusList';
 import FocusCalendar from './pages/lifeos/FocusCalendar';
 import FocusMap from './pages/lifeos/FocusMap';
-import FocusTracker from './pages/lifeos/FocusTracker';
+import PersonalBoard from './pages/lifeos/PersonalBoard';
 import FocusOutline from './pages/lifeos/FocusOutline';
 import PersonalDashboard from './pages/personal/PersonalDashboard';
 import PersonalHabits from './pages/personal/Habits';
@@ -589,13 +589,16 @@ const AuthenticatedApp = () => {
       {/* These screens render without the app-wide Layout — they use */}
       {/* their own LifeOSLayout (CoachHub has a custom shell). */}
       <Route path="/hub"                 element={<PageRouteGuard pageKey="CoachHub"><CoachHub /></PageRouteGuard>} />
-      {/* Focus Map (מפת מיקוד) — LifeOS default landing. /lifeos now */}
-      {/* redirects here; the old dashboard stays reachable at /lifeos/dashboard. */}
+      {/* Two worlds: /lifeos/focus = business focus (lands on the Map);
+          /lifeos/personal-board = the personal אישי board (one tracker). */}
+      {/* /lifeos redirects to the business focus map. */}
       <Route path="/lifeos"              element={<Navigate to="/lifeos/focus" replace />} />
       <Route path="/lifeos/dashboard"    element={<PageRouteGuard pageKey="LifeOS"><LifeOSDashboard /></PageRouteGuard>} />
-      {/* Landing = the Tracker board (מעקב). Today moved to /today. */}
-      <Route path="/lifeos/focus"          element={<PageRouteGuard pageKey="LifeOS"><FocusTracker /></PageRouteGuard>} />
-      <Route path="/lifeos/focus/tracker"  element={<PageRouteGuard pageKey="LifeOS"><FocusTracker /></PageRouteGuard>} />
+      {/* Business focus lands on the Map. The tracker now lives on the
+          personal board — the מעקב chip and /focus/tracker both go there. */}
+      <Route path="/lifeos/focus"          element={<PageRouteGuard pageKey="LifeOS"><FocusMap /></PageRouteGuard>} />
+      <Route path="/lifeos/focus/tracker"  element={<Navigate to="/lifeos/personal-board" replace />} />
+      <Route path="/lifeos/personal-board" element={<PageRouteGuard pageKey="LifeOS"><PersonalBoard /></PageRouteGuard>} />
       <Route path="/lifeos/focus/today"    element={<PageRouteGuard pageKey="LifeOS"><FocusToday /></PageRouteGuard>} />
       <Route path="/lifeos/focus/control"  element={<PageRouteGuard pageKey="LifeOS"><FocusControl /></PageRouteGuard>} />
       <Route path="/lifeos/focus/list"     element={<PageRouteGuard pageKey="LifeOS"><FocusList /></PageRouteGuard>} />

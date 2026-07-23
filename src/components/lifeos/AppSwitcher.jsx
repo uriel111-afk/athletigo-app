@@ -19,13 +19,14 @@ export default function AppSwitcher({ wide = false }) {
   if (!user || user.id !== COACH_USER_ID) return null;
 
   const path = location.pathname || "";
-  const isPersonal = path.startsWith("/personal");
+  // The personal board lives under /lifeos but belongs to the אישי world.
+  const isPersonal = path.startsWith("/personal") || path.startsWith("/lifeos/personal-board");
   const isPro      = path === "/" || path === "/dashboard";
   const isFocus    = path === "/lifeos" || path.startsWith("/lifeos/focus");
   const isGrowth   = path.startsWith("/lifeos/leads")
                   || path.startsWith("/lifeos/content")
                   || path.startsWith("/lifeos/community");
-  const isFin      = path.startsWith("/lifeos") && !isGrowth && !isFocus;
+  const isFin      = path.startsWith("/lifeos") && !isGrowth && !isFocus && !isPersonal;
   const isContent  = path.startsWith("/content");
 
   const tabs = [
@@ -33,7 +34,7 @@ export default function AppSwitcher({ wide = false }) {
     { key: "pro",      label: "מקצועי", href: "/dashboard",    active: isPro,      Icon: Briefcase,     iconColor: "#7F47B5" },
     { key: "fin",      label: "פיננסי", href: "/lifeos/finance-dashboard", active: isFin,      Icon: Coins,     iconColor: "#16a34a" },
     { key: "growth",   label: "לידים",  href: "/lifeos/leads", active: isGrowth,   Icon: Sprout,    iconColor: "#FF6F20" },
-    { key: "personal", label: "אישי",   href: "/personal",     active: isPersonal, Icon: HeartHandshake, iconColor: "#3B82F6" },
+    { key: "personal", label: "אישי",   href: "/lifeos/personal-board", active: isPersonal, Icon: HeartHandshake, iconColor: "#3B82F6" },
     { key: "content",  label: "תוכן",   href: "/content",      active: isContent,  Icon: Clapperboard, iconColor: "#B48A08" },
   ];
 

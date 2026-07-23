@@ -319,7 +319,7 @@ export default function CoachHub() {
             { label: 'מקצועי', path: '/dashboard',    Icon: Briefcase,     iconColor: '#7F47B5' },
             { label: 'פיננסי', path: '/lifeos/finance-dashboard', Icon: Coins,     iconColor: '#16a34a' },
             { label: 'לידים', path: '/lifeos/leads',  Icon: Sprout,    iconColor: '#FF6F20' },
-            { label: 'אישי',  path: '/personal',      Icon: HeartHandshake, iconColor: '#3B82F6' },
+            { label: 'אישי',  path: '/lifeos/personal-board', Icon: HeartHandshake, iconColor: '#3B82F6' },
             { label: 'תוכן',  path: '/content',       Icon: Clapperboard, iconColor: '#B48A08' },
           ].map((tab) => {
             const isActive = location.pathname === tab.path

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
-import { FOCUS, addNote, formatDocNote } from '@/lib/lifeos/focus-api';
+import { FOCUS, addNote, formatDocNote, hexAlpha } from '@/lib/lifeos/focus-api';
 
 // ─── Done toast with an optional "add documentation" action ───────
 // One tap to complete stays one tap — the mini-form is opt-in. Tapping
@@ -16,18 +16,31 @@ export function doneToast(message, node, onDoc) {
   });
 }
 
+// Local HH:MM (24h) for the auto-recorded completion time.
+const nowHHMM = () => {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+const MIN_CHIPS = [5, 15, 30, 60];
+
 // ─── The mini-form bottom sheet — ALL fields optional ─────────────
-// מספר/תוצאה (free text) · תחושה (5 level dots) · תובנה (free text).
-// Saves as ONE formatted focus_node_notes entry. Skipping saves nothing.
+// כמה זמן לקח (minutes) · מספר/תוצאה · תחושה (5 dots) · תובנה.
+// Completion time is auto-recorded. Saves as ONE formatted
+// focus_node_notes entry. Skipping (דלג) saves nothing in one tap.
 export default function FocusDocSheet({ node, userId, onClose, onSaved }) {
   const [number, setNumber] = useState('');
   const [feeling, setFeeling] = useState(0);
   const [insight, setInsight] = useState('');
+  const [minutes, setMinutes] = useState(0);
+  const [customMin, setCustomMin] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Frozen at open — this is when the task was completed.
+  const [completedAt] = useState(nowHHMM);
 
   const save = async () => {
     if (saving) return;
-    const body = formatDocNote({ number, feeling, insight });
+    const body = formatDocNote({ number, feeling, insight, minutes, time: completedAt });
     if (!body) { onClose(); return; }           // nothing filled → skip
     setSaving(true);
     try {
@@ -47,7 +60,32 @@ export default function FocusDocSheet({ node, userId, onClose, onSaved }) {
           <div style={{ fontSize: 15, fontWeight: 800, color: FOCUS.ink }}>תיעוד · {node?.title || 'משימה'}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: FOCUS.muted }}><X size={20} /></button>
         </div>
-        <div style={{ fontSize: 11, color: FOCUS.muted, marginBottom: 12 }}>הכול אופציונלי — מלא מה שרלוונטי</div>
+        <div style={{ fontSize: 11, color: FOCUS.muted, marginBottom: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span>הכול אופציונלי — מלא מה שרלוונטי</span>
+          <span style={{ color: FOCUS.orange, fontWeight: 700 }}>· בוצע ב-{completedAt}</span>
+        </div>
+
+        <div style={label}>כמה זמן לקח</div>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+          {MIN_CHIPS.map(m => {
+            const active = !customMin && minutes === m;
+            return (
+              <button key={m} onClick={() => { setCustomMin(false); setMinutes(active ? 0 : m); }}
+                style={{ padding: '7px 13px', borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+                  border: `1px solid ${active ? FOCUS.orange : FOCUS.border}`, background: active ? hexAlpha(FOCUS.orange, 0.14) : '#fff',
+                  color: active ? '#B4531A' : FOCUS.muted }}>{m} דק׳</button>
+            );
+          })}
+          <button onClick={() => { setCustomMin(true); setMinutes(0); }}
+            style={{ padding: '7px 13px', borderRadius: 20, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+              border: `1px solid ${customMin ? FOCUS.orange : FOCUS.border}`, background: customMin ? hexAlpha(FOCUS.orange, 0.14) : '#fff',
+              color: customMin ? '#B4531A' : FOCUS.muted }}>אחר</button>
+        </div>
+        {customMin && (
+          <input type="number" inputMode="numeric" min={0} value={minutes || ''} autoFocus
+            onChange={(e) => setMinutes(Math.max(0, Number(e.target.value) || 0))}
+            placeholder="דקות" style={{ ...input, marginTop: 6 }} />
+        )}
 
         <div style={label}>מספר / תוצאה</div>
         <input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="למשל: 3 מכירות, 5 ק״מ…" style={input} />
@@ -73,8 +111,9 @@ export default function FocusDocSheet({ node, userId, onClose, onSaved }) {
             style={{ flex: 1, padding: '13px', borderRadius: 14, border: 'none', background: FOCUS.orangeGrad, color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
             {saving ? 'שומר…' : 'שמור תיעוד'}
           </button>
+          {/* Big one-tap skip — a fast check-in stays fast. */}
           <button onClick={onClose}
-            style={{ padding: '13px 18px', borderRadius: 14, border: `1px solid ${FOCUS.border}`, background: '#fff', color: FOCUS.muted, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ flex: '0 0 34%', padding: '13px', borderRadius: 14, border: `1.5px solid ${FOCUS.border}`, background: '#fff', color: FOCUS.ink, fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
             דלג
           </button>
         </div>

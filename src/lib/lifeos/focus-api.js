@@ -109,16 +109,23 @@ export function monthLabel(iso) {
 }
 
 // ─── Optional documentation note formatter ────────────────────────
-// Combine the three optional fields into ONE formatted focus_node_notes
-// body. Returns '' when the coach filled nothing in (caller skips saving).
-export function formatDocNote({ number, feeling, insight } = {}) {
+// Combine the optional fields into ONE formatted focus_node_notes body.
+// Returns '' when the coach filled nothing meaningful in (caller skips
+// saving). `time` (auto-recorded completion time) is only appended when
+// there's other content — a bare timestamp never forces a save.
+export function formatDocNote({ number, feeling, insight, minutes, time } = {}) {
   const parts = [];
   const num = String(number || '').trim();
   if (num) parts.push(`📊 ${num}`);
+  const mins = Number(minutes || 0);
+  if (mins > 0) parts.push(`⏱️ ${mins} דק׳`);
   const f = Number(feeling || 0);
   if (f > 0) parts.push(`תחושה: ${'●'.repeat(f)}${'○'.repeat(Math.max(0, 5 - f))} (${f}/5)`);
   const ins = String(insight || '').trim();
   if (ins) parts.push(`💡 ${ins}`);
+  if (!parts.length) return '';               // nothing filled → skip
+  const t = String(time || '').trim();
+  if (t) parts.push(`🕐 ${t}`);
   return parts.join('\n');
 }
 
@@ -152,6 +159,24 @@ export async function fetchNotes(nodeId) {
     .from('focus_node_notes')
     .select('*')
     .eq('node_id', nodeId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+// All feed notes created on a given LOCAL day, across every node —
+// newest first. Powers the personal board's day-summary feed. Boundaries
+// are the local midnight → next midnight, converted to UTC for the query.
+export async function fetchNotesForDate(userId, dateIso = isoDate()) {
+  const from = new Date(dateIso + 'T00:00:00');
+  const to = new Date(dateIso + 'T00:00:00');
+  to.setDate(to.getDate() + 1);
+  const { data, error } = await supabase
+    .from('focus_node_notes')
+    .select('id, node_id, content, created_at')
+    .eq('user_id', userId)
+    .gte('created_at', from.toISOString())
+    .lt('created_at', to.toISOString())
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data || [];
@@ -363,6 +388,34 @@ export async function clearPositions(ids) {
     .update({ pos_x: null, pos_y: null })
     .in('id', ids);
   if (error) throw error;
+}
+
+// ─── Personal arm seed (החיים שלי) ────────────────────────────────
+// The personal world is just focus_nodes: a top-level branch under the
+// root with three child branches. Seeded once, idempotently, from the
+// app on first load — no new tables, no migration.
+export const PERSONAL_ARM_TITLE = 'החיים שלי';
+export const PERSONAL_ARM_CHILDREN = ['בית וסדר', 'משפחה וחברים', 'בריאות והרגלים'];
+
+// Ensure the personal arm exists. Returns the arm node (existing or
+// freshly created), or null when there's no root yet to hang it under.
+// Idempotent: a second call finds the existing branch and does nothing.
+export async function seedPersonalArm(userId) {
+  const nodes = await fetchNodes(userId);
+  const root = nodes.find(n => n.node_type === 'root') || nodes.find(n => !n.parent_id);
+  if (!root) return null;                       // no root → nothing to seed under
+  const existing = nodes.find(n =>
+    n.parent_id === root.id && n.node_type !== 'task' && n.title === PERSONAL_ARM_TITLE);
+  if (existing) return existing;                // already seeded → idempotent
+  const arm = await createNode(userId, {
+    parent_id: root.id, node_type: 'branch', title: PERSONAL_ARM_TITLE, sort_order: 100,
+  });
+  for (let i = 0; i < PERSONAL_ARM_CHILDREN.length; i++) {
+    await createNode(userId, {
+      parent_id: arm.id, node_type: 'branch', title: PERSONAL_ARM_CHILDREN[i], sort_order: i,
+    });
+  }
+  return arm;
 }
 
 export async function addIdea(userId, content) {

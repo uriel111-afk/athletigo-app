@@ -5,10 +5,11 @@ import { FOCUS } from '@/lib/lifeos/focus-api';
 
 // The chip sub-nav shared by every Focus screen:
 // בקרה / מעקב / היום / רשימה / מתאר / יומן / מפה.
-// מעקב is the landing (end:true → /lifeos/focus renders the Tracker).
+// מעקב navigates to the personal board — one tracker, one home (the
+// business focus itself now lands on the Map at /lifeos/focus).
 const CHIPS = [
   { to: '/lifeos/focus/control',  label: 'בקרה',   Icon: Gauge,         end: false },
-  { to: '/lifeos/focus',          label: 'מעקב',   Icon: LayoutGrid,    end: true },
+  { to: '/lifeos/personal-board', label: 'מעקב',   Icon: LayoutGrid,    end: false },
   { to: '/lifeos/focus/today',    label: 'היום',   Icon: CalendarCheck, end: false },
   { to: '/lifeos/focus/list',     label: 'רשימה',  Icon: ListChecks,    end: false },
   { to: '/lifeos/focus/outline',  label: 'מתאר',   Icon: AlignLeft,     end: false },

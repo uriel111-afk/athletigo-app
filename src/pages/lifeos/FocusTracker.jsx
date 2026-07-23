@@ -6,13 +6,14 @@ import PageSkeleton from '@/components/PageSkeleton';
 import FocusChips from '@/components/lifeos/FocusChips';
 import IdeaCaptureButton from '@/components/lifeos/IdeaCaptureButton';
 import FocusDocSheet, { doneToast } from '@/components/lifeos/FocusDocSheet';
-import { ChevronRight, ChevronLeft, Flame, LayoutGrid } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Flame, LayoutGrid, Plus, X, ClipboardList } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  FOCUS, isoDate, addDays, dowOf, HEB_DAYS,
+  FOCUS, isoDate, addDays, dowOf, HEB_DAYS, HEB_DAYS_FULL,
   monthDays, weekDays, monthLabel, HEB_MONTHS,
-  fetchNodes, fetchLogs, logSetFrom, indexNodes, topBranchOf,
-  logTask, unlogTask, armColorMap, darken, hexAlpha,
+  fetchNodes, fetchLogs, fetchNotesForDate, logSetFrom, indexNodes, topBranchOf,
+  logTask, unlogTask, createNode, seedPersonalArm, PERSONAL_ARM_TITLE,
+  armColorMap, darken, hexAlpha,
   recurringTasks, taskExpectedOn, taskLoggedOn, taskMonthStats, taskStreak,
   harvestToday, todayStats,
 } from '@/lib/lifeos/focus-api';
@@ -23,7 +24,26 @@ const pctText = (done, expected) => (expected ? `${Math.round((done / expected) 
 
 const LABEL_W = 132;
 
-export default function FocusTracker() {
+// The tracker board is reused verbatim by the personal board (one
+// tracker, one home). Props toggle the personal-only affordances so the
+// business focus view and the personal אישי view share ONE component:
+//   title        — LifeOSLayout header title.
+//   chips        — sub-nav slot (business shows <FocusChips/>; personal
+//                  hides it — the AppSwitcher is its cross-world nav).
+//   docOnCheck   — checking a cell opens FocusDocSheet automatically
+//                  (personal board) instead of the toast-with-action.
+//   quickAdd     — pin a "build a recurring task" row on top.
+//   daySummary   — show the "תועדו היום N" strip + chronological feed.
+//   seedPersonal — ensure the 'החיים שלי' arm exists before first render.
+export default function FocusTracker({
+  title = 'מיקוד',
+  chips = <FocusChips />,
+  docOnCheck = false,
+  quickAdd = false,
+  daySummary = false,
+  seedPersonal = false,
+  footerSlot = null,
+} = {}) {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
   const navigate = useNavigate();
@@ -31,11 +51,14 @@ export default function FocusTracker() {
 
   const [nodes, setNodes] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [notesToday, setNotesToday] = useState([]);
+  const [feedOpen, setFeedOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [period, setPeriod] = useState('month'); // week | month | year
   const [cursor, setCursor] = useState(today);    // a date inside the shown period
   const [armFilter, setArmFilter] = useState(null);
   const [docNode, setDocNode] = useState(null);
+  const seededRef = React.useRef(false);
 
   // ── Columns for the current period ────────────────────────────────
   const { columns, colKind, periodStart, periodEnd } = useMemo(() => {
@@ -55,13 +78,23 @@ export default function FocusTracker() {
   const load = useCallback(async () => {
     if (!userId) return;
     try {
+      // Seed the personal arm ONCE before the first fetch, so the arm and
+      // its quick-add default exist on the very first render.
+      if (seedPersonal && !seededRef.current) {
+        seededRef.current = true;
+        try { await seedPersonalArm(userId); } catch { /* non-fatal */ }
+      }
       const lo = periodStart < addDays(today, -120) ? periodStart : addDays(today, -120);
       const hi = periodEnd > today ? periodEnd : today;
-      const [n, l] = await Promise.all([fetchNodes(userId), fetchLogs(userId, lo, hi)]);
-      setNodes(n); setLogs(l);
+      const [n, l, notes] = await Promise.all([
+        fetchNodes(userId),
+        fetchLogs(userId, lo, hi),
+        daySummary ? fetchNotesForDate(userId, today) : Promise.resolve([]),
+      ]);
+      setNodes(n); setLogs(l); setNotesToday(notes);
     } catch { toast.error('שגיאה בטעינה'); }
     finally { setLoaded(true); }
-  }, [userId, periodStart, periodEnd, today]);
+  }, [userId, periodStart, periodEnd, today, seedPersonal, daySummary]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -132,8 +165,35 @@ export default function FocusTracker() {
       try { await unlogTask(task, date); } catch { load(); }
     } else {
       setLogs(prev => [...prev, { node_id: task.id, log_date: date }]);
-      try { await logTask(userId, task, date); doneToast('בוצע ✓', task, setDocNode); } catch { load(); }
+      try {
+        await logTask(userId, task, date);
+        // Personal board: open the doc sheet automatically. Business
+        // view: a toast whose action opens it on demand.
+        if (docOnCheck) setDocNode(task);
+        else doneToast('בוצע ✓', task, setDocNode);
+      } catch { load(); }
     }
+  };
+
+  // Quick-add defaults to the personal arm (or the first arm if it's
+  // somehow missing).
+  const defaultArmId = useMemo(() => {
+    const personal = armChips.find(a => a.title === PERSONAL_ARM_TITLE);
+    return (personal || armChips[0])?.id || null;
+  }, [armChips]);
+
+  // Build a recurring task instantly — no map required.
+  const createRecurring = async ({ title: t, armId, frequency, dow }) => {
+    const name = String(t || '').trim();
+    if (!name || !armId) return false;
+    const fields = { parent_id: armId, node_type: 'task', title: name, frequency };
+    if (frequency === 'weekly') fields.day_of_week = dow;
+    try {
+      await createNode(userId, fields);
+      await load();
+      toast.success('נוספה משימה קבועה ✓');
+      return true;
+    } catch { toast.error('שגיאה בהוספה'); return false; }
   };
 
   const shift = (dir) => {
@@ -147,11 +207,28 @@ export default function FocusTracker() {
 
   const cellW = colKind === 'month' ? 46 : 30;
 
-  if (!loaded) return <LifeOSLayout title="מיקוד" fullBleed hideFab><FocusChips /><PageSkeleton rows={7} /></LifeOSLayout>;
+  if (!loaded) return <LifeOSLayout title={title} fullBleed hideFab>{chips}<PageSkeleton rows={7} /></LifeOSLayout>;
 
   return (
-    <LifeOSLayout title="מיקוד" fullBleed hideFab>
-      <FocusChips />
+    <LifeOSLayout title={title} fullBleed hideFab>
+      {chips}
+
+      {/* ── Quick add — build a recurring task without the map ── */}
+      {quickAdd && (
+        <QuickAddRow arms={armChips} defaultArmId={defaultArmId} onAdd={createRecurring} />
+      )}
+
+      {/* ── Day-summary strip (tap → today's documentation feed) ── */}
+      {daySummary && (
+        <div onClick={() => notesToday.length && setFeedOpen(true)}
+          style={{ margin: '0 12px 8px', display: 'flex', alignItems: 'center', gap: 10, background: FOCUS.card, border: `1px solid ${FOCUS.border}`, borderRadius: 14, boxShadow: FOCUS.neu, padding: '10px 14px', cursor: notesToday.length ? 'pointer' : 'default' }}>
+          <ClipboardList size={18} color={FOCUS.orange} style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1, fontSize: 13.5, fontWeight: 700, color: FOCUS.ink }}>
+            תועדו היום {notesToday.length} פעילויות
+          </div>
+          {notesToday.length > 0 && <ChevronLeft size={18} color={FOCUS.muted} />}
+        </div>
+      )}
 
       {/* ── Today strip (tap → היום) ── */}
       <div onClick={() => navigate('/lifeos/focus/today')}
@@ -277,11 +354,104 @@ export default function FocusTracker() {
             </div>
           </div>
         )}
+        {footerSlot}
       </div>
 
       {docNode && <FocusDocSheet node={docNode} userId={userId} onClose={() => setDocNode(null)} onSaved={load} />}
+      {feedOpen && <DayFeedSheet notes={notesToday} byId={byId} onClose={() => setFeedOpen(false)} />}
       <IdeaCaptureButton onSaved={load} />
     </LifeOSLayout>
+  );
+}
+
+// ── Quick-add row: text + repeat + arm picker → recurring task ──────
+function QuickAddRow({ arms, defaultArmId, onAdd }) {
+  const [text, setText] = useState('');
+  const [freq, setFreq] = useState('daily');   // daily | weekly | monthly
+  const [dow, setDow] = useState(0);           // weekly day (0=ראשון)
+  const [armId, setArmId] = useState(defaultArmId);
+  const [busy, setBusy] = useState(false);
+
+  // Keep the picker on the resolved default once arms load.
+  useEffect(() => { if (!armId && defaultArmId) setArmId(defaultArmId); }, [defaultArmId, armId]);
+
+  const submit = async () => {
+    if (busy || !text.trim() || !armId) return;
+    setBusy(true);
+    const ok = await onAdd({ title: text, armId, frequency: freq, dow });
+    setBusy(false);
+    if (ok) setText('');
+  };
+
+  const freqChip = (k, l) => (
+    <button key={k} onClick={() => setFreq(k)}
+      style={{ padding: '6px 11px', borderRadius: 18, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap',
+        border: `1px solid ${freq === k ? FOCUS.orange : FOCUS.border}`, background: freq === k ? hexAlpha(FOCUS.orange, 0.14) : '#fff', color: freq === k ? '#B4531A' : FOCUS.muted }}>{l}</button>
+  );
+
+  return (
+    <div style={{ margin: '0 12px 10px', background: FOCUS.card, border: `1px solid ${FOCUS.border}`, borderRadius: 14, boxShadow: FOCUS.neu, padding: 10 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input value={text} onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+          placeholder="משימה קבועה חדשה…"
+          style={{ flex: 1, minWidth: 0, border: `1px solid ${FOCUS.border}`, borderRadius: 11, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', color: FOCUS.ink, background: '#FFFDFA', outline: 'none' }} />
+        <button onClick={submit} disabled={busy || !text.trim() || !armId} aria-label="הוסף"
+          style={{ flexShrink: 0, width: 42, height: 42, borderRadius: 12, border: 'none', background: (busy || !text.trim()) ? FOCUS.border : FOCUS.orangeGrad, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Plus size={22} />
+        </button>
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', alignItems: 'center' }}>
+        {freqChip('daily', 'יומי')}
+        {freqChip('weekly', 'שבועי')}
+        {freqChip('monthly', 'חודשי')}
+        {freq === 'weekly' && (
+          <select value={dow} onChange={(e) => setDow(Number(e.target.value))}
+            style={{ padding: '6px 8px', borderRadius: 18, border: `1px solid ${FOCUS.border}`, background: '#fff', color: FOCUS.ink, fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}>
+            {HEB_DAYS_FULL.map((d, i) => <option key={i} value={i}>{d}</option>)}
+          </select>
+        )}
+        <span style={{ flex: 1 }} />
+        {arms.length > 0 && (
+          <select value={armId || ''} onChange={(e) => setArmId(e.target.value)}
+            style={{ maxWidth: 150, padding: '6px 8px', borderRadius: 18, border: `1px solid ${FOCUS.border}`, background: '#fff', color: FOCUS.ink, fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}>
+            {arms.map(a => <option key={a.id} value={a.id}>{a.title}</option>)}
+          </select>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Day feed: today's documentation notes, chronological (newest first) ──
+function DayFeedSheet({ notes, byId, onClose }) {
+  const timeOf = (iso) => { try { return new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
+  return (
+    <div dir="rtl" onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 1400, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ width: '100%', maxWidth: 560, maxHeight: '80vh', overflowY: 'auto', background: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '16px 16px calc(env(safe-area-inset-bottom,0px) + 20px)', boxShadow: '0 -6px 24px rgba(0,0,0,0.15)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: FOCUS.ink }}>תיעוד היום · {notes.length}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: FOCUS.muted }}><X size={20} /></button>
+        </div>
+        {notes.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '32px 12px', color: FOCUS.muted, fontSize: 13 }}>עוד לא תיעדת פעילויות היום</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {notes.map(nt => (
+              <div key={nt.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: '#FFFDFA', border: `1px solid ${FOCUS.border}`, borderRadius: 12, padding: '10px 12px' }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: FOCUS.orange, flexShrink: 0, marginTop: 1 }}>{timeOf(nt.created_at)}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: FOCUS.ink, marginBottom: 2 }}>{byId[nt.node_id]?.title || 'משימה'}</div>
+                  <div style={{ fontSize: 12.5, color: FOCUS.ink, whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>{nt.content}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
