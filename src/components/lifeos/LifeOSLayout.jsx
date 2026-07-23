@@ -121,7 +121,11 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
               display: 'flex', flexDirection: 'column', overflow: 'hidden',
               // When the header + app-switcher are hidden (map), the content
               // is topmost → carry the top safe-area inset (camera cutout).
-              ...(hideHeader ? { paddingTop: 'env(safe-area-inset-top, 0px)' } : {}),
+              // Same minimum the sticky top bar uses (max(env,10px)) so the
+              // topmost chip/tab row is never left under the status bar when a
+              // device reports 0 for the inset — otherwise the OS bar swallows
+              // taps on that row (map-only, since only the map hides the header).
+              ...(hideHeader ? { paddingTop: 'max(env(safe-area-inset-top, 0px), 10px)' } : {}),
               // Reserve the fixed bottom nav so flex:1 children end above it.
               // Nav is ~77px tall; 82 clears it with a small gap and hands the
               // extra vertical space back to the canvas.

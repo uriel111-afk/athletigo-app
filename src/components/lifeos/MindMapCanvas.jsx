@@ -344,11 +344,22 @@ export default function MindMapCanvas({
 
   const onCancel = useCallback((e) => {
     // eslint-disable-next-line no-console
-    if (gesture.current?.moved || connect.current?.moved) console.warn('[MindMap] pointercancel mid-gesture — keeping gesture alive');
+    if (gesture.current?.moved || connect.current?.moved) console.warn('[MindMap] pointercancel mid-gesture');
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinch.current = null;
-    if (pointers.current.size === 0) setBusy(false);
-  }, []);
+    // Once every pointer is released, tear down exactly like onUp does — reset
+    // gesture/pan/connect and detach the window listeners. Without this a
+    // WebView-initiated cancel left stale state + live window handlers behind,
+    // which could disturb taps elsewhere while the map stayed mounted. A cancel
+    // with another finger still down keeps the active gesture alive (same guard
+    // onUp uses), so mid-drag resilience is unchanged.
+    if (pointers.current.size === 0) {
+      if (gesture.current?.timer) clearTimeout(gesture.current.timer);
+      gesture.current = null; pan.current = null; connect.current = null; pinch.current = null;
+      setBusy(false);
+      detachWindow();
+    }
+  }, [detachWindow]);
 
   const attachWindow = () => {
     if (winAttached.current) return;
