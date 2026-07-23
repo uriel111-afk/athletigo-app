@@ -2,6 +2,7 @@ import React, { useContext, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LIFEOS_COLORS } from '@/lib/lifeos/lifeos-constants';
 import { AuthContext } from '@/lib/AuthContext';
+import VersionStamp from '@/components/lifeos/VersionStamp';
 
 // Bottom navigation for Life OS screens. Five primary tabs; the last
 // one is a "more" sheet that exposes the secondary screens.
@@ -125,6 +126,7 @@ export default function LifeOSNav() {
                 );
               })}
             </div>
+            <VersionStamp style={{ marginTop: 14, paddingBottom: 2 }} />
           </div>
         </>
       )}

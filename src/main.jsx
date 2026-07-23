@@ -4,8 +4,11 @@ import { Capacitor } from '@capacitor/core'
 import { StatusBar, Style } from '@capacitor/status-bar'
 import App from '@/App.jsx'
 import '@/index.css'
+import { logVersion, initVersionToast } from '@/lib/appVersion'
 
 console.log('[MAIN] React starting...', new Date().toISOString());
+logVersion();
+initVersionToast();
 
 // PWA Service Worker is registered automatically by vite-plugin-pwa
 // (see vite.config.js → VitePWA). The manual escape hatch for stale

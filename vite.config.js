@@ -2,6 +2,11 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
+import { execSync } from 'child_process'
+
+// Short commit hash at build time (falls back to 'dev' outside a git checkout).
+let gitHash = 'dev';
+try { gitHash = execSync('git rev-parse --short HEAD').toString().trim(); } catch { /* no git */ }
 
 export default defineConfig({
   plugins: [
@@ -49,6 +54,7 @@ export default defineConfig({
   ],
   define: {
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+    __GIT_HASH__: JSON.stringify(gitHash),
   },
   build: {
     rollupOptions: {
