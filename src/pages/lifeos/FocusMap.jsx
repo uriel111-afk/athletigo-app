@@ -343,7 +343,7 @@ export default function FocusMap() {
       <button onPointerDown={(e) => e.stopPropagation()} onClick={doUndo} disabled={histLen === 0} style={{ ...clusterBtn, opacity: histLen === 0 ? 0.4 : 1, cursor: histLen === 0 ? 'default' : 'pointer' }} title="בטל פעולה">
         <Undo2 size={16} />
       </button>
-      <button onPointerDown={(e) => e.stopPropagation()} onClick={toggleView} style={{ ...clusterBtn, background: simple ? '#FFF3E9' : '#fff' }} title={simple ? 'מצב מפורט' : 'מצב פשוט'}>
+      <button onPointerDown={(e) => e.stopPropagation()} onClick={toggleView} style={{ ...clusterBtn, background: simple ? '#FFF3E9' : 'transparent' }} title={simple ? 'מצב מפורט' : 'מצב פשוט'}>
         <Eye size={16} color={simple ? '#B4531A' : FOCUS.ink} />
       </button>
       <button onPointerDown={(e) => e.stopPropagation()} onClick={autoArrange} style={clusterBtn} title="סידור אוטומטי">
@@ -514,11 +514,12 @@ function IdeaRow({ idea, branchOptions, onConvert, onArchive }) {
   );
 }
 
-// Icon buttons for the in-canvas floating cluster (match the zoom buttons).
+// Icon buttons for the in-canvas floating pill toolbar (icons only, no
+// borders/fills — the toolbar itself carries the shadow & shape).
 const clusterBtn = {
-  width: 36, height: 36, borderRadius: 10, border: `1px solid ${FOCUS.border}`,
-  background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-  color: FOCUS.ink, cursor: 'pointer', fontFamily: 'inherit',
+  width: 40, height: 40, borderRadius: 14, border: 'none',
+  background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  color: FOCUS.ink, cursor: 'pointer', fontFamily: 'inherit', padding: 0,
 };
 // Buttons for the unified line action bar (נתק / חבר למקום אחר / סגור).
 const lineBtn = (bg, fg) => ({

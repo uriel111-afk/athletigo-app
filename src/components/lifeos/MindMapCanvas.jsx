@@ -1,20 +1,38 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize, Link2, GitBranch } from 'lucide-react';
+import { Maximize, Link2, GitBranch, ZoomIn, ZoomOut } from 'lucide-react';
 import { FOCUS, urgencyStyle, descendantTasks, allDescendants, armColorMap, armColorFor, darken, hexAlpha } from '@/lib/lifeos/focus-api';
 
 // ── Geometry ──────────────────────────────────────────────────────
-const NODE_W = 138;
-const HGAP = 22;
-const VGAP = 104;
-const HIT_PAD = 8;                 // invisible hit padding around each node
-const SIMPLE_H = 34;               // node height in "simple" (title-only) mode
-const heightFor = (n) => (n.node_type === 'root' ? 48 : n.node_type === 'branch' ? 74 : 54);
+// Clean rounded-rectangle cards at a FIXED comfortable width. Layout
+// reserves a per-level row height so cards never overlap vertically,
+// and packs sibling SUBTREES into disjoint horizontal bands so they
+// never overlap horizontally — for ANY tree shape.
+const NODE_W = 158;                // fixed card width (concepts + tasks)
+const ROOT_W = 190;                // root pill is distinctly larger
+const SIMPLE_W = 150;              // card width in "simple" (title-only) mode
+const HGAP = 24;                   // min horizontal gap between subtrees
+const LEVEL_GAP = 100;             // fixed vertical gap between levels
+const ROOT_GAP = 140;              // extra breathing room under the root
+const HIT_PAD = 12;                // invisible hit padding around each card
+
+// Reserved heights (layout + edge anchoring). Cards may render a touch
+// shorter for single-line titles; the reserve guarantees no overlap.
+const H = {
+  rootSimple: 42, simple: 40,
+  root: 54, task: 60,
+  branchCollapsed: 66, branchEmpty: 60, branchTasks: 86,
+};
 const trStr = (v) => `translate(${v.tx},${v.ty}) scale(${v.scale})`;
 
 // One visual language:
-const HIER_EDGE = '#E8D5BC';       // solid = מבנה (hierarchy)
+const HIER_EDGE = '#E8D5BC';       // fallback solid = מבנה (hierarchy)
 const LINK_EDGE = '#9A93B8';       // dashed purple-gray = קשר (cross-link)
 const LIVE_EDGE = FOCUS.edgeSel;   // dashed red = חיבור בתהליך (only live wire)
+
+const clamp2 = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.25, wordBreak: 'break-word' };
+const clamp1 = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
+const CARD_SHADOW = '0 1px 2px rgba(90,60,25,0.10), 0 4px 12px rgba(90,60,25,0.07)';
+const CARD_LIFT = '0 6px 20px rgba(90,60,25,0.20)';
 
 // ── Auto-anchoring (pure, module-level) ───────────────────────────
 // Pick the anchor on `rect` = midpoint of the side whose outward ray
@@ -32,9 +50,12 @@ function sideAnchor(rect, tx, ty) {
     ? { x: rect.cx, y: rect.y + rect.h, nx: 0, ny: 1 }     // bottom
     : { x: rect.cx, y: rect.y, nx: 0, ny: -1 };            // top
 }
-// Bezier whose control points extend perpendicular from each side (n8n).
+// Smooth cubic bezier whose control points extend perpendicular from
+// each side. The offset grows with horizontal distance so lines bow
+// AROUND siblings instead of cutting straight through them.
 function pathBetween(a, b) {
-  const off = Math.max(28, Math.hypot(b.x - a.x, b.y - a.y) * 0.35);
+  const dx = Math.abs(b.x - a.x), dy = Math.abs(b.y - a.y);
+  const off = Math.min(130, Math.max(30, dy * 0.55 + dx * 0.22));
   return `M ${a.x} ${a.y} C ${a.x + a.nx * off} ${a.y + a.ny * off}, ${b.x + b.nx * off} ${b.y + b.ny * off}, ${b.x} ${b.y}`;
 }
 // Live wire: anchored source side → free end (the finger).
@@ -43,20 +64,44 @@ function wirePath(a, px, py) {
   return `M ${a.x} ${a.y} C ${a.x + a.nx * off} ${a.y + a.ny * off}, ${px} ${py}, ${px} ${py}`;
 }
 
-function computeLayout(roots, visibleChildrenOf) {
+// ── Tidy-tree layout — provably overlap-free ──────────────────────
+// 1) scan for each level's reserved row height → cumulative y per depth.
+// 2) each subtree claims a horizontal band = max(nodeWidth, childrenSpan).
+//    Sibling bands are disjoint (separated by HGAP), and every node is
+//    centered inside its own band, so parents sit centered over their
+//    children's bounding box and nothing can overlap.
+function computeLayout(roots, visibleChildrenOf, wOf, hOf) {
   const layout = {};
-  let cursor = 0;
-  const place = (node, depth) => {
-    const kids = visibleChildrenOf(node);
-    const y = depth * VGAP;
-    if (!kids.length) { layout[node.id] = { x: cursor * (NODE_W + HGAP), y }; cursor++; }
-    else {
-      kids.forEach(k => place(k, depth + 1));
-      const xs = kids.map(k => layout[k.id].x);
-      layout[node.id] = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y };
+  const rowH = {};
+  const scan = (n, d) => {
+    rowH[d] = Math.max(rowH[d] || 0, hOf(n));
+    visibleChildrenOf(n).forEach(c => scan(c, d + 1));
+  };
+  roots.forEach(r => scan(r, 0));
+  const maxD = Math.max(0, ...Object.keys(rowH).map(Number));
+  const yAt = { 0: 0 };
+  for (let d = 1; d <= maxD; d++) {
+    const gap = d === 1 ? ROOT_GAP : LEVEL_GAP;
+    yAt[d] = yAt[d - 1] + (rowH[d - 1] || 0) + gap;
+  }
+  const subW = (n) => {
+    const kids = visibleChildrenOf(n);
+    if (!kids.length) return wOf(n);
+    const cw = kids.reduce((s, k) => s + subW(k), 0) + HGAP * (kids.length - 1);
+    return Math.max(wOf(n), cw);
+  };
+  const assign = (n, leftX, d) => {
+    const sw = subW(n), w = wOf(n), cx = leftX + sw / 2;
+    layout[n.id] = { x: cx - w / 2, y: yAt[d] };
+    const kids = visibleChildrenOf(n);
+    if (kids.length) {
+      const cw = kids.reduce((s, k) => s + subW(k), 0) + HGAP * (kids.length - 1);
+      let cursor = cx - cw / 2;
+      kids.forEach(k => { assign(k, cursor, d + 1); cursor += subW(k) + HGAP; });
     }
   };
-  roots.forEach(r => place(r, 0));
+  let cur = 0;
+  roots.forEach(r => { assign(r, cur, 0); cur += subW(r) + HGAP * 2; });
   return layout;
 }
 
@@ -68,8 +113,17 @@ export default function MindMapCanvas({
   connectFromId = null, onHandleTap, onConnectTap, onConnectCancel,
   onConnect, onDisconnect, onDetails, tools = null, simple = false, fitApi = null,
 }) {
-  // Node height depends on the view mode (simple = short title-only pills).
-  const hOf = (n) => (simple ? SIMPLE_H : heightFor(n));
+  // Card width/height depend on the view mode and node state.
+  const wOf = useCallback((n) => (simple ? SIMPLE_W : n.node_type === 'root' ? ROOT_W : NODE_W), [simple]);
+  const hOf = useCallback((n) => {
+    if (simple) return n.node_type === 'root' ? H.rootSimple : H.simple;
+    if (n.node_type === 'root') return H.root;
+    if (n.node_type === 'task') return H.task;
+    const kids = children[n.id] || [];
+    if (kids.length && !expanded.has(n.id)) return H.branchCollapsed;
+    return descendantTasks(n.id, children).length > 0 ? H.branchTasks : H.branchEmpty;
+  }, [simple, children, expanded]);
+
   const [view, setView] = useState({ tx: 20, ty: 20, scale: 1 });
   const [livePos, setLivePos] = useState({});
   const [busy, setBusy] = useState(false);
@@ -117,9 +171,9 @@ export default function MindMapCanvas({
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, expanded, children, roots]);
-  const layout = useMemo(() => computeLayout(roots, visibleChildrenOf),
+  const layout = useMemo(() => computeLayout(roots, visibleChildrenOf, wOf, hOf),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [nodes, expanded, children, roots]);
+    [nodes, expanded, children, roots, simple]);
 
   const visibleIds = useMemo(() => new Set(visibleNodes.map(n => n.id)), [visibleNodes]);
   const visibleAncestor = (id) => {
@@ -142,7 +196,7 @@ export default function MindMapCanvas({
   // Arm colors: top-level branch → color; subtree inherits it.
   const armMap = useMemo(() => armColorMap(children, roots), [children, roots]);
   const armOf = (n) => armColorFor(n, byId, armMap);
-  const rectOf = (n) => { const p = posOf(n); const h = hOf(n); return { x: p.x, y: p.y, w: NODE_W, h, cx: p.x + NODE_W / 2, cy: p.y + h / 2 }; };
+  const rectOf = (n) => { const p = posOf(n); const w = wOf(n), h = hOf(n); return { x: p.x, y: p.y, w, h, cx: p.x + w / 2, cy: p.y + h / 2 }; };
   const anchored = (A, B) => { const ra = rectOf(A), rb = rectOf(B); return { a: sideAnchor(ra, rb.cx, rb.cy), b: sideAnchor(rb, ra.cx, ra.cy) }; };
 
   const clampScale = (s) => Math.min(2, Math.max(0.5, s));
@@ -373,7 +427,7 @@ export default function MindMapCanvas({
     if (!n || !rect) return;
     const p = posOf(n);
     const v = viewRef.current;
-    commitView({ scale: v.scale, tx: rect.width / 2 - (p.x + NODE_W / 2) * v.scale, ty: Math.max(16, rect.height * 0.26 - p.y * v.scale) });
+    commitView({ scale: v.scale, tx: rect.width / 2 - (p.x + wOf(n) / 2) * v.scale, ty: Math.max(16, rect.height * 0.26 - p.y * v.scale) });
     centeredRef.current = centerOnId;
     onCentered && onCentered();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -386,9 +440,9 @@ export default function MindMapCanvas({
     if (!rect || !visibleNodes.length) return;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     visibleNodes.forEach(n => {
-      const p = posOf(n), h = hOf(n);
+      const p = posOf(n);
       minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
-      maxX = Math.max(maxX, p.x + NODE_W); maxY = Math.max(maxY, p.y + h);
+      maxX = Math.max(maxX, p.x + wOf(n)); maxY = Math.max(maxY, p.y + hOf(n));
     });
     const M = 24, bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY);
     const scale = Math.min(2, Math.max(0.25, Math.min((rect.width - 2 * M) / bw, (rect.height - 2 * M) / bh)));
@@ -432,9 +486,19 @@ export default function MindMapCanvas({
       onPointerDown={onDown}
     >
       <svg ref={svgRef} width="100%" height="100%" style={{ touchAction: 'none', background: FOCUS.bg, display: 'block' }}>
+        <defs>
+          {/* Subtle Figma/Miro-style dot grid for spatial reference. */}
+          <pattern id="mm-dotgrid" width="28" height="28" patternUnits="userSpaceOnUse">
+            <circle cx="1.3" cy="1.3" r="1.3" fill="#9C7A4E" fillOpacity="0.10" />
+          </pattern>
+        </defs>
         <g ref={gRef} transform={trStr(view)}>
-          {/* Hierarchy edges — solid, auto-anchored. Tapping one shows the
-              structure-line explainer (not removable like a cross-link). */}
+          {/* Dot grid lives INSIDE the panned group so it scrolls with the
+              canvas, giving a sense of movement while panning. */}
+          <rect x={-6000} y={-6000} width={12000} height={12000} fill="url(#mm-dotgrid)" style={{ pointerEvents: 'none' }} />
+
+          {/* Hierarchy edges — smooth arm-colored beziers at 40% opacity.
+              Tapping one shows the structure-line explainer. */}
           {visibleNodes.map(p => visibleChildrenOf(p).map(c => {
             const d = edgePath(p, c);
             const hitW = Math.max(16, 26 / view.scale);
@@ -442,19 +506,19 @@ export default function MindMapCanvas({
             return (
               <g key={p.id + '-' + c.id}>
                 <path data-hier-edge={c.id} d={d} fill="none" stroke="transparent" strokeWidth={hitW} style={{ pointerEvents: 'stroke', cursor: 'pointer' }} />
-                <path d={d} fill="none" stroke={arm ? hexAlpha(arm, 0.55) : HIER_EDGE} strokeWidth={3} style={{ pointerEvents: 'none' }} />
+                <path d={d} fill="none" stroke={arm ? hexAlpha(arm, 0.4) : HIER_EDGE} strokeWidth={2} strokeLinecap="round" style={{ pointerEvents: 'none' }} />
               </g>
             );
           }))}
 
-          {/* Cross-links — dashed purple-gray, auto-anchored. Tap → remove. */}
+          {/* Cross-links — thin dashed neutral, auto-anchored. Tap → remove. */}
           {resolvedLinks.map(l => {
             const d = linkPath(l.a, l.b);
             const hitW = Math.max(18, 30 / view.scale);
             return (
               <g key={l.id}>
                 <path data-link-id={l.id} d={d} fill="none" stroke="transparent" strokeWidth={hitW} style={{ pointerEvents: 'stroke', cursor: 'pointer' }} />
-                <path d={d} fill="none" stroke={LINK_EDGE} strokeWidth={2} strokeDasharray="6 5" style={{ pointerEvents: 'none' }} />
+                <path d={d} fill="none" stroke={LINK_EDGE} strokeWidth={2} strokeDasharray="6 5" strokeLinecap="round" style={{ pointerEvents: 'none' }} />
               </g>
             );
           })}
@@ -466,7 +530,7 @@ export default function MindMapCanvas({
           {visibleNodes.map(n => {
             const p = posOf(n);
             return (
-              <MapNode key={n.id} x={p.x} y={p.y} node={n} sel={selectedId === n.id} armColor={armOf(n)} simple={simple}
+              <MapNode key={n.id} x={p.x} y={p.y} w={wOf(n)} h={hOf(n)} node={n} sel={selectedId === n.id} armColor={armOf(n)} simple={simple}
                 highlight={hoverId === n.id} childrenIdx={children} expanded={expanded} isTaskDone={isTaskDone} />
             );
           })}
@@ -503,11 +567,12 @@ export default function MindMapCanvas({
         );
       })}
 
-      {/* Floating control cluster (semi-transparent) — fit, zoom, tools */}
-      <div style={{ position: 'absolute', left: 10, top: 10, display: 'flex', flexDirection: 'column', gap: 5, background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', borderRadius: 12, padding: 5, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
-        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => fitFn.current && fitFn.current()} style={zoomBtn} title="התאם לתצוגה"><Maximize size={17} /></button>
-        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => zoom(1)} style={zoomBtn}>+</button>
-        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => zoom(-1)} style={zoomBtn}>−</button>
+      {/* Floating tool cluster — one elegant vertical pill-shaped toolbar */}
+      <div style={toolbar}>
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => fitFn.current && fitFn.current()} style={toolBtn} title="התאם לתצוגה"><Maximize size={18} /></button>
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => zoom(1)} style={toolBtn} title="הגדל"><ZoomIn size={18} /></button>
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={() => zoom(-1)} style={toolBtn} title="הקטן"><ZoomOut size={18} /></button>
+        {tools && <div style={toolDivider} />}
         {tools}
       </div>
 
@@ -516,7 +581,7 @@ export default function MindMapCanvas({
         const sel = byId[selectedId];
         if (!sel) return null;
         const p = posOf(sel);
-        const bx = view.tx + (p.x + NODE_W / 2) * view.scale;
+        const bx = view.tx + (p.x + wOf(sel) / 2) * view.scale;
         const by = view.ty + (p.y + hOf(sel)) * view.scale + 22;
         return (
           <div onPointerDown={(e) => e.stopPropagation()}
@@ -531,11 +596,17 @@ export default function MindMapCanvas({
   );
 }
 
-const zoomBtn = {
-  width: 36, height: 36, borderRadius: 10, border: `1px solid ${FOCUS.border}`,
-  background: '#fff', boxShadow: FOCUS.neu, fontSize: 20, fontWeight: 700,
-  color: FOCUS.ink, cursor: 'pointer', lineHeight: 1,
+// Single elegant vertical pill toolbar — icons only, subtle shadow.
+const toolbar = {
+  position: 'absolute', left: 10, top: 10, display: 'flex', flexDirection: 'column', gap: 2,
+  background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+  borderRadius: 22, padding: 6, boxShadow: '0 4px 16px rgba(90,60,25,0.14)', border: '1px solid rgba(240,228,208,0.9)',
 };
+const toolBtn = {
+  width: 40, height: 40, borderRadius: 14, border: 'none', background: 'transparent',
+  color: FOCUS.ink, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+};
+const toolDivider = { height: 1, background: 'rgba(140,110,70,0.14)', margin: '3px 7px' };
 const barBtn = (bg, fg) => ({
   minHeight: 44, padding: '0 14px', borderRadius: 9, border: 'none',
   background: bg, color: fg, fontSize: 13.5, fontWeight: 800, cursor: 'pointer',
@@ -551,17 +622,27 @@ const HANDLE_SIDES = [
   { key: 'r', pos: { right: -16, top: '50%', marginTop: -16 } },
 ];
 
-// One node — bigger hit box + whole-rect connect target. Memoized on
-// primitives so a drag only re-renders this node.
-const MapNode = React.memo(function MapNode({ x, y, node, sel, armColor, simple, highlight, childrenIdx, expanded, isTaskDone }) {
-  const H = simple ? SIMPLE_H : heightFor(node);
+// One node — fixed-size rounded card + whole-rect connect target.
+// Memoized on primitives so a drag only re-renders this node.
+const MapNode = React.memo(function MapNode({ x, y, w, h, node, sel, armColor, simple, highlight, childrenIdx, expanded, isTaskDone }) {
+  const radius = node.node_type === 'root' ? 999 : 16;
+  const ring = armColor || FOCUS.edgeSel;
   return (
-    <foreignObject x={x - HIT_PAD} y={y - HIT_PAD} width={NODE_W + HIT_PAD * 2} height={H + HIT_PAD * 2 + 34} style={{ overflow: 'visible' }}>
-      <div data-node-id={node.id} style={{ padding: HIT_PAD, width: NODE_W + HIT_PAD * 2, boxSizing: 'border-box', cursor: 'grab', userSelect: 'none', touchAction: 'none', fontFamily: "'Rubik', system-ui, sans-serif" }}>
-        <div style={{ position: 'relative', borderRadius: 14, outline: sel ? `2px solid ${FOCUS.edgeSel}` : 'none', boxShadow: highlight ? '0 0 0 3px rgba(22,163,74,0.55)' : 'none', transition: 'box-shadow .12s' }}>
-          {simple
-            ? <SimpleCard node={node} armColor={armColor} isTaskDone={isTaskDone} />
-            : <NodeCard node={node} armColor={armColor} children={childrenIdx} expanded={expanded} isTaskDone={isTaskDone} />}
+    <foreignObject x={x - HIT_PAD} y={y - HIT_PAD} width={w + HIT_PAD * 2} height={h + HIT_PAD * 2} style={{ overflow: 'visible' }}>
+      <div data-node-id={node.id} style={{ padding: HIT_PAD, width: w + HIT_PAD * 2, boxSizing: 'border-box', cursor: 'grab', userSelect: 'none', touchAction: 'none', fontFamily: "'Rubik', system-ui, sans-serif" }}>
+        <div style={{ position: 'relative', width: w, height: h }}>
+          {/* Selection = ring in the arm color + a subtle shadow lift, with
+              NO change to the card fill. Highlight = green pulse ring. */}
+          <div style={{
+            position: 'relative', width: '100%', height: '100%', borderRadius: radius,
+            outline: sel ? `2px solid ${ring}` : 'none', outlineOffset: 2,
+            boxShadow: highlight ? '0 0 0 3px rgba(22,163,74,0.55)' : (sel ? CARD_LIFT : 'none'),
+            transition: 'box-shadow .14s ease',
+          }}>
+            {simple
+              ? <SimpleCard node={node} armColor={armColor} isTaskDone={isTaskDone} />
+              : <NodeCard node={node} armColor={armColor} children={childrenIdx} expanded={expanded} isTaskDone={isTaskDone} />}
+          </div>
           {sel && HANDLE_SIDES.map(s => (
             <div key={s.key} data-handle-id={node.id} title="גרור או הקש כדי לקשר"
               style={{ position: 'absolute', width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'crosshair', touchAction: 'none', zIndex: 3, ...s.pos }}>
@@ -574,42 +655,49 @@ const MapNode = React.memo(function MapNode({ x, y, node, sel, armColor, simple,
   );
 });
 
-// Simple mode: title-only compact pill, arm color kept.
+// Small pill badge used under a collapsed-branch title.
+function CountPill({ text, color }) {
+  return (
+    <span style={{ display: 'inline-block', maxWidth: '100%', background: hexAlpha(color, 0.12), color: darken(color, 0.62), borderRadius: 999, padding: '2px 9px', fontSize: 10.5, fontWeight: 800, ...clamp1 }}>{text}</span>
+  );
+}
+
+// Simple mode: title-only compact card, arm color kept.
 function SimpleCard({ node, armColor, isTaskDone }) {
   if (node.node_type === 'root') {
-    return <div style={{ background: FOCUS.orange, color: '#fff', borderRadius: 999, padding: '7px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, boxShadow: '0 3px 10px rgba(255,111,32,0.4)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.title || 'שורש'}</div>;
+    return <div style={{ width: '100%', height: '100%', background: FOCUS.orange, color: '#fff', borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 14px', fontSize: 13.5, fontWeight: 800, boxShadow: '0 4px 12px rgba(255,111,32,0.38)', boxSizing: 'border-box' }}><span style={clamp1}>{node.title || 'שורש'}</span></div>;
   }
   const done = node.node_type === 'task' && isTaskDone(node);
   const accent = node.is_fear_task ? '#E24B4A' : (armColor || FOCUS.border);
   return (
-    <div style={{ background: '#fff', border: `1px solid ${FOCUS.border}`, borderRight: `3px solid ${accent}`, borderRadius: 999, padding: '7px 12px', boxShadow: FOCUS.neu, fontSize: 12.5, fontWeight: 700, color: armColor ? darken(armColor) : FOCUS.ink, textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: done ? 0.55 : 1, textDecoration: done ? 'line-through' : 'none' }}>
-      {node.title || (node.node_type === 'task' ? 'משימה' : 'מושג')}
+    <div style={{ width: '100%', height: '100%', background: '#fff', border: `1px solid ${FOCUS.border}`, borderRight: `3px solid ${accent}`, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 12px', boxShadow: CARD_SHADOW, fontSize: 12.5, fontWeight: 700, color: armColor ? darken(armColor) : FOCUS.ink, boxSizing: 'border-box', opacity: done ? 0.55 : 1, textDecoration: done ? 'line-through' : 'none' }}>
+      <span style={clamp1}>{node.title || (node.node_type === 'task' ? 'משימה' : 'מושג')}</span>
     </div>
   );
 }
 
 function NodeCard({ node, armColor, children, expanded, isTaskDone }) {
-  // Root stays solid orange — no arm accent.
+  // Root stays a solid orange pill — no arm accent, distinctly larger.
   if (node.node_type === 'root') {
     return (
-      <div style={{ background: FOCUS.orange, color: '#fff', borderRadius: 999, padding: '12px 10px', textAlign: 'center', fontSize: 15, fontWeight: 800, boxShadow: '0 4px 12px rgba(255,111,32,0.4)' }}>
-        {node.title || 'שורש'}
+      <div style={{ width: '100%', height: '100%', background: FOCUS.orange, color: '#fff', borderRadius: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 18px', fontSize: 15, fontWeight: 800, boxShadow: '0 5px 14px rgba(255,111,32,0.4)', boxSizing: 'border-box' }}>
+        <span style={clamp2}>{node.title || 'שורש'}</span>
       </div>
     );
   }
-  // 3px RIGHT accent in the arm color (fear tasks keep their red accent).
-  const armAccent = armColor ? { borderRight: `3px solid ${armColor}` } : null;
+  // 4px RIGHT accent in the arm color (fear tasks keep their red accent).
+  const armAccent = armColor ? { borderRight: `4px solid ${armColor}` } : null;
   const armDark = armColor ? darken(armColor) : FOCUS.ink;
   if (node.node_type === 'task') {
     const done = isTaskDone(node);
     const st = urgencyStyle(node);
     return (
-      <div style={{ ...st, ...(node.is_fear_task ? null : armAccent), borderRadius: 12, padding: '9px 10px', boxShadow: FOCUS.neu, opacity: done ? 0.6 : 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 15, height: 15, borderRadius: 5, flexShrink: 0, border: `2px solid ${done ? '#16a34a' : (armColor || FOCUS.orange)}`, background: done ? '#16a34a' : 'transparent', color: '#fff', fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{done ? '✓' : ''}</span>
-          <span style={{ fontSize: 12.5, fontWeight: 700, color: FOCUS.ink, textDecoration: done ? 'line-through' : 'none' }}>{node.title || 'משימה'}</span>
+      <div style={{ ...st, ...(node.is_fear_task ? null : armAccent), width: '100%', height: '100%', borderRadius: 16, padding: '10px 14px', boxShadow: CARD_SHADOW, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4, opacity: done ? 0.6 : 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 16, height: 16, borderRadius: 5, flexShrink: 0, border: `2px solid ${done ? '#16a34a' : (armColor || FOCUS.orange)}`, background: done ? '#16a34a' : 'transparent', color: '#fff', fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{done ? '✓' : ''}</span>
+          <span style={{ fontSize: 14, fontWeight: 500, color: FOCUS.ink, textDecoration: done ? 'line-through' : 'none', ...clamp2 }}>{node.title || 'משימה'}</span>
         </div>
-        {node.is_fear_task && <div style={{ fontSize: 9, color: '#C0392B', fontWeight: 800, marginTop: 3 }}>🔥 אומץ</div>}
+        {node.is_fear_task && <div style={{ fontSize: 9.5, color: '#C0392B', fontWeight: 800, marginRight: 24 }}>🔥 אומץ</div>}
       </div>
     );
   }
@@ -623,19 +711,22 @@ function NodeCard({ node, armColor, children, expanded, isTaskDone }) {
   if (!isExpanded && kids.length > 0) {
     const desc = allDescendants(node.id, children);
     const branches = desc.filter(d => d.node_type !== 'task').length;
+    const pill = branches > 0
+      ? `${branches} מושגים${tasks.length ? ` · ${tasks.length} משימות` : ''}`
+      : `${tasks.length} משימות`;
     return (
-      <div style={{ background: '#fff', border: `1px solid ${FOCUS.border}`, ...armAccent, borderRadius: 14, padding: '10px', textAlign: 'center', boxShadow: FOCUS.neu }}>
-        <div style={{ fontSize: 13.5, fontWeight: 800, color: armDark }}>{node.title}</div>
-        <div style={{ fontSize: 10, color: FOCUS.muted, marginTop: 3 }}>{branches} מושגים · {tasks.length} משימות</div>
+      <div style={{ width: '100%', height: '100%', background: '#fff', border: `1px solid ${FOCUS.border}`, ...armAccent, borderRadius: 16, padding: '10px 14px', textAlign: 'center', boxShadow: CARD_SHADOW, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: armDark, maxWidth: '100%', ...clamp2 }}>{node.title}</div>
+        <CountPill text={pill} color={armColor || '#B48A5A'} />
       </div>
     );
   }
   return (
-    <div style={{ background: '#fff', border: `1px solid ${FOCUS.border}`, ...armAccent, borderRadius: 14, padding: '10px', boxShadow: FOCUS.neu }}>
-      <div style={{ fontSize: 13.5, fontWeight: 800, color: armDark, textAlign: 'center' }}>{node.title}</div>
+    <div style={{ width: '100%', height: '100%', background: '#fff', border: `1px solid ${FOCUS.border}`, ...armAccent, borderRadius: 16, padding: '10px 14px', boxShadow: CARD_SHADOW, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: armDark, textAlign: 'center', ...clamp2 }}>{node.title}</div>
       {tasks.length > 0 ? (
-        <>
-          <div style={{ height: 4, borderRadius: 3, background: '#F1E7D8', marginTop: 7, overflow: 'hidden' }}>
+        <div>
+          <div style={{ height: 4, borderRadius: 3, background: '#F1E7D8', overflow: 'hidden' }}>
             <div style={{ width: `${taskPct * 100}%`, height: '100%', background: armColor || FOCUS.orange }} />
           </div>
           {hasMetric && (
@@ -643,9 +734,9 @@ function NodeCard({ node, armColor, children, expanded, isTaskDone }) {
               <div style={{ width: `${metricPct * 100}%`, height: '100%', background: '#16a34a' }} />
             </div>
           )}
-        </>
+        </div>
       ) : (
-        <div style={{ fontSize: 9.5, color: FOCUS.muted, textAlign: 'center', marginTop: 5 }}>ריק — הוסף משימה</div>
+        <div style={{ fontSize: 9.5, color: FOCUS.muted, textAlign: 'center' }}>ריק — הוסף משימה</div>
       )}
     </div>
   );
