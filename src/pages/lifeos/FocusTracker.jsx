@@ -8,7 +8,7 @@ import IdeaCaptureButton from '@/components/lifeos/IdeaCaptureButton';
 import FocusDocSheet, { doneToast } from '@/components/lifeos/FocusDocSheet';
 import NotDoneSheet from '@/components/lifeos/NotDoneSheet';
 import NodeDetailSheet from '@/components/lifeos/NodeDetailSheet';
-import { ChevronRight, ChevronLeft, Flame, LayoutGrid, Plus, X, ClipboardList, ListPlus } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Flame, LayoutGrid, Plus, X, ClipboardList, ListPlus, FolderPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   FOCUS, isoDate, addDays, dowOf, HEB_DAYS, HEB_DAYS_FULL,
@@ -25,6 +25,8 @@ const GREEN = '#16a34a';
 const pctColor = (p) => (p >= 0.8 ? GREEN : p >= 0.5 ? FOCUS.amber : FOCUS.red);
 const pctText = (done, expected) => (expected ? `${Math.round((done / expected) * 100)}%` : '—');
 const onBoard = (t, tag) => !tag || (t.tags || []).includes(tag);
+// 10px caption under an icon-only button (matches the מיקוד map toolbar).
+const capLabel = { fontSize: 9, fontWeight: 700, lineHeight: 1 };
 // Frequency label shown on a row / checklist item (weekly-N → "N/שב׳").
 const freqLabel = (t) => {
   const N = weeklyTargetOf(t);
@@ -296,6 +298,17 @@ export default function FocusTracker({
     catch { toast.error('שגיאה בהוספה'); return false; }
   };
 
+  // Create a NEW domain/topic branch under the personal arm (beyond the 7
+  // seeded ones). It appears as a group once it has a habit, and immediately
+  // in the habit-add domain picker — grouping is by branch id, never a
+  // hard-coded PERSONAL_DOMAINS list.
+  const createDomain = async (name) => {
+    const t = String(name || '').trim();
+    if (!t || !personalArmId) return false;
+    try { await createNode(userId, { parent_id: personalArmId, node_type: 'branch', title: t, sort_order: 300 }); await load(); toast.success('נושא נוסף ✓'); return true; }
+    catch { toast.error('שגיאה'); return false; }
+  };
+
   const removeFromBoard = async (task) => {
     setRowMenu(null);
     if (!boardTag) return;
@@ -326,11 +339,15 @@ export default function FocusTracker({
     : period === 'week' ? `${periodStart.slice(8)}–${periodEnd.slice(8)}/${periodEnd.slice(5, 7)}`
     : monthLabel(cursor);
 
-  const cellW = colKind === 'month' ? 46 : 30;
-  const labelW = pageScroll ? 104 : 132;
-  const statW = pageScroll ? 46 : 54;
-  const sStart = { position: 'sticky', right: 0, zIndex: 2, width: labelW, minWidth: labelW, maxWidth: labelW, padding: '0 8px', background: '#fff', boxSizing: 'border-box' };
-  const sEnd = { position: 'sticky', left: 0, zIndex: 2, width: statW, minWidth: statW, padding: '0 3px', background: '#fff', boxSizing: 'border-box' };
+  // Dense spreadsheet <table>: habit-name column sticky on the right (RTL),
+  // a "%" column sticky on the left, day columns scroll between them.
+  const cellW = colKind === 'month' ? 46 : 34;
+  const labelW = pageScroll ? 116 : 132;
+  const statW = 50;
+  const bdr = `1px solid ${FOCUS.border}`;
+  const nameCell = { position: 'sticky', right: 0, zIndex: 3, background: '#fff', width: labelW, minWidth: labelW, maxWidth: labelW, boxSizing: 'border-box', borderBottom: bdr, borderLeft: bdr };
+  const pctCell = { position: 'sticky', left: 0, zIndex: 3, background: '#fff', width: statW, minWidth: statW, boxSizing: 'border-box', borderBottom: bdr, borderRight: bdr, textAlign: 'center' };
+  const dayCell = { width: cellW, minWidth: cellW, boxSizing: 'border-box', borderBottom: bdr, textAlign: 'center', padding: 0 };
 
   // Stats line for the row's home sheet: 'רצף N · החודש X%'.
   const sheetStat = useMemo(() => {
@@ -342,99 +359,94 @@ export default function FocusTracker({
 
   if (!loaded) return <LifeOSLayout title={title} fullBleed={!pageScroll} hideFab>{chips}<PageSkeleton rows={7} /></LifeOSLayout>;
 
+  // ── ONE dense <table> for day (1 col) / week (7) / month (≤31) / year ──
   const grid = allRows.length === 0 ? (
     <div style={{ textAlign: 'center', padding: '48px 20px', color: FOCUS.muted }}>
       <LayoutGrid size={40} color={FOCUS.orange} style={{ opacity: 0.5 }} />
       <div style={{ fontSize: 15, fontWeight: 700, color: FOCUS.ink, marginTop: 12 }}>{boardTag ? 'הלוח ריק' : 'אין עדיין משימות קבועות'}</div>
-      <div style={{ fontSize: 13, marginTop: 6 }}>{boardTag ? 'הוסף משימה למעלה או בחר מהקיים' : 'הוסף משימה יומית או שבועית במפה'}</div>
+      <div style={{ fontSize: 13, marginTop: 6 }}>{boardTag ? 'הוסף הרגל למעלה או בחר מהקיים' : 'הוסף משימה יומית או שבועית במפה'}</div>
     </div>
   ) : (
-    <div style={{ minWidth: 'max-content', fontSize: 12 }}>
-      {/* Header row */}
-      <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: `1px solid ${FOCUS.border}` }}>
-        <div style={{ ...sStart, height: 32, display: 'flex', alignItems: 'center', fontWeight: 700, color: FOCUS.muted }}>משימה</div>
-        {columns.map((col, i) => {
-          const isToday = colKind === 'day' && col === today;
-          const label = colKind === 'month' ? HEB_MONTHS[i].slice(0, 3) : String(new Date(col + 'T00:00:00').getDate());
-          const dow = colKind === 'day' ? HEB_DAYS[dowOf(col)] : null;
-          return (
-            <div key={col} style={{ width: cellW, flexShrink: 0, height: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: isToday ? hexAlpha(FOCUS.orange, 0.14) : 'transparent', color: isToday ? '#B4531A' : FOCUS.muted, fontWeight: isToday ? 800 : 600 }}>
-              {dow && <span style={{ fontSize: 8, lineHeight: 1, opacity: 0.7 }}>{dow}</span>}
-              <span style={{ fontSize: colKind === 'month' ? 11 : 12 }}>{label}</span>
-            </div>
-          );
-        })}
-        <div style={{ ...sEnd, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: FOCUS.muted, fontSize: 10 }}>%·רצף</div>
-      </div>
-
-      {/* Groups + task rows */}
-      {groups.map(g => (
-        <React.Fragment key={g.id}>
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <div style={{ ...sStart, height: 24, display: 'flex', alignItems: 'center', gap: 6, background: hexAlpha(g.color, 0.1) }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', background: g.color, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, fontWeight: 800, color: darken(g.color), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.title}</span>
-            </div>
-            <div style={{ flex: 1, height: 24, background: hexAlpha(g.color, 0.05) }} />
-          </div>
-          {g.tasks.map(task => {
-            const rowStat = colKind === 'month'
-              ? columns.reduce((a, m) => { const s = taskMonthStats(task, logSet, monthDays(m), today); return { done: a.done + s.done, expected: a.expected + s.expected }; }, { done: 0, expected: 0 })
-              : taskMonthStats(task, logSet, columns, today);
-            const p = rowStat.expected ? rowStat.done / rowStat.expected : 0;
-            const streak = taskStreak(task, logSet, today);
-            const invested = period === 'month' ? monthInvestedMin(task, logs, cursor) : 0;
+    <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: 'max-content', fontSize: 12, direction: 'rtl' }}>
+      <thead>
+        <tr>
+          <td style={{ ...nameCell, zIndex: 4, background: '#FFFDFA', height: 34, padding: '0 8px', textAlign: 'right', fontWeight: 700, color: FOCUS.muted }}>משימה</td>
+          {columns.map((col, i) => {
+            const isToday = colKind === 'day' && col === today;
+            const lbl = colKind === 'month' ? HEB_MONTHS[i].slice(0, 3) : String(new Date(col + 'T00:00:00').getDate());
+            const dow = colKind === 'day' ? HEB_DAYS[dowOf(col)] : null;
             return (
-              <div key={task.id} style={{ display: 'flex', alignItems: 'center', borderBottom: `1px solid ${FOCUS.border}` }}>
-                <RowLabel task={task} style={sStart}
-                  subline={invested > 0 ? `⏱ ${fmtInvested(invested)}` : null}
-                  onTap={() => setSheetNode(task)}
-                  onLongPress={boardTag ? (x, y) => setRowMenu({ task, x, y }) : null} />
-                {columns.map(col => (
-                  <Cell key={col} task={task} col={col} colKind={colKind} logSet={logSet} logMap={logMap} today={today} color={g.color} w={cellW} onToggle={onCellTap} />
-                ))}
-                <div style={{ ...sEnd, minHeight: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1.1 }}>
-                  <span style={{ fontSize: 12, fontWeight: 800, color: rowStat.expected ? pctColor(p) : FOCUS.muted }}>{pctText(rowStat.done, rowStat.expected)}</span>
-                  <span style={{ fontSize: 9, color: FOCUS.muted }}>🔥{streak}</span>
-                  {/* Monthly zoom: per-habit percent bar for at-a-glance comparison. */}
-                  {period === 'month' && rowStat.expected > 0 && (
-                    <div style={{ width: '86%', height: 3, borderRadius: 2, background: '#F0E4D0', overflow: 'hidden', marginTop: 2 }}>
-                      <div style={{ width: `${Math.round(p * 100)}%`, height: '100%', background: pctColor(p) }} />
-                    </div>
-                  )}
-                </div>
-              </div>
+              <td key={col} style={{ ...dayCell, height: 34, background: isToday ? hexAlpha(FOCUS.orange, 0.14) : '#FFFDFA', color: isToday ? '#B4531A' : FOCUS.muted, fontWeight: isToday ? 800 : 600 }}>
+                {dow && <div style={{ fontSize: 8, lineHeight: 1, opacity: 0.7 }}>{dow}</div>}
+                <div style={{ fontSize: colKind === 'month' ? 11 : 12 }}>{lbl}</div>
+              </td>
             );
           })}
-        </React.Fragment>
-      ))}
-
-      {/* Bottom summary */}
-      <div style={{ display: 'flex', alignItems: 'center', borderTop: `2px solid ${FOCUS.border}`, background: '#FFFDFA' }}>
-        <div style={{ ...sStart, minHeight: 28, display: 'flex', alignItems: 'center', fontWeight: 800, color: FOCUS.ink, background: '#FFFDFA' }}>סה״כ</div>
-        {colStats.map((c, i) => {
-          const p = c.expected ? c.done / c.expected : 0;
-          return (
-            <div key={i} style={{ width: cellW, flexShrink: 0, minHeight: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: c.expected ? pctColor(p) : FOCUS.border }}>
-              {c.expected ? Math.round(p * 100) : '·'}
-            </div>
-          );
-        })}
-        <div style={{ ...sEnd, minHeight: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: grandStat.expected ? pctColor(grandStat.done / grandStat.expected) : FOCUS.muted, background: '#FFFDFA' }}>
-          {pctText(grandStat.done, grandStat.expected)}
-        </div>
-      </div>
-    </div>
-  );
-
-  // Daily layer — a per-domain checklist (checkbox + summary), not a matrix.
-  const dayView = allRows.length === 0 ? grid : (
-    <DayChecklist
-      groups={groups} date={cursor} logSet={logSet} logMap={logMap}
-      onCheck={(t) => markDone(t, cursor)} onUncheck={(t) => removeMark(t, cursor)}
-      onEdit={(t, row) => setDocNode({ task: t, date: cursor, existing: row })}
-      onSkip={(t, row) => setNotDoneNode({ task: t, date: cursor, existing: row })}
-    />
+          <td style={{ ...pctCell, zIndex: 4, background: '#FFFDFA', height: 34, fontWeight: 700, color: FOCUS.muted, fontSize: 10 }}>%</td>
+        </tr>
+      </thead>
+      <tbody>
+        {groups.map(g => (
+          <React.Fragment key={g.id}>
+            {/* Category header — colSpan across the whole width; the label stays
+                pinned to the right while the coloured bar scrolls. */}
+            <tr>
+              <td colSpan={columns.length + 2} style={{ padding: 0, borderBottom: bdr, background: hexAlpha(g.color, 0.08) }}>
+                <div style={{ position: 'sticky', right: 0, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px' }}>
+                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: g.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 800, color: darken(g.color), whiteSpace: 'nowrap' }}>{g.title}</span>
+                </div>
+              </td>
+            </tr>
+            {g.tasks.map(task => {
+              const rowStat = colKind === 'month'
+                ? columns.reduce((a, m) => { const s = taskMonthStats(task, logSet, monthDays(m), today); return { done: a.done + s.done, expected: a.expected + s.expected }; }, { done: 0, expected: 0 })
+                : taskMonthStats(task, logSet, columns, today);
+              const p = rowStat.expected ? rowStat.done / rowStat.expected : 0;
+              const streak = taskStreak(task, logSet, today);
+              const invested = period === 'month' ? monthInvestedMin(task, logs, cursor) : 0;
+              return (
+                <tr key={task.id}>
+                  <RowLabel task={task} style={nameCell}
+                    subline={invested > 0 ? `⏱ ${fmtInvested(invested)}` : null}
+                    onTap={() => setSheetNode(task)}
+                    onLongPress={boardTag ? (x, y) => setRowMenu({ task, x, y }) : null} />
+                  {columns.map(col => (
+                    <Cell key={col} task={task} col={col} colKind={colKind} logSet={logSet} logMap={logMap} today={today} color={g.color} w={cellW} onToggle={onCellTap} />
+                  ))}
+                  <td style={{ ...pctCell }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1.1, minHeight: 34, padding: '2px 0' }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: rowStat.expected ? pctColor(p) : FOCUS.muted }}>{pctText(rowStat.done, rowStat.expected)}</span>
+                      <span style={{ fontSize: 9, color: FOCUS.muted }}>🔥{streak}</span>
+                      {period === 'month' && rowStat.expected > 0 && (
+                        <div style={{ width: '82%', height: 3, borderRadius: 2, background: '#F0E4D0', overflow: 'hidden', marginTop: 2 }}>
+                          <div style={{ width: `${Math.round(p * 100)}%`, height: '100%', background: pctColor(p) }} />
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </React.Fragment>
+        ))}
+        {/* Bottom summary — per-day completion percent across all habits. */}
+        <tr>
+          <td style={{ ...nameCell, background: '#FFFDFA', borderTop: `2px solid ${FOCUS.border}`, padding: '0 8px', textAlign: 'right', fontWeight: 800, color: FOCUS.ink }}>סה״כ</td>
+          {colStats.map((c, i) => {
+            const pp = c.expected ? c.done / c.expected : 0;
+            return (
+              <td key={i} style={{ ...dayCell, background: '#FFFDFA', borderTop: `2px solid ${FOCUS.border}`, fontSize: 9, fontWeight: 700, color: c.expected ? pctColor(pp) : FOCUS.border }}>
+                {c.expected ? Math.round(pp * 100) : '·'}
+              </td>
+            );
+          })}
+          <td style={{ ...pctCell, background: '#FFFDFA', borderTop: `2px solid ${FOCUS.border}`, fontSize: 12, fontWeight: 800, color: grandStat.expected ? pctColor(grandStat.done / grandStat.expected) : FOCUS.muted }}>
+            {pctText(grandStat.done, grandStat.expected)}
+          </td>
+        </tr>
+      </tbody>
+    </table>
   );
 
   return (
@@ -445,7 +457,8 @@ export default function FocusTracker({
       {/* ── Quick add (collapsible) + add-from-existing ── */}
       {quickAdd && (
         <QuickAddRow arms={quickAddArms} defaultArmId={defaultArmId} onAdd={createRecurring}
-          onPick={boardTag ? () => setPickerOpen(true) : null} />
+          onPick={boardTag ? () => setPickerOpen(true) : null}
+          onAddTopic={groupByDomain ? createDomain : null} />
       )}
 
       {/* ── Day-summary strip ── */}
@@ -507,13 +520,11 @@ export default function FocusTracker({
         <MonthSparkline task={allRows[0]} logSet={logSet} logs={logs} cursor={cursor} />
       )}
 
-      {/* ── The view — day checklist, or the grid (page-scroll / fullBleed) ── */}
-      {period === 'day' ? (
-        <div style={{ padding: '0 0 24px' }}>{dayView}</div>
-      ) : pageScroll ? (
-        <div style={{ overflowX: 'auto', overflowY: 'hidden' }}>{grid}</div>
+      {/* ── The dense table — one component for day / week / month / year ── */}
+      {pageScroll ? (
+        <div style={{ overflowX: 'auto', overflowY: 'hidden', padding: '0 12px 8px' }}>{grid}</div>
       ) : (
-        <div style={{ flex: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 0 24px' }}>{grid}</div>
+        <div style={{ flex: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 12px 24px' }}>{grid}</div>
       )}
       {footerSlot}
 
@@ -572,27 +583,37 @@ function RowLabel({ task, style, onTap, onLongPress, subline = null }) {
   };
   const end = () => { clearTimeout(t.current.timer); if (!t.current.long && !t.current.moved) onTap(); };
   return (
-    <div onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerLeave={() => clearTimeout(t.current.timer)}
-      style={{ ...style, minHeight: 32, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1, cursor: 'pointer', userSelect: 'none', touchAction: 'pan-y' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-        {task.is_fear_task && <Flame size={11} color={FOCUS.red} style={{ flexShrink: 0 }} />}
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: FOCUS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title || 'משימה'}</span>
-        <span style={{ fontSize: 9, color: FOCUS.muted, flexShrink: 0 }}>{freqLabel(task)}</span>
+    <td onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerLeave={() => clearTimeout(t.current.timer)}
+      style={{ ...style, padding: '2px 8px', cursor: 'pointer', userSelect: 'none', touchAction: 'pan-y' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1, minHeight: 30 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          {task.is_fear_task && <Flame size={11} color={FOCUS.red} style={{ flexShrink: 0 }} />}
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: FOCUS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title || 'משימה'}</span>
+          <span style={{ fontSize: 9, color: FOCUS.muted, flexShrink: 0 }}>{freqLabel(task)}</span>
+        </div>
+        {subline && <div style={{ fontSize: 9.5, color: '#B4531A', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subline}</div>}
       </div>
-      {subline && <div style={{ fontSize: 9.5, color: '#B4531A', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subline}</div>}
-    </div>
+    </td>
   );
 }
 
 // ── Quick-add: collapsed to a [+] button; expands to the full form ──
-function QuickAddRow({ arms, defaultArmId, onAdd, onPick }) {
+function QuickAddRow({ arms, defaultArmId, onAdd, onPick, onAddTopic }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [freq, setFreq] = useState('daily');
   const [dow, setDow] = useState(0);
   const [armId, setArmId] = useState(defaultArmId);
   const [busy, setBusy] = useState(false);
+  const [topicOpen, setTopicOpen] = useState(false);
+  const [topic, setTopic] = useState('');
   useEffect(() => { if (!armId && defaultArmId) setArmId(defaultArmId); }, [defaultArmId, armId]);
+
+  const saveTopic = async () => {
+    if (!topic.trim() || !onAddTopic) return;
+    const ok = await onAddTopic(topic);
+    if (ok) { setTopic(''); setTopicOpen(false); }
+  };
 
   const submit = async () => {
     if (busy || !text.trim() || !armId) return;
@@ -608,14 +629,28 @@ function QuickAddRow({ arms, defaultArmId, onAdd, onPick }) {
 
   if (!open) {
     return (
-      <div style={{ margin: '0 12px 8px', display: 'flex', gap: 8 }}>
-        <button onClick={() => setOpen(true)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px', borderRadius: 12, border: `1px solid ${FOCUS.border}`, background: '#fff', boxShadow: FOCUS.neu, color: FOCUS.orange, fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-          <Plus size={17} /> הוסף הרגל
-        </button>
-        {onPick && (
-          <button onClick={onPick} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 12, border: `1px solid ${FOCUS.border}`, background: '#fff', boxShadow: FOCUS.neu, color: FOCUS.ink, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-            <ListPlus size={16} /> מהקיים
+      <div style={{ margin: '0 12px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => setOpen(true)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px', borderRadius: 12, border: `1px solid ${FOCUS.border}`, background: '#fff', boxShadow: FOCUS.neu, color: FOCUS.orange, fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <Plus size={17} /> הוסף הרגל
           </button>
+          {onPick && (
+            <button onClick={onPick} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 12, border: `1px solid ${FOCUS.border}`, background: '#fff', boxShadow: FOCUS.neu, color: FOCUS.ink, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+              <ListPlus size={16} /> מהקיים
+            </button>
+          )}
+          {onAddTopic && (
+            <button onClick={() => setTopicOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 12, border: `1px solid ${FOCUS.border}`, background: '#fff', boxShadow: FOCUS.neu, color: FOCUS.ink, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+              <FolderPlus size={16} /> נושא חדש
+            </button>
+          )}
+        </div>
+        {onAddTopic && topicOpen && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input autoFocus value={topic} onChange={(e) => setTopic(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') saveTopic(); }}
+              placeholder="שם הנושא החדש…" style={{ flex: 1, minWidth: 0, border: `1px solid ${FOCUS.border}`, borderRadius: 11, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', color: FOCUS.ink, background: '#FFFDFA', outline: 'none' }} />
+            <button onClick={saveTopic} disabled={!topic.trim()} style={{ flexShrink: 0, padding: '0 16px', borderRadius: 11, border: 'none', background: topic.trim() ? FOCUS.orangeGrad : FOCUS.border, color: '#fff', fontWeight: 800, fontSize: 13.5, cursor: topic.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}>הוסף</button>
+          </div>
         )}
       </div>
     );
@@ -628,11 +663,11 @@ function QuickAddRow({ arms, defaultArmId, onAdd, onPick }) {
           placeholder="הרגל חדש…"
           style={{ flex: 1, minWidth: 0, border: `1px solid ${FOCUS.border}`, borderRadius: 11, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', color: FOCUS.ink, background: '#FFFDFA', outline: 'none' }} />
         <button onClick={submit} disabled={busy || !text.trim() || !armId} aria-label="הוסף"
-          style={{ flexShrink: 0, width: 42, height: 42, borderRadius: 12, border: 'none', background: (busy || !text.trim()) ? FOCUS.border : FOCUS.orangeGrad, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Plus size={22} />
+          style={{ flexShrink: 0, width: 46, height: 46, borderRadius: 12, border: 'none', background: (busy || !text.trim()) ? FOCUS.border : FOCUS.orangeGrad, color: '#fff', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+          <Plus size={19} /><span style={capLabel}>הוסף</span>
         </button>
-        <button onClick={() => setOpen(false)} aria-label="סגור" style={{ flexShrink: 0, width: 38, height: 42, borderRadius: 12, border: `1px solid ${FOCUS.border}`, background: '#fff', color: FOCUS.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <X size={18} />
+        <button onClick={() => setOpen(false)} aria-label="סגור" style={{ flexShrink: 0, width: 44, height: 46, borderRadius: 12, border: `1px solid ${FOCUS.border}`, background: '#fff', color: FOCUS.muted, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+          <X size={16} /><span style={capLabel}>סגור</span>
         </button>
       </div>
       <div style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', alignItems: 'center' }}>
@@ -665,7 +700,7 @@ function AddExistingSheet({ groups, onAdd, onClose }) {
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, maxHeight: '80vh', overflowY: 'auto', background: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '16px 16px calc(env(safe-area-inset-bottom,0px) + 20px)', boxShadow: '0 -6px 24px rgba(0,0,0,0.15)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: FOCUS.ink }}>הוסף מהקיים</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: FOCUS.muted }}><X size={20} /></button>
+          <button onClick={onClose} aria-label="סגור" style={{ background: 'none', border: 'none', cursor: 'pointer', color: FOCUS.muted, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}><X size={20} /><span style={capLabel}>סגור</span></button>
         </div>
         {groups.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '32px 12px', color: FOCUS.muted, fontSize: 13 }}>כל המשימות הקבועות כבר על הלוח</div>
@@ -700,7 +735,7 @@ function DayFeedSheet({ notes, byId, onClose }) {
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, maxHeight: '80vh', overflowY: 'auto', background: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '16px 16px calc(env(safe-area-inset-bottom,0px) + 20px)', boxShadow: '0 -6px 24px rgba(0,0,0,0.15)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: FOCUS.ink }}>תיעוד היום · {notes.length}</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: FOCUS.muted }}><X size={20} /></button>
+          <button onClick={onClose} aria-label="סגור" style={{ background: 'none', border: 'none', cursor: 'pointer', color: FOCUS.muted, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}><X size={20} /><span style={capLabel}>סגור</span></button>
         </div>
         {notes.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '32px 12px', color: FOCUS.muted, fontSize: 13 }}>עוד לא תיעדת פעילויות היום</div>
@@ -722,16 +757,16 @@ function DayFeedSheet({ notes, byId, onClose }) {
   );
 }
 
-// ── One grid cell ──────────────────────────────────────────────────
+// ── One table cell (<td>) ──────────────────────────────────────────
 function Cell({ task, col, colKind, logSet, logMap, today, color, w, onToggle }) {
   if (colKind === 'month') {
     // Year zoom: month columns → compact percent number.
     const s = taskMonthStats(task, logSet, monthDays(col), today);
     const p = s.expected ? s.done / s.expected : 0;
     return (
-      <div style={{ width: w, flexShrink: 0, minHeight: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: s.expected ? pctColor(p) : FOCUS.border }}>
+      <td style={{ width: w, minWidth: w, height: 34, textAlign: 'center', borderBottom: `1px solid ${FOCUS.border}`, fontSize: 10, fontWeight: 700, color: s.expected ? pctColor(p) : FOCUS.border }}>
         {s.expected ? `${Math.round(p * 100)}` : '·'}
-      </div>
+      </td>
     );
   }
   const wN = weeklyTargetOf(task);
@@ -753,69 +788,17 @@ function Cell({ task, col, colKind, logSet, logMap, today, color, w, onToggle })
       </div>
     );
   } else if (row?.status === 'skipped') {
-    inner = <span style={{ width: 13, height: 2, borderRadius: 2, background: hexAlpha(FOCUS.red, 0.5) }} />;   // recorded not-done
+    inner = <span style={{ width: 13, height: 2, borderRadius: 2, background: hexAlpha(FOCUS.red, 0.5), display: 'inline-block' }} />;   // recorded not-done
   } else if (expected) {
-    inner = <span style={{ width: 15, height: 15, borderRadius: 4, border: `1.5px solid ${future ? FOCUS.border : hexAlpha(color, 0.7)}`, opacity: future ? 0.5 : 1 }} />;
+    inner = <span style={{ width: 15, height: 15, borderRadius: 4, border: `1.5px solid ${future ? FOCUS.border : hexAlpha(color, 0.7)}`, opacity: future ? 0.5 : 1, display: 'inline-block' }} />;
   } else {
-    inner = <span style={{ width: 8, height: 2, borderRadius: 2, background: FOCUS.border }} />;
+    inner = <span style={{ width: 8, height: 2, borderRadius: 2, background: FOCUS.border, display: 'inline-block' }} />;
   }
   return (
-    <div onClick={tappable ? () => onToggle(task, col) : undefined}
-      style={{ width: w, flexShrink: 0, minHeight: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: tappable ? 'pointer' : 'default', background: isToday ? hexAlpha(FOCUS.orange, 0.1) : 'transparent', boxShadow: isToday ? `inset 0 0 0 1.5px ${hexAlpha(FOCUS.orange, 0.5)}` : 'none' }}>
+    <td onClick={tappable ? () => onToggle(task, col) : undefined}
+      style={{ width: w, minWidth: w, height: 34, textAlign: 'center', verticalAlign: 'middle', borderBottom: `1px solid ${FOCUS.border}`, cursor: tappable ? 'pointer' : 'default', background: isToday ? hexAlpha(FOCUS.orange, 0.1) : 'transparent', boxShadow: isToday ? `inset 0 0 0 1.5px ${hexAlpha(FOCUS.edgeSel, 0.5)}` : 'none', padding: 0 }}>
       {inner}
-    </div>
-  );
-}
-
-// ── Daily layer — per-domain checklist (checkbox + summary) ─────────
-function DayChecklist({ groups, date, logSet, logMap, onCheck, onUncheck, onEdit, onSkip }) {
-  const today = isoDate();
-  const rows = groups
-    .map(g => ({ ...g, tasks: g.tasks.filter(t => taskExpectedOn(t, date) || taskLoggedOn(t, logSet, date)) }))
-    .filter(g => g.tasks.length);
-  if (!rows.length) {
-    return (
-      <div style={{ textAlign: 'center', padding: '40px 20px', color: FOCUS.muted }}>
-        <LayoutGrid size={36} color={FOCUS.orange} style={{ opacity: 0.5 }} />
-        <div style={{ fontSize: 14, fontWeight: 700, color: FOCUS.ink, marginTop: 10 }}>אין הרגלים להיום</div>
-      </div>
-    );
-  }
-  return (
-    <div style={{ padding: '0 12px' }}>
-      {rows.map(g => (
-        <div key={g.id} style={{ marginBottom: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 2px 8px' }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: g.color, flexShrink: 0 }} />
-            <span style={{ fontSize: 13, fontWeight: 800, color: darken(g.color) }}>{g.title}</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {g.tasks.map(t => {
-              const done = taskLoggedOn(t, logSet, date);
-              const row = logMap[t.id + '|' + date];
-              const skipped = !done && row?.status === 'skipped';
-              return (
-                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, border: `1px solid ${FOCUS.border}`, background: done ? hexAlpha(g.color, 0.06) : '#FFFDFA' }}>
-                  <button onClick={() => (done ? onUncheck(t) : onCheck(t))} aria-label="סמן"
-                    style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 8, cursor: 'pointer', border: `2px solid ${done ? g.color : FOCUS.border}`, background: done ? g.color : '#fff', color: '#fff', fontSize: 15, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
-                    {done ? '✓' : ''}
-                  </button>
-                  <div onClick={() => (done ? onEdit(t, row) : onSkip(t, row))} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: FOCUS.ink, textDecoration: done ? 'none' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {t.is_fear_task && <Flame size={12} color={FOCUS.red} style={{ verticalAlign: 'middle', marginLeft: 4 }} />}{t.title || 'משימה'}
-                    </div>
-                    {done && row?.summary && <div style={{ fontSize: 12, color: darken(g.color), marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.summary}</div>}
-                    {done && !row?.summary && <div style={{ fontSize: 11, color: FOCUS.muted, marginTop: 2 }}>הקש להוספת תיעוד</div>}
-                    {skipped && <div style={{ fontSize: 11.5, color: FOCUS.red, marginTop: 2 }}>לא בוצע{row?.reason ? ` · ${row.reason}` : ''}</div>}
-                    {!done && !skipped && <div style={{ fontSize: 11, color: FOCUS.muted, marginTop: 2 }}>הקש לסימון · או ציין למה לא</div>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
+    </td>
   );
 }
 

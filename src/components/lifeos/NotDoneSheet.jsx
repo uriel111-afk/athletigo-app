@@ -36,7 +36,7 @@ export default function NotDoneSheet({ node, userId, date = isoDate(), existing 
         style={{ width: '100%', maxWidth: 560, background: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '16px 16px calc(env(safe-area-inset-bottom,0px) + 20px)', boxShadow: '0 -6px 24px rgba(0,0,0,0.15)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: FOCUS.ink }}>לא בוצע · {node?.title || 'משימה'}</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: FOCUS.muted }}><X size={20} /></button>
+          <button onClick={onClose} aria-label="סגור" style={{ background: 'none', border: 'none', cursor: 'pointer', color: FOCUS.muted, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}><X size={20} /><span style={{ fontSize: 9, fontWeight: 700, lineHeight: 1 }}>סגור</span></button>
         </div>
         <div style={{ fontSize: 11, color: FOCUS.muted, marginBottom: 12 }}>למה לא יצא? (אופציונלי)</div>
 

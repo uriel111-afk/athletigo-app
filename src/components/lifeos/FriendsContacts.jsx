@@ -79,8 +79,8 @@ export default function FriendsContacts({ userId }) {
                   style={{ flexShrink: 0, minHeight: 34, padding: '0 10px', borderRadius: 9, border: 'none', background: hexAlpha(FOCUS.orange, 0.14), color: '#B4531A', fontSize: 12, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Check size={13} /> דיברנו
                 </button>
-                <button onClick={() => remove(c)} aria-label="מחק" style={{ flexShrink: 0, width: 30, height: 34, borderRadius: 9, border: 'none', background: '#FCEBEB', color: '#C0392B', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Trash2 size={14} />
+                <button onClick={() => remove(c)} aria-label="מחק" style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 9, border: 'none', background: '#FCEBEB', color: '#C0392B', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                  <Trash2 size={14} /><span style={{ fontSize: 9, fontWeight: 700, lineHeight: 1 }}>מחק</span>
                 </button>
               </div>
             ))}
@@ -96,7 +96,7 @@ export default function FriendsContacts({ userId }) {
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={save} disabled={!name.trim() || busy} style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: name.trim() ? FOCUS.orangeGrad : '#E6D8C6', color: '#fff', fontSize: 13.5, fontWeight: 800, cursor: name.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}>{busy ? 'שומר…' : 'שמור'}</button>
-                <button onClick={() => { setAdding(false); setName(''); setRelation(''); setLast(''); }} style={{ padding: '10px 14px', borderRadius: 10, border: `1px solid ${FOCUS.border}`, background: '#fff', color: FOCUS.muted, fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}><X size={16} /></button>
+                <button onClick={() => { setAdding(false); setName(''); setRelation(''); setLast(''); }} aria-label="בטל" style={{ padding: '8px 12px', borderRadius: 10, border: `1px solid ${FOCUS.border}`, background: '#fff', color: FOCUS.muted, fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}><X size={16} /><span style={{ fontSize: 9, fontWeight: 700, lineHeight: 1 }}>בטל</span></button>
               </div>
             </div>
           ) : (
