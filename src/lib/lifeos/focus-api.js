@@ -556,6 +556,36 @@ export async function updateIdea(id, patch) {
   if (error) throw error;
 }
 
+// ─── Personal contacts (חברים ומשפחה domain) ──────────────────────
+// A simple personal contact log — separate table, never a focus_node, so it
+// stays out of the habit matrix and the business map.
+export async function listContacts(userId) {
+  const { data, error } = await supabase
+    .from('personal_contacts')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+  if (error) return [];   // table may not exist yet (migration pending) → empty
+  return data || [];
+}
+export async function addContact(userId, fields) {
+  const { data, error } = await supabase
+    .from('personal_contacts')
+    .insert([{ user_id: userId, ...fields }])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+export async function updateContact(id, patch) {
+  const { error } = await supabase.from('personal_contacts').update(patch).eq('id', id);
+  if (error) throw error;
+}
+export async function deleteContact(id) {
+  const { error } = await supabase.from('personal_contacts').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Client-side hierarchy helpers
 // ═══════════════════════════════════════════════════════════════════
@@ -705,6 +735,12 @@ export function harvestToday(nodes, logSet, today = isoDate()) {
     // Overdue deadline pinned above everything.
     if (n.due_date && n.due_date < today) { push(overdue, n); return; }
 
+    const wN = weeklyTargetOf(n);
+    if (wN != null) {
+      // Surface only while this week is still under target and not done today.
+      if (!logSet.has(n.id + '|' + today) && weekDoneCount(n, logSet, today, today) < wN) push(main, n);
+      return;
+    }
     if (n.frequency === 'daily') {
       if (!logSet.has(n.id + '|' + today)) push(main, n);
     } else if (n.frequency === 'weekly') {
@@ -746,7 +782,9 @@ export function todayStats(nodes, logSet, today = isoDate()) {
   tasks.forEach(n => {
     let relevant = false;
     let isDone = false;
-    if (n.frequency === 'daily') { relevant = true; isDone = logSet.has(n.id + '|' + today); }
+    const wN = weeklyTargetOf(n);
+    if (wN != null) { isDone = logSet.has(n.id + '|' + today); relevant = isDone || weekDoneCount(n, logSet, today, today) < wN; }
+    else if (n.frequency === 'daily') { relevant = true; isDone = logSet.has(n.id + '|' + today); }
     else if (n.frequency === 'weekly') { relevant = n.day_of_week === dow; isDone = logSet.has(n.id + '|' + today); }
     else if (n.frequency === 'monthly') { relevant = dom >= 1 && dom <= 3; isDone = [...logSet].some(k => k.startsWith(n.id + '|' + ym)); }
     else {
@@ -764,6 +802,37 @@ export function recurringTasks(nodes) {
   return nodes.filter(n => n.node_type === 'task' && n.status === 'active'
     && (n.frequency === 'daily' || n.frequency === 'weekly' || n.frequency === 'monthly'));
 }
+// ─── Weekly-N flexible habits ("N times/week, any days") ──────────
+// Encoded WITHOUT a schema change: base frequency='daily' + a tag "w:N"
+// (e.g. "w:5"). weeklyTargetOf → N (or null). All weekly-N handling lives in
+// branches at the TOP of the stats helpers below, so the daily/weekly/monthly
+// paths are byte-for-byte unchanged. Every count uses the done-only logSet, so
+// 'skipped' rows never count — the status='done' filter is preserved.
+export function weeklyTargetOf(task) {
+  const t = (task?.tags || []).find(x => typeof x === 'string' && /^w:\d+$/.test(x));
+  return t ? Math.max(1, parseInt(t.slice(2), 10)) : null;
+}
+// Done days in the Sun–Sat week containing dateIso, counted up to `upTo`.
+export function weekDoneCount(task, logSet, dateIso, upTo = isoDate()) {
+  return weekDays(dateIso).reduce((c, d) => (d <= upTo && logSet.has(task.id + '|' + d) ? c + 1 : c), 0);
+}
+// Matrix "expected/missed" box for one day. A weekly-N day is expected ONLY
+// while its week is still under target (and the day isn't future or already
+// done). Non-weekly-N habits defer to the unchanged taskExpectedOn.
+export function isCellExpected(task, logSet, dateIso, today = isoDate()) {
+  const N = weeklyTargetOf(task);
+  if (N == null) return taskExpectedOn(task, dateIso);
+  if (dateIso > today || logSet.has(task.id + '|' + dateIso)) return false;
+  return weekDoneCount(task, logSet, dateIso, today) < N;
+}
+// "Needs action today" for a weekly-N habit (done today, or week still under
+// target). Returns null for non-weekly-N so the caller keeps its own logic.
+export function isRelevantToday(task, logSet, today = isoDate()) {
+  const N = weeklyTargetOf(task);
+  if (N == null) return null;
+  return logSet.has(task.id + '|' + today) || weekDoneCount(task, logSet, today, today) < N;
+}
+
 // Is this recurring task expected on `date`? (monthly → the 1st only.)
 export function taskExpectedOn(n, date) {
   if (n.frequency === 'daily') return true;
@@ -782,6 +851,22 @@ export function taskLoggedOn(n, logSet, date) {
 // {done, expected} for one task across a list of dates, counting only
 // dates on/before `upTo` (future days don't drag the percentage down).
 export function taskMonthStats(n, logSet, dates, upTo = isoDate()) {
+  const N = weeklyTargetOf(n);
+  if (N != null) {
+    // Weekly-bucketed target: each elapsed week contributes expected=N and
+    // done=min(N, done that week) — so "5/7" never penalises the rest days.
+    const seen = new Set();
+    let expected = 0, done = 0;
+    dates.forEach(d => {
+      const wk = weekDays(d)[0];
+      if (seen.has(wk)) return;
+      seen.add(wk);
+      if (!weekDays(d).some(x => x <= upTo)) return;   // fully-future week
+      expected += N;
+      done += Math.min(N, weekDoneCount(n, logSet, d, upTo));
+    });
+    return { done, expected };
+  }
   let expected = 0, done = 0;
   dates.forEach(d => {
     if (d > upTo) return;
@@ -793,6 +878,20 @@ export function taskMonthStats(n, logSet, dates, upTo = isoDate()) {
 // consecutive expected days that were logged. An unmet expected day (in
 // the past) breaks it; today-not-yet-done doesn't zero a real streak.
 export function taskStreak(n, logSet, today = isoDate()) {
+  const N = weeklyTargetOf(n);
+  if (N != null) {
+    // Consecutive weeks meeting the target. The current (in-progress) week
+    // counts only once met and never breaks the streak while still open.
+    let streak = 0, wkStart = weekDays(today)[0], first = true, guard = 0;
+    while (guard++ < 104) {
+      const met = weekDoneCount(n, logSet, wkStart, today) >= N;
+      if (met) streak++;
+      else if (!first) break;
+      first = false;
+      wkStart = addDays(wkStart, -7);
+    }
+    return streak;
+  }
   let streak = 0, cursor = today, guard = 0, started = false;
   while (guard++ < 400) {
     if (taskExpectedOn(n, cursor)) {

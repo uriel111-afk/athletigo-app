@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { LayoutGrid } from 'lucide-react';
 import FocusTracker from './FocusTracker';
 import HouseholdSpendCard from '@/components/lifeos/HouseholdSpendCard';
+import FriendsContacts from '@/components/lifeos/FriendsContacts';
 import { AuthContext } from '@/lib/AuthContext';
 import { FOCUS, BOARD_TAG } from '@/lib/lifeos/focus-api';
 
@@ -23,7 +24,9 @@ export default function PersonalBoard() {
   const { user } = useContext(AuthContext);
 
   const moreTools = (
-    <div style={{ padding: '20px 12px 8px', display: 'flex', justifyContent: 'center' }}>
+    <>
+      <FriendsContacts userId={user?.id} />
+      <div style={{ padding: '20px 12px 8px', display: 'flex', justifyContent: 'center' }}>
       <button
         onClick={() => navigate('/personal')}
         style={{
@@ -37,7 +40,8 @@ export default function PersonalBoard() {
         <LayoutGrid size={16} color={FOCUS.orange} />
         עוד כלים
       </button>
-    </div>
+      </div>
+    </>
   );
 
   return (
@@ -52,7 +56,7 @@ export default function PersonalBoard() {
       groupByDomain
       boardTag={BOARD_TAG}
       pageScroll
-      defaultPeriod="day"
+      defaultPeriod="week"
       headerSlot={<HouseholdSpendCard userId={user?.id} />}
       footerSlot={moreTools}
     />

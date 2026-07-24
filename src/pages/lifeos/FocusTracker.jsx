@@ -18,13 +18,19 @@ import {
   seedPersonalArm, seedPersonalDomains, PERSONAL_ARM_TITLE, migratePersonalToBoard,
   armColorMap, ARM_PALETTE, darken, hexAlpha,
   recurringTasks, taskExpectedOn, taskLoggedOn, taskMonthStats, taskStreak,
-  harvestToday, todayStats,
+  harvestToday, todayStats, weeklyTargetOf, weekDoneCount, isCellExpected,
 } from '@/lib/lifeos/focus-api';
 
 const GREEN = '#16a34a';
 const pctColor = (p) => (p >= 0.8 ? GREEN : p >= 0.5 ? FOCUS.amber : FOCUS.red);
 const pctText = (done, expected) => (expected ? `${Math.round((done / expected) * 100)}%` : '—');
 const onBoard = (t, tag) => !tag || (t.tags || []).includes(tag);
+// Frequency label shown on a row / checklist item (weekly-N → "N/שב׳").
+const freqLabel = (t) => {
+  const N = weeklyTargetOf(t);
+  if (N) return `${N}/שב׳`;
+  return t.frequency === 'daily' ? 'יומי' : t.frequency === 'weekly' ? HEB_DAYS[t.day_of_week] : 'חודשי';
+};
 
 // Minutes logged on one done row from its start/end times; an end before start
 // is treated as crossing midnight. 0 when either time is missing.
@@ -202,7 +208,11 @@ export default function FocusTracker({
         expected += s.expected; done += s.done;
       } else {
         if (col > today) return;
-        if (taskExpectedOn(t, col)) { expected++; if (taskLoggedOn(t, logSet, col)) done++; }
+        const logged = taskLoggedOn(t, logSet, col);
+        // Weekly-N: a done day always counts; a non-done day counts as expected
+        // only while the week is still under target.
+        const exp = weeklyTargetOf(t) ? (logged || isCellExpected(t, logSet, col, today)) : taskExpectedOn(t, col);
+        if (exp) { expected++; if (logged) done++; }
       }
     });
     return { expected, done };
@@ -214,8 +224,13 @@ export default function FocusTracker({
   const strip = useMemo(() => {
     if (boardTag) {
       let total = 0, done = 0;
-      boardRows.forEach(t => { if (taskExpectedOn(t, today)) { total++; if (taskLoggedOn(t, logSet, today)) done++; } });
-      const fear = boardRows.find(t => t.is_fear_task && taskExpectedOn(t, today) && !taskLoggedOn(t, logSet, today)) || null;
+      // Weekly-N habits count toward "today" only while the week is under target.
+      const expToday = (t) => {
+        const wN = weeklyTargetOf(t);
+        return wN ? (taskLoggedOn(t, logSet, today) || weekDoneCount(t, logSet, today, today) < wN) : taskExpectedOn(t, today);
+      };
+      boardRows.forEach(t => { if (expToday(t)) { total++; if (taskLoggedOn(t, logSet, today)) done++; } });
+      const fear = boardRows.find(t => t.is_fear_task && expToday(t) && !taskLoggedOn(t, logSet, today)) || null;
       return { done, total, fear };
     }
     const s = todayStats(nodes, logSet, today);
@@ -272,9 +287,11 @@ export default function FocusTracker({
   const createRecurring = async ({ title: t, armId, frequency, dow }) => {
     const name = String(t || '').trim();
     if (!name || !armId) return false;
-    const fields = { parent_id: armId, node_type: 'task', title: name, frequency };
-    if (frequency === 'weekly') fields.day_of_week = dow;
-    if (boardTag) fields.tags = [boardTag];      // born on the board
+    const fields = { parent_id: armId, node_type: 'task', title: name };
+    const tags = boardTag ? [boardTag] : [];     // born on the board
+    if (frequency === 'week5') { fields.frequency = 'daily'; tags.push('w:5'); }  // 5×/week, flexible days
+    else { fields.frequency = frequency; if (frequency === 'weekly') fields.day_of_week = dow; }
+    if (tags.length) fields.tags = tags;
     try { await createNode(userId, fields); await load(); toast.success('נוספה משימה קבועה ✓'); return true; }
     catch { toast.error('שגיאה בהוספה'); return false; }
   };
@@ -560,7 +577,7 @@ function RowLabel({ task, style, onTap, onLongPress, subline = null }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
         {task.is_fear_task && <Flame size={11} color={FOCUS.red} style={{ flexShrink: 0 }} />}
         <span style={{ fontSize: 12.5, fontWeight: 600, color: FOCUS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title || 'משימה'}</span>
-        <span style={{ fontSize: 9, color: FOCUS.muted, flexShrink: 0 }}>{task.frequency === 'daily' ? 'יומי' : task.frequency === 'weekly' ? HEB_DAYS[task.day_of_week] : 'חודשי'}</span>
+        <span style={{ fontSize: 9, color: FOCUS.muted, flexShrink: 0 }}>{freqLabel(task)}</span>
       </div>
       {subline && <div style={{ fontSize: 9.5, color: '#B4531A', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subline}</div>}
     </div>
@@ -620,6 +637,7 @@ function QuickAddRow({ arms, defaultArmId, onAdd, onPick }) {
       </div>
       <div style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', alignItems: 'center' }}>
         {freqChip('daily', 'יומי')}
+        {freqChip('week5', '5 בשבוע')}
         {freqChip('weekly', 'שבועי')}
         {freqChip('monthly', 'חודשי')}
         {freq === 'weekly' && (
@@ -716,11 +734,14 @@ function Cell({ task, col, colKind, logSet, logMap, today, color, w, onToggle })
       </div>
     );
   }
-  const expected = taskExpectedOn(task, col);
+  const wN = weeklyTargetOf(task);
   const logged = taskLoggedOn(task, logSet, col);
   const future = col > today;
+  // Weekly-N: expected box only while the week is under target; any past/today
+  // day stays tappable so an extra session can always be logged.
+  const expected = wN ? isCellExpected(task, logSet, col, today) : taskExpectedOn(task, col);
   const row = logMap[task.id + '|' + col];
-  const tappable = !future && (expected || logged);
+  const tappable = !future && (wN ? true : (expected || logged));
   const isToday = col === today;
   let inner;
   if (logged) {
