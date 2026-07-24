@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { ArrowRight, ChevronDown } from 'lucide-react';
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -1199,7 +1199,7 @@ function MasterCard({
           {onDuplicateExecution && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onDuplicateExecution(plan); }}
+              onClick={(e) => { e.stopPropagation(); console.log('[dup-btn] coach clicked', plan?.id); onDuplicateExecution(plan); }}
               style={{
                 width: '100%', padding: '10px',
                 background: '#1a1a1a',
@@ -1234,7 +1234,7 @@ function MasterCard({
           {onDuplicateExecution && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onDuplicateExecution(plan); }}
+              onClick={(e) => { e.stopPropagation(); console.log('[dup-btn] trainee clicked', plan?.id); onDuplicateExecution(plan); }}
               style={{
                 width: '100%', padding: '10px',
                 background: 'white',
@@ -1510,6 +1510,18 @@ export default function WorkoutFolderDetail({
   // the trainee/coach opens it when they want to inspect trends.
   const [graphExpanded, setGraphExpanded] = useState(false);
 
+  // Full-focus screen: while an open plan is mounted, tell the app shell
+  // (Layout) to hide its top header + bottom nav so the whole viewport is
+  // the workout. Mirrors the app's existing window-event signalling
+  // (MENTOR_CHAT_OPEN_EVENT) — no new context/provider needed. Fires OFF
+  // on unmount (back to the plan list, tab switch, route change).
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('athletigo:plan-focus', { detail: true }));
+    return () => {
+      window.dispatchEvent(new CustomEvent('athletigo:plan-focus', { detail: false }));
+    };
+  }, []);
+
   const completed = executions || [];
 
   const numberedNewestFirst = useMemo(() => {
@@ -1567,7 +1579,15 @@ export default function WorkoutFolderDetail({
   }
 
   return (
-    <div dir="rtl" style={{ minHeight: '100vh', background: '#FAFAFA' }}>
+    <div dir="rtl" style={{
+      minHeight: '100vh', background: '#FAFAFA',
+      // Chrome is hidden while this screen is open, so add the device
+      // safe-area insets here directly — otherwise the sticky header
+      // collides with the status bar and content with the gesture bar
+      // inside the APK.
+      paddingTop: 'env(safe-area-inset-top)',
+      paddingBottom: 'env(safe-area-inset-bottom)',
+    }}>
       <div style={{
         position: 'sticky', top: 0, zIndex: 10,
         background: 'white',

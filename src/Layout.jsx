@@ -66,6 +66,17 @@ export default function Layout({ children, currentPageName }) {
   const queryClient = useQueryClient();
   const loading = isLoadingAuth;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Full-focus mode for an open training plan. WorkoutFolderDetail
+  // dispatches `athletigo:plan-focus` (detail=true on mount, false on
+  // unmount); while true we hide the top header + bottom nav + desktop
+  // sidebar so the whole viewport is the workout. Same window-event
+  // pattern the mentor chat uses.
+  const [planFocus, setPlanFocus] = useState(false);
+  useEffect(() => {
+    const handler = (e) => setPlanFocus(!!e.detail);
+    window.addEventListener('athletigo:plan-focus', handler);
+    return () => window.removeEventListener('athletigo:plan-focus', handler);
+  }, []);
   const smartBack = useSmartBack();
   // Smart-back hides on home pages (coach dashboard + trainee home);
   // everywhere else the user sees a small ← (RTL right-pointing arrow)
@@ -85,7 +96,7 @@ export default function Layout({ children, currentPageName }) {
   const timerBarsHeight = visibleBars * 74;
   const isClocks = location.pathname.toLowerCase().includes('clock');
   const isDashboard = location.pathname.toLowerCase().includes('dashboard');
-  const isFullScreen = isClocks || location.pathname.toLowerCase().includes('trainingplanview') || location.pathname.toLowerCase().includes('planbuilder');
+  const isFullScreen = isClocks || planFocus || location.pathname.toLowerCase().includes('trainingplanview') || location.pathname.toLowerCase().includes('planbuilder');
 
   // After a page refresh, ClockContext hydrates from localStorage — recreate
   // the floating bubble entry so it reappears without user action.
@@ -456,7 +467,7 @@ export default function Layout({ children, currentPageName }) {
         <main className="flex-1 flex flex-col overflow-hidden" style={{ minHeight: 0 }}>
           <header className="md:hidden safe-area-top" style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)', paddingRight: 14, paddingBottom: 8, paddingLeft: 14,
             position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-            display: isClocks ? 'none' : undefined,
+            display: (isClocks || planFocus) ? 'none' : undefined,
             backgroundColor: '#FFFFFF',
             borderBottom: '0.5px solid #F0E4D0',
             boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
@@ -601,10 +612,12 @@ export default function Layout({ children, currentPageName }) {
           )}
 
           <div className="flex-1 page-container" style={{
-            paddingLeft: (isClocks || isDashboard) ? 0 : '10px',
-            paddingRight: (isClocks || isDashboard) ? 0 : '10px',
-            paddingTop: isClocks ? 0 : 'var(--content-top)',
-            paddingBottom: isClocks ? 0 : `calc(70px + ${timerBarsHeight}px + env(safe-area-inset-bottom))`,
+            paddingLeft: (isClocks || isDashboard || planFocus) ? 0 : '10px',
+            paddingRight: (isClocks || isDashboard || planFocus) ? 0 : '10px',
+            // planFocus: no header/nav reservation — WorkoutFolderDetail
+            // supplies its own safe-area insets.
+            paddingTop: (isClocks || planFocus) ? 0 : 'var(--content-top)',
+            paddingBottom: (isClocks || planFocus) ? 0 : `calc(70px + ${timerBarsHeight}px + env(safe-area-inset-bottom))`,
             overflowY: isClocks ? 'hidden' : 'auto',
             height: isClocks ? '100dvh' : undefined,
             minHeight: 0,
@@ -642,7 +655,7 @@ export default function Layout({ children, currentPageName }) {
               The minimized timer bar now stacks ABOVE this nav (see
               TimerFooterBar) instead of pushing it up. */}
           <div className="md:hidden"
-               style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1050, backgroundColor: '#FFFFFF', borderTop: '0.5px solid #F0E4D0', boxShadow: '0 -2px 10px rgba(0,0,0,0.04)', display: isClocks ? 'none' : 'flex', justifyContent: 'space-around', alignItems: 'center', paddingTop: 10, paddingRight: 8, paddingLeft: 8, paddingBottom: 'max(env(safe-area-inset-bottom), 8px)', direction: 'rtl', overflow: 'visible' }}>
+               style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1050, backgroundColor: '#FFFFFF', borderTop: '0.5px solid #F0E4D0', boxShadow: '0 -2px 10px rgba(0,0,0,0.04)', display: (isClocks || planFocus) ? 'none' : 'flex', justifyContent: 'space-around', alignItems: 'center', paddingTop: 10, paddingRight: 8, paddingLeft: 8, paddingBottom: 'max(env(safe-area-inset-bottom), 8px)', direction: 'rtl', overflow: 'visible' }}>
             <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', width: '100%' }}>
               {(() => {
                 // The five canonical trainee tabs. Indices used below

@@ -46,21 +46,30 @@ export async function getExecutionsForPlan(planId, traineeId) {
 export async function createDuplicatedExecution({
   planId, traineeId, note = 'שוכפל על ידי המאמן',
 }) {
-  const { data, error } = await supabase
+  console.log('[createDuplicatedExecution] entry', { planId, traineeId, note });
+  const insertRow = {
+    plan_id: planId,
+    trainee_id: traineeId,
+    workout_template_id: planId,
+    executed_at: new Date().toISOString(),
+    self_rating: null,
+    completion_percent: 0,
+    section_ratings: {},
+    notes: note,
+  };
+  const result = await supabase
     .from('workout_executions')
-    .insert({
-      plan_id: planId,
-      trainee_id: traineeId,
-      workout_template_id: planId,
-      executed_at: new Date().toISOString(),
-      self_rating: null,
-      completion_percent: 0,
-      section_ratings: {},
-      notes: note,
-    })
+    .insert(insertRow)
     .select()
     .single();
-  if (error) throw error;
+  const { data, error } = result;
+  // RAW supabase result — data + error object, so a silent RLS/constraint
+  // failure is always visible in the console instead of vanishing.
+  console.log('[createDuplicatedExecution] raw insert result', result);
+  if (error) {
+    console.error('[createDuplicatedExecution] insert failed', error);
+    throw error;
+  }
 
   // Reset the plan-level completion flags so the duplicate opens
   // with every exercise/section as "לא בוצע". Best-effort — a

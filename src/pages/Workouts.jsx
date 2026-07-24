@@ -157,16 +157,32 @@ export function WorkoutsInner({
   };
 
   const handleDuplicateExecution = async (plan) => {
-    if (!plan?.id || !traineeId) return;
+    console.log('[handleDuplicateExecution] entry', { planId: plan?.id, traineeId, isCoach });
+    // Never fail silently: surface the reason instead of a bare `return`.
+    if (!plan?.id) {
+      console.warn('[handleDuplicateExecution] aborted — missing plan id');
+      toast.error('לא נמצאה תוכנית לשכפול');
+      return;
+    }
+    if (!traineeId) {
+      console.warn('[handleDuplicateExecution] aborted — missing traineeId');
+      toast.error('לא נמצא מתאמן פעיל — רענן את הדף ונסה שוב');
+      return;
+    }
     try {
-      await createDuplicatedExecution({
+      const created = await createDuplicatedExecution({
         planId: plan.id,
         traineeId,
         note: isCoach ? 'שוכפל על ידי המאמן' : 'שוכפל על ידי המתאמן',
       });
-      toast.success('האימון שוכפל בהצלחה ✅');
+      console.log('[handleDuplicateExecution] created execution', created);
+      toast.success('האימון שוכפל ✅');
+      // Refresh the executions list (prefix match invalidates the
+      // keyed ['workouts-executions', traineeId, ...] query) so the new
+      // blank execution shows up immediately.
       queryClient.invalidateQueries({ queryKey: ['workouts-executions'] });
     } catch (e) {
+      console.error('[handleDuplicateExecution] failed', e);
       toast.error('שכפול האימון נכשל: ' + (e?.message || 'נסה שוב'));
     }
   };

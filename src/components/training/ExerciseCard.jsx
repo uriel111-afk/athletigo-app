@@ -13,7 +13,8 @@ import { PARAM_CATALOG } from '../../constants/paramCatalog';
 import { parsePlannedSets, loadActualsForExercise, loadActualsByDrillForExercise, saveSetActual } from '../../lib/plannedSets';
 import { UNIT_COLORS } from '../../constants/unitColors';
 import { supabase } from '../../lib/supabaseClient';
-import ScrollPickerPopup, { REPS_OPTIONS, SECONDS_OPTIONS } from '../ScrollPickerPopup';
+import ScrollPickerPopup, { REPS_OPTIONS, SECONDS_OPTIONS, WEIGHT_OPTIONS } from '../ScrollPickerPopup';
+import ActualsGrid from './ActualsGrid';
 import { formatTime } from '../../lib/formatTime';
 
 // Stripe + border palette per exercise variant. The trainee execution
@@ -1444,7 +1445,10 @@ export default function ExerciseCard({
   // to ExerciseCard (currently SectionCard does not pass it down),
   // prefer the prop and skip this query.
   useEffect(() => {
-    if (!PLANNED_SETS_METHODS[variant] && !HORIZONTAL_MINISETS_METHODS[variant] && !ROUNDS_METHODS[variant] && !STATIONS_METHODS[variant]) return;
+    // 'normal' isn't in any method-set map but still needs an execution
+    // id so the ActualsGrid (reps/seconds/weight) can persist per-set
+    // actuals. none/reps_new are already covered by PLANNED_SETS_METHODS.
+    if (!PLANNED_SETS_METHODS[variant] && !HORIZONTAL_MINISETS_METHODS[variant] && !ROUNDS_METHODS[variant] && !STATIONS_METHODS[variant] && variant !== 'normal') return;
     if (!exercise?.id || !plan?.id) return;
     const traineeId = plan.assigned_to || plan.created_by;
     if (!traineeId) return;
@@ -1474,7 +1478,7 @@ export default function ExerciseCard({
   // the first incomplete set so the trainee resumes on the right row
   // after a page refresh.
   useEffect(() => {
-    if (!PLANNED_SETS_METHODS[variant] && !HORIZONTAL_MINISETS_METHODS[variant] && !ROUNDS_METHODS[variant] && !STATIONS_METHODS[variant]) return;
+    if (!PLANNED_SETS_METHODS[variant] && !HORIZONTAL_MINISETS_METHODS[variant] && !ROUNDS_METHODS[variant] && !STATIONS_METHODS[variant] && variant !== 'normal') return;
     if (!pyramidExecutionId || !exercise?.id) return;
     let cancelled = false;
     loadActualsForExercise(supabase, pyramidExecutionId, exercise.id).then((map) => {
@@ -2107,6 +2111,61 @@ export default function ExerciseCard({
   // Same idea for time/hold exercises — separate state so the two
   // pickers (REPS_OPTIONS vs SECONDS_OPTIONS) can never collide.
   const [timePickerOpenSetIdx, setTimePickerOpenSetIdx] = useState(null);
+  // ActualsGrid (normal/none/reps_new) shared picker state. Holds which
+  // metric + which set is being edited so the single ScrollPickerPopup
+  // below the grids knows what to write.
+  //   { saveKey, options, setNumber, target, label, value } | null
+  const [gridPicker, setGridPicker] = useState(null);
+
+  // Which metric grids to render for a normal/none/reps_new exercise —
+  // one per prescribed value. saveKey maps onto the saveSetActual payload
+  // keys (reps → reps_completed, hold_seconds → time_completed,
+  // weight_kg → weight_used). Seconds prefers static_hold_time and falls
+  // back to work_time so an exercise never renders two seconds grids.
+  const actualsMetrics = useMemo(() => {
+    const out = [];
+    if (hasValue(exercise.reps)) {
+      out.push({ metric: 'reps', label: 'חזרות', target: Number(exercise.reps) || 0, saveKey: 'reps', options: REPS_OPTIONS });
+    }
+    if (hasValue(exercise.static_hold_time)) {
+      out.push({ metric: 'hold', label: 'החזקה (שניות)', target: Number(exercise.static_hold_time) || 0, saveKey: 'hold_seconds', options: SECONDS_OPTIONS });
+    } else if (hasValue(exercise.work_time)) {
+      out.push({ metric: 'work', label: 'זמן עבודה (שניות)', target: Number(exercise.work_time) || 0, saveKey: 'hold_seconds', options: SECONDS_OPTIONS });
+    }
+    if (hasValue(exercise.weight)) {
+      out.push({ metric: 'weight', label: 'משקל (ק"ג)', target: Number(exercise.weight) || 0, saveKey: 'weight_kg', options: WEIGHT_OPTIONS });
+    }
+    return out;
+  }, [exercise.reps, exercise.static_hold_time, exercise.work_time, exercise.weight]);
+
+  const gridSetCount = hasValue(exercise.sets) ? Math.max(1, Number(exercise.sets) || 1) : 1;
+
+  // Persist one actual cell to exercise_set_logs. Because saveSetActual
+  // always re-emits reps/hold_seconds/weight_kg (defaulting null), we
+  // MERGE the new value onto the other metrics already saved for this
+  // set so a weight save never wipes the reps saved a moment earlier.
+  const saveActualsCell = async (saveKey, setNumber, value) => {
+    if (!pyramidExecutionId || !exercise?.id) {
+      console.warn('[ActualsGrid] no active execution — cannot persist');
+      return;
+    }
+    const current = pyramidActuals[setNumber] || {};
+    const merged = { ...current, [saveKey]: value };
+    const payload = {
+      reps: merged.reps ?? null,
+      hold_seconds: merged.hold_seconds ?? null,
+      weight_kg: merged.weight_kg ?? null,
+    };
+    console.log('[ActualsGrid] saveSetActual →', { executionId: pyramidExecutionId, exerciseId: exercise.id, setNumber, saveKey, value, payload });
+    const res = await saveSetActual(supabase, pyramidExecutionId, exercise.id, 0, setNumber, payload);
+    console.log('[ActualsGrid] saveSetActual result', res);
+    if (res?.error) {
+      console.error('[ActualsGrid] save failed', res.error);
+      alert('שמירה נכשלה — נסה שוב');
+      return;
+    }
+    setPyramidActuals((prev) => ({ ...prev, [setNumber]: { ...merged, completed: true } }));
+  };
 
   // SUPERSET / COMBO per-inner-per-round actuals + picker state.
   // roundsActuals shape: { [drillIdx]: { [setNumber 1-based]: { reps, hold_seconds, weight_kg, completed } } }
@@ -4847,343 +4906,73 @@ export default function ExerciseCard({
           );
         })()}
 
-        {/* Premium-Soft 45/55 open layout — trainee + normal variant
-            + rep-based sets only. Hero (target reps + status dots + label)
-            on the right (RTL start), set-by-set rows on the left. Sub-
-            exercise variants (tabata, list) keep their own existing
-            branches above; coach view, display-mode sections, and
-            time-only exercises fall through to the legacy IIFE below. */}
+        {/* Unified per-set ACTUALS grid — trainee fill for normal / none /
+            reps_new. One ActualsGrid per prescribed metric (reps / seconds
+            / weight) so every metric the exercise defines gets a per-set
+            slot, all persisted through saveSetActual → exercise_set_logs
+            (the same store the method blocks use). Replaces the old single
+            reps-box + seconds-box. Coach view AND "no active execution yet"
+            render read-only; display-mode sections fall to the legacy IIFE
+            below. */}
         {expanded && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
           && sectionTrackingMode !== 'display'
-          && hasValue(exercise.sets)
-          && hasValue(exercise.reps)
+          && actualsMetrics.length > 0
           && (() => {
-          const targetReps = parseInt(exercise.reps, 10) || 0;
-          let doneCount = 0;
-          for (let i = 0; i < totalSets; i++) if (isSetDone(i)) doneCount++;
-          const activeSetIdx = Math.min(doneCount, totalSets - 1);
-          const allDone = doneCount >= totalSets;
-          const completionPct = totalSets > 0 ? (doneCount / totalSets) * 100 : 0;
-          const pickerInitialValue = pickerOpenSetIdx != null
-            ? (setLog?.[pickerOpenSetIdx]?.reps_completed ?? targetReps)
-            : null;
+          const hasExecution = !!pyramidExecutionId;
+          const readOnly = isCoachMode || !hasExecution;
+          const footerNote = hasExecution ? '↗ נשמר לגרף ההתקדמות' : 'התחל אימון כדי למלא';
           return (
-            <div style={{
-              direction: 'rtl',
-              background: '#FFF9F0',
-              borderRight: '4px solid #FF6F20',
-              borderRadius: '12px 0 0 12px',
-              padding: 12,
-              marginTop: 12,
-            }}>
-              {/* Exercise name — top bar */}
-              <div style={{ ...T.name, color: '#1a1a1a', marginBottom: 14, textAlign: 'center' }}>
-                {exercise?.name || exercise?.exercise_name || 'תרגיל'}
-              </div>
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {actualsMetrics.map((m, mi) => {
+                const actualsForMetric = {};
+                for (let i = 1; i <= gridSetCount; i++) {
+                  const v = pyramidActuals[i]?.[m.saveKey];
+                  actualsForMetric[i] = (v != null && v !== '') ? Number(v) : null;
+                }
+                return (
+                  <ActualsGrid
+                    key={`${m.metric}-${mi}`}
+                    label={m.label}
+                    setCount={gridSetCount}
+                    target={m.target}
+                    actuals={actualsForMetric}
+                    readOnly={readOnly}
+                    footerNote={footerNote}
+                    onCellTap={(setNumber) => setGridPicker({
+                      saveKey: m.saveKey,
+                      options: m.options,
+                      setNumber,
+                      target: m.target,
+                      label: m.label,
+                      value: actualsForMetric[setNumber] ?? m.target,
+                    })}
+                  />
+                );
+              })}
 
-              {/* Two-column layout: hero TARGET on RIGHT (first child
-                  under RTL), per-set fill boxes on LEFT. */}
-              <div style={{ display: 'flex', flexDirection: 'row', gap: 14, alignItems: 'stretch' }}>
-                {/* RIGHT — hero target */}
-                <div style={{
-                  flex: '0 0 116px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: '#FFFFFF',
-                  border: '1px solid #FFE0C2',
-                  borderRadius: 12,
-                  padding: '16px 8px',
-                }}>
-                  <div style={{ ...T.hero, color: '#FF6F20' }}>{targetReps}</div>
-                  <div style={{ ...T.heroLbl, marginTop: 4 }}>יעד חזרות</div>
-                  <div style={{
-                    marginTop: 10,
-                    fontFamily: SANS_FONT,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: '#777',
-                  }}>{`${totalSets} סטים`}</div>
-                </div>
-
-                {/* LEFT — per-set fill boxes */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {Array.from({ length: totalSets }).map((_, i) => {
-                    const done = isSetDone(i);
-                    const active = !done && !allDone && i === activeSetIdx;
-                    const loggedReps = setLog?.[i]?.reps_completed;
-                    let dotBg, dotBorder, valueColor, valueText, rowBorder;
-                    if (done) {
-                      dotBg = '#3FA06B';
-                      dotBorder = '#3FA06B';
-                      valueColor = '#3FA06B';
-                      rowBorder = '1.5px solid #3FA06B';
-                      valueText = hasValue(loggedReps) ? String(loggedReps) : String(targetReps);
-                    } else if (active) {
-                      dotBg = '#FF6F20';
-                      dotBorder = '#FF6F20';
-                      valueColor = '#FF6F20';
-                      rowBorder = '1.5px dashed #FF6F20';
-                      valueText = '?';
-                    } else {
-                      dotBg = 'transparent';
-                      dotBorder = '#D1D5DB';
-                      valueColor = '#9CA3AF';
-                      rowBorder = '1.5px dashed #D1D5DB';
-                      valueText = '–';
-                    }
-                    return (
-                      <div
-                        key={i}
-                        role="button"
-                        tabIndex={0}
-                        onClick={(e) => { e.stopPropagation(); setPickerOpenSetIdx(i); }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            setPickerOpenSetIdx(i);
-                          }
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 14,
-                          padding: '14px 8px',
-                          borderRadius: 11,
-                          background: '#FFFFFF',
-                          border: rowBorder,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <span
-                          aria-hidden="true"
-                          style={{
-                            width: 16,
-                            height: 16,
-                            borderRadius: '50%',
-                            background: dotBg,
-                            border: `2px solid ${dotBorder}`,
-                            display: 'inline-block',
-                            flex: '0 0 auto',
-                          }}
-                        />
-                        <span style={{ ...T.setLabel }}>{`סט ${i + 1}`}</span>
-                        <span style={{ ...T.setValue, color: valueColor }}>{valueText}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Completion bar at bottom — sets filled / total. */}
-              <ProgressBar percent={completionPct} color="#FF6F20" />
-
-              {/* Picker — inline overlay, not Radix. Writes through
-                  onSetValueChange so UnifiedPlanBuilder stamps the
-                  numeric value + done:true in one shot. */}
+              {/* Shared picker for whichever metric+set cell was tapped.
+                  ScrollPickerPopup calls onSelect then onClose, so a tap
+                  writes the value and closes in one shot. */}
               <ScrollPickerPopup
-                isOpen={pickerOpenSetIdx != null}
-                value={pickerInitialValue}
-                options={REPS_OPTIONS}
-                onClose={() => setPickerOpenSetIdx(null)}
+                isOpen={gridPicker != null}
+                value={gridPicker?.value}
+                options={gridPicker?.options || REPS_OPTIONS}
+                onClose={() => setGridPicker(null)}
                 onSelect={(v) => {
-                  const idx = pickerOpenSetIdx;
-                  console.log('[ExerciseCard] saveSetLog →', {
-                    exerciseId: exercise.id,
-                    setIdx: idx,
-                    value: v,
-                    mode: 'reps',
-                  });
-                  if (typeof onSetValueChange === 'function' && idx != null) {
-                    onSetValueChange(exercise, idx, v, 'reps');
-                  }
-                  console.log('[ExerciseCard] saveSetLog ✓', {
-                    exerciseId: exercise.id,
-                    setIdx: idx,
-                    value: v,
-                  });
+                  if (gridPicker) saveActualsCell(gridPicker.saveKey, gridPicker.setNumber, v);
                 }}
-                title={`סט ${pickerOpenSetIdx != null ? pickerOpenSetIdx + 1 : ''} — חזרות שבוצעו`}
-              />
-            </div>
-          );
-        })()}
-
-        {/* Premium-Soft 45/55 open layout — TIME / static-hold variant.
-            Mirrors the rep card directly above: right-anchored TARGET
-            hero shows the prescribed seconds (work_time → static_hold_time
-            fallback) + "יעד שניות" + the set count; per-set fill boxes
-            on the left open the SECONDS picker and write through
-            onSetValueChange with mode 'seconds' → time_completed. Fires
-            only when the exercise carries sets but no reps target AND
-            has a time prescription, so it doesn't compete with the rep
-            card or with pyramid/drop_set/delorme (which keep their own
-            multi-row layouts). */}
-        {expanded && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
-          && sectionTrackingMode !== 'display'
-          && hasValue(exercise.sets)
-          && !hasValue(exercise.reps)
-          && (hasValue(exercise.work_time) || hasValue(exercise.static_hold_time))
-          && (() => {
-          const targetSeconds = parseInt(exercise.work_time, 10)
-            || parseInt(exercise.static_hold_time, 10)
-            || 0;
-          let doneCount = 0;
-          for (let i = 0; i < totalSets; i++) {
-            const t = setLog?.[i]?.time_completed;
-            if (t != null && t !== '' && Number(t) > 0) doneCount++;
-          }
-          const activeSetIdx = Math.min(doneCount, totalSets - 1);
-          const allDone = doneCount >= totalSets;
-          const completionPct = totalSets > 0 ? (doneCount / totalSets) * 100 : 0;
-          const pickerInitialValue = timePickerOpenSetIdx != null
-            ? (setLog?.[timePickerOpenSetIdx]?.time_completed ?? targetSeconds)
-            : null;
-          return (
-            <div style={{
-              direction: 'rtl',
-              background: '#FFF9F0',
-              borderRight: '4px solid #FF6F20',
-              borderRadius: '12px 0 0 12px',
-              padding: 12,
-              marginTop: 12,
-            }}>
-              {/* Exercise name — top bar */}
-              <div style={{ ...T.name, color: '#1a1a1a', marginBottom: 14, textAlign: 'center' }}>
-                {exercise?.name || exercise?.exercise_name || 'תרגיל'}
-              </div>
-
-              {/* Two-column layout: hero TARGET seconds on RIGHT (first
-                  child under RTL), per-set fill boxes on LEFT. */}
-              <div style={{ display: 'flex', flexDirection: 'row', gap: 14, alignItems: 'stretch' }}>
-                {/* RIGHT — hero target seconds */}
-                <div style={{
-                  flex: '0 0 116px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: '#FFFFFF',
-                  border: '1px solid #FFE0C2',
-                  borderRadius: 12,
-                  padding: '16px 8px',
-                }}>
-                  <div style={{ ...T.hero, color: '#FF6F20' }}>{targetSeconds}</div>
-                  <div style={{ ...T.heroLbl, marginTop: 4 }}>יעד שניות</div>
-                  <div style={{
-                    marginTop: 10,
-                    fontFamily: SANS_FONT,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: '#777',
-                  }}>{`${totalSets} סטים`}</div>
-                </div>
-
-                {/* LEFT — per-set fill boxes */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {Array.from({ length: totalSets }).map((_, i) => {
-                    const logged = setLog?.[i]?.time_completed;
-                    const done = logged != null && logged !== '' && Number(logged) > 0;
-                    const active = !done && !allDone && i === activeSetIdx;
-                    let dotBg, dotBorder, valueColor, valueText, rowBorder;
-                    if (done) {
-                      dotBg = '#3FA06B';
-                      dotBorder = '#3FA06B';
-                      valueColor = '#3FA06B';
-                      rowBorder = '1.5px solid #3FA06B';
-                      valueText = String(logged);
-                    } else if (active) {
-                      dotBg = '#FF6F20';
-                      dotBorder = '#FF6F20';
-                      valueColor = '#FF6F20';
-                      rowBorder = '1.5px dashed #FF6F20';
-                      valueText = '?';
-                    } else {
-                      dotBg = 'transparent';
-                      dotBorder = '#D1D5DB';
-                      valueColor = '#9CA3AF';
-                      rowBorder = '1.5px dashed #D1D5DB';
-                      valueText = '–';
-                    }
-                    return (
-                      <div
-                        key={i}
-                        role="button"
-                        tabIndex={0}
-                        onClick={(e) => { e.stopPropagation(); setTimePickerOpenSetIdx(i); }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            setTimePickerOpenSetIdx(i);
-                          }
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 14,
-                          padding: '14px 8px',
-                          borderRadius: 11,
-                          background: '#FFFFFF',
-                          border: rowBorder,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <span
-                          aria-hidden="true"
-                          style={{
-                            width: 16,
-                            height: 16,
-                            borderRadius: '50%',
-                            background: dotBg,
-                            border: `2px solid ${dotBorder}`,
-                            display: 'inline-block',
-                            flex: '0 0 auto',
-                          }}
-                        />
-                        <span style={{ ...T.setLabel }}>{`סט ${i + 1}`}</span>
-                        <span style={{ ...T.setValue, color: valueColor }}>{valueText}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Completion bar at bottom — sets filled / total. */}
-              <ProgressBar percent={completionPct} color="#FF6F20" />
-
-              {/* Picker — inline overlay (not Radix), SECONDS options.
-                  Writes through onSetValueChange with mode 'seconds' so
-                  UnifiedPlanBuilder stamps time_completed + done:true in
-                  one shot. */}
-              <ScrollPickerPopup
-                isOpen={timePickerOpenSetIdx != null}
-                value={pickerInitialValue}
-                options={SECONDS_OPTIONS}
-                onClose={() => setTimePickerOpenSetIdx(null)}
-                onSelect={(v) => {
-                  const idx = timePickerOpenSetIdx;
-                  if (typeof onSetValueChange === 'function' && idx != null) {
-                    onSetValueChange(exercise, idx, v, 'seconds');
-                  }
-                }}
-                title={`סט ${timePickerOpenSetIdx != null ? timePickerOpenSetIdx + 1 : ''} — שניות שבוצעו`}
+                title={gridPicker ? `${gridPicker.label} · סט ${gridPicker.setNumber} — בפועל` : ''}
               />
             </div>
           );
         })()}
 
         {expanded && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
-          /* Legacy IIFE — kept for display-mode sections only. The new
-             unified hero+fill cards above (rep card + time/hold card)
-             handle every executable single-exercise method; this block
-             stays around for display-mode sections that surface params
-             without trainee fill. */
-          && !(sectionTrackingMode !== 'display' && hasValue(exercise.sets) && hasValue(exercise.reps))
-          && !(sectionTrackingMode !== 'display' && hasValue(exercise.sets) && !hasValue(exercise.reps)
-               && (hasValue(exercise.work_time) || hasValue(exercise.static_hold_time)))
+          /* Legacy IIFE — now fires ONLY for display-mode sections, or for
+             exercises that prescribe no fillable metric at all (so the new
+             ActualsGrid above renders nothing). In every executable case
+             the ActualsGrid owns the trainee fill. */
+          && (sectionTrackingMode === 'display' || actualsMetrics.length === 0)
           && (paramItems.length > 0 || subExercises.length > 0) && (() => {
           const hasSetsParam = paramItems.some((it) => it.key === 'sets');
           const hasRepsParam = paramItems.some((it) => it.key === 'reps');
