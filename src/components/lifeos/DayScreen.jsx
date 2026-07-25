@@ -1,4 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Play, SkipForward, Check, Clock, Battery, BatteryLow, BatteryWarning,
   MapPin, Plus, Layers, X, Flame, Film,
@@ -49,6 +50,7 @@ const WINDOW_LABEL = { 15: '15 דקות', 60: 'שעה', 240: '4 שעות' };
 export default function DayScreen({ headerSlot = null }) {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
+  const navigate = useNavigate();   // the path strip leads to /lifeos/personal/path
   const today = isoDate();
 
   const [data, setData] = useState(null);
@@ -262,7 +264,8 @@ export default function DayScreen({ headerSlot = null }) {
       {moveBranch?.cycle_start && (
         <CyclePathStrip start={String(moveBranch.cycle_start).slice(0, 10)}
           end={moveBranch.cycle_end ? String(moveBranch.cycle_end).slice(0, 10) : null}
-          today={today} label={moveBranch.title} />
+          today={today} label={moveBranch.title}
+          onTap={() => navigate('/lifeos/personal/path')} />
       )}
 
       {/* ── הצעת יום צילום ── */}

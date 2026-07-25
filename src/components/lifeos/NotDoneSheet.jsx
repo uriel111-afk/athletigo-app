@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { FOCUS, hexAlpha, skipTask, isoDate } from '@/lib/lifeos/focus-api';
+import { addExecution } from '@/lib/lifeos/personal-day-api';
 
 // Reason chips — the label IS the stored key (reason column is free text).
 const REASONS = ['אין זמן', 'עייפות', 'שכחתי', 'דחיתי בכוונה'];
@@ -23,6 +24,11 @@ export default function NotDoneSheet({ node, userId, date = isoDate(), existing 
     setSaving(true);
     try {
       await skipTask(userId, node, date, { reason: finalReason, note: text.trim() || null });
+      // The lighter sheet also records the miss as an execution row carrying
+      // skipped_reason, so the week maths and the reviews can see WHY a day was
+      // short — focus_task_logs only has room for one reason per day.
+      try { await addExecution(userId, { node_id: node.id, day: date, skipped_reason: finalReason }); }
+      catch { /* the day mark already landed */ }
       onSaved && onSaved();
       toast('נרשם — לא בוצע');
       onClose();

@@ -104,6 +104,23 @@ export default function FocusTracker({
   //                that actually ignores them lives in week-math.js.
   execCounts = {},
   brokenDays = [],
+  // weekProgress — nodeId → { label } from week-math's weekProgressMap, shown
+  //                on the row so each habit reports executions-or-days per its
+  //                own measure_mode. Absent → the row renders as before.
+  // expandAll    — force every category group open (the 'הכל' zoom). Default
+  //                keeps the collapsed accordion, which IS the 'ענפים' zoom:
+  //                a full-width branch row that expands IN PLACE.
+  // groupFooter  — optional render prop called with a group after its rows,
+  //                only while that group is open. BoardScreen uses it for the
+  //                'חד פעמי' chips, so one-offs live inside the expanded branch
+  //                without the matrix needing to know what a one-off is.
+  weekProgress = {},
+  expandAll = false,
+  groupFooter = null,
+  // customFields — focus_custom_fields rows, forwarded to the doc sheet so a
+  // cell tap on the board offers the same user-defined fields as the day screen.
+  customFields = [],
+  onFieldsChanged = null,
 } = {}) {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
@@ -250,7 +267,7 @@ export default function FocusTracker({
   });
   // A scope chip narrows the table to one category — treat that as opening it,
   // otherwise picking a chip would show a single collapsed header and nothing.
-  const isGroupOpen = (g) => openGroups.has(g.id) || armFilter === g.id;
+  const isGroupOpen = (g) => expandAll || openGroups.has(g.id) || armFilter === g.id;
   // Today's done/expected per category, so a COLLAPSED row still says something.
   // Mirrors the today-strip semantics (a weekly-N habit counts today only while
   // its week is under target); the % / streak / total math is untouched.
@@ -552,7 +569,12 @@ export default function FocusTracker({
               return (
                 <tr key={task.id}>
                   <RowLabel task={task} style={nameCell}
-                    subline={invested > 0 ? `⏱ ${fmtInvested(invested)}` : null}
+                    /* Weekly progress in the habit's own measure_mode wins the
+                       subline when the caller supplies it; otherwise the
+                       month-invested line behaves exactly as before. */
+                    subline={weekProgress[task.id]?.label
+                      ? `${weekProgress[task.id].met ? '✓' : '◦'} ${weekProgress[task.id].label}${invested > 0 ? ` · ⏱ ${fmtInvested(invested)}` : ''}`
+                      : (invested > 0 ? `⏱ ${fmtInvested(invested)}` : null)}
                     bankCount={bankCounts[task.id] || 0}
                     /* Personal board: the row opens the habit's task bank
                        (its details stay one long-press away). Business
@@ -577,6 +599,17 @@ export default function FocusTracker({
                 </tr>
               );
             })}
+            {/* Caller-supplied extra row INSIDE the expanded group (the board's
+                'חד פעמי' chips). colSpan spans the whole width like the header. */}
+            {open && groupFooter && (
+              <tr>
+                <td colSpan={columns.length + 2} style={{ padding: 0, borderBottom: bdr, background: hexAlpha(g.color, 0.04) }}>
+                  <div style={{ position: 'sticky', right: 0, display: 'inline-block', maxWidth: '100%' }}>
+                    {groupFooter(g)}
+                  </div>
+                </td>
+              </tr>
+            )}
           </React.Fragment>
         );
         })}
@@ -688,6 +721,7 @@ export default function FocusTracker({
 
       {docNode && (
         <FocusDocSheet node={docNode.task} userId={userId} date={docNode.date} existing={docNode.existing}
+          customFields={customFields} onFieldsChanged={onFieldsChanged}
           onClose={() => setDocNode(null)} onSaved={load}
           onUncheck={() => { removeMark(docNode.task, docNode.date); setDocNode(null); }} />
       )}

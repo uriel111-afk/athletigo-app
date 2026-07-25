@@ -53,6 +53,7 @@ import FocusCalendar from './pages/lifeos/FocusCalendar';
 import FocusMap from './pages/lifeos/FocusMap';
 import PersonalBoard from './pages/lifeos/PersonalBoard';
 import Inspiration from './pages/lifeos/Inspiration';
+import PersonalPath from './pages/lifeos/PersonalPath';
 import FocusOutline from './pages/lifeos/FocusOutline';
 import PersonalDashboard from './pages/personal/PersonalDashboard';
 import PersonalHabits from './pages/personal/Habits';
@@ -602,6 +603,8 @@ const AuthenticatedApp = () => {
       <Route path="/lifeos/personal-board" element={<PageRouteGuard pageKey="LifeOS"><PersonalBoard /></PageRouteGuard>} />
       {/* רשימת השראה — the wish list, reached from the אישי board. */}
       <Route path="/lifeos/inspiration"    element={<PageRouteGuard pageKey="LifeOS"><Inspiration /></PageRouteGuard>} />
+      {/* מסלול המחזור — where the day screen's RTL path strip leads. */}
+      <Route path="/lifeos/personal/path"  element={<PageRouteGuard pageKey="LifeOS"><PersonalPath /></PageRouteGuard>} />
       <Route path="/lifeos/focus/today"    element={<PageRouteGuard pageKey="LifeOS"><FocusToday /></PageRouteGuard>} />
       <Route path="/lifeos/focus/control"  element={<PageRouteGuard pageKey="LifeOS"><FocusControl /></PageRouteGuard>} />
       <Route path="/lifeos/focus/list"     element={<PageRouteGuard pageKey="LifeOS"><FocusList /></PageRouteGuard>} />
