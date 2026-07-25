@@ -93,6 +93,17 @@ export default function FocusTracker({
   hideTopBar = false,       // drop the layout's title/search/bell row (אישי board)
   groupByDomain = false,    // group rows by the domain branch under the personal arm
   seedDomains = false,      // ensure PERSONAL_DOMAINS branches exist (once per user)
+  // ── Stage 1 personal props (both default to "off", so the business
+  // tracker renders byte-for-byte as before) ──
+  // execCounts   — 'nodeId|YYYY-MM-DD' → how many focus_executions that day.
+  //                The OWNER of the data is the caller (BoardScreen), which is
+  //                why this arrives as a prop instead of a second fetch here:
+  //                the tracker stays one component, not two.
+  // brokenDays   — days the user declared 'שבור'. Marked on the header so a
+  //                week that counts short is self-explaining; the week maths
+  //                that actually ignores them lives in week-math.js.
+  execCounts = {},
+  brokenDays = [],
 } = {}) {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
@@ -450,6 +461,7 @@ export default function FocusTracker({
   // ((356 − 104 − 40) / 7 ≈ 30px at 380px, ≈27px at 360px, ≈22px at 320px —
   // all still wider than the 16px checkmark). Fluid, so it fits any width.
   // Month/year zoom keeps max-content + horizontal scroll, unchanged.
+  const brokenSet = new Set(brokenDays);
   const fitWidth = colKind === 'day' && columns.length <= 7;
   const cellW = colKind === 'month' ? 46 : 34;
   const labelW = fitWidth ? 104 : (pageScroll ? 116 : 132);
@@ -492,10 +504,13 @@ export default function FocusTracker({
             const isToday = colKind === 'day' && col === today;
             const lbl = colKind === 'month' ? HEB_MONTHS[i].slice(0, 3) : String(new Date(col + 'T00:00:00').getDate());
             const dow = colKind === 'day' ? HEB_DAYS[dowOf(col)] : null;
+            // A 'שבור' day is struck through: it counts for nothing in the
+            // week maths, and is not a miss either.
+            const isBroken = colKind === 'day' && brokenSet.has(col);
             return (
-              <td key={col} style={{ ...dayCell, height: 34, background: isToday ? hexAlpha(FOCUS.orange, 0.14) : '#FFFDFA', color: isToday ? '#B4531A' : FOCUS.muted, fontWeight: isToday ? 800 : 600 }}>
+              <td key={col} style={{ ...dayCell, height: 34, background: isToday ? hexAlpha(FOCUS.orange, 0.14) : '#FFFDFA', color: isToday ? '#B4531A' : FOCUS.muted, fontWeight: isToday ? 800 : 600, opacity: isBroken ? 0.45 : 1 }}>
                 {dow && <div style={{ fontSize: 8, lineHeight: 1, opacity: 0.7 }}>{dow}</div>}
-                <div style={{ fontSize: colKind === 'month' ? 11 : 12 }}>{lbl}</div>
+                <div style={{ fontSize: colKind === 'month' ? 11 : 12, textDecoration: isBroken ? 'line-through' : 'none' }}>{lbl}</div>
               </td>
             );
           })}
@@ -545,7 +560,8 @@ export default function FocusTracker({
                     onTap={() => (boardTag ? setBankNode(task) : setSheetNode(task))}
                     onLongPress={boardTag ? (x, y) => setRowMenu({ task, x, y }) : null} />
                   {columns.map(col => (
-                    <Cell key={col} task={task} col={col} colKind={colKind} logSet={logSet} logMap={logMap} today={today} color={g.color} w={fitWidth ? null : cellW} onToggle={onCellTap} />
+                    <Cell key={col} task={task} col={col} colKind={colKind} logSet={logSet} logMap={logMap} today={today} color={g.color} w={fitWidth ? null : cellW} onToggle={onCellTap}
+                      execCount={execCounts[task.id + '|' + col] || 0} />
                   ))}
                   <td style={{ ...pctCell }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1.1, minHeight: 34, padding: '2px 0' }}>
@@ -876,7 +892,7 @@ function AddExistingSheet({ groups, onAdd, onClose }) {
 }
 
 // ── One table cell (<td>) ──────────────────────────────────────────
-function Cell({ task, col, colKind, logSet, logMap, today, color, w, onToggle }) {
+function Cell({ task, col, colKind, logSet, logMap, today, color, w, onToggle, execCount = 0 }) {
   if (colKind === 'month') {
     // Year zoom: month columns → compact percent number.
     const s = taskMonthStats(task, logSet, monthDays(col), today);
@@ -899,9 +915,12 @@ function Cell({ task, col, colKind, logSet, logMap, today, color, w, onToggle })
   let inner;
   if (logged) {
     // Done → checkmark + the short summary text (if any) inside the cell.
+    // Two or more executions that day → the COUNT replaces the checkmark, the
+    // one thing focus_task_logs structurally cannot show (it is one row per
+    // node per day). The number comes from the execCounts prop.
     inner = (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, width: '100%', padding: '0 1px' }}>
-        <span style={{ width: 16, height: 16, borderRadius: 5, background: color, color: '#fff', fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✓</span>
+        <span style={{ width: 16, height: 16, borderRadius: 5, background: color, color: '#fff', fontSize: execCount >= 2 ? 10 : 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{execCount >= 2 ? execCount : '✓'}</span>
         {row?.summary && <span style={{ fontSize: 7, lineHeight: 1, color: darken(color), maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.summary}</span>}
       </div>
     );
