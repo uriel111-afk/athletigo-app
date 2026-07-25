@@ -28,6 +28,7 @@ const trStr = (v) => `translate(${v.tx},${v.ty}) scale(${v.scale})`;
 const HIER_EDGE = '#E8D5BC';       // fallback solid = מבנה (hierarchy)
 const LINK_EDGE = '#9A93B8';       // dashed purple-gray = קשר (cross-link)
 const LIVE_EDGE = FOCUS.edgeSel;   // dashed red = חיבור בתהליך (only live wire)
+const SEL_EDGE = '#C0392B';        // thick red = הקו הנבחר (selected edge)
 
 const clamp2 = { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.25, wordBreak: 'break-word' };
 const clamp1 = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
@@ -52,12 +53,26 @@ function sideAnchor(rect, tx, ty) {
 }
 // Smooth cubic bezier whose control points extend perpendicular from
 // each side. The offset grows with horizontal distance so lines bow
-// AROUND siblings instead of cutting straight through them.
-function pathBetween(a, b) {
+// AROUND siblings instead of cutting straight through them. `extra` bows
+// the curve further out — used so a cross-link that duplicates a
+// parent-child structure edge stays visible next to it instead of
+// sitting exactly on top of it.
+function cubicOf(a, b, extra = 0) {
   const dx = Math.abs(b.x - a.x), dy = Math.abs(b.y - a.y);
-  const off = Math.min(130, Math.max(30, dy * 0.55 + dx * 0.22));
-  return `M ${a.x} ${a.y} C ${a.x + a.nx * off} ${a.y + a.ny * off}, ${b.x + b.nx * off} ${b.y + b.ny * off}, ${b.x} ${b.y}`;
+  const off = Math.min(130, Math.max(30, dy * 0.55 + dx * 0.22)) + extra;
+  return [
+    { x: a.x, y: a.y },
+    { x: a.x + a.nx * off, y: a.y + a.ny * off },
+    { x: b.x + b.nx * off, y: b.y + b.ny * off },
+    { x: b.x, y: b.y },
+  ];
 }
+const pathOf = (c) => `M ${c[0].x} ${c[0].y} C ${c[1].x} ${c[1].y}, ${c[2].x} ${c[2].y}, ${c[3].x} ${c[3].y}`;
+// Bezier point at t=0.5 — where the selected-edge ✕ pill is anchored.
+const midOf = (c) => ({ x: (c[0].x + 3 * c[1].x + 3 * c[2].x + c[3].x) / 8, y: (c[0].y + 3 * c[1].y + 3 * c[2].y + c[3].y) / 8 });
+function pathBetween(a, b, extra = 0) { return pathOf(cubicOf(a, b, extra)); }
+// Extra bow for a cross-link that mirrors a parent-child structure edge.
+const DUP_BOW = 74;
 // Live wire: anchored source side → free end (the finger).
 function wirePath(a, px, py) {
   const off = Math.max(28, Math.hypot(px - a.x, py - a.y) * 0.35);
@@ -109,7 +124,8 @@ export default function MindMapCanvas({
   nodes, byId, children, roots, expanded, selectedId,
   isTaskDone, onTapNode, onToggleDone, onLongPress, onSavePos, centerOnId, onCentered,
   links = [], onCreateLink, onEmptyTap,
-  onLineTap, reconnectActive = false, onReconnectTap,
+  selectedEdge = null, onEdgeSelect, onEdgeDelete, onEdgeReconnect,
+  reconnectActive = false, onReconnectTap,
   connectFromId = null, onHandleTap, onConnectTap, onConnectCancel,
   onConnect, onDisconnect, onDetails, tools = null, simple = false, fitApi = null,
 }) {
@@ -155,7 +171,7 @@ export default function MindMapCanvas({
   const lastTap = useRef(0);
 
   const ctx = useRef({});
-  ctx.current = { connectFromId, byId, onCreateLink, onHandleTap, onConnectTap, onConnectCancel, onTapNode, onToggleDone, onSavePos, onEmptyTap, onLineTap, reconnectActive, onReconnectTap };
+  ctx.current = { connectFromId, byId, onCreateLink, onHandleTap, onConnectTap, onConnectCancel, onTapNode, onToggleDone, onSavePos, onEmptyTap, onEdgeSelect, reconnectActive, onReconnectTap };
 
   const commitView = useCallback((v) => { viewRef.current = v; setView(v); }, []);
 
@@ -184,7 +200,10 @@ export default function MindMapCanvas({
   const resolvedLinks = useMemo(() => links.map(lk => {
     const a = visibleAncestor(lk.from_node), b = visibleAncestor(lk.to_node);
     if (!a || !b || a.id === b.id) return null;
-    return { id: lk.id, a, b };
+    // A link that mirrors a parent-child structure edge is drawn with an
+    // extra bow so both lines stay separately visible AND separately tappable.
+    const dup = a.parent_id === b.id || b.parent_id === a.id;
+    return { id: lk.id, a, b, dup };
   }).filter(Boolean),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [links, visibleIds, byId]);
@@ -303,13 +322,14 @@ export default function MindMapCanvas({
 
     const g = gesture.current;
     gesture.current = null;
-    // ONE RULE: tapping any line (dashed link OR solid structure edge)
-    // opens the same tiny bar at the tap point.
+    // ONE RULE: tapping (or long-pressing) any line — dashed cross-link OR
+    // solid structure edge — SELECTS it. The selection is sticky: the line
+    // highlights and an ✕ / ⇄ pill anchors to its midpoint, so deleting it
+    // never depends on where the finger happened to land.
     if (g && (g.linkId || g.hierEdge)) {
-      if (!g.moved && ctx.current.onLineTap) {
-        const r = containerRef.current?.getBoundingClientRect();
+      if (!g.moved && ctx.current.onEdgeSelect) {
         const desc = g.linkId ? { type: 'link', linkId: g.linkId } : { type: 'hier', childId: g.hierChild };
-        ctx.current.onLineTap(desc, r ? e.clientX - r.left : e.clientX, r ? e.clientY - r.top : e.clientY);
+        ctx.current.onEdgeSelect(desc);
       }
     } else if (g) {
       clearTimeout(g.timer);
@@ -392,6 +412,16 @@ export default function MindMapCanvas({
     }
     if (pointers.current.size > 2) return;
 
+    // Edge grab-dot — checked FIRST because it is the only edge target that
+    // is painted above the node cards, and it must win over everything else.
+    const dotEl = e.target?.closest?.('[data-edge-dot]');
+    if (dotEl) {
+      const [kind, id] = (dotEl.getAttribute('data-edge-dot') || '').split(':');
+      gesture.current = kind === 'link'
+        ? { linkId: id, sx: e.clientX, sy: e.clientY, moved: false }
+        : { hierEdge: true, hierChild: id, sx: e.clientX, sy: e.clientY, moved: false };
+      return;
+    }
     const handleEl = e.target?.closest?.('[data-handle-id]');
     if (handleEl) {
       const src = byId[handleEl.getAttribute('data-handle-id')];
@@ -487,7 +517,37 @@ export default function MindMapCanvas({
   }, [visibleNodes, centerOnId]);
 
   const edgePath = (p, c) => { const { a, b } = anchored(p, c); return pathBetween(a, b); };
-  const linkPath = (A, B) => { const { a, b } = anchored(A, B); return pathBetween(a, b); };
+  const linkPath = (A, B, extra = 0) => { const { a, b } = anchored(A, B); return pathBetween(a, b, extra); };
+
+  const isSelHier = (childId) => selectedEdge?.type === 'hier' && selectedEdge.childId === childId;
+  const isSelLink = (linkId) => selectedEdge?.type === 'link' && selectedEdge.linkId === linkId;
+
+  // Midpoint of the selected edge in CONTAINER (screen) coordinates — the
+  // anchor for the ✕ / ⇄ pill. Recomputed every render so it tracks drags,
+  // pan and zoom. null when the edge isn't currently drawn.
+  const selEdgePoint = (() => {
+    if (!selectedEdge) return null;
+    let mid = null;
+    if (selectedEdge.type === 'hier') {
+      const c = byId[selectedEdge.childId];
+      const p = c && byId[c.parent_id];
+      if (!c || !p || !visibleIds.has(c.id) || !visibleIds.has(p.id)) return null;
+      const { a, b } = anchored(p, c);
+      mid = midOf(cubicOf(a, b));
+    } else {
+      const l = resolvedLinks.find(x => x.id === selectedEdge.linkId);
+      if (!l) return null;
+      const { a, b } = anchored(l.a, l.b);
+      mid = midOf(cubicOf(a, b, l.dup ? DUP_BOW : 0));
+    }
+    const cw = containerRef.current?.clientWidth || 0;
+    const ch = containerRef.current?.clientHeight || 0;
+    const sx = view.tx + mid.x * view.scale;
+    const sy = view.ty + mid.y * view.scale;
+    // Keep the pill reachable even when the line's midpoint is off-canvas.
+    // The top floor (62) clears the "קו נבחר" banner the host renders at y=8.
+    return { x: cw ? Math.max(56, Math.min(sx, cw - 56)) : sx, y: ch ? Math.max(62, Math.min(sy, ch - 30)) : sy };
+  })();
 
   return (
     <div
@@ -508,27 +568,31 @@ export default function MindMapCanvas({
           <rect x={-6000} y={-6000} width={12000} height={12000} fill="url(#mm-dotgrid)" style={{ pointerEvents: 'none' }} />
 
           {/* Hierarchy edges — smooth arm-colored beziers at 40% opacity.
-              Tapping one shows the structure-line explainer. */}
+              Tapping one selects it (red highlight + ✕ / ⇄ pill). */}
           {visibleNodes.map(p => visibleChildrenOf(p).map(c => {
             const d = edgePath(p, c);
-            const hitW = Math.max(16, 26 / view.scale);
+            const hitW = Math.max(22, 34 / view.scale);
             const arm = armOf(c);
+            const on = isSelHier(c.id);
             return (
               <g key={p.id + '-' + c.id}>
                 <path data-hier-edge={c.id} d={d} fill="none" stroke="transparent" strokeWidth={hitW} style={{ pointerEvents: 'stroke', cursor: 'pointer' }} />
-                <path d={d} fill="none" stroke={arm ? hexAlpha(arm, 0.4) : HIER_EDGE} strokeWidth={2} strokeLinecap="round" style={{ pointerEvents: 'none' }} />
+                {on && <path d={d} fill="none" stroke={hexAlpha(SEL_EDGE, 0.25)} strokeWidth={9} strokeLinecap="round" style={{ pointerEvents: 'none' }} />}
+                <path d={d} fill="none" stroke={on ? SEL_EDGE : (arm ? hexAlpha(arm, 0.4) : HIER_EDGE)} strokeWidth={on ? 3.5 : 2} strokeLinecap="round" style={{ pointerEvents: 'none' }} />
               </g>
             );
           }))}
 
-          {/* Cross-links — thin dashed neutral, auto-anchored. Tap → remove. */}
+          {/* Cross-links — thin dashed neutral, auto-anchored. Tap → select. */}
           {resolvedLinks.map(l => {
-            const d = linkPath(l.a, l.b);
-            const hitW = Math.max(18, 30 / view.scale);
+            const d = linkPath(l.a, l.b, l.dup ? DUP_BOW : 0);
+            const hitW = Math.max(22, 34 / view.scale);
+            const on = isSelLink(l.id);
             return (
               <g key={l.id}>
                 <path data-link-id={l.id} d={d} fill="none" stroke="transparent" strokeWidth={hitW} style={{ pointerEvents: 'stroke', cursor: 'pointer' }} />
-                <path d={d} fill="none" stroke={LINK_EDGE} strokeWidth={2} strokeDasharray="6 5" strokeLinecap="round" style={{ pointerEvents: 'none' }} />
+                {on && <path d={d} fill="none" stroke={hexAlpha(SEL_EDGE, 0.25)} strokeWidth={9} strokeLinecap="round" style={{ pointerEvents: 'none' }} />}
+                <path d={d} fill="none" stroke={on ? SEL_EDGE : LINK_EDGE} strokeWidth={on ? 3.5 : 2} strokeDasharray="6 5" strokeLinecap="round" style={{ pointerEvents: 'none' }} />
               </g>
             );
           })}
@@ -544,12 +608,45 @@ export default function MindMapCanvas({
                 highlight={hoverId === n.id} childrenIdx={children} expanded={expanded} isTaskDone={isTaskDone} />
             );
           })}
+
+          {/* Edge grab-dots — the ONLY edge target painted ABOVE the cards.
+              Node cards are drawn after the edges, and each card's hit box is
+              w+24 × h+24, so a line running between same-row nodes is 100%
+              covered and its stroke can never be tapped. This dot sits at the
+              line's midpoint and is always reachable.
+              Cross-links always get one (few per map, and the ones users
+              actually want to cut); structure edges get one only while a node
+              they touch is selected, so the map stays clean. */}
+          <g>
+            {resolvedLinks.map(l => {
+              const { a, b } = anchored(l.a, l.b);
+              const m = midOf(cubicOf(a, b, l.dup ? DUP_BOW : 0));
+              return <EdgeDot key={'d-' + l.id} tag={'link:' + l.id} m={m} scale={view.scale} color={LINK_EDGE} on={isSelLink(l.id)} />;
+            })}
+            {selectedId && visibleNodes.map(p => visibleChildrenOf(p).filter(c => c.id === selectedId || p.id === selectedId).map(c => {
+              const { a, b } = anchored(p, c);
+              const m = midOf(cubicOf(a, b));
+              return <EdgeDot key={'dh-' + c.id} tag={'hier:' + c.id} m={m} scale={view.scale} color={armOf(c) || '#B48A5A'} on={isSelHier(c.id)} />;
+            }))}
+          </g>
         </g>
       </svg>
 
       {/* No midpoint handles at rest — every edge is tapped directly via its
           wide transparent hit-path (data-hier-edge / data-link-id, above),
-          which opens the same lineMenu at the exact tap point. */}
+          which SELECTS it. The selected edge then gets this pill anchored to
+          its own midpoint (not to the tap point), so the delete button can
+          never end up clipped outside the canvas. Delete/Backspace does the
+          same thing on desktop. */}
+      {selEdgePoint && !busy && (
+        <div onPointerDown={(e) => e.stopPropagation()}
+          style={{ position: 'absolute', left: selEdgePoint.x, top: selEdgePoint.y, transform: 'translate(-50%,-50%)', display: 'flex', alignItems: 'center', gap: 4, background: '#fff', border: `1px solid ${FOCUS.border}`, borderRadius: 999, padding: 4, boxShadow: '0 4px 14px rgba(0,0,0,0.22)', zIndex: 7 }}>
+          <button onClick={() => onEdgeDelete && onEdgeDelete(selectedEdge)} aria-label="נתק קו" title="נתק קו"
+            style={{ ...edgePillBtn, background: '#C0392B', color: '#fff', fontSize: 17 }}>✕</button>
+          <button onClick={() => onEdgeReconnect && onEdgeReconnect(selectedEdge)} aria-label="חבר למקום אחר" title="חבר למקום אחר"
+            style={{ ...edgePillBtn, background: '#EEEDFE', color: '#3C3489', fontSize: 15 }}>⇄</button>
+        </div>
+      )}
 
       {/* Floating tool cluster — one elegant vertical pill-shaped toolbar */}
       <div style={toolbar}>
@@ -594,6 +691,13 @@ const toolBtn = {
 // mobile (native `title` tooltips never surface in the webview).
 const toolLabel = { fontSize: 10, fontWeight: 700, lineHeight: 1 };
 const toolDivider = { height: 1, background: 'rgba(140,110,70,0.14)', margin: '3px 7px' };
+// Round buttons of the selected-edge pill (✕ נתק / ⇄ חבר למקום אחר).
+// 34px keeps them comfortably tappable without covering the line itself.
+const edgePillBtn = {
+  width: 34, height: 34, borderRadius: '50%', border: 'none', padding: 0,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fontWeight: 900, lineHeight: 1, cursor: 'pointer', fontFamily: "'Rubik', system-ui, sans-serif",
+};
 const barBtn = (bg, fg) => ({
   minHeight: 44, padding: '0 14px', borderRadius: 9, border: 'none',
   background: bg, color: fg, fontSize: 13.5, fontWeight: 800, cursor: 'pointer',
@@ -641,6 +745,19 @@ const MapNode = React.memo(function MapNode({ x, y, w, h, node, sel, armColor, s
     </foreignObject>
   );
 });
+
+// One edge grab-dot: a wide invisible hit circle + a small visible dot.
+// Both radii are divided by the view scale so the target stays a constant
+// ~36px across on screen at any zoom level.
+function EdgeDot({ tag, m, scale, color, on }) {
+  const s = Math.max(0.25, scale);
+  return (
+    <g>
+      <circle data-edge-dot={tag} cx={m.x} cy={m.y} r={18 / s} fill="transparent" style={{ pointerEvents: 'all', cursor: 'pointer' }} />
+      <circle cx={m.x} cy={m.y} r={(on ? 7 : 4.5) / s} fill={on ? SEL_EDGE : color} stroke="#fff" strokeWidth={1.5 / s} style={{ pointerEvents: 'none' }} />
+    </g>
+  );
+}
 
 // Small pill badge used under a collapsed-branch title.
 function CountPill({ text, color }) {

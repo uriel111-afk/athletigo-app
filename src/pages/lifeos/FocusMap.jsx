@@ -16,6 +16,7 @@ import {
   ancestorsOf, allDescendants, createNode, updateNode, logTask, unlogTask,
   clearPositions, updateIdea, fetchLinks, createLink, deleteLink,
   getLinkById, getAuthUid, repairLinkOwnership, deleteNode, updateLinkEndpoint,
+  withoutPersonalArm,
 } from '@/lib/lifeos/focus-api';
 
 const VIEW_KEY = 'focus_map_view'; // 'simple' | 'detailed'
@@ -40,7 +41,7 @@ export default function FocusMap() {
   const [links, setLinks] = useState([]);
   const [connectFrom, setConnectFrom] = useState(null); // two-tap connect source id
   const [sheetReparent, setSheetReparent] = useState(false);  // open NodeDetailSheet with reparent picker
-  const [lineMenu, setLineMenu] = useState(null); // { desc, x, y } — tiny bar for a tapped line
+  const [selectedEdge, setSelectedEdge] = useState(null); // { type:'link', linkId } | { type:'hier', childId }
   const [reconnect, setReconnect] = useState(null); // desc — reconnect in progress
   const [nodeLines, setNodeLines] = useState(null); // node whose lines are listed (action-bar נתק)
   const [simple, setSimple] = useState(null); // null until resolved; then true/false
@@ -75,12 +76,18 @@ export default function FocusMap() {
         try { const r = await repairLinkOwnership(); if (r.wrong) console.log('[FocusMap] link ownership repair:', r); } // eslint-disable-line no-console
         catch (e) { console.warn('[FocusMap] link repair skipped:', e?.message); } // eslint-disable-line no-console
       }
-      const [n, l, i, lk] = await Promise.all([
+      const [all, l, i, lk] = await Promise.all([
         fetchNodes(userId),
         fetchLogs(userId, addDays(today, -40), today),
         fetchIdeas(userId),
         fetchLinks(),
       ]);
+      // The map is the BUSINESS map. The personal world ('החיים שלי') is
+      // seeded into the same focus_nodes tree by the אישי tab, so strip that
+      // subtree here. `all` is kept for the link cleanup below — filtering it
+      // out of liveIds would make links into the personal arm look orphaned
+      // and get them deleted for real.
+      const n = withoutPersonalArm(all);
       setNodes(n); setLogs(l); setIdeas(i);
       // Resolve the view mode once: stored choice, else default by size.
       if (!viewResolved.current) {
@@ -92,17 +99,17 @@ export default function FocusMap() {
       // Orphan-link cleanup on EVERY load: drop (and delete) any link whose
       // endpoint node is missing OR parked — these render as untappable
       // "stuck" dashed lines. Logged so cleanups are visible.
-      const liveIds = new Set(n.filter(x => x.status !== 'parked').map(x => x.id));
-      const byIdMap = Object.fromEntries(n.map(x => [x.id, x]));
-      // Redundant: a cross-link whose endpoints are already parent-child in
-      // the hierarchy (it just duplicates the solid edge).
-      const isRedundant = (x) => byIdMap[x.from_node]?.parent_id === x.to_node || byIdMap[x.to_node]?.parent_id === x.from_node;
-      const good = lk.filter(x => liveIds.has(x.from_node) && liveIds.has(x.to_node) && !isRedundant(x));
-      const dead = lk.filter(x => !(liveIds.has(x.from_node) && liveIds.has(x.to_node)) || isRedundant(x));
+      // NOTE: parent-child cross-links are NOT cleaned up any more. Any node
+      // may link to any other node — including its own parent or child — and
+      // the map bows such a link away from the structure edge so both stay
+      // visible and separately deletable.
+      const liveIds = new Set(all.filter(x => x.status !== 'parked').map(x => x.id));
+      const good = lk.filter(x => liveIds.has(x.from_node) && liveIds.has(x.to_node));
+      const dead = lk.filter(x => !(liveIds.has(x.from_node) && liveIds.has(x.to_node)));
       setLinks(good);
       if (dead.length) {
         // eslint-disable-next-line no-console
-        console.log(`[FocusMap] cleaned ${dead.length} link(s) (missing/parked endpoint or parent-child redundant)`);
+        console.log(`[FocusMap] cleaned ${dead.length} link(s) (missing/parked endpoint)`);
         dead.forEach(o => { deleteLink(o.id).catch(() => {}); });
       }
       // Expand all branches by default on first load.
@@ -128,6 +135,7 @@ export default function FocusMap() {
 
   const tapNode = (node) => {
     setSelectedId(node.id);
+    setSelectedEdge(null);   // node selection and edge selection are exclusive
     if (node.node_type !== 'task' && (children[node.id] || []).length) {
       setExpanded(prev => { const s = new Set(prev); s.has(node.id) ? s.delete(node.id) : s.add(node.id); return s; });
     }
@@ -168,8 +176,12 @@ export default function FocusMap() {
     try {
       const created = await createLink(userId, fromId, toId);
       setLinks(await fetchLinks());
-      if (created) pushHistory({ label: 'יצירת קשר', undo: async () => { await deleteLink(created.id); setLinks(await fetchLinks()); } });
-      toast('קשר נוצר');
+      // createLink returns null when the pair already exists (unique index) —
+      // say so instead of claiming a new link was made.
+      if (created) {
+        pushHistory({ label: 'יצירת קשר', undo: async () => { await deleteLink(created.id); setLinks(await fetchLinks()); } });
+        toast('קשר נוצר');
+      } else toast('כבר מחוברים');
     } catch { toast.error('שגיאה ביצירת קשר'); }
   };
 
@@ -177,13 +189,16 @@ export default function FocusMap() {
   const connectTo = (targetId) => { if (connectFrom && targetId !== connectFrom) createLinkBetween(connectFrom, targetId); };
   const cancelConnect = () => setConnectFrom(null);
 
-  // ── ONE RULE for every line: disconnect or reconnect ───────────
-  // Tapping any line/chip → tiny bar at the tap point.
-  const openLineMenu = (desc, x, y) => { setConnectFrom(null); setNodeLines(null); setLineMenu({ desc, x, y }); };
+  // ── ONE RULE for every line: select it, then disconnect or reconnect ──
+  // Tapping (or long-pressing) any line selects it: the line highlights red
+  // and a pill with ✕ / ⇄ anchors to its midpoint. Delete/Backspace does the
+  // same as ✕ for anyone on a keyboard.
+  const selectEdge = (desc) => { setConnectFrom(null); setNodeLines(null); setSelectedId(null); setSelectedEdge(desc); };
 
   // נתק a line — instant, undo-able.
   const disconnectLine = async (desc) => {
-    setLineMenu(null); setNodeLines(null);
+    setSelectedEdge(null); setNodeLines(null);
+    if (!desc) return;
     if (desc.type === 'link') {
       const gone = links.find(l => l.id === desc.linkId);
       try {
@@ -227,7 +242,7 @@ export default function FocusMap() {
   };
 
   // חבר למקום אחר → enter reconnect mode; the next node tap is the target.
-  const startReconnect = (desc) => { setLineMenu(null); setNodeLines(null); setReconnect(desc); };
+  const startReconnect = (desc) => { setSelectedEdge(null); setNodeLines(null); setReconnect(desc); };
 
   const reconnectTo = async (newId) => {
     const desc = reconnect;
@@ -236,8 +251,10 @@ export default function FocusMap() {
     if (desc.type === 'link') {
       const l = links.find(x => x.id === desc.linkId);
       if (!l) return;
-      // Keep the endpoint shared with the selected node, else keep from_node.
-      const keep = selectedId === l.from_node ? l.from_node : selectedId === l.to_node ? l.to_node : l.from_node;
+      // Keep the endpoint the flow was anchored on (the node whose נתק list
+      // opened it, else the selected node), otherwise keep from_node.
+      const anchor = desc.anchorId || selectedId;
+      const keep = anchor === l.from_node ? l.from_node : anchor === l.to_node ? l.to_node : l.from_node;
       if (newId === keep) { toast.error('לא ניתן לחבר צומת לעצמו'); return; }
       const dup = links.some(x => x.id !== l.id && ((x.from_node === keep && x.to_node === newId) || (x.from_node === newId && x.to_node === keep)));
       if (dup) { toast.error('כבר קיים קשר בין הצמתים'); return; }
@@ -274,13 +291,32 @@ export default function FocusMap() {
     if (node.parent_id && byId[node.parent_id]) out.push({ type: 'hier', childId: node.id, label: `מבנה · ${byId[node.parent_id].title || ''}` });
     links.filter(l => l.from_node === node.id || l.to_node === node.id).forEach(l => {
       const other = byId[l.from_node === node.id ? l.to_node : l.from_node];
-      out.push({ type: 'link', linkId: l.id, label: other?.title || 'קשר' });
+      out.push({ type: 'link', linkId: l.id, anchorId: node.id, label: other?.title || 'קשר' });
     });
     return out;
   };
 
   // Single empty-canvas tap dismisses everything lingering.
-  const dismissAll = () => { setConnectFrom(null); setLineMenu(null); setReconnect(null); setNodeLines(null); setSelectedId(null); toast.dismiss(); };
+  const dismissAll = () => { setConnectFrom(null); setSelectedEdge(null); setReconnect(null); setNodeLines(null); setSelectedId(null); toast.dismiss(); };
+
+  // Delete/Backspace removes the selected line (desktop parity with the ✕
+  // pill, which is the only way in on mobile). Ignored while typing in a
+  // field or while any overlay panel owns the screen.
+  useEffect(() => {
+    if (!selectedEdge) return;
+    const onKey = (e) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      const t = e.target;
+      const tag = t?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || t?.isContentEditable) return;
+      if (addOpen || sheetNode || inboxOpen || captureOpen) return;
+      e.preventDefault();
+      disconnectLine(selectedEdge);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEdge, addOpen, sheetNode, inboxOpen, captureOpen, links, byId, roots]);
 
   // Parent for a new node: the selected node, else the main root (or
   // null → a new top-level node when the tree is still empty).
@@ -395,7 +431,8 @@ export default function FocusMap() {
             onSavePos={savePos}
             centerOnId={centerId} onCentered={() => setCenterId(null)}
             links={links} onCreateLink={createLinkBetween} onEmptyTap={dismissAll}
-            onLineTap={openLineMenu} reconnectActive={!!reconnect} onReconnectTap={reconnectTo}
+            selectedEdge={selectedEdge} onEdgeSelect={selectEdge} onEdgeDelete={disconnectLine} onEdgeReconnect={startReconnect}
+            reconnectActive={!!reconnect} onReconnectTap={reconnectTo}
             connectFromId={connectFrom} onHandleTap={startConnect} onConnectTap={connectTo} onConnectCancel={cancelConnect}
             onConnect={startConnect} onDisconnect={(n) => { setSelectedId(n.id); setNodeLines(n); }} onDetails={(n) => { setSelectedId(n.id); setSheetNode(n); }}
             tools={tools} simple={!!simple} fitApi={fitRef}
@@ -419,21 +456,19 @@ export default function FocusMap() {
         )}
 
         {/* Hint — only on an EMPTY selection AND a small/new map (≤5). */}
-        {!connectFrom && !reconnect && !lineMenu && !selectedId && !empty && nodes.length <= 5 && (
+        {!connectFrom && !reconnect && !selectedEdge && !selectedId && !empty && nodes.length <= 5 && (
           <div style={{ position: 'absolute', top: 8, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: FOCUS.muted, pointerEvents: 'none' }}>
             הקש לבחירה · גרור להזזה · הקש ⊕ להוספה
           </div>
         )}
 
-        {/* THE tiny bar — same for every line: נתק / חבר למקום אחר / סגור */}
-        {lineMenu && (
-          <div style={{ position: 'absolute', left: Math.max(8, Math.min(lineMenu.x, 300)), top: Math.max(8, lineMenu.y), transform: 'translate(-50%,8px)', display: 'flex', gap: 6, background: '#fff', border: `1px solid ${FOCUS.border}`, borderRadius: 12, padding: 5, boxShadow: '0 4px 14px rgba(0,0,0,0.2)', zIndex: 7, whiteSpace: 'nowrap' }}>
-            <button onClick={() => disconnectLine(lineMenu.desc)}
-              style={lineBtn('#FCEBEB', '#C0392B')}>נתק</button>
-            <button onClick={() => startReconnect(lineMenu.desc)}
-              style={lineBtn('#EEEDFE', '#3C3489')}>חבר למקום אחר</button>
-            <button onClick={() => setLineMenu(null)}
-              style={{ ...lineBtn('#fff', FOCUS.muted), border: `1px solid ${FOCUS.border}` }}>סגור</button>
+        {/* Selected-line banner. The ✕ / ⇄ pill itself sits on the line
+            (inside the canvas); this only explains what's selected and
+            offers a way out that isn't "tap exactly the empty canvas". */}
+        {selectedEdge && (
+          <div style={{ position: 'absolute', top: 8, left: 12, right: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: '#7A2E24', color: '#fff', borderRadius: 12, padding: '9px 12px', boxShadow: '0 4px 14px rgba(0,0,0,0.25)', zIndex: 5 }}>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>קו נבחר · ✕ לניתוק · ⇄ לחיבור מחדש</span>
+            <button onClick={() => setSelectedEdge(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 8, padding: '5px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>סגור</button>
           </div>
         )}
 
@@ -460,7 +495,7 @@ export default function FocusMap() {
         {/* Floating add (bottom-RIGHT) → opens the full inline add panel.
             Hidden whenever any sheet/panel/capture overlay is open so it
             never covers panel content. */}
-        {!(addOpen || sheetNode || inboxOpen || captureOpen || connectFrom || reconnect || lineMenu || nodeLines) && (
+        {!(addOpen || sheetNode || inboxOpen || captureOpen || connectFrom || reconnect || selectedEdge || nodeLines) && (
           <button onClick={() => setAddOpen(true)} aria-label="הוסף צומת"
             style={{ position: 'absolute', right: 16, bottom: 16, width: 52, height: 52, borderRadius: '50%', border: 'none', background: FOCUS.orangeGrad, color: '#fff', boxShadow: '0 6px 16px rgba(255,111,32,0.45)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Plus size={26} />
@@ -492,7 +527,7 @@ export default function FocusMap() {
         </div>
       )}
 
-      <IdeaCaptureButton onSaved={load} hidden={!!(sheetNode || addOpen || inboxOpen || connectFrom || reconnect || nodeLines)} onOpenChange={setCaptureOpen} />
+      <IdeaCaptureButton onSaved={load} hidden={!!(sheetNode || addOpen || inboxOpen || connectFrom || reconnect || selectedEdge || nodeLines)} onOpenChange={setCaptureOpen} />
       {sheetNode && <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} allNodes={nodes} initialReparentOpen={sheetReparent} pushHistory={pushHistory} onClose={() => { setSheetNode(null); setSheetReparent(false); }} onSaved={load} />}
     </LifeOSLayout>
   );
@@ -539,7 +574,7 @@ const clusterBtn = {
 };
 // 10px caption under each tool icon — matches MindMapCanvas toolLabel.
 const clusterLabel = { fontSize: 10, fontWeight: 700, lineHeight: 1 };
-// Buttons for the unified line action bar (נתק / חבר למקום אחר / סגור).
+// Buttons for the per-node line list (נתק / חבר למקום אחר).
 const lineBtn = (bg, fg) => ({
   minHeight: 40, padding: '0 12px', borderRadius: 9, border: 'none',
   background: bg, color: fg, fontSize: 13, fontWeight: 800, cursor: 'pointer',
