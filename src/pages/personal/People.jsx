@@ -11,7 +11,7 @@ import {
 } from '@/lib/personal/personal-constants';
 import {
   listContacts, addContact, deleteContact, updateContact,
-  logInteraction, listInteractions,
+  logInteraction, listInteractions, contactLastDate, contactNote,
 } from '@/lib/personal/personal-api';
 
 const daysBetween = (a, b) => Math.floor((a.getTime() - b.getTime()) / 86_400_000);
@@ -51,7 +51,7 @@ export default function People() {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const interacted = contacts.filter(c =>
-      c.last_contact_date && new Date(c.last_contact_date) >= monthStart
+      contactLastDate(c) && new Date(contactLastDate(c)) >= monthStart
     );
     const missing = contacts.filter(c => !interacted.find(x => x.id === c.id));
     return { interacted: interacted.length, total: contacts.length, missing };
@@ -245,6 +245,12 @@ function ContactDetailDialog({ isOpen, onClose, userId, contact, onChanged, onDe
             <div style={{ fontSize: 13, color: PERSONAL_COLORS.textSecondary }}>
               🎂 {new Date(contact.birthday).toLocaleDateString('he-IL')}
             </div>
+          )}
+          {/* Free-text note — this is where the removed card's `relation`
+              text lands after the consolidation migration, so migrated
+              text stays visible instead of being silently buried. */}
+          {contactNote(contact) && (
+            <div style={{ fontSize: 13, color: PERSONAL_COLORS.textSecondary }}>📝 {contactNote(contact)}</div>
           )}
           <div style={{ fontSize: 13, fontWeight: 700, marginTop: 8 }}>היסטוריית אינטראקציות</div>
           {interactions.length === 0 ? (

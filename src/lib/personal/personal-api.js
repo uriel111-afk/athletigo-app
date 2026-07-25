@@ -137,6 +137,14 @@ export async function toggleHabitLog(userId, habitId, date = todayISO()) {
 }
 
 // ─── Contacts + interactions ─────────────────────────────────────
+// This module is the ONE contacts write path (the /personal/people screen).
+// A second, simpler one used to live in lifeos/focus-api behind the
+// FriendsContacts card and wrote `relation` + `last_contacted` on the same
+// table. The two readers below tolerate those legacy column names so rows
+// written by the old card still render correctly even before
+// migrations/2026-07-25-contacts-consolidation.sql has been run.
+export const contactLastDate = (c) => c?.last_contact_date || c?.last_contacted || null;
+export const contactNote = (c) => c?.notes || c?.relation || '';
 
 export async function listContacts(userId) {
   const { data, error } = await supabase
@@ -176,18 +184,29 @@ export async function deleteContact(id) {
 
 export async function logInteraction(userId, contactId, payload = {}) {
   const date = payload.date || todayISO();
-  const [{ error: insErr }] = [
-    await supabase.from('personal_interactions').insert({
-      user_id: userId, contact_id: contactId, date, type: payload.type || 'call',
-      notes: payload.notes || null,
-    }),
-  ];
-  if (insErr) throw insErr;
-  // Bump the contact's last_contact_date.
-  await supabase
+  // The date bump is what the UI shows, so it must land even if the
+  // interactions log itself is unavailable (the table only exists once the
+  // consolidation migration has run — see the note at the top of this
+  // section). The insert error is surfaced only when the bump also fails.
+  const { error: insErr } = await supabase.from('personal_interactions').insert({
+    user_id: userId, contact_id: contactId, date, type: payload.type || 'call',
+    notes: payload.notes || null,
+  });
+  let { error: bumpErr } = await supabase
     .from('personal_contacts')
     .update({ last_contact_date: date })
     .eq('id', contactId);
+  if (bumpErr) {
+    // last_contact_date may not exist yet (the legacy card's minimal shape) →
+    // write the legacy column so "דיברתי" still records something readable.
+    const legacy = await supabase
+      .from('personal_contacts')
+      .update({ last_contacted: date })
+      .eq('id', contactId);
+    if (legacy.error) throw bumpErr;
+    bumpErr = null;
+  }
+  if (insErr && bumpErr) throw insErr;
 }
 
 export async function listInteractions(userId, contactId) {

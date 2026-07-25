@@ -5,12 +5,11 @@ import PersonalLayout from '@/components/personal/PersonalLayout';
 import DailyCheckin from '@/components/personal/DailyCheckin';
 import PersonalMentorCard from '@/components/personal/PersonalMentorCard';
 import WhatNowButton from '@/components/lifeos/WhatNowButton';
-import FriendsContacts from '@/components/lifeos/FriendsContacts';
 import EndOfDaySummary from '@/components/personal/EndOfDaySummary';
 import { PERSONAL_COLORS, PERSONAL_CARD } from '@/lib/personal/personal-constants';
 import {
   getCheckin, listCheckins, listHabits, listHabitLogs,
-  toggleHabitLog, listContacts, listHouseholdTasks,
+  toggleHabitLog, listContacts, listHouseholdTasks, contactLastDate,
 } from '@/lib/personal/personal-api';
 import { calculateDailyScore, scoreColor, calculatePersonalStreak } from '@/lib/personal/personal-score';
 import { getPersonalInsight } from '@/lib/personal/personal-mentor';
@@ -97,8 +96,9 @@ export default function PersonalDashboard() {
     // Overdue contacts.
     const freqDays = { weekly: 7, biweekly: 14, monthly: 30, quarterly: 90 };
     contacts.forEach(c => {
-      if (!c.last_contact_date) return;
-      const last = new Date(c.last_contact_date);
+      const lastIso = contactLastDate(c);   // tolerates the legacy column name
+      if (!lastIso) return;
+      const last = new Date(lastIso);
       const days = daysBetween(now, last);
       const target = freqDays[c.contact_frequency] || 30;
       if (days > target) out.push({ emoji: '📞', text: `לא דיברת עם ${c.name} כבר ${days} ימים`, href: '/personal/people' });
@@ -280,10 +280,24 @@ export default function PersonalDashboard() {
         </div>
       )}
 
-      {/* Contacts card — moved off the אישי board (habit table) to here, the
-          'עוד כלים' tools page it already links to. Collapsed by default. */}
-      <div style={{ margin: '0 -14px' }}>
-        <FriendsContacts userId={userId} />
+      {/* Contacts — one screen only (קשרים). The standalone card that used to
+          sit here wrote its own columns on the same table; it's gone, and this
+          is the entry point into the single consolidated screen. */}
+      <div
+        onClick={() => navigate('/personal/people')}
+        style={{
+          ...PERSONAL_CARD, marginBottom: 14, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}
+      >
+        <span style={{ fontSize: 26 }}>👥</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: PERSONAL_COLORS.textPrimary }}>אנשי קשר</div>
+          <div style={{ fontSize: 11, color: PERSONAL_COLORS.textSecondary, marginTop: 2 }}>
+            {contacts.length ? `${contacts.length} אנשים · מי שהגיע הזמן לדבר איתו` : 'הוסף אנשים חשובים'}
+          </div>
+        </div>
+        <span style={{ fontSize: 16, color: PERSONAL_COLORS.textSecondary }}>←</span>
       </div>
 
       <DailyCheckin

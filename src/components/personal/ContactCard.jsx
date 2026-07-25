@@ -1,6 +1,7 @@
 import React from 'react';
 import { Phone } from 'lucide-react';
 import { PERSONAL_COLORS, CONTACT_CATEGORIES, CONTACT_FREQUENCIES } from '@/lib/personal/personal-constants';
+import { contactLastDate } from '@/lib/personal/personal-api';
 
 const CAT_BY_KEY = Object.fromEntries(CONTACT_CATEGORIES.map(c => [c.key, c]));
 const FREQ_BY_KEY = Object.fromEntries(CONTACT_FREQUENCIES.map(c => [c.key, c]));
@@ -11,7 +12,10 @@ export default function ContactCard({ contact, onLogCall, onClick }) {
   const cat = CAT_BY_KEY[contact.category] || { emoji: '👤', label: contact.category };
   const freq = FREQ_BY_KEY[contact.contact_frequency];
   const targetDays = freq?.days || 30;
-  const lastDate = contact.last_contact_date ? new Date(contact.last_contact_date) : null;
+  // Reads the legacy `last_contacted` too, so contacts written by the removed
+  // FriendsContacts card show their date even pre-migration.
+  const lastIso = contactLastDate(contact);
+  const lastDate = lastIso ? new Date(lastIso) : null;
   const days = lastDate ? daysBetween(new Date(), lastDate) : null;
   const overdue = days !== null && days > targetDays;
   const veryOverdue = days !== null && days > targetDays * 2;

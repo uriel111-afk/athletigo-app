@@ -636,35 +636,14 @@ export async function updateIdea(id, patch) {
   if (error) throw error;
 }
 
-// ─── Personal contacts (חברים ומשפחה domain) ──────────────────────
-// A simple personal contact log — separate table, never a focus_node, so it
-// stays out of the habit matrix and the business map.
-export async function listContacts(userId) {
-  const { data, error } = await supabase
-    .from('personal_contacts')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true });
-  if (error) return [];   // table may not exist yet (migration pending) → empty
-  return data || [];
-}
-export async function addContact(userId, fields) {
-  const { data, error } = await supabase
-    .from('personal_contacts')
-    .insert([{ user_id: userId, ...fields }])
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
-}
-export async function updateContact(id, patch) {
-  const { error } = await supabase.from('personal_contacts').update(patch).eq('id', id);
-  if (error) throw error;
-}
-export async function deleteContact(id) {
-  const { error } = await supabase.from('personal_contacts').delete().eq('id', id);
-  if (error) throw error;
-}
+// ─── Personal contacts — DELIBERATELY NOT HERE ────────────────────
+// There used to be a second contacts write path here (list/add/update/delete
+// on personal_contacts, using the relation + last_contacted columns) behind
+// the FriendsContacts card. Contacts now live in ONE place: the קשרים screen
+// at /personal/people, via @/lib/personal/personal-api — which owns the fuller
+// shape (category / phone / birthday / contact_frequency / last_contact_date /
+// notes) plus the personal_interactions log. See
+// migrations/2026-07-25-contacts-consolidation.sql.
 
 // ═══════════════════════════════════════════════════════════════════
 // Client-side hierarchy helpers
