@@ -424,7 +424,10 @@ export default function FocusTracker({
       <div style={{ fontSize: 13, marginTop: 6 }}>{boardTag ? 'הוסף הרגל למעלה או בחר מהקיים' : 'הוסף משימה יומית או שבועית במפה'}</div>
     </div>
   ) : (
-    <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: 'max-content', fontSize: 12, direction: 'rtl' }}>
+    // ag-dense-table opts this out of App.css's mobile "table → card"
+    // transform (which turned every day <td> into a full-width block, so a
+    // habit's day cells stacked vertically and the date header vanished).
+    <table className="ag-dense-table" style={{ borderCollapse: 'separate', borderSpacing: 0, width: 'max-content', fontSize: 12, direction: 'rtl' }}>
       <thead>
         <tr>
           <td style={{ ...nameCell, zIndex: 4, background: '#FFFDFA', height: 34, padding: '0 8px', textAlign: 'right', fontWeight: 700, color: FOCUS.muted }}>משימה</td>

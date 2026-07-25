@@ -500,3 +500,48 @@ body {
   color: #FFFFFF;
   border: none;
 }
+
+/* ── Dense spreadsheet tables (habit tracker) ──────────────────────
+   App.css carries an app-wide "table to card layout on mobile" block:
+   under @media (max-width: 640px) it sets `table{display:block}`,
+   `thead{display:none}` and `tbody,tr,td{display:block;width:100%}`,
+   plus a card border/margin on every `tr`. That is right for the
+   report-style tables it was written for, but it destroys a dense
+   matrix: every <td> becomes a full-width block, so a habit's 7 day
+   cells stack VERTICALLY down a tall card and the date header row
+   disappears entirely.
+   This class opts a table out of that transform. Every selector here
+   carries the class, so it outranks the media-query rules (0,1,x vs
+   0,0,1) at any viewport width regardless of file order. The tracker
+   styles its own widths/borders/padding inline, so resetting those
+   here is safe — inline styles still win. */
+table.ag-dense-table {
+  display: table;
+  width: max-content;
+  max-width: none;
+  table-layout: auto;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: none;
+}
+table.ag-dense-table thead { display: table-header-group; }
+table.ag-dense-table tbody { display: table-row-group; }
+table.ag-dense-table tr {
+  display: table-row;
+  width: auto;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+}
+table.ag-dense-table th,
+table.ag-dense-table td {
+  display: table-cell;
+  width: auto;
+  padding: 0;
+  border: none;
+  overflow: visible;
+  text-overflow: clip;
+}
+table.ag-dense-table tbody tr { border-bottom: none; }
+table.ag-dense-table tbody tr:hover { background-color: transparent; }
