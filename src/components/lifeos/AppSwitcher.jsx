@@ -2,6 +2,7 @@ import React, { useContext } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Briefcase, Coins, Sprout, HeartHandshake, Clapperboard, Target } from "lucide-react";
 import { AuthContext } from "@/lib/AuthContext";
+import LifeOSMoreMenu from "@/components/lifeos/LifeOSMoreMenu";
 import { COACH_USER_ID } from "@/lib/lifeos/lifeos-constants";
 
 // Tabbed bar for switching between the three top-level apps. Only
@@ -107,6 +108,14 @@ export default function AppSwitcher({ wide = false }) {
           </button>
         );
       })}
+
+      {/* "עוד" sheet trigger — lives HERE rather than in the sticky top bar
+          because this row survives on screens that hide that bar (the אישי
+          board's hideTopBar), so the secondary screens stay reachable.
+          Never shrinks and never scrolls out of reach: fixed 38px pill. */}
+      <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 38 }}>
+        <LifeOSMoreMenu />
+      </div>
     </div>
   );
 }

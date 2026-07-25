@@ -1,7 +1,7 @@
 import React, { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
-import PersonalNav from './PersonalNav';
+import PersonalMoreMenu from './PersonalMoreMenu';
 import AppSwitcher from '@/components/lifeos/AppSwitcher';
 import GlobalSearch from '@/components/lifeos/GlobalSearch';
 import { MentorChatIconButton } from '@/components/lifeos/MentorChat';
@@ -66,14 +66,17 @@ export default function PersonalLayout({ title, children, rightSlot = null }) {
           {rightSlot}
           <GlobalSearch iconColor={PERSONAL_COLORS.textSecondary} />
           <MentorChatIconButton />
+          {/* Section jumper — took over from the removed PersonalNav bar. */}
+          <PersonalMoreMenu />
         </div>
       </div>
 
-      <div style={{ padding: '16px 14px 100px', maxWidth: 560, margin: '0 auto' }}>
+      {/* 28px bottom padding, not 100 — the fixed PersonalNav bar that the
+          old value reserved space for is gone (its sections moved into the
+          header's grid menu). */}
+      <div style={{ padding: '16px 14px 28px', maxWidth: 560, margin: '0 auto' }}>
         {children}
       </div>
-
-      <PersonalNav />
     </div>
   );
 }

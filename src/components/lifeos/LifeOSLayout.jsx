@@ -113,10 +113,11 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
           {/* Mentor chat is a coach tool — hidden for the coordinator. */}
           {!isCoordinator && <MentorChatIconButton />}
           <NotificationBell userId={user?.id} leadsOnly={isCoordinator} />
-          {/* "עוד" sheet — the secondary Life OS screens. Lived in the
-              removed bottom nav; the coordinator is leads-only so they
-              never get it. */}
-          {!isCoordinator && <LifeOSMoreMenu />}
+          {/* "עוד" sheet — the secondary Life OS screens. Normally mounted
+              in the AppSwitcher row (which survives hideTopBar), so it only
+              renders here as a fallback for roles that get no AppSwitcher.
+              The coordinator is leads-only and never gets it. */}
+          {!isCoordinator && user?.id !== COACH_USER_ID && <LifeOSMoreMenu />}
         </div>
       </div>
       )}

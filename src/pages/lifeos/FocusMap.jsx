@@ -4,6 +4,7 @@ import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import PageSkeleton from '@/components/PageSkeleton';
 import FocusChips from '@/components/lifeos/FocusChips';
+import LifeOSMoreMenu from '@/components/lifeos/LifeOSMoreMenu';
 import IdeaCaptureButton from '@/components/lifeos/IdeaCaptureButton';
 import NodeDetailSheet from '@/components/lifeos/NodeDetailSheet';
 import MindMapCanvas from '@/components/lifeos/MindMapCanvas';
@@ -337,7 +338,7 @@ export default function FocusMap() {
 
   const branchOptions = useMemo(() => nodes.filter(n => n.node_type !== 'task'), [nodes]);
 
-  if (!loaded) return <LifeOSLayout title="מיקוד" fullBleed hideFab hideHeader><FocusChips compact /><PageSkeleton rows={6} /></LifeOSLayout>;
+  if (!loaded) return <LifeOSLayout title="מיקוד" fullBleed hideFab hideHeader><FocusChips compact trailing={<LifeOSMoreMenu />} /><PageSkeleton rows={6} /></LifeOSLayout>;
 
   const empty = nodes.length === 0;
 
@@ -373,7 +374,9 @@ export default function FocusMap() {
 
   return (
     <LifeOSLayout title="מיקוד" fullBleed hideFab hideHeader>
-      <FocusChips compact />
+      {/* hideHeader drops the AppSwitcher row too, so the map hosts the
+          "עוד" trigger on its own chips row — same shared component. */}
+      <FocusChips compact trailing={<LifeOSMoreMenu />} />
 
       {/* Canvas — fills all remaining space, edge to edge */}
       <div style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%', overflow: 'hidden', background: FOCUS.bg }}>
