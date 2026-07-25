@@ -5,6 +5,7 @@ import PersonalLayout from '@/components/personal/PersonalLayout';
 import DailyCheckin from '@/components/personal/DailyCheckin';
 import PersonalMentorCard from '@/components/personal/PersonalMentorCard';
 import WhatNowButton from '@/components/lifeos/WhatNowButton';
+import FriendsContacts from '@/components/lifeos/FriendsContacts';
 import EndOfDaySummary from '@/components/personal/EndOfDaySummary';
 import { PERSONAL_COLORS, PERSONAL_CARD } from '@/lib/personal/personal-constants';
 import {
@@ -278,6 +279,12 @@ export default function PersonalDashboard() {
           </div>
         </div>
       )}
+
+      {/* Contacts card — moved off the אישי board (habit table) to here, the
+          'עוד כלים' tools page it already links to. Collapsed by default. */}
+      <div style={{ margin: '0 -14px' }}>
+        <FriendsContacts userId={userId} />
+      </div>
 
       <DailyCheckin
         isOpen={showCheckin}

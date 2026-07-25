@@ -12,7 +12,7 @@ import {
   FOCUS, urgencyStyle, tagColor, isoDate, addDays,
   fetchNodes, fetchLogs, fetchNoteNodeIds, logSetFrom, indexNodes,
   ancestorsOf, descendantTasks, logTask, unlogTask, createNode,
-  ARM_PALETTE, colorTag, darken,
+  ARM_PALETTE, colorTag, darken, BANK_TAG,
 } from '@/lib/lifeos/focus-api';
 
 const FILTERS = [
@@ -148,7 +148,11 @@ export default function FocusList() {
 
         {groups.map((g, gi) => {
           const arm = colorTag(g) || ARM_PALETTE[gi % ARM_PALETTE.length];
-          const subTasks = descendantTasks(g.id, children);
+          // Habit task-bank items are child tasks of a habit; they belong to
+          // that habit's bank sheet, not to this flat list (the map and the
+          // outline already stop at task nodes, so this is the one screen that
+          // would otherwise surface them).
+          const subTasks = descendantTasks(g.id, children).filter(t => !(t.tags || []).includes(BANK_TAG));
           const shown = subTasks.filter(passesFilter);
           const doneCount = subTasks.filter(isDone).length;
           const isOpen = !collapsed[g.id];

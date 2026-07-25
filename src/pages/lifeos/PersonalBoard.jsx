@@ -1,9 +1,7 @@
-import React, { useContext } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LayoutGrid } from 'lucide-react';
 import FocusTracker from './FocusTracker';
-import FriendsContacts from '@/components/lifeos/FriendsContacts';
-import { AuthContext } from '@/lib/AuthContext';
 import { FOCUS, BOARD_TAG } from '@/lib/lifeos/focus-api';
 
 // The אישי (personal) world's home — the SAME tracker component, curated
@@ -14,18 +12,17 @@ import { FOCUS, BOARD_TAG } from '@/lib/lifeos/focus-api';
 //     'החיים שלי' arm so the board opens personal-only.
 //   • pageScroll → no inner scrolling; the page scrolls, week fits 380px.
 //   • defaultPeriod 'week' · collapsible quick-add · one-row controls.
-//   • row tap opens the item's home (NodeDetailSheet + streak/% line).
+//   • row tap opens the habit's TASK BANK (details are one long-press away).
 //   • checking a cell opens the documentation sheet automatically.
+//   • seedHabits → the agreed habit set is created once, idempotently.
 // No FocusChips here: the AppSwitcher is the cross-world nav. The old
-// personal tools hub stays reachable via the 'עוד כלים' button below.
+// personal tools hub stays reachable via the 'עוד כלים' button below — that's
+// also where the contacts card now lives (it used to sit on this page).
 export default function PersonalBoard() {
   const navigate = useNavigate();
-  const { user } = useContext(AuthContext);
 
   const moreTools = (
-    <>
-      <FriendsContacts userId={user?.id} />
-      <div style={{ padding: '20px 12px 8px', display: 'flex', justifyContent: 'center' }}>
+    <div style={{ padding: '20px 12px 8px', display: 'flex', justifyContent: 'center' }}>
       <button
         onClick={() => navigate('/personal')}
         style={{
@@ -39,8 +36,7 @@ export default function PersonalBoard() {
         <LayoutGrid size={16} color={FOCUS.orange} />
         עוד כלים
       </button>
-      </div>
-    </>
+    </div>
   );
 
   return (
@@ -49,9 +45,9 @@ export default function PersonalBoard() {
       chips={null}
       quickAdd
       docOnCheck
-      daySummary
       seedPersonal
       seedDomains
+      seedHabits
       groupByDomain
       boardTag={BOARD_TAG}
       pageScroll

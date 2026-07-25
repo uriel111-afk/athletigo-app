@@ -481,7 +481,10 @@ export async function seedPersonalArm(userId) {
 // A separate category layer BELOW the 'החיים שלי' arm. Habits live under
 // one of these branches; the tracker groups rows by domain. Additive —
 // the legacy PERSONAL_ARM_CHILDREN stay as-is.
-export const PERSONAL_DOMAINS = ['שגרה', 'אכילה', 'תפילה', 'אימונים', 'חברים ומשפחה', 'תחביבים', 'משק בית'];
+// 'שינה' joins as its own domain rather than hiding under 'אכילה' — the
+// seeder is title-idempotent, so adding a title here just creates the one
+// missing branch for users who were already seeded.
+export const PERSONAL_DOMAINS = ['שגרה', 'אכילה', 'שינה', 'תפילה', 'אימונים', 'חברים ומשפחה', 'תחביבים', 'משק בית'];
 
 // Idempotently ensure the 7 domain branches exist under the personal arm.
 // Creates the arm first if missing (via seedPersonalArm). Never deletes.
@@ -501,6 +504,83 @@ export async function seedPersonalDomains(userId) {
     }
   }
   return arm;
+}
+
+// ─── Agreed personal habits (seeded once, idempotently) ───────────
+// Each habit is an ordinary recurring task under its domain branch, born on
+// the board (BOARD_TAG) exactly like a quick-added one. 'weekly: 5' uses the
+// existing w:N mechanism: frequency stays 'daily' + a 'w:5' tag → 5 times a
+// week on flexible days.
+export const PERSONAL_HABIT_SEED = [
+  { title: 'תפילת בוקר',        domain: 'תפילה',        frequency: 'daily' },
+  { title: 'נגינה (30 דק׳)',     domain: 'תחביבים',      frequency: 'daily' },
+  { title: 'קשר עם חברים',       domain: 'חברים ומשפחה', frequency: 'daily' },
+  { title: 'ניקיון וקניות',       domain: 'משק בית',      frequency: 'daily' },
+  { title: 'שינה (יעד 7 שעות)',  domain: 'שינה',         frequency: 'daily' },
+  { title: 'אימון כוח',          domain: 'אימונים',      frequency: 'daily', weekly: 5 },
+];
+
+// Create any of the agreed habits that don't exist yet. Idempotent on two
+// levels: the domain branches come from the title-checked seedPersonalDomains,
+// and a habit is skipped when a task with the same title already exists
+// ANYWHERE under the personal arm (so a habit the user moved between domains
+// is never duplicated). Callers also guard with a localStorage flag to skip
+// the extra read on every load. Returns the number actually created.
+export async function seedPersonalHabits(userId, boardTag = BOARD_TAG) {
+  await seedPersonalDomains(userId);            // ensures the arm + all domains
+  const nodes = await fetchNodes(userId);
+  const { children } = indexNodes(nodes);
+  const root = nodes.find(n => n.node_type === 'root') || nodes.find(n => !n.parent_id);
+  if (!root) return 0;
+  const arm = nodes.find(n => n.parent_id === root.id && n.node_type !== 'task' && n.title === PERSONAL_ARM_TITLE);
+  if (!arm) return 0;
+
+  const existing = new Set(descendantTasks(arm.id, children).map(t => String(t.title || '').trim()));
+  const domainByTitle = {};
+  (children[arm.id] || []).forEach(b => { if (b.node_type !== 'task') domainByTitle[b.title] = b; });
+
+  let created = 0;
+  for (const spec of PERSONAL_HABIT_SEED) {
+    if (existing.has(spec.title)) continue;             // already there → skip
+    const domain = domainByTitle[spec.domain];
+    if (!domain) continue;                              // domain missing → skip, never guess
+    const tags = [boardTag];
+    if (spec.weekly) tags.push(`w:${spec.weekly}`);
+    await createNode(userId, {
+      parent_id: domain.id, node_type: 'task', title: spec.title,
+      frequency: spec.frequency, tags,
+    });
+    existing.add(spec.title);
+    created++;
+  }
+  return created;
+}
+
+// ─── Per-habit task bank (sub-items under one habit) ──────────────
+// No new table and no new concept: a bank item is a CHILD focus_node of the
+// habit — node_type 'task' with NO frequency and no task_date/due_date, plus a
+// 'בנק' tag. Consequences of that shape, all of them already-existing
+// behaviour rather than new code:
+//   • recurringTasks() needs a frequency → a bank item is never its own row.
+//   • harvestToday()/todayStats() need a date → it never counts as "today's".
+//   • the map's visibleChildrenOf() and the outline's walk() both stop at
+//     task nodes → bank items don't clutter מיקוד or מתאר.
+//   • it has a real node id → per-item, per-day completion is just an ordinary
+//     focus_task_logs row, so streaks/notes/undo work with zero new plumbing.
+export const BANK_TAG = 'בנק';
+
+export function bankItemsOf(habitId, children) {
+  return (children[habitId] || []).filter(n =>
+    n.node_type === 'task' && (n.tags || []).includes(BANK_TAG));
+}
+
+export async function addBankItem(userId, habit, title, sortOrder = 0) {
+  const t = String(title || '').trim();
+  if (!t || !habit?.id) return null;
+  return createNode(userId, {
+    parent_id: habit.id, node_type: 'task', title: t,
+    tags: [BANK_TAG], sort_order: sortOrder,
+  });
 }
 
 // The category branch a node belongs to = its ancestor whose parent is

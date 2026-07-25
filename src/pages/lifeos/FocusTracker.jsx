@@ -8,14 +8,16 @@ import IdeaCaptureButton from '@/components/lifeos/IdeaCaptureButton';
 import FocusDocSheet, { doneToast } from '@/components/lifeos/FocusDocSheet';
 import NotDoneSheet from '@/components/lifeos/NotDoneSheet';
 import NodeDetailSheet from '@/components/lifeos/NodeDetailSheet';
-import { ChevronRight, ChevronLeft, Flame, LayoutGrid, Plus, X, ClipboardList, ListPlus, FolderPlus } from 'lucide-react';
+import HabitBankSheet from '@/components/lifeos/HabitBankSheet';
+import { ChevronRight, ChevronLeft, Flame, LayoutGrid, Plus, X, ListPlus, FolderPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   FOCUS, isoDate, addDays, dowOf, HEB_DAYS, HEB_DAYS_FULL,
   monthDays, weekDays, monthLabel, HEB_MONTHS,
-  fetchNodes, fetchLogs, fetchNotesForDate, logSetFrom, logByKey, indexNodes, topBranchOf, branchUnderArm, ancestorsOf,
+  fetchNodes, fetchLogs, logSetFrom, logByKey, indexNodes, topBranchOf, branchUnderArm, ancestorsOf,
   logTask, unlogTask, createNode, updateNode, deleteNode,
-  seedPersonalArm, seedPersonalDomains, PERSONAL_ARM_TITLE, migratePersonalToBoard,
+  bankItemsOf, addBankItem,
+  seedPersonalArm, seedPersonalDomains, seedPersonalHabits, PERSONAL_ARM_TITLE, migratePersonalToBoard,
   armColorMap, ARM_PALETTE, darken, hexAlpha,
   recurringTasks, taskExpectedOn, taskLoggedOn, taskMonthStats, taskStreak,
   harvestToday, todayStats, weeklyTargetOf, weekDoneCount, isCellExpected,
@@ -64,8 +66,8 @@ const fmtInvested = (min) => {
 //   title/chips   — header + sub-nav slot.
 //   docOnCheck    — checking a cell opens FocusDocSheet automatically.
 //   quickAdd      — collapsible "build a recurring task" row.
-//   daySummary    — "תועדו היום N" strip + feed.
 //   seedPersonal  — ensure the 'החיים שלי' arm exists first.
+//   seedHabits    — also seed the agreed habit set (once per user).
 //   boardTag      — CURATED mode: show only tasks tagged with it; long-press
 //                   to remove/delete; "add from existing" picker; the today
 //                   strip counts board rows only; first-run migration tags
@@ -78,8 +80,8 @@ export default function FocusTracker({
   chips = <FocusChips />,
   docOnCheck = false,
   quickAdd = false,
-  daySummary = false,
   seedPersonal = false,
+  seedHabits = false,
   boardTag = null,
   pageScroll = false,
   defaultPeriod = 'month',
@@ -96,8 +98,6 @@ export default function FocusTracker({
 
   const [nodes, setNodes] = useState([]);
   const [logs, setLogs] = useState([]);
-  const [notesToday, setNotesToday] = useState([]);
-  const [feedOpen, setFeedOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [period, setPeriod] = useState(defaultPeriod); // week | month | year
   const [cursor, setCursor] = useState(today);         // a date inside the shown period
@@ -107,6 +107,7 @@ export default function FocusTracker({
   const [sheetNode, setSheetNode] = useState(null);    // row tap → the item's home
   const [rowMenu, setRowMenu] = useState(null);        // { task, x, y } long-press bar
   const [pickerOpen, setPickerOpen] = useState(false); // "add from existing"
+  const [bankNode, setBankNode] = useState(null);      // row tap → the habit's task bank
   const seededRef = useRef(false);
 
   // ── Columns for the current period ────────────────────────────────
@@ -133,14 +134,28 @@ export default function FocusTracker({
       if (seedPersonal && !seededRef.current) {
         seededRef.current = true;
         try { await seedPersonalArm(userId); } catch { /* non-fatal */ }
-        // Ensure the domain (category) branches exist, once per user.
+        // Ensure the domain (category) branches exist, once per user. Key is
+        // v2 because 'שינה' joined PERSONAL_DOMAINS after v1 users were
+        // flagged; the seeder itself is title-idempotent either way.
         if (seedDomains) {
-          const dkey = `domains_seeded_v1_${userId}`;
+          const dkey = `domains_seeded_v2_${userId}`;
           let dd = null;
           try { dd = localStorage.getItem(dkey); } catch { /* noop */ }
           if (!dd) {
             try { await seedPersonalDomains(userId); } catch { /* non-fatal */ }
             try { localStorage.setItem(dkey, '1'); } catch { /* noop */ }
+          }
+        }
+        // Ensure the agreed habit set exists. Double-guarded: this flag skips
+        // the extra read, and seedPersonalHabits skips any habit whose title is
+        // already under the arm — so a cleared flag can't duplicate rows.
+        if (seedHabits) {
+          const hkey = `habits_seeded_v1_${userId}`;
+          let hh = null;
+          try { hh = localStorage.getItem(hkey); } catch { /* noop */ }
+          if (!hh) {
+            try { await seedPersonalHabits(userId, boardTag || undefined); } catch { /* non-fatal */ }
+            try { localStorage.setItem(hkey, '1'); } catch { /* noop */ }
           }
         }
         // First-run curation: tag the personal arm onto the board once.
@@ -156,15 +171,14 @@ export default function FocusTracker({
       }
       const lo = periodStart < addDays(today, -120) ? periodStart : addDays(today, -120);
       const hi = periodEnd > today ? periodEnd : today;
-      const [n, l, notes] = await Promise.all([
+      const [n, l] = await Promise.all([
         fetchNodes(userId),
         fetchLogs(userId, lo, hi),
-        daySummary ? fetchNotesForDate(userId, today) : Promise.resolve([]),
       ]);
-      setNodes(n); setLogs(l); setNotesToday(notes);
+      setNodes(n); setLogs(l);
     } catch { toast.error('שגיאה בטעינה'); }
     finally { setLoaded(true); }
-  }, [userId, periodStart, periodEnd, today, seedPersonal, seedDomains, daySummary, boardTag]);
+  }, [userId, periodStart, periodEnd, today, seedPersonal, seedDomains, seedHabits, boardTag]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -268,6 +282,48 @@ export default function FocusTracker({
     const row = logMap[task.id + '|' + date] || null;
     if (taskLoggedOn(task, logSet, date)) { setDocNode({ task, date, existing: row }); return; }
     if (taskExpectedOn(task, date) || row) setNotDoneNode({ task, date, existing: row });
+  };
+
+  // ── Per-habit task bank ───────────────────────────────────────────
+  // Bank items are child task nodes of the habit (see BANK_TAG in focus-api),
+  // so a per-item day mark is an ordinary focus_task_logs row on the item id.
+  const bankCounts = useMemo(() => {
+    const m = {};
+    allRows.forEach(t => { const n = bankItemsOf(t.id, children).length; if (n) m[t.id] = n; });
+    return m;
+  }, [allRows, children]);
+  const bankItems = useMemo(() => (bankNode ? bankItemsOf(bankNode.id, children) : []), [bankNode, children]);
+  const isItemDone = (item, date) => logSet.has(item.id + '|' + date);
+
+  const addToBank = async (habit, title) => {
+    try { await addBankItem(userId, habit, title, bankItemsOf(habit.id, children).length); await load(); return true; }
+    catch { toast.error('שגיאה בהוספה'); return false; }
+  };
+  const deleteBankItem = async (item) => {
+    setNodes(prev => prev.filter(n => n.id !== item.id));
+    try { await deleteNode(item.id); } catch { toast.error('שגיאה'); load(); }
+  };
+  // Completing ANY bank item marks the habit's day done. The full doc sheet is
+  // NOT forced per item — the habit gets the light "בוצע ✓" toast with a
+  // "הוסף תיעוד" action, so checking several items in a row stays fluid and
+  // documentation still happens once, on demand (or later from the cell).
+  const toggleBankItem = async (habit, item, date) => {
+    if (date > today) return;
+    const wasDone = isItemDone(item, date);
+    setLogs(prev => [
+      ...prev.filter(l => !(l.node_id === item.id && l.log_date === date)),
+      ...(wasDone ? [] : [{ node_id: item.id, log_date: date, status: 'done' }]),
+    ]);
+    try {
+      if (wasDone) { await unlogTask(item, date); return; }
+      await logTask(userId, item, date);
+      // First item of the day → the habit itself counts as done.
+      if (!taskLoggedOn(habit, logSet, date)) {
+        setLogs(prev => [...prev.filter(l => !(l.node_id === habit.id && l.log_date === date)), { node_id: habit.id, log_date: date, status: 'done' }]);
+        await logTask(userId, habit, date);
+        doneToast('בוצע ✓', habit, () => { setBankNode(null); setDocNode({ task: habit, date, existing: null }); });
+      }
+    } catch { load(); }
   };
 
   // ── Board membership actions ──────────────────────────────────────
@@ -410,7 +466,11 @@ export default function FocusTracker({
                 <tr key={task.id}>
                   <RowLabel task={task} style={nameCell}
                     subline={invested > 0 ? `⏱ ${fmtInvested(invested)}` : null}
-                    onTap={() => setSheetNode(task)}
+                    bankCount={bankCounts[task.id] || 0}
+                    /* Personal board: the row opens the habit's task bank
+                       (its details stay one long-press away). Business
+                       tracker keeps opening the node's home sheet. */
+                    onTap={() => (boardTag ? setBankNode(task) : setSheetNode(task))}
                     onLongPress={boardTag ? (x, y) => setRowMenu({ task, x, y }) : null} />
                   {columns.map(col => (
                     <Cell key={col} task={task} col={col} colKind={colKind} logSet={logSet} logMap={logMap} today={today} color={g.color} w={cellW} onToggle={onCellTap} />
@@ -462,18 +522,13 @@ export default function FocusTracker({
           onAddTopic={groupByDomain ? createDomain : null} />
       )}
 
-      {/* ── Day-summary strip ── */}
-      {daySummary && (
-        <div onClick={() => notesToday.length && setFeedOpen(true)}
-          style={{ margin: '0 12px 8px', display: 'flex', alignItems: 'center', gap: 10, background: FOCUS.card, border: `1px solid ${FOCUS.border}`, borderRadius: 14, boxShadow: FOCUS.neu, padding: '9px 14px', cursor: notesToday.length ? 'pointer' : 'default' }}>
-          <ClipboardList size={17} color={FOCUS.orange} style={{ flexShrink: 0 }} />
-          <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: FOCUS.ink }}>תועדו היום {notesToday.length} פעילויות</div>
-          {notesToday.length > 0 && <ChevronLeft size={18} color={FOCUS.muted} />}
-        </div>
-      )}
-
-      {/* ── Today strip (board rows only when curated) ── */}
-      <div onClick={() => navigate('/lifeos/focus/today')}
+      {/* ── Today strip (board rows only when curated) ──
+          On the personal board this is a LOCAL control: it zooms the table to
+          today (period 'day', cursor today) so the remaining habits are the
+          only thing on screen. It used to navigate to /lifeos/focus/today —
+          the business Focus screen — which was wrong for אישי. The business
+          tracker keeps that navigation. */}
+      <div onClick={() => (boardTag ? (setPeriod('day'), setCursor(today)) : navigate('/lifeos/focus/today'))}
         style={{ margin: '0 12px 8px', display: 'flex', alignItems: 'center', gap: 12, background: allDone ? 'linear-gradient(135deg,#FFF3E9,#FFE4CF)' : FOCUS.card, border: `1px solid ${FOCUS.border}`, borderRadius: 14, boxShadow: FOCUS.neu, padding: '9px 14px', cursor: 'pointer' }}>
         <MiniRing done={strip.done} total={strip.total} />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -564,14 +619,25 @@ export default function FocusTracker({
           }, [])}
           onAdd={addToBoard} onClose={() => setPickerOpen(false)} />
       )}
-      {feedOpen && <DayFeedSheet notes={notesToday} byId={byId} onClose={() => setFeedOpen(false)} />}
-      <IdeaCaptureButton onSaved={load} hidden={!!(sheetNode || docNode || notDoneNode || pickerOpen)} />
+      {bankNode && (
+        <HabitBankSheet
+          habit={bankNode}
+          date={today}
+          items={bankItems}
+          isItemDone={(item) => isItemDone(item, today)}
+          onAdd={(t) => addToBank(bankNode, t)}
+          onToggle={(item) => toggleBankItem(bankNode, item, today)}
+          onDelete={deleteBankItem}
+          onDetails={() => { const t = bankNode; setBankNode(null); setSheetNode(t); }}
+          onClose={() => setBankNode(null)} />
+      )}
+      <IdeaCaptureButton onSaved={load} hidden={!!(sheetNode || docNode || notDoneNode || pickerOpen || bankNode)} />
     </LifeOSLayout>
   );
 }
 
 // ── Row label: tap = open home sheet, long-press = mini bar ─────────
-function RowLabel({ task, style, onTap, onLongPress, subline = null }) {
+function RowLabel({ task, style, onTap, onLongPress, subline = null, bankCount = 0 }) {
   const t = useRef({ x: 0, y: 0, moved: false, long: false, timer: null });
   const start = (e) => {
     const p = e.touches ? e.touches[0] : e;
@@ -591,6 +657,10 @@ function RowLabel({ task, style, onTap, onLongPress, subline = null }) {
           {task.is_fear_task && <Flame size={11} color={FOCUS.red} style={{ flexShrink: 0 }} />}
           <span style={{ fontSize: 12.5, fontWeight: 600, color: FOCUS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title || 'משימה'}</span>
           <span style={{ fontSize: 9, color: FOCUS.muted, flexShrink: 0 }}>{freqLabel(task)}</span>
+          {/* Bank badge — makes the sub-item list discoverable on the row. */}
+          {bankCount > 0 && (
+            <span style={{ fontSize: 8.5, fontWeight: 800, color: '#B4531A', background: hexAlpha(FOCUS.orange, 0.14), borderRadius: 6, padding: '1px 4px', flexShrink: 0, lineHeight: 1.4 }}>☰{bankCount}</span>
+          )}
         </div>
         {subline && <div style={{ fontSize: 9.5, color: '#B4531A', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subline}</div>}
       </div>
@@ -723,36 +793,6 @@ function AddExistingSheet({ groups, onAdd, onClose }) {
             </div>
           </div>
         ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Day feed: today's documentation notes, chronological ────────────
-function DayFeedSheet({ notes, byId, onClose }) {
-  const timeOf = (iso) => { try { return new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
-  return (
-    <div dir="rtl" onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1400, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, maxHeight: '80vh', overflowY: 'auto', background: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: '16px 16px calc(env(safe-area-inset-bottom,0px) + 20px)', boxShadow: '0 -6px 24px rgba(0,0,0,0.15)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: FOCUS.ink }}>תיעוד היום · {notes.length}</div>
-          <button onClick={onClose} aria-label="סגור" style={{ background: 'none', border: 'none', cursor: 'pointer', color: FOCUS.muted, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}><X size={20} /><span style={capLabel}>סגור</span></button>
-        </div>
-        {notes.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '32px 12px', color: FOCUS.muted, fontSize: 13 }}>עוד לא תיעדת פעילויות היום</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {notes.map(nt => (
-              <div key={nt.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: '#FFFDFA', border: `1px solid ${FOCUS.border}`, borderRadius: 12, padding: '10px 12px' }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: FOCUS.orange, flexShrink: 0, marginTop: 1 }}>{timeOf(nt.created_at)}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 800, color: FOCUS.ink, marginBottom: 2 }}>{byId[nt.node_id]?.title || 'משימה'}</div>
-                  <div style={{ fontSize: 12.5, color: FOCUS.ink, whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>{nt.content}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
