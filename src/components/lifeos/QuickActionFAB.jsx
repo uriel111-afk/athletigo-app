@@ -51,7 +51,9 @@ export default function QuickActionFAB({ onSaved }) {
       {/* Menu */}
       {menuOpen && (
         <div style={{
-          position: 'fixed', bottom: 150, left: 16,
+          // Sits above the FAB; both dropped by the height of the removed
+          // bottom nav bar (~66px) now that nothing occupies the bottom edge.
+          position: 'fixed', bottom: 84, left: 16,
           zIndex: 1071,
           display: 'flex', flexDirection: 'column', gap: 8,
         }}>
@@ -80,7 +82,7 @@ export default function QuickActionFAB({ onSaved }) {
         onClick={() => setMenuOpen(v => !v)}
         aria-label="פעולה מהירה"
         style={{
-          position: 'fixed', bottom: 90, left: 16, zIndex: 1072,
+          position: 'fixed', bottom: 'max(env(safe-area-inset-bottom), 24px)', left: 16, zIndex: 1072,
           width: 56, height: 56, borderRadius: 999, border: 'none',
           backgroundColor: LIFEOS_COLORS.primary, color: '#FFFFFF',
           boxShadow: '0 6px 18px rgba(255,111,32,0.4)',

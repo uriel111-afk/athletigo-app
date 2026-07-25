@@ -44,7 +44,8 @@ export default function IdeaCaptureButton({ onSaved, hidden = false, onOpenChang
         style={{
           position: 'fixed',
           left: 18,
-          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)',
+          // +24 instead of +96: the bottom nav bar it used to clear is gone.
+          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)',
           width: 56, height: 56, borderRadius: '50%',
           background: FOCUS.orangeGrad,
           border: 'none',

@@ -84,7 +84,8 @@ export default function FocusTracker({
   pageScroll = false,
   defaultPeriod = 'month',
   footerSlot = null,
-  headerSlot = null,        // rendered above the tracker (e.g. household card)
+  headerSlot = null,        // rendered above the tracker (extra card slot)
+  hideTopBar = false,       // drop the layout's title/search/bell row (אישי board)
   groupByDomain = false,    // group rows by the domain branch under the personal arm
   seedDomains = false,      // ensure PERSONAL_DOMAINS branches exist (once per user)
 } = {}) {
@@ -357,7 +358,7 @@ export default function FocusTracker({
     return `רצף ${st} · החודש ${pctText(ms.done, ms.expected)}`;
   }, [sheetNode, logSet, today]);
 
-  if (!loaded) return <LifeOSLayout title={title} fullBleed={!pageScroll} hideFab>{chips}<PageSkeleton rows={7} /></LifeOSLayout>;
+  if (!loaded) return <LifeOSLayout title={title} fullBleed={!pageScroll} hideFab hideTopBar={hideTopBar}>{chips}<PageSkeleton rows={7} /></LifeOSLayout>;
 
   // ── ONE dense <table> for day (1 col) / week (7) / month (≤31) / year ──
   const grid = allRows.length === 0 ? (
@@ -450,7 +451,7 @@ export default function FocusTracker({
   );
 
   return (
-    <LifeOSLayout title={title} fullBleed={!pageScroll} hideFab>
+    <LifeOSLayout title={title} fullBleed={!pageScroll} hideFab hideTopBar={hideTopBar}>
       {chips}
       {headerSlot}
 

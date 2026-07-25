@@ -2,7 +2,6 @@ import React, { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LayoutGrid } from 'lucide-react';
 import FocusTracker from './FocusTracker';
-import HouseholdSpendCard from '@/components/lifeos/HouseholdSpendCard';
 import FriendsContacts from '@/components/lifeos/FriendsContacts';
 import { AuthContext } from '@/lib/AuthContext';
 import { FOCUS, BOARD_TAG } from '@/lib/lifeos/focus-api';
@@ -57,7 +56,7 @@ export default function PersonalBoard() {
       boardTag={BOARD_TAG}
       pageScroll
       defaultPeriod="week"
-      headerSlot={<HouseholdSpendCard userId={user?.id} />}
+      hideTopBar
       footerSlot={moreTools}
     />
   );

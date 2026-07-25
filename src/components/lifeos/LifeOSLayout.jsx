@@ -1,7 +1,7 @@
 import React, { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
-import LifeOSNav from './LifeOSNav';
+import LifeOSMoreMenu from './LifeOSMoreMenu';
 import QuickActionFAB from './QuickActionFAB';
 import NotificationBell from './NotificationBell';
 import GlobalSearch from './GlobalSearch';
@@ -15,7 +15,11 @@ import { LIFEOS_COLORS, COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 // the content area gets flex:1 and fills the viewport edge-to-edge between
 // the header and the bottom nav — no max-width, no side gutters. Existing
 // pages don't pass it, so their scrolling/centered layout is unchanged.
-export default function LifeOSLayout({ title, children, rightSlot = null, onQuickSaved, fullBleed = false, hideFab = false, hideHeader = false }) {
+// `hideHeader` hides BOTH chrome rows (AppSwitcher + top bar) — the map.
+// `hideTopBar` hides ONLY the second row (Hub / title / search-chat-bell)
+// and keeps the AppSwitcher pills — the אישי board, which needs the
+// vertical space for its habit table but still needs the world switcher.
+export default function LifeOSLayout({ title, children, rightSlot = null, onQuickSaved, fullBleed = false, hideFab = false, hideHeader = false, hideTopBar = false }) {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const isCoordinator = user?.role === 'coordinator';
@@ -41,9 +45,9 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
         </div>
       )}
 
-      {/* Top bar — suppressed on screens that pass hideHeader (map only),
-          reclaiming ~50px of vertical space for the canvas. */}
-      {!hideHeader && (
+      {/* Top bar — suppressed on screens that pass hideHeader (map) or
+          hideTopBar (אישי board), reclaiming ~50px of vertical space. */}
+      {!hideHeader && !hideTopBar && (
       <div
         className="safe-area-top"
         style={{
@@ -109,6 +113,10 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
           {/* Mentor chat is a coach tool — hidden for the coordinator. */}
           {!isCoordinator && <MentorChatIconButton />}
           <NotificationBell userId={user?.id} leadsOnly={isCoordinator} />
+          {/* "עוד" sheet — the secondary Life OS screens. Lived in the
+              removed bottom nav; the coordinator is leads-only so they
+              never get it. */}
+          {!isCoordinator && <LifeOSMoreMenu />}
         </div>
       </div>
       )}
@@ -125,18 +133,26 @@ export default function LifeOSLayout({ title, children, rightSlot = null, onQuic
               // topmost chip/tab row is never left under the status bar when a
               // device reports 0 for the inset — otherwise the OS bar swallows
               // taps on that row (map-only, since only the map hides the header).
-              ...(hideHeader ? { paddingTop: 'max(env(safe-area-inset-top, 0px), 10px)' } : {}),
-              // Reserve the fixed bottom nav so flex:1 children end above it.
-              // Nav is ~77px tall; 82 clears it with a small gap and hands the
-              // extra vertical space back to the canvas.
-              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 82px)',
+              // Also needed when the top bar is hidden and no AppSwitcher
+              // renders above it (non-coach roles), which leaves the content
+              // topmost with nothing carrying the inset.
+              ...(hideHeader || (hideTopBar && user?.id !== COACH_USER_ID)
+                ? { paddingTop: 'max(env(safe-area-inset-top, 0px), 10px)' }
+                : {}),
+              // The fixed bottom nav is gone (its destinations moved into the
+              // header's "עוד" sheet), so only a small breathing gap + the
+              // home-indicator inset are reserved — the rest of the height
+              // goes back to the canvas.
+              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)',
             }
-          : { padding: '16px 0 100px', maxWidth: 560, margin: '0 auto' }}
+          : { padding: '16px 0 28px', maxWidth: 560, margin: '0 auto' }}
       >
         {children}
       </div>
 
-      <LifeOSNav />
+      {/* The bottom nav bar (עוד/מומנטום/הוצאות/בית/מיקוד) was removed —
+          redundant with the AppSwitcher pill row. מיקוד lives on the
+          switcher; the other four moved into the header's "עוד" sheet. */}
       {/* Coordinator can't create finance/quick items — hide the FAB. */}
       {/* Focus screens render their own floating buttons (bulb + plus),
           so the generic quick-action FAB is suppressed there to avoid a
