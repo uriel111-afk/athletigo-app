@@ -369,7 +369,12 @@ export default function FocusMap() {
     } catch { toast.error('שגיאה'); }
   };
   const archiveIdea = async (idea) => {
-    try { await updateIdea(idea.id, { status: 'archived' }); setIdeas(p => p.filter(x => x.id !== idea.id)); } catch {}
+    // Archiving is deliberately non-fatal and shows no toast: the update is
+    // awaited BEFORE the row leaves the list, so a failure simply leaves the
+    // idea in the inbox and the next tap tries again. Logged rather than
+    // swallowed silently, so a repeatedly-failing archive is visible.
+    try { await updateIdea(idea.id, { status: 'archived' }); setIdeas(p => p.filter(x => x.id !== idea.id)); }
+    catch (e) { console.warn('[FocusMap] archive idea failed:', e?.message); }
   };
 
   const branchOptions = useMemo(() => nodes.filter(n => n.node_type !== 'task'), [nodes]);
