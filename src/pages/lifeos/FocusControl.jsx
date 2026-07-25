@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import {
   FOCUS, isoDate, addDays, dowOf, HEB_DAYS,
   fetchNodes, fetchLogs, logSetFrom, indexNodes,
-  harvestToday, computeStreak, todayStats, descendantTasks, allDescendants, occursOn,
+  harvestToday, computeStreak, todayStats, descendantTasks, allDescendants, occursOn, isHiddenLeafTask,
   ARM_PALETTE, colorTag, darken,
 } from '@/lib/lifeos/focus-api';
 
@@ -93,7 +93,9 @@ export default function FocusControl() {
         ) : (
           branches.map((b, bi) => {
             const arm = colorTag(b) || ARM_PALETTE[bi % ARM_PALETTE.length];
-            const tasks = descendantTasks(b.id, children);
+            // Skip other features' metadata leaves (habit task-bank items,
+            // inspiration-list items) so an arm's count stays about real tasks.
+            const tasks = descendantTasks(b.id, children).filter(t => !isHiddenLeafTask(t));
             const doneCount = tasks.filter(isDone).length;
             const taskPct = tasks.length ? doneCount / tasks.length : 0;
             const hasMetric = b.metric_target != null && b.metric_target !== '';

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutGrid } from 'lucide-react';
+import { LayoutGrid, Sparkles } from 'lucide-react';
 import FocusTracker from './FocusTracker';
 import { FOCUS, BOARD_TAG } from '@/lib/lifeos/focus-api';
 
@@ -21,18 +21,23 @@ import { FOCUS, BOARD_TAG } from '@/lib/lifeos/focus-api';
 export default function PersonalBoard() {
   const navigate = useNavigate();
 
+  // Two entry points under the habit table: the inspiration list (new, its own
+  // route) sits alongside the existing 'עוד כלים' tools hub rather than
+  // replacing it — one tap from the board either way.
+  const btn = {
+    flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    padding: '11px 14px', borderRadius: 14, cursor: 'pointer',
+    border: `1px solid ${FOCUS.border}`, background: '#fff',
+    boxShadow: FOCUS.neu, color: FOCUS.ink, fontSize: 13.5, fontWeight: 700,
+    fontFamily: 'inherit', whiteSpace: 'nowrap',
+  };
   const moreTools = (
-    <div style={{ padding: '20px 12px 8px', display: 'flex', justifyContent: 'center' }}>
-      <button
-        onClick={() => navigate('/personal')}
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-          padding: '11px 20px', borderRadius: 14, cursor: 'pointer',
-          border: `1px solid ${FOCUS.border}`, background: '#fff',
-          boxShadow: FOCUS.neu, color: FOCUS.ink, fontSize: 14, fontWeight: 700,
-          fontFamily: 'inherit',
-        }}
-      >
+    <div style={{ padding: '20px 12px 8px', display: 'flex', gap: 8 }}>
+      <button onClick={() => navigate('/lifeos/inspiration')} style={btn}>
+        <Sparkles size={16} color={FOCUS.orange} />
+        רשימת השראה
+      </button>
+      <button onClick={() => navigate('/personal')} style={btn}>
         <LayoutGrid size={16} color={FOCUS.orange} />
         עוד כלים
       </button>

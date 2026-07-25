@@ -456,6 +456,42 @@ export async function clearPositions(ids) {
 export const PERSONAL_ARM_TITLE = 'החיים שלי';
 export const PERSONAL_ARM_CHILDREN = ['בית וסדר', 'משפחה וחברים', 'בריאות והרגלים'];
 
+// The personal world has no tables of its own — it is seeded INTO focus_nodes
+// as a top-level arm next to the business arms (see seedPersonalArm below).
+// Anything reading focus_nodes therefore gets the personal content too. The
+// מיקוד map is business-only, so it strips this subtree on read.
+// Returns the arm's id, or null when it was never seeded.
+export function findPersonalArmId(nodes) {
+  const root = nodes.find(n => n.node_type === 'root') || nodes.find(n => !n.parent_id);
+  if (!root) return null;
+  const arm = nodes.find(n =>
+    n.parent_id === root.id && n.node_type !== 'task' && n.title === PERSONAL_ARM_TITLE);
+  return arm ? arm.id : null;
+}
+
+// The personal arm plus everything under it, as a Set of ids.
+export function personalSubtreeIds(nodes) {
+  const armId = findPersonalArmId(nodes);
+  if (!armId) return new Set();
+  const kids = {};
+  nodes.forEach(n => { if (n.parent_id) (kids[n.parent_id] = kids[n.parent_id] || []).push(n.id); });
+  const out = new Set([armId]);
+  const stack = [armId];
+  while (stack.length) {
+    const id = stack.pop();
+    (kids[id] || []).forEach(c => { if (!out.has(c)) { out.add(c); stack.push(c); } });
+  }
+  return out;
+}
+
+// Business-only view of the tree: same rows, personal subtree removed. This is
+// a READ filter — it never deletes anything, because the אישי tab reads the
+// very same rows.
+export function withoutPersonalArm(nodes) {
+  const drop = personalSubtreeIds(nodes);
+  return drop.size ? nodes.filter(n => !drop.has(n.id)) : nodes;
+}
+
 // Ensure the personal arm exists. Returns the arm node (existing or
 // freshly created), or null when there's no root yet to hang it under.
 // Idempotent: a second call finds the existing branch and does nothing.
@@ -581,6 +617,104 @@ export async function addBankItem(userId, habit, title, sortOrder = 0) {
     parent_id: habit.id, node_type: 'task', title: t,
     tags: [BANK_TAG], sort_order: sortOrder,
   });
+}
+
+// ─── רשימת השראה — the inspiration list ───────────────────────────
+// Wish-list items (places to go / things to try or learn / experiences), NOT
+// habits. Same trick as the task bank, one level up: the list is ONE container
+// task under the personal arm and every item is a child task of it, with NO
+// frequency and no task_date/due_date. Consequences, all existing behaviour:
+//   • recurringTasks() needs a frequency → an item is never a matrix row.
+//   • harvestToday()/todayStats()/occursOn() need a date → never "today's".
+//   • the map's visibleChildrenOf() and the outline's walk() stop at task
+//     nodes → the whole list is invisible on מיקוד and מתאר (only the single
+//     container node exists there).
+//   • bankItemsOf() matches BANK_TAG on a HABIT's children → items can never
+//     show up in a task bank.
+//   • completing one is the ordinary one-time completion path: logTask() sets
+//     status 'done' + done_at (because there's no frequency), and the light
+//     doc sheet writes summary/feeling on the focus_task_logs row.
+// Only the two screens that FLATTEN descendant tasks (רשימה, בקרה) need to be
+// told to skip these — see isHiddenLeafTask below.
+export const INSPIRATION_TAG = 'השראה';
+export const INSPIRATION_ROOT_TITLE = 'רשימת השראה';
+export const INSPIRATION_CATEGORIES = [
+  { key: 'place',      tag: 'cat:place',      label: 'מקומות',       emoji: '📍' },
+  { key: 'learn',      tag: 'cat:learn',      label: 'לנסות/ללמוד',  emoji: '💡' },
+  { key: 'experience', tag: 'cat:experience', label: 'חוויות',       emoji: '✨' },
+];
+
+// Tag-encoded per-item fields, following the existing 'w:5' / 'color:#hex'
+// convention so no column has to be added:
+//   cat:<key>    — which of the three categories the item belongs to
+//   link:<url>   — the optional link / photo URL
+export const catOf = (node) => {
+  const t = (node?.tags || []).find(x => typeof x === 'string' && x.startsWith('cat:'));
+  const key = t ? t.slice(4) : null;
+  return INSPIRATION_CATEGORIES.some(c => c.key === key) ? key : INSPIRATION_CATEGORIES[0].key;
+};
+export const linkOf = (node) => {
+  const t = (node?.tags || []).find(x => typeof x === 'string' && x.startsWith('link:'));
+  return t ? t.slice(5) : '';
+};
+export const inspirationTags = (catKey, link) => {
+  const tags = [INSPIRATION_TAG, `cat:${catKey}`];
+  const url = String(link || '').trim();
+  if (url) tags.push(`link:${url}`);
+  return tags;
+};
+
+// Tasks that are metadata leaves of another feature rather than real tasks:
+// habit task-bank items and inspiration items. The screens that flatten a
+// whole subtree (FocusList, FocusControl) filter with this so their counts and
+// lists stay about actual tasks.
+export function isHiddenLeafTask(node) {
+  const tags = node?.tags || [];
+  return tags.includes(BANK_TAG) || tags.includes(INSPIRATION_TAG);
+}
+
+// The container node, created on demand (idempotent by title+tag under the arm).
+export async function seedInspirationList(userId) {
+  const nodes = await fetchNodes(userId);
+  const root = nodes.find(n => n.node_type === 'root') || nodes.find(n => !n.parent_id);
+  if (!root) return null;
+  let arm = nodes.find(n => n.parent_id === root.id && n.node_type !== 'task' && n.title === PERSONAL_ARM_TITLE);
+  if (!arm) { arm = await seedPersonalArm(userId); }
+  if (!arm) return null;
+  const existing = nodes.find(n => n.parent_id === arm.id && (n.tags || []).includes(INSPIRATION_TAG)
+    && n.title === INSPIRATION_ROOT_TITLE);
+  if (existing) return existing;
+  return createNode(userId, {
+    parent_id: arm.id, node_type: 'task', title: INSPIRATION_ROOT_TITLE,
+    tags: [INSPIRATION_TAG], sort_order: 500,
+  });
+}
+
+export function inspirationItemsOf(rootId, children) {
+  return (children[rootId] || []).filter(n =>
+    n.node_type === 'task' && (n.tags || []).includes(INSPIRATION_TAG));
+}
+
+export async function addInspirationItem(userId, rootId, { title, note, link, category }) {
+  const t = String(title || '').trim();
+  if (!t || !rootId) return null;
+  return createNode(userId, {
+    parent_id: rootId, node_type: 'task', title: t,
+    note: String(note || '').trim() || null,
+    tags: inspirationTags(category, link),
+  });
+}
+
+// Per-node logs with NO date window — an inspiration item may have been
+// completed long before the tracker's rolling 120-day fetch range.
+export async function fetchLogsForNodes(nodeIds = []) {
+  if (!nodeIds.length) return [];
+  const { data, error } = await supabase
+    .from('focus_task_logs')
+    .select('node_id, log_date, status, summary, note, feeling')
+    .in('node_id', nodeIds);
+  if (error) return [];        // rich columns may be pending → no saved notes yet
+  return data || [];
 }
 
 // The category branch a node belongs to = its ancestor whose parent is
