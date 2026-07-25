@@ -14,7 +14,11 @@ import { FOCUS, BOARD_TAG } from '@/lib/lifeos/focus-api';
 //   • defaultPeriod 'week' · collapsible quick-add · one-row controls.
 //   • row tap opens the habit's TASK BANK (details are one long-press away).
 //   • checking a cell opens the documentation sheet automatically.
-//   • seedHabits → the agreed habit set is created once, idempotently.
+// The old seedDomains / seedHabits props are NO LONGER passed: the branch and
+// habit tree is owned by the Stage 1 seed (migrations/2026-07-25-personal-
+// stage1-seed.sql) and guarded in the DB by extra_data.stage1_seeded on the arm.
+// Leaving them on would let the title-idempotent legacy seeders re-create the 8
+// old domains + 6 old habits on any device whose localStorage flag was missing.
 // No FocusChips here: the AppSwitcher is the cross-world nav. The old
 // personal tools hub stays reachable via the 'עוד כלים' button below — that's
 // also where the contacts card now lives (it used to sit on this page).
@@ -51,8 +55,6 @@ export default function PersonalBoard() {
       quickAdd
       docOnCheck
       seedPersonal
-      seedDomains
-      seedHabits
       groupByDomain
       boardTag={BOARD_TAG}
       pageScroll

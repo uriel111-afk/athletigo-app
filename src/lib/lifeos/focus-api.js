@@ -522,9 +522,25 @@ export async function seedPersonalArm(userId) {
 // missing branch for users who were already seeded.
 export const PERSONAL_DOMAINS = ['שגרה', 'אכילה', 'שינה', 'תפילה', 'אימונים', 'חברים ומשפחה', 'תחביבים', 'משק בית'];
 
+// ─── Stage 1 ownership marker ─────────────────────────────────────
+// Once the Stage 1 seed has run, the branch/habit tree under the personal arm
+// is owned by it and the two LEGACY seeders below must never write again.
+// The marker lives in the DB (extra_data.stage1_seeded on the arm node), not in
+// localStorage, so it holds on every device — a localStorage flag would let a
+// fresh install re-create the 8 old domains + 6 old habits that Stage 1
+// deleted, since both legacy seeders are only title-idempotent.
+// Returns false when extra_data doesn't exist yet (pre-migration) → legacy
+// behaviour is unchanged until Stage 1 actually runs.
+export function isStage1Seeded(armNode) {
+  const ex = armNode?.extra_data;
+  if (!ex) return false;
+  const v = typeof ex === 'string' ? (() => { try { return JSON.parse(ex); } catch { return null; } })() : ex;
+  return v?.stage1_seeded === true;
+}
+
 // Idempotently ensure the 7 domain branches exist under the personal arm.
 // Creates the arm first if missing (via seedPersonalArm). Never deletes.
-// Callers guard with a localStorage flag so it runs once per user.
+// LEGACY — superseded by the Stage 1 seed; a no-op once the arm is marked.
 export async function seedPersonalDomains(userId) {
   let nodes = await fetchNodes(userId);
   const root = nodes.find(n => n.node_type === 'root') || nodes.find(n => !n.parent_id);
@@ -532,6 +548,7 @@ export async function seedPersonalDomains(userId) {
   let arm = nodes.find(n => n.parent_id === root.id && n.node_type !== 'task' && n.title === PERSONAL_ARM_TITLE);
   if (!arm) { arm = await seedPersonalArm(userId); nodes = await fetchNodes(userId); }
   if (!arm) return null;
+  if (isStage1Seeded(arm)) return arm;             // Stage 1 owns the tree now
   const existing = new Set(nodes.filter(n => n.parent_id === arm.id && n.node_type !== 'task').map(n => n.title));
   for (let i = 0; i < PERSONAL_DOMAINS.length; i++) {
     const title = PERSONAL_DOMAINS[i];
@@ -562,7 +579,11 @@ export const PERSONAL_HABIT_SEED = [
 // ANYWHERE under the personal arm (so a habit the user moved between domains
 // is never duplicated). Callers also guard with a localStorage flag to skip
 // the extra read on every load. Returns the number actually created.
+// LEGACY — superseded by the Stage 1 seed; a no-op once the arm is marked.
 export async function seedPersonalHabits(userId, boardTag = BOARD_TAG) {
+  const pre = await fetchNodes(userId);
+  const preArm = pre.find(n => n.node_type !== 'task' && n.title === PERSONAL_ARM_TITLE);
+  if (isStage1Seeded(preArm)) return 0;         // Stage 1 owns the tree now
   await seedPersonalDomains(userId);            // ensures the arm + all domains
   const nodes = await fetchNodes(userId);
   const { children } = indexNodes(nodes);
