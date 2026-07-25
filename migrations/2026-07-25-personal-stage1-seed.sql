@@ -118,6 +118,12 @@ begin
   get diagnostics v_b = row_count;
 
   -- ── 5b. 22 habits ────────────────────────────────────────────────
+  -- net_minutes = 0 is a CONTRACT, not just a duration: "tracked only, never
+  -- proposed". A habit with net_minutes 0 is a passive STATE, not an action —
+  -- it is scored and shown on the board like any other habit, but
+  -- pickNextMove() excludes it and it can never appear in a mode card.
+  -- 'שינה שבע שעות' is the marker case; the exclusion lives in
+  -- src/lib/lifeos/priority-engine.js, never in a board-side filter.
   insert into public.focus_nodes (
     user_id, parent_id, node_type, title, frequency, tags,
     task_kind, measure_mode, weekly_target, life_impact, net_minutes, sort_order)
@@ -130,7 +136,7 @@ begin
       ('גוף',          'אימון סיבולת',         'count',  2, 3, 30, 20),
       ('גוף',          'שינה שבע שעות',        'days',   5, 5,  0, 30),
       ('גוף',          'תזונה',                'days',   6, 4, 20, 40),
-      ('יצירה',        'צילום תוכן',           'count',  3, 4, 45, 10),
+      ('יצירה',        'צילום תוכן',           'count',  3, 5, 45, 10),
       ('יצירה',        'עריכה ופרסום',         'count',  3, 4, 60, 20),
       ('יצירה',        'כתיבת תסריט',          'count',  2, 3, 30, 30),
       ('יצירה',        'בניית מוצר',           'count',  2, 4, 60, 40),
