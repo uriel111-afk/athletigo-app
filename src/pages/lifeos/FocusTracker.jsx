@@ -9,7 +9,7 @@ import FocusDocSheet, { doneToast } from '@/components/lifeos/FocusDocSheet';
 import NotDoneSheet from '@/components/lifeos/NotDoneSheet';
 import NodeDetailSheet from '@/components/lifeos/NodeDetailSheet';
 import HabitBankSheet from '@/components/lifeos/HabitBankSheet';
-import { ChevronRight, ChevronLeft, Flame, LayoutGrid, Plus, X, ListPlus, FolderPlus } from 'lucide-react';
+import { ChevronRight, ChevronLeft, ChevronDown, Flame, LayoutGrid, Plus, X, ListPlus, FolderPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   FOCUS, isoDate, addDays, dowOf, HEB_DAYS, HEB_DAYS_FULL,
@@ -22,6 +22,9 @@ import {
   recurringTasks, taskExpectedOn, taskLoggedOn, taskMonthStats, taskStreak,
   harvestToday, todayStats, weeklyTargetOf, weekDoneCount, isCellExpected,
 } from '@/lib/lifeos/focus-api';
+
+// Expanded category groups (ids), like FocusMap's 'focus_map_view'.
+const GROUPS_KEY = 'focus_tracker_open_groups';
 
 const GREEN = '#16a34a';
 const pctColor = (p) => (p >= 0.8 ? GREEN : p >= 0.5 ? FOCUS.amber : FOCUS.red);
@@ -108,6 +111,14 @@ export default function FocusTracker({
   const [rowMenu, setRowMenu] = useState(null);        // { task, x, y } long-press bar
   const [pickerOpen, setPickerOpen] = useState(false); // "add from existing"
   const [bankNode, setBankNode] = useState(null);      // row tap → the habit's task bank
+  // Which category groups are expanded. Collapsed by DEFAULT (empty set), so
+  // the board opens as a short list of category rows. Persisted the same
+  // lightweight way FocusMap stores its view mode: one localStorage key,
+  // try/catch'd, no new mechanism.
+  const [openGroups, setOpenGroups] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(GROUPS_KEY) || '[]')); }
+    catch { return new Set(); }
+  });
   const seededRef = useRef(false);
 
   // ── Columns for the current period ────────────────────────────────
@@ -213,8 +224,39 @@ export default function FocusTracker({
 
   const groups = useMemo(() => (armFilter ? allGroups.filter(g => g.id === armFilter) : allGroups), [allGroups, armFilter]);
   const armChips = useMemo(() => allGroups.map(g => ({ id: g.id, title: g.title, color: g.color })), [allGroups]);
+  // NOTE: allRows stays the FULL row list — it is deliberately NOT filtered by
+  // openGroups, so the bottom 'סה״כ' row and every column percentage keep
+  // summing all habits whether their category is expanded or collapsed.
   const allRows = useMemo(() => groups.flatMap(g => g.tasks), [groups]);
   const boardRows = useMemo(() => allGroups.flatMap(g => g.tasks), [allGroups]);
+
+  // ── Category accordion ────────────────────────────────────────────
+  const toggleGroup = (id) => setOpenGroups(prev => {
+    const s = new Set(prev);
+    s.has(id) ? s.delete(id) : s.add(id);
+    try { localStorage.setItem(GROUPS_KEY, JSON.stringify([...s])); } catch { /* noop */ }
+    return s;
+  });
+  // A scope chip narrows the table to one category — treat that as opening it,
+  // otherwise picking a chip would show a single collapsed header and nothing.
+  const isGroupOpen = (g) => openGroups.has(g.id) || armFilter === g.id;
+  // Today's done/expected per category, so a COLLAPSED row still says something.
+  // Mirrors the today-strip semantics (a weekly-N habit counts today only while
+  // its week is under target); the % / streak / total math is untouched.
+  const groupToday = useMemo(() => {
+    const m = {};
+    allGroups.forEach(g => {
+      let total = 0, done = 0;
+      g.tasks.forEach(t => {
+        const wN = weeklyTargetOf(t);
+        const logged = taskLoggedOn(t, logSet, today);
+        const exp = wN ? (logged || weekDoneCount(t, logSet, today, today) < wN) : taskExpectedOn(t, today);
+        if (exp) { total++; if (logged) done++; }
+      });
+      m[g.id] = { total, done, count: g.tasks.length };
+    });
+    return m;
+  }, [allGroups, logSet, today]);
 
   // Per-column aggregate % (bottom summary).
   const colStats = useMemo(() => columns.map(col => {
@@ -397,14 +439,29 @@ export default function FocusTracker({
     : monthLabel(cursor);
 
   // Dense spreadsheet <table>: habit-name column sticky on the right (RTL),
-  // a "%" column sticky on the left, day columns scroll between them.
+  // a "%" column sticky on the left, day columns between them.
+  //
+  // FIT MODE (day + week zoom, ≤7 columns) — the default view must fit the
+  // phone with no horizontal scroll and nothing clipped. Fixed per-cell widths
+  // can't do that: 116 (name) + 7×34 + 50 (%) = 404px of table inside a
+  // 380 − 24 = 356px content box, i.e. 48px over → the cut-off edge column.
+  // So the table goes width:100% + table-layout:fixed and the day columns take
+  // an EQUAL SHARE of whatever is left after the two sticky columns
+  // ((356 − 104 − 40) / 7 ≈ 30px at 380px, ≈27px at 360px, ≈22px at 320px —
+  // all still wider than the 16px checkmark). Fluid, so it fits any width.
+  // Month/year zoom keeps max-content + horizontal scroll, unchanged.
+  const fitWidth = colKind === 'day' && columns.length <= 7;
   const cellW = colKind === 'month' ? 46 : 34;
-  const labelW = pageScroll ? 116 : 132;
-  const statW = 50;
+  const labelW = fitWidth ? 104 : (pageScroll ? 116 : 132);
+  const statW = fitWidth ? 40 : 50;
   const bdr = `1px solid ${FOCUS.border}`;
-  const nameCell = { position: 'sticky', right: 0, zIndex: 3, background: '#fff', width: labelW, minWidth: labelW, maxWidth: labelW, boxSizing: 'border-box', borderBottom: bdr, borderLeft: bdr };
-  const pctCell = { position: 'sticky', left: 0, zIndex: 3, background: '#fff', width: statW, minWidth: statW, boxSizing: 'border-box', borderBottom: bdr, borderRight: bdr, textAlign: 'center' };
-  const dayCell = { width: cellW, minWidth: cellW, boxSizing: 'border-box', borderBottom: bdr, textAlign: 'center', padding: 0 };
+  const nameCell = { position: 'sticky', right: 0, zIndex: 3, background: '#fff', width: labelW, minWidth: fitWidth ? 0 : labelW, maxWidth: labelW, boxSizing: 'border-box', borderBottom: bdr, borderLeft: bdr, overflow: 'hidden' };
+  const pctCell = { position: 'sticky', left: 0, zIndex: 3, background: '#fff', width: statW, minWidth: fitWidth ? 0 : statW, boxSizing: 'border-box', borderBottom: bdr, borderRight: bdr, textAlign: 'center' };
+  // In fit mode the day columns carry NO width — table-layout:fixed hands them
+  // the leftover space in equal shares.
+  const dayCell = fitWidth
+    ? { boxSizing: 'border-box', borderBottom: bdr, textAlign: 'center', padding: 0 }
+    : { width: cellW, minWidth: cellW, boxSizing: 'border-box', borderBottom: bdr, textAlign: 'center', padding: 0 };
 
   // Stats line for the row's home sheet: 'רצף N · החודש X%'.
   const sheetStat = useMemo(() => {
@@ -427,7 +484,7 @@ export default function FocusTracker({
     // ag-dense-table opts this out of App.css's mobile "table → card"
     // transform (which turned every day <td> into a full-width block, so a
     // habit's day cells stacked vertically and the date header vanished).
-    <table className="ag-dense-table" style={{ borderCollapse: 'separate', borderSpacing: 0, width: 'max-content', fontSize: 12, direction: 'rtl' }}>
+    <table className="ag-dense-table" style={{ borderCollapse: 'separate', borderSpacing: 0, width: fitWidth ? '100%' : 'max-content', tableLayout: fitWidth ? 'fixed' : 'auto', fontSize: 12, direction: 'rtl' }}>
       <thead>
         <tr>
           <td style={{ ...nameCell, zIndex: 4, background: '#FFFDFA', height: 34, padding: '0 8px', textAlign: 'right', fontWeight: 700, color: FOCUS.muted }}>משימה</td>
@@ -446,19 +503,31 @@ export default function FocusTracker({
         </tr>
       </thead>
       <tbody>
-        {groups.map(g => (
+        {groups.map(g => {
+        const open = isGroupOpen(g);
+        const gs = groupToday[g.id] || { total: 0, done: 0, count: g.tasks.length };
+        return (
           <React.Fragment key={g.id}>
-            {/* Category header — colSpan across the whole width; the label stays
-                pinned to the right while the coloured bar scrolls. */}
+            {/* Category header — colSpan across the whole width, and the
+                accordion's tap target: it expands/collapses ONLY its own
+                group's habit rows. The label stays pinned to the right while
+                the coloured bar scrolls (month/year zoom). */}
             <tr>
-              <td colSpan={columns.length + 2} style={{ padding: 0, borderBottom: bdr, background: hexAlpha(g.color, 0.08) }}>
-                <div style={{ position: 'sticky', right: 0, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px' }}>
+              <td colSpan={columns.length + 2} onClick={() => toggleGroup(g.id)}
+                style={{ padding: 0, borderBottom: bdr, background: hexAlpha(g.color, 0.08), cursor: 'pointer', userSelect: 'none' }}>
+                <div style={{ position: 'sticky', right: 0, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 8px', maxWidth: '100%' }}>
+                  <ChevronDown size={14} color={darken(g.color)} style={{ flexShrink: 0, transform: open ? 'none' : 'rotate(90deg)', transition: 'transform .15s' }} />
                   <span style={{ width: 9, height: 9, borderRadius: '50%', background: g.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, fontWeight: 800, color: darken(g.color), whiteSpace: 'nowrap' }}>{g.title}</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: darken(g.color), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.title}</span>
+                  {/* Collapsed rows still report today's progress + how many
+                      habits are hidden inside. */}
+                  <span style={{ fontSize: 9.5, fontWeight: 700, color: darken(g.color), opacity: 0.75, flexShrink: 0 }}>
+                    {gs.total ? `${gs.done}/${gs.total} היום` : `${gs.count}`}
+                  </span>
                 </div>
               </td>
             </tr>
-            {g.tasks.map(task => {
+            {open && g.tasks.map(task => {
               const rowStat = colKind === 'month'
                 ? columns.reduce((a, m) => { const s = taskMonthStats(task, logSet, monthDays(m), today); return { done: a.done + s.done, expected: a.expected + s.expected }; }, { done: 0, expected: 0 })
                 : taskMonthStats(task, logSet, columns, today);
@@ -476,7 +545,7 @@ export default function FocusTracker({
                     onTap={() => (boardTag ? setBankNode(task) : setSheetNode(task))}
                     onLongPress={boardTag ? (x, y) => setRowMenu({ task, x, y }) : null} />
                   {columns.map(col => (
-                    <Cell key={col} task={task} col={col} colKind={colKind} logSet={logSet} logMap={logMap} today={today} color={g.color} w={cellW} onToggle={onCellTap} />
+                    <Cell key={col} task={task} col={col} colKind={colKind} logSet={logSet} logMap={logMap} today={today} color={g.color} w={fitWidth ? null : cellW} onToggle={onCellTap} />
                   ))}
                   <td style={{ ...pctCell }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1.1, minHeight: 34, padding: '2px 0' }}>
@@ -493,8 +562,10 @@ export default function FocusTracker({
               );
             })}
           </React.Fragment>
-        ))}
-        {/* Bottom summary — per-day completion percent across all habits. */}
+        );
+        })}
+        {/* Bottom summary — per-day completion percent across ALL habits,
+            expanded or collapsed (colStats/grandStat run over allRows). */}
         <tr>
           <td style={{ ...nameCell, background: '#FFFDFA', borderTop: `2px solid ${FOCUS.border}`, padding: '0 8px', textAlign: 'right', fontWeight: 800, color: FOCUS.ink }}>סה״כ</td>
           {colStats.map((c, i) => {
@@ -658,7 +729,10 @@ function RowLabel({ task, style, onTap, onLongPress, subline = null, bankCount =
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1, minHeight: 30 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           {task.is_fear_task && <Flame size={11} color={FOCUS.red} style={{ flexShrink: 0 }} />}
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: FOCUS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title || 'משימה'}</span>
+          {/* minWidth:0 so the title actually ellipsises inside the narrower
+              fit-mode name column instead of pushing the cell wider (a flex
+              item won't shrink below its content without it). */}
+          <span style={{ minWidth: 0, fontSize: 12.5, fontWeight: 600, color: FOCUS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title || 'משימה'}</span>
           <span style={{ fontSize: 9, color: FOCUS.muted, flexShrink: 0 }}>{freqLabel(task)}</span>
           {/* Bank badge — makes the sub-item list discoverable on the row. */}
           {bankCount > 0 && (
@@ -840,7 +914,10 @@ function Cell({ task, col, colKind, logSet, logMap, today, color, w, onToggle })
   }
   return (
     <td onClick={tappable ? () => onToggle(task, col) : undefined}
-      style={{ width: w, minWidth: w, height: 34, textAlign: 'center', verticalAlign: 'middle', borderBottom: `1px solid ${FOCUS.border}`, cursor: tappable ? 'pointer' : 'default', background: isToday ? hexAlpha(FOCUS.orange, 0.1) : 'transparent', boxShadow: isToday ? `inset 0 0 0 1.5px ${hexAlpha(FOCUS.edgeSel, 0.5)}` : 'none', padding: 0 }}>
+      /* w is null in fit mode — the column width comes from table-layout:fixed
+         so the 7 week columns share the leftover space instead of forcing the
+         table wider than the screen. */
+      style={{ ...(w ? { width: w, minWidth: w } : {}), height: 34, textAlign: 'center', verticalAlign: 'middle', borderBottom: `1px solid ${FOCUS.border}`, cursor: tappable ? 'pointer' : 'default', background: isToday ? hexAlpha(FOCUS.orange, 0.1) : 'transparent', boxShadow: isToday ? `inset 0 0 0 1.5px ${hexAlpha(FOCUS.edgeSel, 0.5)}` : 'none', padding: 0 }}>
       {inner}
     </td>
   );
