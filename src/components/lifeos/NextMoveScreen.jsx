@@ -27,11 +27,22 @@ import {
 import { weekProgressMap } from '@/lib/lifeos/week-math';
 
 // ═══════════════════════════════════════════════════════════════════
-// מה עכשיו — one screen, one decision
+// מה עכשיו — one strip, one decision
 // ═══════════════════════════════════════════════════════════════════
-// Was the היום screen until the schedule took that slot; it keeps its own
-// segment because deciding WHAT to do next is a different question from
-// laying out WHEN things happen. Same nodes, same writes, different question.
+// Was the היום screen until the schedule took that slot, then a segment of its
+// own, and now the collapsible strip at the top of היום. Deciding WHAT to do
+// next and laying out WHEN things happen turned out to be one sitting, so they
+// share a screen. Same nodes, same writes.
+//
+// Two render modes, one body:
+//   standalone — owns a LifeOSLayout, as when it was a segment. Kept working so
+//                the component can be routed again without being rewritten.
+//   embedded   — `embedded` returns the bare card stack for a host screen to
+//                place. `hidden` keeps it MOUNTED but display:none, which is
+//                what lets the collapsed strip header name the current move
+//                (unmounting would take that title with it), and makes opening
+//                the strip instant instead of a fresh round trip.
+// `onMoveTitle` reports the engine's current pick upward for that header.
 //
 // Top to bottom: how much you have today (capacity) → how long the next slot
 // is (window) → THE MOVE, one card, one decision → the ramp of the active
@@ -51,7 +62,9 @@ const CAPACITIES = [
 ];
 const WINDOW_LABEL = { 15: '15 דקות', 60: 'שעה', 240: '4 שעות' };
 
-export default function NextMoveScreen({ headerSlot = null }) {
+export default function NextMoveScreen({
+  headerSlot = null, embedded = false, hidden = false, onMoveTitle = null,
+}) {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
   const navigate = useNavigate();   // the path strip leads to /lifeos/personal/path
@@ -136,6 +149,12 @@ export default function NextMoveScreen({ headerSlot = null }) {
     return id ? byId[id] : null;
   }, [move, branchIdOf, byId]);
 
+  // Report the pick to the host, so a collapsed strip can name it without
+  // duplicating the engine call. Fires on the move, not on every render.
+  useEffect(() => {
+    if (onMoveTitle) onMoveTitle(move?.node?.title || null);
+  }, [move, onMoveTitle]);
+
   // ── Writes ────────────────────────────────────────────────────────
   const setCapacity = async (key) => {
     try {
@@ -175,6 +194,9 @@ export default function NextMoveScreen({ headerSlot = null }) {
   const next = (node) => setSkipped(p => new Set(p).add(node.id));
 
   if (!loaded) {
+    if (embedded) {
+      return <div style={{ display: hidden ? 'none' : 'block' }}><PageSkeleton rows={3} /></div>;
+    }
     return (
       <LifeOSLayout title="אישי" hideFab hideTopBar>
         {headerSlot}<PageSkeleton rows={5} />
@@ -184,10 +206,8 @@ export default function NextMoveScreen({ headerSlot = null }) {
 
   const cap = capacityCap(capacity);
 
-  return (
-    <LifeOSLayout title="אישי" hideFab hideTopBar>
-      {headerSlot}
-
+  const body = (
+    <>
       {/* ── כמה יש לי היום ── */}
       <div style={card}>
         <div style={cardTitle}>כמה יש לי היום</div>
@@ -304,6 +324,17 @@ export default function NextMoveScreen({ headerSlot = null }) {
         <ModeFormSheet userId={userId} nodes={nodes} sortOrder={(modes.length + 1) * 10}
           onSaved={load} onClose={() => setModeFormOpen(false)} />
       )}
+    </>
+  );
+
+  // Embedded: the bare card stack, so the host's own 12px gutters line up with
+  // these cards instead of nesting a second set of margins inside a wrapper.
+  if (embedded) return <div style={{ display: hidden ? 'none' : 'block' }}>{body}</div>;
+
+  return (
+    <LifeOSLayout title="אישי" hideFab hideTopBar>
+      {headerSlot}
+      {body}
     </LifeOSLayout>
   );
 }

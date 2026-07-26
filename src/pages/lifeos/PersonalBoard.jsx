@@ -1,25 +1,24 @@
 import React, { useState } from 'react';
-import { CalendarDays, LayoutGrid, Zap } from 'lucide-react';
+import { CalendarDays, LayoutGrid } from 'lucide-react';
 import TodayScreen from '@/components/lifeos/TodayScreen';
-import NextMoveScreen from '@/components/lifeos/NextMoveScreen';
 import BoardScreen from '@/components/lifeos/BoardScreen';
 import { FOCUS, hexAlpha } from '@/lib/lifeos/focus-api';
 
 // ═══════════════════════════════════════════════════════════════════
-// אישי — three segments, one route
+// אישי — two segments, one route
 // ═══════════════════════════════════════════════════════════════════
-//   היום      TodayScreen    — the schedule (day/week/month over an hour axis)
-//                              with the task-bank accordion under it. The old
-//                              לוז segment is gone: the calendar IS the לוז,
-//                              and it now lives where the day starts.
-//   מה עכשיו  NextMoveScreen — capacity, time window, THE next move, modes and
-//                              the cycle path. This is the former DayScreen,
-//                              renamed and moved to its own segment (git mv,
-//                              so its history is intact).
-//   הלוח      BoardScreen    — the habit matrix + execution counts.
+//   היום   TodayScreen — the next-move strip (collapsed), the schedule
+//                        (day/week/month over an hour axis) and the task
+//                        drawer under it. The old לוז segment is gone: the
+//                        calendar IS the לוז. The old מה עכשיו segment is gone
+//                        too — NextMoveScreen still exists untouched as a
+//                        component and now renders INSIDE this screen as a
+//                        collapsible strip, because deciding what to do next
+//                        and laying out the day are the same sitting.
+//   הלוח   BoardScreen — the habit matrix + execution counts.
 //
-// All three read the SAME focus_nodes rows. A task placed in the schedule, the
-// move proposed by the engine and the row in the matrix are one record; see
+// Both read the SAME focus_nodes rows. A task placed in the schedule, the move
+// proposed by the engine and the row in the matrix are one record; see
 // src/lib/lifeos/schedule-api.js for why there is no second table.
 //
 // The chosen segment is remembered, so the tab reopens where it was left.
@@ -30,10 +29,12 @@ import { FOCUS, hexAlpha } from '@/lib/lifeos/focus-api';
 const SEG_KEY = 'personal_segment';
 const SEGMENTS = [
   { key: 'day', label: 'היום', Icon: CalendarDays },
-  { key: 'now', label: 'מה עכשיו', Icon: Zap },
   { key: 'board', label: 'הלוח', Icon: LayoutGrid },
 ];
-const LEGACY = { schedule: 'day' };   // the old לוז segment folded into היום
+// Retired segments fold into היום: 'schedule' was the לוז, 'now' was מה עכשיו,
+// which is now the collapsible strip at the top of that same screen. Without
+// this map a device that last sat on either one would open to a blank segment.
+const LEGACY = { schedule: 'day', now: 'day' };
 
 export default function PersonalBoard() {
   const [seg, setSeg] = useState(() => {
@@ -64,6 +65,5 @@ export default function PersonalBoard() {
   );
 
   if (seg === 'board') return <BoardScreen headerSlot={bar} />;
-  if (seg === 'now') return <NextMoveScreen headerSlot={bar} />;
   return <TodayScreen headerSlot={bar} />;
 }

@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
-import { ChevronRight, ChevronLeft, Check, X, Maximize2, Minimize2 } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Check, X, Rows3 } from 'lucide-react';
 import { FOCUS, hexAlpha, isoDate, addDays, HEB_DAYS, monthLabel } from '@/lib/lifeos/focus-api';
 import {
-  HOURS, QUARTERS, timeLabel, hourOf, quarterOf, hhmm, dayItems, itemsAtHour, itemsAtQuarter,
+  HOURS, QUARTERS, pad2, timeLabel, hourOf, hhmm, dayItems, itemsAtHour, itemsAtQuarter,
   weekOf, monthWeeks, sameMonth, occursOn, durationOf,
 } from '@/lib/lifeos/schedule-api';
 import { colorOfCategory } from '@/lib/lifeos/categories';
@@ -11,18 +11,30 @@ import { colorOfCategory } from '@/lib/lifeos/categories';
 // ═══════════════════════════════════════════════════════════════════
 // The schedule — day / week as date × hour, month as a fitted grid
 // ═══════════════════════════════════════════════════════════════════
-// Day and week are the SAME grid: columns are dates (1 or 7), rows are hours
-// 06:00–23:00. Pinching splits every hour into four 15-minute rows; each row is
-// its own drop target and each block keeps its own tick box at either zoom.
+// Day and week are the SAME grid: columns are dates (1 or 7), rows are time.
+// The hour axis is always 06:00–23:00; only the ROW SIZE changes, across three
+// resolutions the corner button cycles through (and a pinch also reaches):
+//
+//   שעתיים    9 rows  — the whole waking day with no scrolling. The default.
+//   שעה      18 rows  — one row per hour.
+//   רבע שעה  72 rows  — 15-minute rows, the finest the data allows.
+//
+// A coarser row NEVER rounds a block's time. task_time is untouched by zoom;
+// a two-hour row simply holds the blocks of both its hours, and every block
+// prints its own hh:mm (see `showTime`), so 07:45 in the 06–07 row still reads
+// as 07:45. Only a DROP is quantised, to the row's opening minute.
 //
 // Placing a task never opens a dialog. Two routes, both ending in onPlace:
 //   • drag  — @dnd-kit droppables (pointer sensor → works with finger and mouse)
 //   • touch — tapping an empty slot ARMS it: the slot goes dashed-orange with a
-//             +, and the bank below turns into a picker for exactly that slot.
+//             +, and the drawer below turns into a picker for exactly that slot.
+//
+// Unscheduled tasks are NOT listed here any more: the drawer below owns them in
+// full (see TaskBankAccordion), so there is one place to look and one counter.
 //
 // The month view must fit the screen with no vertical scroll. That is not left
 // to a fixed cell height: the grid measures the space it actually has and
-// divides it by the number of weeks the month really spans. See fitCellHeight.
+// divides it by the number of weeks the month really spans. See fit().
 // ═══════════════════════════════════════════════════════════════════
 
 const VIEWS = [
@@ -30,6 +42,30 @@ const VIEWS = [
   { key: 'week', label: 'שבוע' },
   { key: 'month', label: 'חודש' },
 ];
+
+// Ordered coarse → fine. The corner button walks this list and shows the label
+// of the level currently in force, so the control names a state, not an action.
+const ZOOMS = [
+  { key: 'twoHour', label: 'שעתיים' },
+  { key: 'hour',    label: 'שעה' },
+  { key: 'quarter', label: 'רבע שעה' },
+];
+const ZOOM_KEYS = ZOOMS.map(z => z.key);
+export const DEFAULT_ZOOM = 'twoHour';
+const zoomLabel = (z) => (ZOOMS.find(x => x.key === z) || ZOOMS[0]).label;
+const stepZoom = (z, dir) => {
+  const i = ZOOM_KEYS.indexOf(z);
+  const next = (i < 0 ? 0 : i + dir + ZOOM_KEYS.length) % ZOOM_KEYS.length;
+  return ZOOM_KEYS[next];
+};
+
+// Hours grouped in twos: [[6,7],[8,9]…[22,23]]. Derived from HOURS rather than
+// hardcoded, so moving DAY_START/DAY_END in schedule-api needs no edit here.
+const hourPairs = (hours) => {
+  const out = [];
+  for (let i = 0; i < hours.length; i += 2) out.push(hours.slice(i, i + 2));
+  return out;
+};
 
 export const slotId = (date, hour, quarter) => `slot|${date}|${hour}|${quarter}`;
 export const parseSlotId = (id) => {
@@ -39,7 +75,7 @@ export const parseSlotId = (id) => {
 
 export default function DayCalendar({
   nodes = [], logSet = new Set(), doneOf,
-  date, onDate, view, onView, zoom = 'hour', onZoom,
+  date, onDate, view, onView, zoom = DEFAULT_ZOOM, onZoom,
   armed = null, onArm, onClearArm,
   onToggleDone, onOpenDoc, onUnschedule,
   categoryOf = () => 'other',
@@ -88,10 +124,10 @@ export default function DayCalendar({
             <button onClick={() => onDate(today)} style={{ ...navBtn, width: 'auto', padding: '0 9px', fontSize: 11.5, fontWeight: 800, color: '#B4531A' }}>היום</button>
           )}
           {view !== 'month' && (
-            <button onClick={() => onZoom(zoom === 'hour' ? 'quarter' : 'hour')}
-              title={zoom === 'hour' ? 'רבע שעה' : 'שעה שלמה'}
-              style={{ ...navBtn, width: 'auto', padding: '0 8px', gap: 3, fontSize: 10.5, fontWeight: 800, color: zoom === 'quarter' ? '#B4531A' : FOCUS.muted, borderColor: zoom === 'quarter' ? FOCUS.orange : FOCUS.border }}>
-              {zoom === 'hour' ? <Maximize2 size={12} /> : <Minimize2 size={12} />} 15′
+            <button onClick={() => onZoom(stepZoom(zoom, 1))}
+              title={`רזולוציה: ${zoomLabel(zoom)} — הקש להחלפה`}
+              style={{ ...navBtn, width: 'auto', padding: '0 9px', gap: 4, fontSize: 10.5, fontWeight: 800, color: zoom === DEFAULT_ZOOM ? FOCUS.muted : '#B4531A', borderColor: zoom === DEFAULT_ZOOM ? FOCUS.border : FOCUS.orange }}>
+              <Rows3 size={12} /> {zoomLabel(zoom)}
             </button>
           )}
         </div>
@@ -128,7 +164,7 @@ export default function DayCalendar({
   );
 }
 
-// ── יום / שבוע: date columns × hour rows ──────────────────────────
+// ── יום / שבוע: date columns × time rows ──────────────────────────
 function TimeGrid({ days, today, nowHour, nodes, zoom, onZoom, armed, onArm, doneOf, categoryOf, onToggleDone, onOpenDoc, onUnschedule }) {
   const scrollRef = useRef(null);
   const wide = days.length === 1;
@@ -137,14 +173,52 @@ function TimeGrid({ days, today, nowHour, nodes, zoom, onZoom, armed, onArm, don
     () => Object.fromEntries(days.map(d => [d, dayItems(nodes, d)])),
     [days, nodes]);
 
-  // Scroll to the current hour when today is on screen.
-  useEffect(() => {
-    if (!days.includes(today) || !scrollRef.current) return;
-    const row = scrollRef.current.querySelector(`[data-hour="${nowHour}"]`);
-    if (row) row.scrollIntoView({ block: 'center' });
-  }, [days, today, nowHour, zoom]);
+  // ── the rows of the grid, one descriptor each ───────────────────
+  // `hours` is what the row DISPLAYS (two of them at the coarse level); drop
+  // target is always the row's opening minute. A row is never told to round
+  // anything it shows.
+  const rows = useMemo(() => {
+    if (zoom === 'twoHour') {
+      return hourPairs(HOURS).map(hs => ({
+        key: `b${hs[0]}`, label: `${pad2(hs[0])}–${pad2(hs[hs.length - 1])}`,
+        hours: hs, quarter: null, dropHour: hs[0], minor: false,
+      }));
+    }
+    if (zoom === 'quarter') {
+      return HOURS.flatMap(h => QUARTERS.map(q => ({
+        key: `q${h}.${q}`, label: q === 0 ? timeLabel(h, 0) : `:${pad2(q * 15)}`,
+        hours: [h], quarter: q, dropHour: h, minor: q !== 0,
+      })));
+    }
+    return HOURS.map(h => ({
+      key: `h${h}`, label: timeLabel(h, 0),
+      hours: [h], quarter: null, dropHour: h, minor: false,
+    }));
+  }, [zoom]);
 
-  // ── pinch → 15-minute rows ──────────────────────────────────────
+  const rowHeight = zoom === 'twoHour' ? (wide ? 46 : 36) : zoom === 'quarter' ? (wide ? 28 : 22) : (wide ? 34 : 26);
+  // A block prints its own time unless the row already IS its exact slot.
+  const showTime = zoom !== 'quarter';
+
+  const itemsIn = useCallback((row, timed) => {
+    if (row.quarter != null) return itemsAtQuarter(timed, row.hours[0], row.quarter);
+    if (row.hours.length === 1) return itemsAtHour(timed, row.hours[0]);
+    return timed.filter(n => row.hours.includes(hourOf(n.task_time)));
+  }, []);
+
+  // Scroll to the row holding the current hour when today is on screen. Keyed
+  // by row rather than by hour, because a two-hour row has no single hour.
+  const nowRowKey = useMemo(
+    () => rows.find(r => r.hours.includes(nowHour))?.key || null,
+    [rows, nowHour]);
+
+  useEffect(() => {
+    if (!days.includes(today) || !scrollRef.current || !nowRowKey) return;
+    const row = scrollRef.current.querySelector(`[data-row="${nowRowKey}"]`);
+    if (row) row.scrollIntoView({ block: 'center' });
+  }, [days, today, nowRowKey]);
+
+  // ── pinch → one step finer / coarser ────────────────────────────
   const pts = useRef(new Map());
   const baseDist = useRef(0);
   const onPD = (e) => {
@@ -156,27 +230,15 @@ function TimeGrid({ days, today, nowHour, nodes, zoom, onZoom, armed, onArm, don
     pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.current.size !== 2 || !baseDist.current) return;
     const r = dist(pts.current) / baseDist.current;
-    if (r > 1.25 && zoom !== 'quarter') { onZoom('quarter'); baseDist.current = dist(pts.current); }
-    if (r < 0.8 && zoom !== 'hour') { onZoom('hour'); baseDist.current = dist(pts.current); }
+    // One step per gesture: rebasing the distance stops a single long pinch
+    // from running through all three levels.
+    if (r > 1.3) { onZoom(stepZoom(zoom, 1)); baseDist.current = dist(pts.current); }
+    if (r < 0.77) { onZoom(stepZoom(zoom, -1)); baseDist.current = dist(pts.current); }
   };
   const onPU = (e) => { pts.current.delete(e.pointerId); if (pts.current.size < 2) baseDist.current = 0; };
 
-  const untimedAll = days.flatMap(d => (perDay[d]?.untimed || []).map(n => ({ n, d })));
-
   return (
     <div>
-      {untimedAll.length > 0 && (
-        <div style={{ padding: '8px 10px', borderBottom: `1px dashed ${FOCUS.border}`, background: '#FFFDFA' }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: FOCUS.muted, marginBottom: 5 }}>ללא שעה ({untimedAll.length})</div>
-          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-            {untimedAll.slice(0, 12).map(({ n, d }) => (
-              <UntimedChip key={n.id + d} node={n} color={colorOfCategory(categoryOf(n))}
-                done={doneOf(n, d)} onTick={() => onToggleDone(n, d)} onOpen={() => onOpenDoc(n, d)} />
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* date header — day letter AND the numeric date, today highlighted */}
       <div style={{ display: 'flex', position: 'sticky', top: 0, zIndex: 3, background: '#FFFDFA', borderBottom: `1px solid ${FOCUS.border}` }}>
         <div style={{ width: 42, flexShrink: 0, borderLeft: `1px solid ${FOCUS.border}` }} />
@@ -198,32 +260,24 @@ function TimeGrid({ days, today, nowHour, nodes, zoom, onZoom, armed, onArm, don
 
       <div ref={scrollRef} onPointerDown={onPD} onPointerMove={onPM} onPointerUp={onPU} onPointerCancel={onPU}
         style={{ maxHeight: 430, overflowY: 'auto', touchAction: 'pan-y' }}>
-        {HOURS.map(h => {
-          const isNow = days.includes(today) && h === nowHour;
-          const rows = zoom === 'quarter' ? QUARTERS : [0];
+        {rows.map(row => {
+          const isNow = days.includes(today) && row.hours.includes(nowHour);
           return (
-            <div key={h} data-hour={h} style={{ display: 'flex', borderBottom: `1px solid ${FOCUS.border}`, background: isNow ? hexAlpha(FOCUS.orange, 0.06) : 'transparent' }}>
-              <div style={{ width: 42, flexShrink: 0, borderLeft: `1px solid ${FOCUS.border}`, paddingTop: 4, textAlign: 'center' }}>
-                <div style={{ fontSize: 10.5, fontWeight: isNow ? 800 : 600, color: isNow ? '#B4531A' : FOCUS.muted }}>{timeLabel(h, 0)}</div>
-                {zoom === 'quarter' && (
-                  <div style={{ marginTop: 2, display: 'flex', flexDirection: 'column', gap: 0 }}>
-                    {[1, 2, 3].map(q => (
-                      <span key={q} style={{ fontSize: 8, color: FOCUS.border, lineHeight: `${wide ? 34 : 26}px` }}>{String(q * 15)}</span>
-                    ))}
-                  </div>
-                )}
+            <div key={row.key} data-row={row.key}
+              style={{ display: 'flex', borderBottom: `1px solid ${row.minor ? hexAlpha(FOCUS.border, 0.5) : FOCUS.border}`, background: isNow ? hexAlpha(FOCUS.orange, 0.06) : 'transparent' }}>
+              <div style={{ width: 42, flexShrink: 0, borderLeft: `1px solid ${FOCUS.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: row.minor ? 8.5 : 10.5, fontWeight: isNow ? 800 : row.minor ? 500 : 600, color: isNow ? '#B4531A' : row.minor ? FOCUS.border : FOCUS.muted }}>
+                  {row.label}
+                </span>
               </div>
               <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>
                 {days.map(d => (
                   <div key={d} style={{ flex: 1, minWidth: 0, borderLeft: days.length > 1 ? `1px solid ${hexAlpha(FOCUS.border, 0.6)}` : 'none' }}>
-                    {rows.map(q => (
-                      <Slot key={q} date={d} hour={h} quarter={q} wide={wide}
-                        items={zoom === 'quarter'
-                          ? itemsAtQuarter(perDay[d]?.timed || [], h, q)
-                          : itemsAtHour(perDay[d]?.timed || [], h)}
-                        armed={armed} onArm={onArm} doneOf={doneOf} categoryOf={categoryOf}
-                        onToggleDone={onToggleDone} onOpenDoc={onOpenDoc} onUnschedule={onUnschedule} />
-                    ))}
+                    <Slot date={d} hour={row.dropHour} quarter={row.quarter ?? 0}
+                      wide={wide} minH={rowHeight} showTime={showTime}
+                      items={itemsIn(row, perDay[d]?.timed || [])}
+                      armed={armed} onArm={onArm} doneOf={doneOf} categoryOf={categoryOf}
+                      onToggleDone={onToggleDone} onOpenDoc={onOpenDoc} onUnschedule={onUnschedule} />
                   </div>
                 ))}
               </div>
@@ -241,12 +295,11 @@ const dist = (map) => {
 };
 
 // ── one drop target ───────────────────────────────────────────────
-function Slot({ date, hour, quarter, items, wide, armed, onArm, doneOf, categoryOf, onToggleDone, onOpenDoc, onUnschedule }) {
+function Slot({ date, hour, quarter, items, wide, minH = 26, showTime = false, armed, onArm, doneOf, categoryOf, onToggleDone, onOpenDoc, onUnschedule }) {
   const id = slotId(date, hour, quarter);
   const { setNodeRef, isOver } = useDroppable({ id });
   const isArmed = armed && armed.date === date && armed.hour === hour && armed.quarter === quarter;
   const empty = items.length === 0;
-  const minH = wide ? 34 : 26;
 
   return (
     <div ref={setNodeRef} data-slot={id}
@@ -267,7 +320,7 @@ function Slot({ date, hour, quarter, items, wide, armed, onArm, doneOf, category
           <span style={{ textAlign: 'center', fontSize: 13, fontWeight: 900, color: '#B4531A', lineHeight: 1 }}>+</span>
         ) : null
       ) : items.map(n => (
-        <Block key={n.id} node={n} date={date} wide={wide} color={colorOfCategory(categoryOf(n))}
+        <Block key={n.id} node={n} date={date} wide={wide} showTime={showTime} color={colorOfCategory(categoryOf(n))}
           done={doneOf(n, date)} onTick={() => onToggleDone(n, date)}
           onOpen={() => onOpenDoc(n, date)} onUnschedule={() => onUnschedule(n)} />
       ))}
@@ -276,8 +329,11 @@ function Slot({ date, hour, quarter, items, wide, armed, onArm, doneOf, category
 }
 
 // A placed task. Tick box at EVERY zoom level — the write is the same one the
-// habit matrix performs, whether the block sits in an hour or in a quarter.
-function Block({ node, wide, color, done, onTick, onOpen, onUnschedule }) {
+// habit matrix performs, whether the block sits in a two-hour row or a quarter.
+// `showTime` prints the exact hh:mm, which is what keeps a coarse row honest:
+// the row says 06–07, the block says 07:45, and the stored task_time is 07:45.
+function Block({ node, wide, showTime, color, done, onTick, onOpen, onUnschedule }) {
+  const time = hhmm(node.task_time);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: wide ? '5px 7px' : '3px 4px', borderRadius: 7, border: `1px solid ${done ? hexAlpha('#16a34a', 0.5) : hexAlpha(color, 0.5)}`, background: done ? hexAlpha('#16a34a', 0.1) : hexAlpha(color, 0.12), minWidth: 0 }}>
       <button onClick={(e) => { e.stopPropagation(); onTick(); }} aria-label={done ? 'בטל סימון' : 'סמן שבוצע'}
@@ -287,28 +343,15 @@ function Block({ node, wide, color, done, onTick, onOpen, onUnschedule }) {
       <button onClick={(e) => { e.stopPropagation(); onOpen(); }}
         style={{ flex: 1, minWidth: 0, textAlign: 'right', border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit' }}>
         <div style={{ fontSize: wide ? 12 : 8.5, fontWeight: 700, color: done ? '#15803d' : FOCUS.ink, textDecoration: done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.25 }}>{node.title}</div>
-        {wide && <div style={{ fontSize: 9, color: FOCUS.muted }}>{hhmm(node.task_time)} · {durationOf(node)} דק׳</div>}
+        {wide
+          ? <div style={{ fontSize: 9, color: FOCUS.muted }}>{time} · {durationOf(node)} דק׳</div>
+          : showTime && time && <div style={{ fontSize: 7.5, fontWeight: 800, color: FOCUS.muted, lineHeight: 1.2 }}>{time}</div>}
       </button>
       {wide && (
         <button onClick={(e) => { e.stopPropagation(); onUnschedule(); }} aria-label="הסר מהשעה"
           style={{ border: 'none', background: 'none', cursor: 'pointer', color: FOCUS.muted, flexShrink: 0, display: 'flex', padding: 1 }}><X size={12} /></button>
       )}
     </div>
-  );
-}
-
-function UntimedChip({ node, color, done, onTick, onOpen }) {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 8px', borderRadius: 999, border: `1px solid ${done ? hexAlpha('#16a34a', 0.5) : hexAlpha(color, 0.45)}`, background: done ? hexAlpha('#16a34a', 0.09) : '#fff' }}>
-      <button onClick={onTick} aria-label={done ? 'בטל סימון' : 'סמן שבוצע'}
-        style={{ width: 15, height: 15, borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', border: done ? 'none' : `1.5px solid ${hexAlpha(color, 0.8)}`, background: done ? '#16a34a' : '#fff', color: '#fff', padding: 0, flexShrink: 0 }}>
-        {done && <Check size={10} />}
-      </button>
-      <button onClick={onOpen}
-        style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 700, color: done ? '#15803d' : FOCUS.ink, maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {node.title}
-      </button>
-    </span>
   );
 }
 
