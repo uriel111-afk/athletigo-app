@@ -27,8 +27,12 @@ import {
 import { weekProgressMap } from '@/lib/lifeos/week-math';
 
 // ═══════════════════════════════════════════════════════════════════
-// היום — one screen that answers "מה עכשיו?"
+// מה עכשיו — one screen, one decision
 // ═══════════════════════════════════════════════════════════════════
+// Was the היום screen until the schedule took that slot; it keeps its own
+// segment because deciding WHAT to do next is a different question from
+// laying out WHEN things happen. Same nodes, same writes, different question.
+//
 // Top to bottom: how much you have today (capacity) → how long the next slot
 // is (window) → THE MOVE, one card, one decision → the ramp of the active
 // mode → the cycle path of the move's branch.
@@ -47,7 +51,7 @@ const CAPACITIES = [
 ];
 const WINDOW_LABEL = { 15: '15 דקות', 60: 'שעה', 240: '4 שעות' };
 
-export default function DayScreen({ headerSlot = null }) {
+export default function NextMoveScreen({ headerSlot = null }) {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
   const navigate = useNavigate();   // the path strip leads to /lifeos/personal/path

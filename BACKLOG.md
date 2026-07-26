@@ -22,3 +22,12 @@ add `if (loading) return <PageLoader />` to it.
 The user will check each page in the browser post-deploy and report back
 which screens (if any) flash empty content or show a skeleton placeholder
 that should route through `PageLoader` instead.
+
+## Tooling debt
+
+- [ ] **`src/package.json` is a tracked 0-byte file** — invalid JSON. Vite's
+  resolver tolerates it, but esbuild's does not: any esbuild-based tooling
+  fails with `Unexpected end of file in JSON` the moment it resolves a module
+  under `src/`. Either give it `{ "type": "module" }` or delete it. Found
+  2026-07-26 while writing a Node test harness for the focus map; deliberately
+  left as-is so it stayed out of the detach-edge commit.
