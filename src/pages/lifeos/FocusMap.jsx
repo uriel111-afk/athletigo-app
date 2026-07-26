@@ -16,7 +16,7 @@ import {
   ancestorsOf, allDescendants, createNode, updateNode, logTask, unlogTask,
   clearPositions, updateIdea, fetchLinks, createLink, deleteLink,
   getLinkById, getAuthUid, repairLinkOwnership, deleteNode, updateLinkEndpoint,
-  withoutPersonalArm,
+  withoutPersonalArm, colorTag, armColorFor, armColorMap,
 } from '@/lib/lifeos/focus-api';
 
 const VIEW_KEY = 'focus_map_view'; // 'simple' | 'detailed'
@@ -48,6 +48,7 @@ export default function FocusMap() {
   const [histLen, setHistLen] = useState(0);   // undo-stack depth (for the button)
   const history = useRef([]);                  // last-20 inverse-action stack
   const fitRef = useRef(null);                 // MindMapCanvas.fit() bridge
+  const posRef = useRef(null);                 // MindMapCanvas rendered-position reader
   const viewResolved = useRef(false);
   const repairedRef = useRef(false);
 
@@ -131,6 +132,9 @@ export default function FocusMap() {
 
   const { byId, children, roots } = useMemo(() => indexNodes(nodes), [nodes]);
   const logSet = useMemo(() => logSetFrom(logs), [logs]);
+  // Same arm-colour map the canvas uses — needed to pin a detached node's
+  // current colour before it stops being part of its old arm.
+  const armMap = useMemo(() => armColorMap(children, roots), [children, roots]);
   const isTaskDone = useCallback((n) => logSet.has(n.id + '|' + today) || n.status === 'done', [logSet, today]);
 
   const tapNode = (node) => {
@@ -224,21 +228,76 @@ export default function FocusMap() {
         toast('נותק');
       } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); load(); }
     } else {
-      // Structure line נתק → re-home the CHILD to the root (standalone arm).
+      // Structure line נתק → DETACH the child into a free-floating node.
+      // parent_id = null, nothing deleted: the node, its label, its colour and
+      // its whole subtree survive and travel with it. A node floating on its
+      // own with no parent and no links is a valid state.
       const child = byId[desc.childId];
-      const rootId = roots[0]?.id;
-      if (!child || !rootId) return;
-      // A top-level arm is already anchored directly to the root — there's no
-      // parent link to cut. Say so instead of the button doing nothing.
-      if (child.parent_id === rootId) { toast('זהו כבר ענף עצמאי מתחת לשורש'); return; }
-      const oldParent = child.parent_id;
-      try {
-        await updateNode(child.id, { parent_id: rootId });
-        pushHistory({ label: 'ניתוק ענף', undo: async () => { await updateNode(child.id, { parent_id: oldParent }); await load(); } });
-        await load();
-        toast('נותק');
-      } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); load(); }
+      if (!child) return;
+      if (!child.parent_id) { toast('הצומת כבר צף בלי הורה'); return; }
+      await detachNode(child, { label: 'ניתוק ענף' });
     }
+  };
+
+  // Freeze a node's CURRENT rendered position + colour, then cut its parent.
+  // Both are preservation steps, not changes:
+  //  • coords — detaching makes the node its own root, and a root with no
+  //    saved coords gets a fresh auto-layout slot in the root row. Writing
+  //    where it is right now keeps it exactly in place across the reload.
+  //  • colour — armColorMap assigns arm colours by palette index, and a
+  //    detached node is no longer under its old arm. Pinning the colour it
+  //    already has (via the same 'color:#hex' tag the colour picker writes)
+  //    means the card looks identical after the detach.
+  const detachPatch = (node) => {
+    const patch = { parent_id: null };
+    if (node.pos_x == null || node.pos_y == null) {
+      const p = posRef.current && posRef.current(node.id);
+      if (p) { patch.pos_x = Math.round(p.x); patch.pos_y = Math.round(p.y); }
+    }
+    if (!colorTag(node)) {
+      const inherited = armColorFor(node, byId, armMap);
+      if (inherited) patch.tags = [...(node.tags || []), `color:${inherited}`];
+    }
+    return patch;
+  };
+
+  const detachNode = async (node, { label } = {}) => {
+    const patch = detachPatch(node);
+    // Exact pre-state for undo, covering only the fields we actually wrote.
+    const before = { parent_id: node.parent_id };
+    if ('pos_x' in patch) { before.pos_x = node.pos_x ?? null; before.pos_y = node.pos_y ?? null; }
+    if ('tags' in patch) before.tags = node.tags || [];
+    try {
+      await updateNode(node.id, patch);
+      pushHistory({ label: label || 'ניתוק צומת', undo: async () => { await updateNode(node.id, before); await load(); } });
+      await load();
+      toast('נותק — הצומת צף עצמאי');
+    } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); load(); }
+  };
+
+  // Node-level: cut the parent AND every cross-link, keeping the node alive.
+  const detachAllLines = async (node) => {
+    setNodeLines(null); setSelectedEdge(null);
+    const mine = links.filter(l => l.from_node === node.id || l.to_node === node.id);
+    const patch = detachPatch(node);
+    const before = { parent_id: node.parent_id };
+    if ('pos_x' in patch) { before.pos_x = node.pos_x ?? null; before.pos_y = node.pos_y ?? null; }
+    if ('tags' in patch) before.tags = node.tags || [];
+    try {
+      let cut = 0;
+      for (const l of mine) { if (await deleteLink(l.id)) cut++; }
+      if (node.parent_id) await updateNode(node.id, patch);
+      pushHistory({
+        label: 'ניתוק כל הקווים',
+        undo: async () => {
+          if (node.parent_id) await updateNode(node.id, before);
+          for (const l of mine) await createLink(userId, l.from_node, l.to_node);
+          await load();
+        },
+      });
+      await load();
+      toast(`נותק — ${cut + (node.parent_id ? 1 : 0)} קווים הוסרו, הצומת נשאר`);
+    } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); load(); }
   };
 
   // חבר למקום אחר → enter reconnect mode; the next node tap is the target.
@@ -440,7 +499,7 @@ export default function FocusMap() {
             reconnectActive={!!reconnect} onReconnectTap={reconnectTo}
             connectFromId={connectFrom} onHandleTap={startConnect} onConnectTap={connectTo} onConnectCancel={cancelConnect}
             onConnect={startConnect} onDisconnect={(n) => { setSelectedId(n.id); setNodeLines(n); }} onDetails={(n) => { setSelectedId(n.id); setSheetNode(n); }}
-            tools={tools} simple={!!simple} fitApi={fitRef}
+            tools={tools} simple={!!simple} fitApi={fitRef} posApi={posRef}
           />
         )}
 
@@ -492,6 +551,15 @@ export default function FocusMap() {
                     <button onClick={() => startReconnect(r)} style={lineBtn('#EEEDFE', '#3C3489')}>חבר למקום אחר</button>
                   </div>
                 ))}
+                {/* Node-level bulk detach. The per-line rows above stay the
+                    primary path; this only saves repeating them one by one.
+                    The node itself always survives. */}
+                {rows.length > 0 && (
+                  <button onClick={() => detachAllLines(nodeLines)}
+                    style={{ ...lineBtn('#FCEBEB', '#C0392B'), width: '100%', marginTop: 8, borderTop: `1px solid ${FOCUS.border}` }}>
+                    נתק את כל הקווים
+                  </button>
+                )}
               </div>
             </div>
           );

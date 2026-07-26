@@ -127,7 +127,7 @@ export default function MindMapCanvas({
   selectedEdge = null, onEdgeSelect, onEdgeDelete, onEdgeReconnect,
   reconnectActive = false, onReconnectTap,
   connectFromId = null, onHandleTap, onConnectTap, onConnectCancel,
-  onConnect, onDisconnect, onDetails, tools = null, simple = false, fitApi = null,
+  onConnect, onDisconnect, onDetails, tools = null, simple = false, fitApi = null, posApi = null,
 }) {
   // Card width/height depend on the view mode and node state.
   const wOf = useCallback((n) => (simple ? SIMPLE_W : n.node_type === 'root' ? ROOT_W : NODE_W), [simple]);
@@ -211,6 +211,12 @@ export default function MindMapCanvas({
   const posOf = (n) => livePos[n.id]
     || (n.pos_x != null && n.pos_y != null ? { x: Number(n.pos_x), y: Number(n.pos_y) } : layout[n.id])
     || { x: 0, y: 0 };
+
+  // Let the host read a node's CURRENT rendered coordinates — including the
+  // auto-layout slot of a node that has no saved pos_x/pos_y yet. Detaching a
+  // node makes it a root of its own, which hands it a brand-new layout slot in
+  // the root row; freezing these coords first is what stops it from jumping.
+  if (posApi) posApi.current = (id) => { const n = byId[id]; return n ? posOf(n) : null; };
 
   // Arm colors: top-level branch → color; subtree inherits it.
   const armMap = useMemo(() => armColorMap(children, roots), [children, roots]);
@@ -618,16 +624,22 @@ export default function MindMapCanvas({
               actually want to cut); structure edges get one only while a node
               they touch is selected, so the map stays clean. */}
           <g>
-            {resolvedLinks.map(l => {
-              const { a, b } = anchored(l.a, l.b);
-              const m = midOf(cubicOf(a, b, l.dup ? DUP_BOW : 0));
-              return <EdgeDot key={'d-' + l.id} tag={'link:' + l.id} m={m} scale={view.scale} color={LINK_EDGE} on={isSelLink(l.id)} />;
-            })}
+            {/* PAINT ORDER MATTERS. A dot's hit circle is ~36px across, so a
+                structure-edge dot and a cross-link dot can overlap, and the
+                later sibling wins the hit test. Structure dots go FIRST so the
+                cross-link dot wins any overlap: cutting a cross-link is
+                cheap and local, while detaching a branch moves a whole
+                subtree. Losing that coin-flip must fall on the safer action. */}
             {selectedId && visibleNodes.map(p => visibleChildrenOf(p).filter(c => c.id === selectedId || p.id === selectedId).map(c => {
               const { a, b } = anchored(p, c);
               const m = midOf(cubicOf(a, b));
               return <EdgeDot key={'dh-' + c.id} tag={'hier:' + c.id} m={m} scale={view.scale} color={armOf(c) || '#B48A5A'} on={isSelHier(c.id)} />;
             }))}
+            {resolvedLinks.map(l => {
+              const { a, b } = anchored(l.a, l.b);
+              const m = midOf(cubicOf(a, b, l.dup ? DUP_BOW : 0));
+              return <EdgeDot key={'d-' + l.id} tag={'link:' + l.id} m={m} scale={view.scale} color={LINK_EDGE} on={isSelLink(l.id)} />;
+            })}
           </g>
         </g>
       </svg>

@@ -873,6 +873,11 @@ export function armColorMap(children, roots) {
   const map = {};
   const tops = [];
   roots.forEach(r => (children[r.id] || []).forEach(c => { if (c.node_type !== 'task') tops.push(c); }));
+  // A DETACHED node (parent_id = null) is a root of its own, so it never shows
+  // up in any root's child list and would otherwise get no colour at all.
+  // Appended AFTER the real arms on purpose: every existing arm keeps its
+  // palette index, so no colour anywhere else in the app shifts.
+  roots.forEach(r => { if (r.node_type !== 'root' && !map[r.id]) tops.push(r); });
   tops.forEach((b, i) => { map[b.id] = colorTag(b) || ARM_PALETTE[i % ARM_PALETTE.length]; });
   return map;
 }
