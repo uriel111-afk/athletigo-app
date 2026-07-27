@@ -119,6 +119,22 @@ export async function restoreTaskTime(node, time) {
   await updateNode(node.id, { task_time: time || null });
 }
 
+// Undo of a placement. Both columns go back together, because scheduleTask
+// writes both for a one-off — restoring only the time would leave a task on
+// whatever day the drag moved it to.
+export async function restorePlacement(node, prev = {}) {
+  await updateNode(node.id, {
+    task_date: prev.task_date ?? null,
+    task_time: prev.task_time ?? null,
+  });
+}
+
+// What a placement looked like before it was changed, for the undo above.
+export const placementOf = (node) => ({
+  task_date: node?.task_date ?? null,
+  task_time: node?.task_time ?? null,
+});
+
 // Move a one-off to another day (used by the month view and by rollover).
 export async function moveTaskToDay(node, date) {
   if (node.frequency) return;              // recurring days come from frequency

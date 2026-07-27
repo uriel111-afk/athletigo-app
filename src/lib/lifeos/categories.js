@@ -9,10 +9,16 @@ import { PERSONAL_ARM_TITLE, indexNodes } from './focus-api';
 // Merging by branch would therefore collapse domains the user wants apart, so
 // classification is an explicit ordered rule list instead:
 //
+//   0. a `cat:<key>` tag                  (the user said so — nothing overrides it)
 //   1. a keyword rule on the task title   (splits one branch into domains)
 //   2. the branch title                   (the common case)
 //   3. outside the personal arm           → business
 //   4. nothing matched                    → 'אחר', so a task is never lost
+//
+// Rule 0 exists because the drawer lets you add a task INTO a named category:
+// that promise has to hold even when the title trips a keyword rule ("אימון
+// בוקר" filed under בית must stay in בית). Only tasks created through that UI
+// carry the tag, so everything else still classifies exactly as before.
 //
 // Colour families follow the brief: business/filming/content are the
 // orange-red family, training/habits green, family/home purple. The colour is
@@ -33,6 +39,16 @@ export const CATEGORIES = [
 
 export const CATEGORY_BY_KEY = Object.fromEntries(CATEGORIES.map(c => [c.key, c]));
 export const colorOfCategory = (key) => (CATEGORY_BY_KEY[key] || CATEGORY_BY_KEY.other).color;
+
+// ── rule 0: an explicit `cat:<key>` tag ───────────────────────────
+export const CAT_TAG = 'cat:';
+export const catTagFor = (key) => CAT_TAG + key;
+const taggedCategory = (node) => {
+  const hit = (node?.tags || []).find(t => String(t).startsWith(CAT_TAG));
+  if (!hit) return null;
+  const key = String(hit).slice(CAT_TAG.length);
+  return CATEGORY_BY_KEY[key] ? key : null;   // an unknown key falls through
+};
 
 // ── rule 1: title keywords ────────────────────────────────────────
 // Ordered — the first match wins, so 'צילום תוכן' lands in צילום, not תוכן.
@@ -95,6 +111,8 @@ export function categoryClassifier(nodes = []) {
 
   return (node) => {
     if (!node) return 'other';
+    const tagged = taggedCategory(node);
+    if (tagged) return tagged;
     const byTitle = matchRules(TITLE_RULES, node.title);
     if (byTitle) return byTitle;
     const br = branchOf(node);

@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useDroppable } from '@dnd-kit/core';
 import { ChevronRight, ChevronLeft, Check, X, Rows3 } from 'lucide-react';
 import { FOCUS, hexAlpha, isoDate, addDays, HEB_DAYS, monthLabel } from '@/lib/lifeos/focus-api';
 import {
@@ -13,11 +12,18 @@ import { colorOfCategory } from '@/lib/lifeos/categories';
 // ═══════════════════════════════════════════════════════════════════
 // Day and week are the SAME grid: columns are dates (1 or 7), rows are time.
 // The hour axis is always 06:00–23:00; only the ROW SIZE changes, across three
-// resolutions the corner button cycles through (and a pinch also reaches):
+// resolutions the corner button cycles through:
 //
 //   שעתיים    9 rows  — the whole waking day with no scrolling. The default.
 //   שעה      18 rows  — one row per hour.
 //   רבע שעה  72 rows  — 15-minute rows, the finest the data allows.
+//
+// There is NO pinch gesture, deliberately. A two-finger pinch on a page that
+// does not own the viewport zooms the BROWSER, not the grid, and the two are
+// indistinguishable until it is too late — you end up at 150% page zoom with
+// the hours unchanged. The button is the only way in, and it names the level
+// it is currently on. The container blocks Safari's gesture events and pins
+// touch-action to pan-y so the browser cannot zoom here at all.
 //
 // A coarser row NEVER rounds a block's time. task_time is untouched by zoom;
 // a two-hour row simply holds the blocks of both its hours, and every block
@@ -25,9 +31,11 @@ import { colorOfCategory } from '@/lib/lifeos/categories';
 // as 07:45. Only a DROP is quantised, to the row's opening minute.
 //
 // Placing a task never opens a dialog. Two routes, both ending in onPlace:
-//   • drag  — @dnd-kit droppables (pointer sensor → works with finger and mouse)
+//   • drag  — select an item, then drag it onto a slot (lib/lifeos/use-tap-drag)
 //   • touch — tapping an empty slot ARMS it: the slot goes dashed-orange with a
 //             +, and the drawer below turns into a picker for exactly that slot.
+// Blocks already on the grid are draggable by the same rules, so moving an
+// hour and filling one are one gesture with one code path.
 //
 // Unscheduled tasks are NOT listed here any more: the drawer below owns them in
 // full (see TaskBankAccordion), so there is one place to look and one counter.
@@ -52,6 +60,9 @@ const ZOOMS = [
 ];
 const ZOOM_KEYS = ZOOMS.map(z => z.key);
 export const DEFAULT_ZOOM = 'twoHour';
+const ZOOM_BTN = 44;            // full touch target, per the brief
+// Keeps a control inside a draggable block from doubling as a drag gesture.
+const stop = (e) => e.stopPropagation();
 const zoomLabel = (z) => (ZOOMS.find(x => x.key === z) || ZOOMS[0]).label;
 const stepZoom = (z, dir) => {
   const i = ZOOM_KEYS.indexOf(z);
@@ -80,11 +91,28 @@ export default function DayCalendar({
   onToggleDone, onOpenDoc, onUnschedule,
   categoryOf = () => 'other',
   progress = null,
+  // Tap-to-select drag, shared with the drawer (see lib/lifeos/use-tap-drag).
+  itemProps = () => ({}), isSelected = () => false, isArmed = () => false,
+  onEmptyTap,
 }) {
   const today = isoDate();
   const nowHour = new Date().getHours();
 
   const days = useMemo(() => (view === 'week' ? weekOf(date) : [date]), [view, date]);
+
+  // Safari fires gesturestart/change/end for a pinch and zooms the page even
+  // when touch-action forbids it. They are non-standard, so they are attached
+  // by hand — and non-passively, or preventDefault would be ignored. Scoped to
+  // this card: the rest of the app keeps its normal browser zoom.
+  const cardRef = useRef(null);
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const stop = (e) => e.preventDefault();
+    const names = ['gesturestart', 'gesturechange', 'gestureend'];
+    names.forEach(n => el.addEventListener(n, stop, { passive: false }));
+    return () => names.forEach(n => el.removeEventListener(n, stop));
+  }, []);
 
   const shift = (n) => {
     if (view === 'month') {
@@ -100,20 +128,39 @@ export default function DayCalendar({
       : `יום ${HEB_DAYS[new Date(date + 'T00:00:00').getDay()]}׳ · ${date.slice(8)}/${date.slice(5, 7)}`;
 
   return (
-    <div style={{ margin: '0 12px 10px', background: FOCUS.card, border: `1px solid ${FOCUS.border}`, borderRadius: 16, boxShadow: FOCUS.neu, overflow: 'hidden' }}>
+    <div ref={cardRef}
+      style={{ margin: '0 12px 10px', background: FOCUS.card, border: `1px solid ${FOCUS.border}`, borderRadius: 16, boxShadow: FOCUS.neu, overflow: 'hidden', touchAction: 'pan-y' }}>
 
       <div style={{ padding: '9px 10px 7px', borderBottom: `1px solid ${FOCUS.border}` }}>
-        <div style={{ display: 'flex', gap: 5, marginBottom: 7 }}>
-          {VIEWS.map(v => {
-            const on = view === v.key;
-            return (
-              <button key={v.key} onClick={() => onView(v.key)}
-                style={{ flex: 1, padding: '7px 4px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: on ? 800 : 600,
-                  border: `1px solid ${on ? FOCUS.orange : FOCUS.border}`, background: on ? hexAlpha(FOCUS.orange, 0.13) : '#fff', color: on ? '#B4531A' : FOCUS.muted }}>
-                {v.label}
-              </button>
-            );
-          })}
+        {/* The zoom control lives HERE, in the header, never inside the hour
+            grid — the grid scrolls, the header does not, so the button stays
+            in its corner however far down the day you are. 44px minimum. */}
+        <div style={{ display: 'flex', alignItems: 'stretch', gap: 5, marginBottom: 7 }}>
+          <div style={{ flex: 1, display: 'flex', gap: 5 }}>
+            {VIEWS.map(v => {
+              const on = view === v.key;
+              return (
+                <button key={v.key} onClick={() => onView(v.key)}
+                  style={{ flex: 1, padding: '7px 4px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: on ? 800 : 600,
+                    border: `1px solid ${on ? FOCUS.orange : FOCUS.border}`, background: on ? hexAlpha(FOCUS.orange, 0.13) : '#fff', color: on ? '#B4531A' : FOCUS.muted }}>
+                  {v.label}
+                </button>
+              );
+            })}
+          </div>
+          {view !== 'month' && (
+            <button onClick={() => onZoom(stepZoom(zoom, 1))}
+              aria-label={`רזולוציה: ${zoomLabel(zoom)} — הקש להחלפה`}
+              title={`רזולוציה: ${zoomLabel(zoom)} — הקש להחלפה`}
+              style={{ flexShrink: 0, minWidth: ZOOM_BTN, minHeight: ZOOM_BTN, padding: '0 10px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit',
+                display: 'inline-flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
+                border: `1px solid ${zoom === DEFAULT_ZOOM ? FOCUS.border : FOCUS.orange}`,
+                background: zoom === DEFAULT_ZOOM ? '#fff' : hexAlpha(FOCUS.orange, 0.13),
+                color: zoom === DEFAULT_ZOOM ? FOCUS.muted : '#B4531A' }}>
+              <Rows3 size={14} />
+              <span style={{ fontSize: 9.5, fontWeight: 800, whiteSpace: 'nowrap' }}>{zoomLabel(zoom)}</span>
+            </button>
+          )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -122,13 +169,6 @@ export default function DayCalendar({
           <button onClick={() => shift(-1)} style={navBtn} aria-label="אחורה"><ChevronLeft size={16} /></button>
           {date !== today && (
             <button onClick={() => onDate(today)} style={{ ...navBtn, width: 'auto', padding: '0 9px', fontSize: 11.5, fontWeight: 800, color: '#B4531A' }}>היום</button>
-          )}
-          {view !== 'month' && (
-            <button onClick={() => onZoom(stepZoom(zoom, 1))}
-              title={`רזולוציה: ${zoomLabel(zoom)} — הקש להחלפה`}
-              style={{ ...navBtn, width: 'auto', padding: '0 9px', gap: 4, fontSize: 10.5, fontWeight: 800, color: zoom === DEFAULT_ZOOM ? FOCUS.muted : '#B4531A', borderColor: zoom === DEFAULT_ZOOM ? FOCUS.border : FOCUS.orange }}>
-              <Rows3 size={12} /> {zoomLabel(zoom)}
-            </button>
           )}
         </div>
 
@@ -158,14 +198,15 @@ export default function DayCalendar({
       ) : (
         <TimeGrid days={days} today={today} nowHour={nowHour} nodes={nodes} zoom={zoom} onZoom={onZoom}
           armed={armed} onArm={onArm} doneOf={doneOf} categoryOf={categoryOf}
-          onToggleDone={onToggleDone} onOpenDoc={onOpenDoc} onUnschedule={onUnschedule} />
+          onToggleDone={onToggleDone} onOpenDoc={onOpenDoc} onUnschedule={onUnschedule}
+          itemProps={itemProps} isSelected={isSelected} isArmed={isArmed} onEmptyTap={onEmptyTap} />
       )}
     </div>
   );
 }
 
 // ── יום / שבוע: date columns × time rows ──────────────────────────
-function TimeGrid({ days, today, nowHour, nodes, zoom, onZoom, armed, onArm, doneOf, categoryOf, onToggleDone, onOpenDoc, onUnschedule }) {
+function TimeGrid({ days, today, nowHour, nodes, zoom, onZoom, armed, onArm, doneOf, categoryOf, onToggleDone, onOpenDoc, onUnschedule, itemProps, isSelected, isArmed, onEmptyTap }) {
   const scrollRef = useRef(null);
   const wide = days.length === 1;
 
@@ -218,25 +259,6 @@ function TimeGrid({ days, today, nowHour, nodes, zoom, onZoom, armed, onArm, don
     if (row) row.scrollIntoView({ block: 'center' });
   }, [days, today, nowRowKey]);
 
-  // ── pinch → one step finer / coarser ────────────────────────────
-  const pts = useRef(new Map());
-  const baseDist = useRef(0);
-  const onPD = (e) => {
-    pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pts.current.size === 2) baseDist.current = dist(pts.current);
-  };
-  const onPM = (e) => {
-    if (!pts.current.has(e.pointerId)) return;
-    pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pts.current.size !== 2 || !baseDist.current) return;
-    const r = dist(pts.current) / baseDist.current;
-    // One step per gesture: rebasing the distance stops a single long pinch
-    // from running through all three levels.
-    if (r > 1.3) { onZoom(stepZoom(zoom, 1)); baseDist.current = dist(pts.current); }
-    if (r < 0.77) { onZoom(stepZoom(zoom, -1)); baseDist.current = dist(pts.current); }
-  };
-  const onPU = (e) => { pts.current.delete(e.pointerId); if (pts.current.size < 2) baseDist.current = 0; };
-
   return (
     <div>
       {/* date header — day letter AND the numeric date, today highlighted */}
@@ -258,7 +280,10 @@ function TimeGrid({ days, today, nowHour, nodes, zoom, onZoom, armed, onArm, don
         })}
       </div>
 
-      <div ref={scrollRef} onPointerDown={onPD} onPointerMove={onPM} onPointerUp={onPU} onPointerCancel={onPU}
+      {/* data-hour-grid: the drag controller scrolls THIS element when a drag
+          nears a screen edge. touchAction pan-y is what stops a two-finger
+          pinch here from zooming the whole page. */}
+      <div ref={scrollRef} data-hour-grid
         style={{ maxHeight: 430, overflowY: 'auto', touchAction: 'pan-y' }}>
         {rows.map(row => {
           const isNow = days.includes(today) && row.hours.includes(nowHour);
@@ -277,7 +302,8 @@ function TimeGrid({ days, today, nowHour, nodes, zoom, onZoom, armed, onArm, don
                       wide={wide} minH={rowHeight} showTime={showTime}
                       items={itemsIn(row, perDay[d]?.timed || [])}
                       armed={armed} onArm={onArm} doneOf={doneOf} categoryOf={categoryOf}
-                      onToggleDone={onToggleDone} onOpenDoc={onOpenDoc} onUnschedule={onUnschedule} />
+                      onToggleDone={onToggleDone} onOpenDoc={onOpenDoc} onUnschedule={onUnschedule}
+                      itemProps={itemProps} isSelected={isSelected} isArmed={isArmed} onEmptyTap={onEmptyTap} />
                   </div>
                 ))}
               </div>
@@ -289,40 +315,47 @@ function TimeGrid({ days, today, nowHour, nodes, zoom, onZoom, armed, onArm, don
   );
 }
 
-const dist = (map) => {
-  const [a, b] = [...map.values()];
-  return Math.hypot(a.x - b.x, a.y - b.y);
-};
-
 // ── one drop target ───────────────────────────────────────────────
-function Slot({ date, hour, quarter, items, wide, minH = 26, showTime = false, armed, onArm, doneOf, categoryOf, onToggleDone, onOpenDoc, onUnschedule }) {
+// A slot is a drop target for the tap-drag controller, which finds it by the
+// `data-slot` attribute — no registration, so a slot scrolled into view during
+// a drag is immediately droppable.
+function Slot({ date, hour, quarter, items, wide, minH = 26, showTime = false, armed, onArm, doneOf, categoryOf, onToggleDone, onOpenDoc, onUnschedule, itemProps, isSelected, isArmed, onEmptyTap }) {
   const id = slotId(date, hour, quarter);
-  const { setNodeRef, isOver } = useDroppable({ id });
-  const isArmed = armed && armed.date === date && armed.hour === hour && armed.quarter === quarter;
+  const slotArmed = armed && armed.date === date && armed.hour === hour && armed.quarter === quarter;
   const empty = items.length === 0;
 
+  // Empty space: clear a selection if there is one, otherwise arm the slot for
+  // the + route. Tapping nowhere must never both deselect AND arm — that reads
+  // as the tap having done something you did not ask for.
+  const onEmpty = () => {
+    if (!empty) return;
+    if (onEmptyTap && onEmptyTap()) return;
+    onArm({ date, hour, quarter });
+  };
+
   return (
-    <div ref={setNodeRef} data-slot={id}
+    <div data-slot={id}
       // An empty slot is a real tap target ("tap a slot, then pick a task"),
       // so it is announced as one rather than being an anonymous div.
       role={empty ? 'button' : undefined}
       aria-label={empty ? `שבץ ב-${timeLabel(hour, quarter)}` : undefined}
-      onClick={() => empty && onArm({ date, hour, quarter })}
+      onClick={onEmpty}
       style={{
         minHeight: minH, padding: 2, display: 'flex', flexDirection: 'column', gap: 2, justifyContent: 'center',
         cursor: empty ? 'pointer' : 'default',
-        border: isArmed || isOver ? `1.5px dashed ${FOCUS.orange}` : '1.5px dashed transparent',
+        border: slotArmed ? `1.5px dashed ${FOCUS.orange}` : '1.5px dashed transparent',
         borderRadius: 8,
-        background: isOver ? hexAlpha(FOCUS.orange, 0.16) : isArmed ? hexAlpha(FOCUS.orange, 0.1) : 'transparent',
+        background: slotArmed ? hexAlpha(FOCUS.orange, 0.1) : 'transparent',
       }}>
       {empty ? (
-        (isArmed || isOver) ? (
+        slotArmed ? (
           <span style={{ textAlign: 'center', fontSize: 13, fontWeight: 900, color: '#B4531A', lineHeight: 1 }}>+</span>
         ) : null
       ) : items.map(n => (
         <Block key={n.id} node={n} date={date} wide={wide} showTime={showTime} color={colorOfCategory(categoryOf(n))}
           done={doneOf(n, date)} onTick={() => onToggleDone(n, date)}
-          onOpen={() => onOpenDoc(n, date)} onUnschedule={() => onUnschedule(n)} />
+          onOpen={() => onOpenDoc(n, date)} onUnschedule={() => onUnschedule(n)}
+          selected={isSelected(n.id)} armedForDrag={isArmed(n.id)} dragProps={itemProps(n)} />
       ))}
     </div>
   );
@@ -332,15 +365,31 @@ function Slot({ date, hour, quarter, items, wide, minH = 26, showTime = false, a
 // habit matrix performs, whether the block sits in a two-hour row or a quarter.
 // `showTime` prints the exact hh:mm, which is what keeps a coarse row honest:
 // the row says 06–07, the block says 07:45, and the stored task_time is 07:45.
-function Block({ node, wide, showTime, color, done, onTick, onOpen, onUnschedule }) {
+// A block is itself a draggable item, so moving something to another hour is
+// the same gesture as bringing it in from the drawer: select, then drag.
+function Block({ node, wide, showTime, color, done, onTick, onOpen, onUnschedule, selected, armedForDrag, dragProps = {} }) {
   const time = hhmm(node.task_time);
+  const edge = armedForDrag ? FOCUS.orange
+    : selected ? hexAlpha(FOCUS.orange, 0.85)
+      : done ? hexAlpha('#16a34a', 0.5) : hexAlpha(color, 0.5);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: wide ? '5px 7px' : '3px 4px', borderRadius: 7, border: `1px solid ${done ? hexAlpha('#16a34a', 0.5) : hexAlpha(color, 0.5)}`, background: done ? hexAlpha('#16a34a', 0.1) : hexAlpha(color, 0.12), minWidth: 0 }}>
-      <button onClick={(e) => { e.stopPropagation(); onTick(); }} aria-label={done ? 'בטל סימון' : 'סמן שבוצע'}
+    <div {...dragProps}
+      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: wide ? '5px 7px' : '3px 4px', borderRadius: 7,
+        border: `${selected || armedForDrag ? 2 : 1}px solid ${edge}`,
+        background: done ? hexAlpha('#16a34a', 0.1) : hexAlpha(color, 0.12), minWidth: 0,
+        transform: selected || armedForDrag ? 'scale(1.04)' : 'none',
+        boxShadow: armedForDrag ? `0 3px 10px ${hexAlpha(FOCUS.orange, 0.45)}` : 'none',
+        transition: 'transform .12s, box-shadow .12s',
+        touchAction: 'pan-y',
+        userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}>
+      {/* stopPropagation on POINTERDOWN as well as click: without it, tapping
+          the tick would also register a drag gesture on the block behind it and
+          leave it selected — two outcomes from one tap. */}
+      <button onPointerDown={stop} onClick={(e) => { e.stopPropagation(); onTick(); }} aria-label={done ? 'בטל סימון' : 'סמן שבוצע'}
         style={{ width: wide ? 18 : 14, height: wide ? 18 : 14, borderRadius: 4, flexShrink: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', border: done ? 'none' : `1.5px solid ${hexAlpha(color, 0.8)}`, background: done ? '#16a34a' : '#fff', color: '#fff', padding: 0 }}>
         {done && <Check size={wide ? 11 : 9} />}
       </button>
-      <button onClick={(e) => { e.stopPropagation(); onOpen(); }}
+      <button onPointerDown={stop} onClick={(e) => { e.stopPropagation(); onOpen(); }}
         style={{ flex: 1, minWidth: 0, textAlign: 'right', border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit' }}>
         <div style={{ fontSize: wide ? 12 : 8.5, fontWeight: 700, color: done ? '#15803d' : FOCUS.ink, textDecoration: done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.25 }}>{node.title}</div>
         {wide
@@ -349,7 +398,7 @@ function Block({ node, wide, showTime, color, done, onTick, onOpen, onUnschedule
       </button>
       {/* Always present — every zoom level, day view and week view alike. A
           block you cannot take back out is a block you stop trusting. */}
-      <button onClick={(e) => { e.stopPropagation(); onUnschedule(); }} aria-label={`הסר מהשעה: ${node.title}`}
+      <button onPointerDown={stop} onClick={(e) => { e.stopPropagation(); onUnschedule(); }} aria-label={`הסר מהשעה: ${node.title}`}
         style={{ border: 'none', background: 'none', cursor: 'pointer', color: FOCUS.muted, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, width: wide ? 20 : 14, height: wide ? 20 : 14 }}>
         <X size={wide ? 13 : 10} />
       </button>

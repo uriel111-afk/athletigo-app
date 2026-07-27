@@ -1,9 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import {
-  DndContext, DragOverlay, PointerSensor, TouchSensor, MouseSensor,
-  useSensor, useSensors, pointerWithin, closestCenter,
-} from '@dnd-kit/core';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
 import PageSkeleton from '@/components/PageSkeleton';
@@ -19,9 +15,11 @@ import {
 } from '@/lib/lifeos/focus-api';
 import { fetchExecutions, fetchDayStates, addExecution, deleteExecution } from '@/lib/lifeos/personal-day-api';
 import {
-  scheduleTask, unscheduleTask, restoreTaskTime, rolloverOncePerDay, schedulingProgress, timeLabel,
+  scheduleTask, unscheduleTask, restoreTaskTime, restorePlacement, placementOf,
+  rolloverOncePerDay, schedulingProgress, timeLabel,
 } from '@/lib/lifeos/schedule-api';
 import { categoryClassifier, colorOfCategory } from '@/lib/lifeos/categories';
+import { useTapDrag } from '@/lib/lifeos/use-tap-drag';
 
 // ═══════════════════════════════════════════════════════════════════
 // היום — the schedule on top, the task drawer under it
@@ -41,9 +39,11 @@ import { categoryClassifier, colorOfCategory } from '@/lib/lifeos/categories';
 //   focus_task_logs  (logTask)      — the day mark the matrix draws
 //   focus_executions (addExecution) — the history the week maths counts
 //
-// Drag-and-drop uses @dnd-kit with a TouchSensor, so a finger drag works; the
-// browser's native `draggable` would have been mouse-only. DndContext also
-// brings the edge auto-scroll the brief asks for (its autoScroll default).
+// Dragging is select-then-drag, in lib/lifeos/use-tap-drag.js — @dnd-kit is
+// gone from this screen. It could not express an activation that depends on the
+// state of the item under the finger (immediate once armed, 400ms otherwise),
+// and its instant drag meant a scroll through the drawer booked hours by
+// accident. The controller also owns the scroll lock and the edge auto-scroll.
 // ═══════════════════════════════════════════════════════════════════
 
 const CAL_ZOOM_KEY = 'personal_calendar_zoom';
@@ -81,7 +81,6 @@ export default function TodayScreen({ headerSlot = null }) {
 
   const [pending, setPending] = useState(null);     // task armed, waiting for a slot
   const [armedSlot, setArmedSlot] = useState(null); // slot armed, waiting for a task
-  const [dragging, setDragging] = useState(null);
   const [doc, setDoc] = useState(null);
   const [details, setDetails] = useState(null);   // drawer row → task details
 
@@ -205,32 +204,41 @@ export default function TodayScreen({ headerSlot = null }) {
     } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
   };
 
-  // ── drag sensors ────────────────────────────────────────────────
-  // TouchSensor with a short press delay: a quick tap stays a tap (so route B
-  // still works on the very same chip), a held finger becomes a drag.
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-  );
+  // ── drag: select, then drag ─────────────────────────────────────
+  // One controller for BOTH directions — a row coming in from the drawer and a
+  // block moving between hours are the same gesture on the same code path, and
+  // both end here with the slot the finger was over.
+  const onDrop = useCallback(async (node, rawSlot) => {
+    const slot = parseSlotId(rawSlot);
+    if (!slot) return;
+    if (String(node.task_time || '').slice(0, 5) === timeLabel(slot.hour, slot.quarter)
+      && String(node.task_date || '').slice(0, 10) === slot.date) return;   // dropped where it already was
+    const prev = placementOf(node);
+    try {
+      await scheduleTask(node, slot.date, slot.hour, slot.quarter);
+      setPending(null); setArmedSlot(null);
+      await load();
+      toast.success(`נקבע ל-${timeLabel(slot.hour, slot.quarter)}`, {
+        action: {
+          label: 'ביטול',
+          onClick: async () => {
+            try { await restorePlacement(node, prev); await load(); toast('בוטל'); }
+            catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
+          },
+        },
+      });
+    } catch (e) { toast.error('שגיאה בשיבוץ: ' + (e?.message || '')); }
+  }, [load]);
 
-  // Slots are small and packed, and the hour grid auto-scrolls near its edges.
-  // closestCenter alone snapped a drop to whatever slot centre was nearest —
-  // measurably the wrong hour once auto-scroll moved the grid under the finger.
-  // pointerWithin only matches a slot actually under the pointer; closestCenter
-  // stays as the fallback for the gaps between slots.
-  const collisionDetection = useCallback((args) => {
-    const hits = pointerWithin(args);
-    return hits.length ? hits : closestCenter(args);
-  }, []);
+  const drag = useTapDrag({ onDrop });
 
-  const onDragStart = (e) => setDragging(e.active?.data?.current?.node || null);
-  const onDragEnd = (e) => {
-    setDragging(null);
-    const slot = parseSlotId(e.over?.id);
-    const node = e.active?.data?.current?.node;
-    if (slot && node) place(node, slot.date, slot.hour, slot.quarter);
-  };
+  // Tapping empty space cancels a selection — and reports whether it did, so
+  // the slot underneath knows not to also arm itself on that same tap.
+  const clearIfSelected = useCallback(() => {
+    if (!drag.selectedId) return false;
+    drag.clearSelection();
+    return true;
+  }, [drag]);
 
   if (!loaded) {
     return (
@@ -244,9 +252,10 @@ export default function TodayScreen({ headerSlot = null }) {
     <LifeOSLayout title="אישי" hideFab hideTopBar>
       {headerSlot}
 
-      <DndContext sensors={sensors} collisionDetection={collisionDetection} autoScroll
-        onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
-
+      {/* pan-y on the whole screen: vertical scrolling only, so a two-finger
+          pinch cannot zoom the browser inside the personal tab. The global
+          viewport meta is untouched — every other tab zooms as before. */}
+      <div style={{ touchAction: 'pan-y' }}>
         <DayCalendar
           nodes={nodes} logSet={logSet} doneOf={doneOf}
           date={date} onDate={setDate} view={view} onView={pickView}
@@ -254,6 +263,8 @@ export default function TodayScreen({ headerSlot = null }) {
           armed={armedSlot} onArm={armSlot} onClearArm={() => setArmedSlot(null)}
           onToggleDone={toggleDone} onOpenDoc={openDoc} onUnschedule={unschedule}
           categoryOf={classify} progress={progress}
+          itemProps={drag.itemProps} isSelected={drag.isSelected} isArmed={drag.isArmed}
+          onEmptyTap={clearIfSelected}
         />
 
         <TaskBankAccordion
@@ -262,20 +273,25 @@ export default function TodayScreen({ headerSlot = null }) {
           pendingId={pending?.id || null} armedSlot={armedSlot}
           classify={classify}
           onPick={pickTask} onOpenDetails={setDetails} onQuickAdd={quickAdd} onSaved={load}
+          itemProps={drag.itemProps} isSelected={drag.isSelected} isArmed={drag.isArmed}
         />
 
-        <DragOverlay dropAnimation={null}>
-          {dragging && (
-            <div style={{ padding: '7px 12px', borderRadius: 999, background: '#fff', border: `2px solid ${colorOfCategory(classify(dragging))}`, boxShadow: '0 6px 18px rgba(0,0,0,0.25)', fontSize: 12.5, fontWeight: 800, color: FOCUS.ink, whiteSpace: 'nowrap' }}>
-              {dragging.title}
-            </div>
-          )}
-        </DragOverlay>
-      </DndContext>
-
-      <div style={{ padding: '0 12px 20px' }}>
-        <QuickCapture userId={userId} />
+        <div style={{ padding: '0 12px 20px' }}>
+          <QuickCapture userId={userId} />
+        </div>
       </div>
+
+      {/* The floating item. pointerEvents:none — it sits under the finger, and
+          elementFromPoint has to see the slot beneath it, not this. */}
+      {drag.dragNode && (
+        <div ref={drag.ghostRef}
+          style={{ position: 'fixed', left: 0, top: 0, transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 3000,
+            padding: '8px 13px', borderRadius: 999, background: '#fff',
+            border: `2px solid ${colorOfCategory(classify(drag.dragNode))}`,
+            boxShadow: '0 8px 22px rgba(0,0,0,0.28)', fontSize: 13, fontWeight: 800, color: FOCUS.ink, whiteSpace: 'nowrap' }}>
+          {drag.dragNode.title}
+        </div>
+      )}
 
       {/* Details, not documentation: this is the sheet the map uses, so a task
           is edited in exactly one place. It closes itself on park/delete. */}

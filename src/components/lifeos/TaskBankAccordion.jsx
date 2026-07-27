@@ -1,13 +1,12 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { useDraggable } from '@dnd-kit/core';
-import { ChevronDown, Plus, Check, X, Clock, GripVertical, Trash2, AlertTriangle } from 'lucide-react';
+import { ChevronDown, Plus, Check, X, Clock, Info, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   FOCUS, hexAlpha, isoDate, dowOf, HEB_DAYS_FULL, BOARD_TAG, BANK_TAG, INSPIRATION_TAG,
   PERSONAL_ARM_TITLE, indexNodes, createNode, deleteNode, weeklyTargetOf, weekDoneCount, taskLoggedOn,
 } from '@/lib/lifeos/focus-api';
 import { timeLabel, durationOf } from '@/lib/lifeos/schedule-api';
-import { categoryClassifier, groupByCategory, CATEGORIES } from '@/lib/lifeos/categories';
+import { categoryClassifier, groupByCategory, CATEGORIES, catTagFor } from '@/lib/lifeos/categories';
 import { weekProgressMap } from '@/lib/lifeos/week-math';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -45,8 +44,11 @@ import { weekProgressMap } from '@/lib/lifeos/week-math';
 //   idle   — the + button ARMS the task; the next slot tap places it
 //   picker — a slot is already armed, so the drawer lights up and + places the
 //            task straight into that slot. Quick-add creates and places at once.
-// Every row is also a @dnd-kit draggable, so the drag route needs no separate
-// markup. Delete mode disables the drag, since a drag there is a mis-tap.
+//
+// Dragging a row to the calendar is select-then-drag (lib/lifeos/use-tap-drag),
+// the same controller the calendar's own blocks use. It is deliberately NOT
+// bound to a plain touch: the drawer scrolls, and a scroll that books an hour
+// is worse than no drag at all. Delete mode opts out entirely.
 // ═══════════════════════════════════════════════════════════════════
 
 const OPEN_MAX_H = 260;
@@ -66,10 +68,13 @@ export default function TaskBankAccordion({
   nodes = [], logSet = new Set(), executions = [], dayStates = [],
   date = isoDate(), pendingId = null, armedSlot = null,
   onPick, onOpenDetails, onQuickAdd, onSaved, userId, classify,
+  itemProps = () => ({}), isSelected = () => false, isArmed = () => false,
 }) {
   const today = isoDate();
   const [open, setOpen] = useState(() => new Set());   // every category closed
-  const [addOpen, setAddOpen] = useState(false);
+  // null → closed. A string → open with that category preselected; '' → open
+  // with nothing preselected (the footer button).
+  const [addOpen, setAddOpen] = useState(null);
   const [quick, setQuick] = useState('');
   const [delMode, setDelMode] = useState(false);
   const [sel, setSel] = useState(() => new Set());
@@ -273,16 +278,31 @@ export default function TaskBankAccordion({
                         done={taskLoggedOn(t, logSet, today)}
                         late={tierOf(t) === 0}
                         behind={tierOf(t) === 1}
-                        armed={pendingId === t.id}
+                        pending={pendingId === t.id}
                         picking={picking}
                         label={labelOf(t)}
                         scheduled={!!t.task_time}
                         delMode={delMode}
-                        selected={sel.has(t.id)}
+                        checked={sel.has(t.id)}
+                        dragSelected={isSelected(t.id)}
+                        dragArmed={isArmed(t.id)}
+                        dragProps={itemProps(t)}
                         onPick={() => onPick(t)}
                         onOpenDetails={() => onOpenDetails && onOpenDetails(t)}
                         onSelect={() => toggleSel(t.id)} />
                     ))}
+
+                    {/* Last row of every open category: add straight into THIS
+                        category, so the sheet opens already filed. */}
+                    {!delMode && (
+                      <button onClick={() => setAddOpen(c.key)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 7, width: '100%', boxSizing: 'border-box',
+                          padding: '10px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right',
+                          border: `1px dashed ${hexAlpha(c.color, 0.55)}`, background: '#fff' }}>
+                        <Plus size={15} color={c.color} style={{ flexShrink: 0 }} />
+                        <span style={{ fontSize: 12.5, fontWeight: 800, color: c.color }}>משימה חדשה ב{c.label}</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -299,7 +319,8 @@ export default function TaskBankAccordion({
           <Trash2 size={16} /> {sel.size ? `מחק ${sel.size} משימות` : 'לא נבחרו משימות'}
         </button>
       ) : (
-        <button onClick={() => setAddOpen(true)}
+        // Unchanged: no category preselected.
+        <button onClick={() => setAddOpen('')}
           style={{ width: '100%', marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '13px', borderRadius: 14, border: 'none', background: FOCUS.orangeGrad, color: '#fff', fontSize: 14.5, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
           <Plus size={17} /> משימה חדשה
         </button>
@@ -310,34 +331,35 @@ export default function TaskBankAccordion({
           onCancel={() => setConfirming(false)} onConfirm={runDelete} />
       )}
 
-      {addOpen && (
+      {addOpen !== null && (
         <NewTaskSheet userId={userId} nodes={nodes} classifier={classifier}
-          onClose={() => setAddOpen(false)}
-          onSaved={() => { setAddOpen(false); onSaved && onSaved(); }} />
+          initialCategory={addOpen || null}
+          onClose={() => setAddOpen(null)}
+          onSaved={(key) => {
+            setAddOpen(null);
+            // Open the category it landed in, so it is visible without hunting.
+            if (key) setOpen(prev => new Set(prev).add(key));
+            onSaved && onSaved();
+          }} />
       )}
     </div>
   );
 }
 
 // ── one full-width task row ───────────────────────────────────────
-// The row is BOTH a drag handle and a tap target. dnd-kit only starts a drag
-// after the activation distance is passed, so a plain tap still fires onClick
-// and the routes never fight each other.
-//
-// Three gestures, three outcomes, no overlap:
-//   tap the body   → open details (or toggle the checkbox in delete mode)
-//   tap the +      → schedule
-//   drag           → place on the grid
-// Both taps run through `tapped`, which refuses anything that drifted past
-// MOVE_CANCEL. The pointerdown that seeds it is chained on TOP of dnd-kit's own
-// handler rather than replacing it, or the drag would never start.
-function TaskRow({ node, color, done, late, behind, armed, picking, label, scheduled, delMode, selected, onPick, onOpenDetails, onSelect }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `task|${node.id}`, data: { node }, disabled: delMode,
-  });
-
+// Five gestures, five outcomes, no overlap:
+//   tap the body      → select for dragging (delete mode: tick the checkbox)
+//   tap it again      → arm it; the next touch drags
+//   hold 400ms        → drag straight away
+//   tap the +         → schedule, with no selection step at all
+//   tap the ⓘ         → task details
+// A tap that drifted past MOVE_CANCEL does nothing: that was a scroll, and the
+// drawer is a scrolling surface. `dragProps` supplies the pointerdown that
+// drives selection and the long press; it is chained, not replaced. The two
+// buttons stop pointerdown from reaching it, so neither also selects the row.
+function TaskRow({ node, color, done, late, behind, pending, picking, label, scheduled, delMode, checked, dragSelected, dragArmed, dragProps = {}, onPick, onOpenDetails, onSelect }) {
   const down = useRef(null);
-  const dnd = delMode ? {} : { ...attributes, ...listeners };
+  const dnd = delMode ? {} : dragProps;
   const onPointerDown = (e) => {
     down.current = { x: e.clientX, y: e.clientY };
     if (dnd.onPointerDown) dnd.onPointerDown(e);
@@ -349,39 +371,59 @@ function TaskRow({ node, color, done, late, behind, armed, picking, label, sched
     return Math.hypot(e.clientX - d.x, e.clientY - d.y) <= MOVE_CANCEL;
   };
 
-  const edge = delMode && selected ? FOCUS.red
-    : armed ? FOCUS.orange
-      : late ? hexAlpha('#E24B4A', 0.5)
-        : done ? hexAlpha('#16a34a', 0.45)
-          : hexAlpha(color, 0.3);
+  const edge = delMode && checked ? FOCUS.red
+    : dragArmed ? FOCUS.orange
+      : dragSelected ? hexAlpha(FOCUS.orange, 0.85)
+        : pending ? FOCUS.orange
+          : late ? hexAlpha('#E24B4A', 0.5)
+            : done ? hexAlpha('#16a34a', 0.45)
+              : hexAlpha(color, 0.3);
 
+  // Delete mode only. Outside it, a body tap is selection, and selection is the
+  // drag controller's job — it fires on pointerup inside dragProps, so there is
+  // deliberately nothing to do here.
   const onBody = (e) => {
+    if (!delMode) return;
     if (!tapped(e)) return;                    // it was a scroll
-    if (delMode) onSelect(); else onOpenDetails();
+    onSelect();
   };
 
   return (
-    <div ref={delMode ? undefined : setNodeRef} {...dnd}
+    <div {...dnd}
       onPointerDown={onPointerDown} onClick={onBody}
       style={{
         display: 'flex', alignItems: 'center', gap: 8, width: '100%', boxSizing: 'border-box',
         // Tight on the + side (it brings its own 44px), roomier on the grip side.
         padding: '5px 10px 5px 6px', borderRadius: 12, cursor: delMode ? 'pointer' : 'grab',
-        fontFamily: 'inherit', touchAction: 'none', opacity: isDragging ? 0.4 : 1,
-        border: `1px solid ${edge}`,
-        background: delMode && selected ? hexAlpha(FOCUS.red, 0.07)
-          : armed ? hexAlpha(FOCUS.orange, 0.14)
+        fontFamily: 'inherit', touchAction: 'pan-y',
+        // A 400ms hold must become a drag, not the browser's text-selection
+        // callout, which would eat the gesture on iOS.
+        userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
+        border: `${dragSelected || dragArmed ? 2 : 1}px solid ${edge}`,
+        transform: dragSelected || dragArmed ? 'scale(1.02)' : 'none',
+        boxShadow: dragArmed ? `0 3px 12px ${hexAlpha(FOCUS.orange, 0.4)}` : 'none',
+        transition: 'transform .12s, box-shadow .12s',
+        background: delMode && checked ? hexAlpha(FOCUS.red, 0.07)
+          : dragSelected || dragArmed || pending ? hexAlpha(FOCUS.orange, 0.14)
             : done ? hexAlpha('#16a34a', 0.06)
               : picking ? '#fff' : hexAlpha(color, 0.04),
       }}>
 
       {delMode ? (
         <span style={{ width: 19, height: 19, borderRadius: 5, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          border: selected ? 'none' : `1.5px solid ${FOCUS.border}`, background: selected ? FOCUS.red : '#fff', color: '#fff' }}>
-          {selected && <Check size={13} />}
+          border: checked ? 'none' : `1.5px solid ${FOCUS.border}`, background: checked ? FOCUS.red : '#fff', color: '#fff' }}>
+          {checked && <Check size={13} />}
         </span>
       ) : (
-        <GripVertical size={13} color={hexAlpha(color, 0.85)} style={{ flexShrink: 0 }} />
+        // Details moved here. A body tap is SELECTION now, so it cannot also
+        // open a sheet — one gesture, one outcome. This is the only remaining
+        // way in, so it is a real button with a label, not a decorative grip.
+        <button onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onOpenDetails(); }}
+          aria-label={`פרטי המשימה: ${node.title}`} title="פרטי המשימה"
+          style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 8, border: `1px solid ${hexAlpha(color, 0.35)}`, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+          <Info size={14} color={hexAlpha(color, 0.9)} />
+        </button>
       )}
 
       {done && <Check size={13} color="#15803d" style={{ flexShrink: 0 }} />}
@@ -399,7 +441,11 @@ function TaskRow({ node, color, done, late, behind, armed, picking, label, sched
       </span>
 
       {!delMode && (
-        <button onClick={(e) => { e.stopPropagation(); if (tapped(e)) onPick(); }}
+        <button
+          // Seeds the slop check itself, then keeps the gesture away from the
+          // drag controller: + schedules immediately, with no selection step.
+          onPointerDown={(e) => { down.current = { x: e.clientX, y: e.clientY }; e.stopPropagation(); }}
+          onClick={(e) => { e.stopPropagation(); if (tapped(e)) onPick(); }}
           aria-label={`שבץ ביומן: ${node.title}`}
           style={{ width: PLUS_SIZE, height: PLUS_SIZE, flexShrink: 0, borderRadius: 12, border: 'none', background: FOCUS.orangeGrad, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
           <Plus size={20} />
@@ -441,9 +487,9 @@ function ConfirmDelete({ count, busy, onCancel, onConfirm }) {
 }
 
 // ── + משימה חדשה ──────────────────────────────────────────────────
-function NewTaskSheet({ userId, nodes, classifier, onClose, onSaved }) {
+function NewTaskSheet({ userId, nodes, classifier, initialCategory = null, onClose, onSaved }) {
   const [title, setTitle] = useState('');
-  const [catKey, setCatKey] = useState(CATEGORIES[0].key);
+  const [catKey, setCatKey] = useState(initialCategory || CATEGORIES[0].key);
   const [freq, setFreq] = useState('oneoff');
   const [times, setTimes] = useState(3);
   const [dow, setDow] = useState(0);
@@ -471,7 +517,10 @@ function NewTaskSheet({ userId, nodes, classifier, onClose, onSaved }) {
     if (!t || !parent || busy) return;
     setBusy(true);
     try {
-      const tags = [BOARD_TAG];
+      // catTagFor pins the task to the category the user actually chose. Without
+      // it the title keywords would re-classify it on the next render, and a
+      // task added inside a category could appear in a different one.
+      const tags = [BOARD_TAG, catTagFor(catKey)];
       const fields = {
         parent_id: parent, node_type: 'task', title: t, sort_order: 100,
         net_minutes: Number(minutes) || 30,
@@ -489,7 +538,7 @@ function NewTaskSheet({ userId, nodes, classifier, onClose, onSaved }) {
       fields.tags = tags;
       await createNode(userId, fields);
       toast.success('נוספה ✓');
-      onSaved();
+      onSaved(catKey);
     } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); setBusy(false); }
   };
 
