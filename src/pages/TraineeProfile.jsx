@@ -6063,6 +6063,11 @@ export default function TraineeProfile() {
             }}
             trainees={[user]}
             coachId={coach?.id}
+            // Context-aware open: this profile's trainee is already the
+            // subject, so the dialog collapses its picker to one locked
+            // chip instead of asking the coach to find them in a list.
+            presetTraineeId={user.id}
+            presetTraineeName={user.full_name}
             isLoading={savingNewSession}
           />
         )}

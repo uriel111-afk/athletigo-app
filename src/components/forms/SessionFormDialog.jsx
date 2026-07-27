@@ -80,6 +80,14 @@ export default function SessionFormDialog({
   // Calendar on a tapped day/hour). Ignored when editing.
   presetDate = null,
   presetTime = null,
+  // Context-aware preset participant. Set only by callers that already
+  // know who the session is for (the trainee profile's sessions tab).
+  // When present the picker collapses to a single locked chip and the
+  // search + list stay hidden until the coach asks for them. Empty →
+  // the dialog behaves exactly as it did before (Sessions, Dashboard,
+  // Focus Calendar all pass nothing).
+  presetTraineeId = null,
+  presetTraineeName = '',
 }) {
   const { user: currentCoach } = useContext(AuthContext);
   // Single source for "who is the coach" — prop wins, AuthContext is
@@ -146,15 +154,29 @@ export default function SessionFormDialog({
 
   const effectiveTrainees = (allUsers && allUsers.length > 0) ? allUsers : trainees;
 
-  const filteredTrainees = (() => {
-    if (!searchQuery) return effectiveTrainees;
-    const q = searchQuery.toLowerCase();
-    return effectiveTrainees.filter((t) => (
-      t.full_name?.toLowerCase().includes(q) ||
-      t.email?.toLowerCase().includes(q) ||
-      t.phone?.includes(q)
-    ));
-  })();
+  // Search over name / email / phone. Normalized on both sides:
+  // trimmed + lowercased so a trailing space or a capitalized email
+  // can't silently empty the list, and every field is coerced to a
+  // string before matching so a NULL full_name / email / phone (very
+  // common on legacy rows) can't throw and kill the whole filter.
+  // Phones also match digits-only, so "050-123" finds "0501234567".
+  const allTrainees = Array.isArray(effectiveTrainees) ? effectiveTrainees : [];
+  const query = String(searchQuery || '').trim().toLowerCase();
+  const queryDigits = query.replace(/\D/g, '');
+  const filteredTrainees = !query ? allTrainees : allTrainees.filter((t) => {
+    const name = String(t?.full_name || '').toLowerCase();
+    const email = String(t?.email || '').toLowerCase();
+    const phone = String(t?.phone || '').toLowerCase();
+    const phoneDigits = phone.replace(/\D/g, '');
+    return (
+      name.includes(query) ||
+      email.includes(query) ||
+      phone.includes(query) ||
+      (queryDigits.length > 0 && phoneDigits.includes(queryDigits))
+    );
+  });
+  // TEMP diagnostic — drop once the picker is confirmed in the field.
+  console.log('[SessionForm] filter', { query, total: allTrainees.length, filtered: filteredTrainees.length });
 
   // Recent trainees — last few unique people the coach booked, surfaced
   // as one-tap chips above the full list. Derived from the parent's
@@ -215,7 +237,18 @@ export default function SessionFormDialog({
     recurEndType: 'date',
     recurEndDate: '',
     recurEndCount: 4,
-  } : { ...INITIAL_DATA, date: presetDate || new Date().toISOString().split('T')[0], time: presetTime || INITIAL_DATA.time };
+  } : {
+    ...INITIAL_DATA,
+    date: presetDate || new Date().toISOString().split('T')[0],
+    time: presetTime || INITIAL_DATA.time,
+    // Preset participant seeded straight into the initial data so a
+    // "start fresh" from the draft prompt keeps the trainee selected.
+    // Same row shape toggleParticipant writes — nothing downstream can
+    // tell the difference.
+    participants: presetTraineeId
+      ? [{ trainee_id: presetTraineeId, trainee_name: presetTraineeName || '', attendance_status: 'ממתין' }]
+      : [],
+  };
 
   const scopeKey = `${currentCoach?.id ?? 'no-coach'}_${editingSession?.id ?? 'new'}`;
   // Draft context = who the session is for (first participant) so the
@@ -232,6 +265,39 @@ export default function SessionFormDialog({
   } = useFormDraft('SessionForm', scopeKey, isOpen, initialData, draftContext);
 
   useKeepScreenAwake(isOpen);
+
+  // === Context-aware preset participant ===
+  // Active only when a caller passed presetTraineeId AND we're creating
+  // (editing an existing row takes its participants off the row).
+  // Collapses the picker to a single locked chip; the coach opens the
+  // normal search list on demand and the existing selection survives.
+  const isPresetMode = !!presetTraineeId && !editingSession;
+  const [showFullPicker, setShowFullPicker] = useState(false);
+  const presetSeededRef = useRef(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setShowFullPicker(false);
+      presetSeededRef.current = false;
+      return;
+    }
+    if (!isPresetMode || presetSeededRef.current) return;
+    presetSeededRef.current = true;
+    // Covers the restored-draft path: a draft saved from another entry
+    // point shares the `_new` scope key and can come back with no
+    // participants, so re-assert the preset trainee after the load.
+    setSessionForm(prev => (
+      (prev.participants || []).some(p => p.trainee_id === presetTraineeId)
+        ? prev
+        : {
+            ...prev,
+            participants: [
+              { trainee_id: presetTraineeId, trainee_name: presetTraineeName || '', attendance_status: 'ממתין' },
+              ...(prev.participants || []),
+            ],
+          }
+    ));
+  }, [isOpen, isPresetMode, presetTraineeId, presetTraineeName]);
 
   const [showGuestForm, setShowGuestForm] = useState(false);
   const [availableServices, setAvailableServices] = useState([]);
@@ -1122,8 +1188,11 @@ export default function SessionFormDialog({
               sees / types into when creating a session. */}
           <div style={{ order: -1 }}>
             <Label className="text-sm font-bold mb-3 block" style={{ color: '#000000' }}>
-              👥 בחר משתתפים * ({sessionForm.participants.length} נבחרו)
+              {isPresetMode
+                ? `👥 משתתפי המפגש (${sessionForm.participants.length})`
+                : `👥 בחר משתתפים * (${sessionForm.participants.length} נבחרו)`}
             </Label>
+            {(!isPresetMode || showFullPicker) && (
             <div className="flex justify-between items-center mb-2">
                 <Button
                     type="button"
@@ -1136,6 +1205,7 @@ export default function SessionFormDialog({
                     {showGuestForm ? 'סגור הוספת אורח' : 'הוסף אורח חד-פעמי'}
                 </Button>
             </div>
+            )}
 
             {showGuestForm && (
                 <div className="mb-4 p-4 rounded-xl bg-blue-50 border border-blue-100">
@@ -1218,14 +1288,20 @@ export default function SessionFormDialog({
             )}
 
             {sessionForm.participants.length > 0 && (
-              <div className="mb-3 p-3 rounded-xl" style={{ backgroundColor: '#E8F5E9', border: '2px solid #4CAF50' }}>
+              <div className="mb-3 p-3 rounded-xl" style={{ backgroundColor: '#E8F5E9', border: '2px solid #4CAF50', direction: 'rtl' }}>
                 <p className="text-xs font-bold mb-2" style={{ color: '#2E7D32' }}>נבחרו:</p>
                 <div className="flex flex-wrap gap-2">
-                  {sessionForm.participants.map(p => (
+                  {sessionForm.participants.map(p => {
+                    // The preset trainee is the reason this dialog is
+                    // open — no × on their chip, so it can't be removed
+                    // by accident (and can't fight the seeding effect).
+                    const isPreset = isPresetMode && p.trainee_id === presetTraineeId;
+                    return (
                     <div key={p.trainee_id} className="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1" style={{ backgroundColor: '#4CAF50', color: 'white' }}>
-                      {p.trainee_name} 
+                      {p.trainee_name}
                       {p.is_guest && ' (אורח)'}
-                      <button 
+                      {!isPreset && (
+                      <button
                         type="button"
                         onClick={(e) => {
                             e.stopPropagation();
@@ -1235,15 +1311,41 @@ export default function SessionFormDialog({
                       >
                           ×
                       </button>
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
+            )}
+            {/* Preset mode, collapsed — the only affordance is this text
+                button. Tapping it reveals the standard search + list
+                below without touching the current selection. */}
+            {isPresetMode && !showFullPicker && (
+              <button
+                type="button"
+                onClick={() => setShowFullPicker(true)}
+                style={{
+                  direction: 'rtl',
+                  background: 'none',
+                  border: 'none',
+                  padding: '2px 0',
+                  margin: 0,
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  color: 'var(--ag-accent)',
+                  textAlign: 'right',
+                  display: 'block',
+                }}
+              >
+                + הוסף משתתף נוסף
+              </button>
             )}
             {/* Recent trainees — one-tap chips for the people the coach
                 booked most recently. Hidden while searching so the full
                 results take over. */}
-            {!searchQuery && recentTrainees.length > 0 && (
+            {(!isPresetMode || showFullPicker) && !searchQuery && recentTrainees.length > 0 && (
               <div className="mb-3">
                 <p className="text-xs font-bold mb-2" style={{ color: '#7D7D7D' }}>⏱️ אחרונים</p>
                 <div className="flex flex-wrap gap-2">
@@ -1278,6 +1380,10 @@ export default function SessionFormDialog({
                 </div>
               </div>
             )}
+            {/* Search + list. Hidden outright in collapsed preset mode —
+                the caller already knows who the session is for. */}
+            {(!isPresetMode || showFullPicker) && (
+            <>
             <Input
               ref={searchInputRef}
               type="search"
@@ -1309,8 +1415,8 @@ export default function SessionFormDialog({
                   </Button>
                 </div>
               ) : filteredTrainees.length === 0 ? (
-                <p className="text-sm text-center py-4" style={{ color: '#7D7D7D' }}>
-                  {searchQuery ? 'לא נמצאו תוצאות' : 'אין משתמשים במערכת'}
+                <p className="text-sm text-center py-4" style={{ color: '#7D7D7D', direction: 'rtl' }}>
+                  {query ? 'לא נמצאו מתאמנים' : 'אין משתמשים במערכת'}
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -1356,6 +1462,8 @@ export default function SessionFormDialog({
                 </div>
               )}
             </div>
+            </>
+            )}
           </div>
 
           {/* Package selection */}
