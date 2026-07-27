@@ -7,15 +7,14 @@ import { FOCUS, hexAlpha } from '@/lib/lifeos/focus-api';
 // ═══════════════════════════════════════════════════════════════════
 // אישי — two segments, one route
 // ═══════════════════════════════════════════════════════════════════
-//   היום   TodayScreen — the next-move strip (collapsed), the schedule
-//                        (day/week/month over an hour axis) and the task
-//                        drawer under it. The old לוז segment is gone: the
-//                        calendar IS the לוז. The old מה עכשיו segment is gone
-//                        too — NextMoveScreen still exists untouched as a
-//                        component and now renders INSIDE this screen as a
-//                        collapsible strip, because deciding what to do next
-//                        and laying out the day are the same sitting.
+//   היום   TodayScreen — the schedule (day/week/month over an hour axis) and
+//                        the task drawer under it. The old לוז segment is
+//                        gone: the calendar IS the לוז.
 //   הלוח   BoardScreen — the habit matrix + execution counts.
+//
+// The מה עכשיו segment is gone as well, and so is the next-move strip that
+// briefly replaced it. NextMoveScreen.jsx stays on disk, unreferenced and
+// still self-contained, so the engine can be routed back in without a rewrite.
 //
 // Both read the SAME focus_nodes rows. A task placed in the schedule, the move
 // proposed by the engine and the row in the matrix are one record; see
