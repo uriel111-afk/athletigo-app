@@ -76,6 +76,13 @@ export function occursOn(node, date) {
   return String(node.task_date || '').slice(0, 10) === date;
 }
 
+// Actually PLACED on a date: it occurs that day AND carries an hour. This is
+// the predicate for anything that claims "there is something at this time" —
+// the month dots most of all. occursOn alone is true for every recurring habit
+// on every day, so a month drawn from it dotted all 30 cells whether or not a
+// single thing had been scheduled, which made the month view unreadable.
+export const placedOn = (node, date) => occursOn(node, date) && !!node.task_time;
+
 // Everything due on a date, split by whether it has a time yet.
 export function dayItems(nodes = [], date, { excludeIds = new Set() } = {}) {
   const due = nodes.filter(n => occursOn(n, date) && !excludeIds.has(n.id));
@@ -100,9 +107,16 @@ export async function scheduleTask(node, date, hour, quarter = 0) {
 }
 
 // Take it back out of the hour grid. The task itself is untouched — it simply
-// has no time yet, so it lands back in "ללא שעה" for that day.
+// has no time yet, so it lands back in the drawer.
 export async function unscheduleTask(node) {
   await updateNode(node.id, { task_time: null });
+}
+
+// Put a cleared time back, byte for byte. This is the undo of unscheduleTask:
+// removing a block is one tap with no dialog, so the way back has to be exact
+// and just as cheap — no re-deriving an hour from a grid row.
+export async function restoreTaskTime(node, time) {
+  await updateNode(node.id, { task_time: time || null });
 }
 
 // Move a one-off to another day (used by the month view and by rollover).
@@ -180,23 +194,33 @@ export const monthGrid = (date) => monthWeeks(date).flat();
 
 export const sameMonth = (a, b) => a.slice(0, 7) === b.slice(0, 7);
 
+// Every real day of the month `date` falls in — not the 42-cell grid, which
+// carries neighbouring months in its corners.
+export function monthDays(date) {
+  const d = new Date(date + 'T00:00:00');
+  const n = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  const first = `${date.slice(0, 7)}-`;
+  return Array.from({ length: n }, (_, i) => first + pad2(i + 1));
+}
+
+// The days the current view is showing: the week, or the month.
+export const periodDays = (date = isoDate(), view = 'day') =>
+  (view === 'month' ? monthDays(date) : weekDays(date));
+
 // ─── "X/Y שובצו" ──────────────────────────────────────────────────
-// Y = everything that OUGHT to carry a time in the current period:
-//     • recurring habits (a habit without an hour is a wish, not a plan)
-//     • one-offs whose task_date falls inside the period
-// X = how many of those actually have a task_time.
-// The period follows the view, so the number answers the question the screen
-// is currently asking: a week in day/week view, the month in month view.
+// Y = tasks that genuinely OCCUR somewhere in the visible period.
+// X = how many of those carry a task_time — i.e. exactly the tasks the month
+//     view draws a dot for.
+//
+// Both numbers now run through occursOn, the same predicate the grid and the
+// dots use, so the bar and the cells can no longer disagree. The old rule
+// counted `frequency ? true : …`, which put EVERY recurring habit in the
+// denominator whether or not it fell inside the period — a habit due only on
+// Tuesdays inflated a week it never appeared in.
 export function schedulingProgress(nodes = [], { date = isoDate(), view = 'day' } = {}) {
-  const inPeriod = (d) => {
-    if (!d) return false;
-    const day = String(d).slice(0, 10);
-    if (view === 'month') return sameMonth(day, date);
-    const w = weekDays(date);
-    return day >= w[0] && day <= w[6];
-  };
+  const days = periodDays(date, view);
   const live = nodes.filter(n => n.node_type === 'task' && (!n.status || n.status === 'active'));
-  const relevant = live.filter(n => (n.frequency ? true : inPeriod(n.task_date)));
+  const relevant = live.filter(n => days.some(d => occursOn(n, d)));
   const scheduled = relevant.filter(n => !!n.task_time);
   return { done: scheduled.length, total: relevant.length };
 }

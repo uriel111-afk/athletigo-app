@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { ChevronDown, Plus, Check, X, Clock, GripVertical, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -34,15 +34,26 @@ import { weekProgressMap } from '@/lib/lifeos/week-math';
 // Pace is pro-rata inside the week: target × (days elapsed / 7). On Sunday a
 // 3×/week habit is not yet "behind" at 0 done; by Thursday it is.
 //
+// Scheduling is the + BUTTON and nothing else. Touching the body of a row
+// opens the task's details instead. The two used to be the same gesture, which
+// meant every mis-tap while reading the drawer silently booked an hour — the
+// worst kind of bug, because the calendar then looks planned when it is not.
+// A tap that drifts more than MOVE_CANCEL pixels between down and up is a
+// scroll and does nothing at all, since the drawer is a scrolling surface.
+//
 // The drawer has two states:
-//   idle   — tapping a task (or its + button) ARMS it; the next slot tap places it
-//   picker — a slot is already armed, so the drawer lights up and the next task
-//            tap places it there. Quick-add creates and places in one go.
+//   idle   — the + button ARMS the task; the next slot tap places it
+//   picker — a slot is already armed, so the drawer lights up and + places the
+//            task straight into that slot. Quick-add creates and places at once.
 // Every row is also a @dnd-kit draggable, so the drag route needs no separate
 // markup. Delete mode disables the drag, since a drag there is a mis-tap.
 // ═══════════════════════════════════════════════════════════════════
 
 const OPEN_MAX_H = 260;
+// Finger slop: past this the gesture was a scroll, not a tap.
+const MOVE_CANCEL = 10;
+// Full touch target for the one destructive-ish action in the row.
+const PLUS_SIZE = 44;
 
 const FREQS = [
   { key: 'oneoff', label: 'חד פעמית' },
@@ -54,7 +65,7 @@ const FREQS = [
 export default function TaskBankAccordion({
   nodes = [], logSet = new Set(), executions = [], dayStates = [],
   date = isoDate(), pendingId = null, armedSlot = null,
-  onPick, onQuickAdd, onSaved, userId, classify,
+  onPick, onOpenDetails, onQuickAdd, onSaved, userId, classify,
 }) {
   const today = isoDate();
   const [open, setOpen] = useState(() => new Set());   // every category closed
@@ -269,6 +280,7 @@ export default function TaskBankAccordion({
                         delMode={delMode}
                         selected={sel.has(t.id)}
                         onPick={() => onPick(t)}
+                        onOpenDetails={() => onOpenDetails && onOpenDetails(t)}
                         onSelect={() => toggleSel(t.id)} />
                     ))}
                   </div>
@@ -310,11 +322,32 @@ export default function TaskBankAccordion({
 // ── one full-width task row ───────────────────────────────────────
 // The row is BOTH a drag handle and a tap target. dnd-kit only starts a drag
 // after the activation distance is passed, so a plain tap still fires onClick
-// and the two placement routes never fight each other.
-function TaskRow({ node, color, done, late, behind, armed, picking, label, scheduled, delMode, selected, onPick, onSelect }) {
+// and the routes never fight each other.
+//
+// Three gestures, three outcomes, no overlap:
+//   tap the body   → open details (or toggle the checkbox in delete mode)
+//   tap the +      → schedule
+//   drag           → place on the grid
+// Both taps run through `tapped`, which refuses anything that drifted past
+// MOVE_CANCEL. The pointerdown that seeds it is chained on TOP of dnd-kit's own
+// handler rather than replacing it, or the drag would never start.
+function TaskRow({ node, color, done, late, behind, armed, picking, label, scheduled, delMode, selected, onPick, onOpenDetails, onSelect }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `task|${node.id}`, data: { node }, disabled: delMode,
   });
+
+  const down = useRef(null);
+  const dnd = delMode ? {} : { ...attributes, ...listeners };
+  const onPointerDown = (e) => {
+    down.current = { x: e.clientX, y: e.clientY };
+    if (dnd.onPointerDown) dnd.onPointerDown(e);
+  };
+  const tapped = (e) => {
+    const d = down.current;
+    down.current = null;
+    if (!d) return true;                       // keyboard / synthetic click
+    return Math.hypot(e.clientX - d.x, e.clientY - d.y) <= MOVE_CANCEL;
+  };
 
   const edge = delMode && selected ? FOCUS.red
     : armed ? FOCUS.orange
@@ -322,14 +355,18 @@ function TaskRow({ node, color, done, late, behind, armed, picking, label, sched
         : done ? hexAlpha('#16a34a', 0.45)
           : hexAlpha(color, 0.3);
 
-  const act = delMode ? onSelect : onPick;
+  const onBody = (e) => {
+    if (!tapped(e)) return;                    // it was a scroll
+    if (delMode) onSelect(); else onOpenDetails();
+  };
 
   return (
-    <div ref={delMode ? undefined : setNodeRef} {...(delMode ? {} : attributes)} {...(delMode ? {} : listeners)}
-      onClick={act}
+    <div ref={delMode ? undefined : setNodeRef} {...dnd}
+      onPointerDown={onPointerDown} onClick={onBody}
       style={{
         display: 'flex', alignItems: 'center', gap: 8, width: '100%', boxSizing: 'border-box',
-        padding: '9px 10px', borderRadius: 12, cursor: delMode ? 'pointer' : 'grab',
+        // Tight on the + side (it brings its own 44px), roomier on the grip side.
+        padding: '5px 10px 5px 6px', borderRadius: 12, cursor: delMode ? 'pointer' : 'grab',
         fontFamily: 'inherit', touchAction: 'none', opacity: isDragging ? 0.4 : 1,
         border: `1px solid ${edge}`,
         background: delMode && selected ? hexAlpha(FOCUS.red, 0.07)
@@ -362,10 +399,10 @@ function TaskRow({ node, color, done, late, behind, armed, picking, label, sched
       </span>
 
       {!delMode && (
-        <button onClick={(e) => { e.stopPropagation(); onPick(); }}
+        <button onClick={(e) => { e.stopPropagation(); if (tapped(e)) onPick(); }}
           aria-label={`שבץ ביומן: ${node.title}`}
-          style={{ width: 27, height: 27, flexShrink: 0, borderRadius: 9, border: 'none', background: FOCUS.orangeGrad, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
-          <Plus size={15} />
+          style={{ width: PLUS_SIZE, height: PLUS_SIZE, flexShrink: 0, borderRadius: 12, border: 'none', background: FOCUS.orangeGrad, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+          <Plus size={20} />
         </button>
       )}
     </div>

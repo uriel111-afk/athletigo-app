@@ -4,7 +4,7 @@ import { ChevronRight, ChevronLeft, Check, X, Rows3 } from 'lucide-react';
 import { FOCUS, hexAlpha, isoDate, addDays, HEB_DAYS, monthLabel } from '@/lib/lifeos/focus-api';
 import {
   HOURS, QUARTERS, pad2, timeLabel, hourOf, hhmm, dayItems, itemsAtHour, itemsAtQuarter,
-  weekOf, monthWeeks, sameMonth, occursOn, durationOf,
+  weekOf, monthWeeks, sameMonth, placedOn, durationOf,
 } from '@/lib/lifeos/schedule-api';
 import { colorOfCategory } from '@/lib/lifeos/categories';
 
@@ -347,10 +347,12 @@ function Block({ node, wide, showTime, color, done, onTick, onOpen, onUnschedule
           ? <div style={{ fontSize: 9, color: FOCUS.muted }}>{time} · {durationOf(node)} דק׳</div>
           : showTime && time && <div style={{ fontSize: 7.5, fontWeight: 800, color: FOCUS.muted, lineHeight: 1.2 }}>{time}</div>}
       </button>
-      {wide && (
-        <button onClick={(e) => { e.stopPropagation(); onUnschedule(); }} aria-label="הסר מהשעה"
-          style={{ border: 'none', background: 'none', cursor: 'pointer', color: FOCUS.muted, flexShrink: 0, display: 'flex', padding: 1 }}><X size={12} /></button>
-      )}
+      {/* Always present — every zoom level, day view and week view alike. A
+          block you cannot take back out is a block you stop trusting. */}
+      <button onClick={(e) => { e.stopPropagation(); onUnschedule(); }} aria-label={`הסר מהשעה: ${node.title}`}
+        style={{ border: 'none', background: 'none', cursor: 'pointer', color: FOCUS.muted, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, width: wide ? 20 : 14, height: wide ? 20 : 14 }}>
+        <X size={wide ? 13 : 10} />
+      </button>
     </div>
   );
 }
@@ -397,8 +399,11 @@ function MonthGrid({ nodes, date, today, doneOf, categoryOf, onPickDay }) {
   }, [fit]);
 
   // Dots per day, by category, capped at the 3×3 the cell can hold.
+  // placedOn, not occursOn: a dot means "something is actually booked at an
+  // hour on this day". A day with nothing booked stays completely empty, which
+  // is the only way the month view can show where the free days are.
   const dotsOf = useCallback((d) => {
-    const due = nodes.filter(n => occursOn(n, d));
+    const due = nodes.filter(n => placedOn(n, d));
     return due.slice(0, 9).map(n => ({ id: n.id, color: colorOfCategory(categoryOf(n)), done: doneOf(n, d) }));
   }, [nodes, categoryOf, doneOf]);
 

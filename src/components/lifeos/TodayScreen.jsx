@@ -11,15 +11,17 @@ import PageSkeleton from '@/components/PageSkeleton';
 import DayCalendar, { parseSlotId } from '@/components/lifeos/DayCalendar';
 import NextMoveScreen from '@/components/lifeos/NextMoveScreen';
 import TaskBankAccordion from '@/components/lifeos/TaskBankAccordion';
+import NodeDetailSheet from '@/components/lifeos/NodeDetailSheet';
 import FocusDocSheet from '@/components/lifeos/FocusDocSheet';
 import QuickCapture from '@/components/lifeos/QuickCapture';
 import {
   FOCUS, hexAlpha, isoDate, addDays, fetchNodes, fetchLogs, logSetFrom, logByKey,
-  logTask, unlogTask, taskLoggedOn, createNode, BOARD_TAG, PERSONAL_ARM_TITLE, indexNodes,
+  logTask, unlogTask, taskLoggedOn, createNode, BOARD_TAG, PERSONAL_ARM_TITLE,
+  indexNodes, ancestorsOf,
 } from '@/lib/lifeos/focus-api';
 import { fetchExecutions, fetchDayStates, addExecution, deleteExecution } from '@/lib/lifeos/personal-day-api';
 import {
-  scheduleTask, unscheduleTask, rolloverOncePerDay, schedulingProgress, timeLabel,
+  scheduleTask, unscheduleTask, restoreTaskTime, rolloverOncePerDay, schedulingProgress, timeLabel,
 } from '@/lib/lifeos/schedule-api';
 import { categoryClassifier, colorOfCategory } from '@/lib/lifeos/categories';
 
@@ -97,6 +99,7 @@ export default function TodayScreen({ headerSlot = null }) {
   const [armedSlot, setArmedSlot] = useState(null); // slot armed, waiting for a task
   const [dragging, setDragging] = useState(null);
   const [doc, setDoc] = useState(null);
+  const [details, setDetails] = useState(null);   // drawer row → task details
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -198,9 +201,24 @@ export default function TodayScreen({ headerSlot = null }) {
     } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
   };
 
+  // No dialog on the way out — the block leaves the grid at once and the toast
+  // carries the way back. `prev` is captured BEFORE the write, so undo restores
+  // the exact minute rather than guessing an hour from the row it sat in.
   const unschedule = async (node) => {
-    try { await unscheduleTask(node); await load(); toast('הוסר מהשעה'); }
-    catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
+    const prev = node.task_time;
+    try {
+      await unscheduleTask(node);
+      await load();
+      toast('הוחזר למגירה', {
+        action: {
+          label: 'ביטול',
+          onClick: async () => {
+            try { await restoreTaskTime(node, prev); await load(); toast.success('הוחזר ליומן'); }
+            catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
+          },
+        },
+      });
+    } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
   };
 
   // ── drag sensors ────────────────────────────────────────────────
@@ -277,7 +295,7 @@ export default function TodayScreen({ headerSlot = null }) {
           executions={executions} dayStates={dayStates} date={date}
           pendingId={pending?.id || null} armedSlot={armedSlot}
           classify={classify}
-          onPick={pickTask} onQuickAdd={quickAdd} onSaved={load}
+          onPick={pickTask} onOpenDetails={setDetails} onQuickAdd={quickAdd} onSaved={load}
         />
 
         <DragOverlay dropAnimation={null}>
@@ -292,6 +310,17 @@ export default function TodayScreen({ headerSlot = null }) {
       <div style={{ padding: '0 12px 20px' }}>
         <QuickCapture userId={userId} />
       </div>
+
+      {/* Details, not documentation: this is the sheet the map uses, so a task
+          is edited in exactly one place. It closes itself on park/delete. */}
+      {details && (
+        <NodeDetailSheet
+          node={nodes.find(n => n.id === details.id) || details}
+          ancestors={ancestorsOf(details, indexNodes(nodes).byId)}
+          allNodes={nodes}
+          onClose={() => setDetails(null)}
+          onSaved={load} />
+      )}
 
       {doc && (
         <FocusDocSheet node={doc.node} userId={userId} date={doc.date} existing={doc.existing}
