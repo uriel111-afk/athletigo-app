@@ -20,7 +20,10 @@ const inputStyle = {
 // Slide-up inline overlay (NOT Radix Dialog). Edits one focus node in
 // place; every control persists immediately and calls onSaved so the
 // underlying screen refreshes.
-export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved, allNodes = [], initialReparentOpen = false, pushHistory, statLine = null }) {
+// `freezeLayout` (supplied by the map) pins every auto-laid-out node at its
+// current spot before a structural edit, so deleting or reparenting one node
+// can't re-flow the rest of the map. Screens without a canvas omit it.
+export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved, allNodes = [], initialReparentOpen = false, pushHistory, statLine = null, freezeLayout = null }) {
   const { user } = useContext(AuthContext);
   const [form, setForm] = useState(node || {});
   const [notes, setNotes] = useState([]);
@@ -108,6 +111,9 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
     const kids = allDescendants(node.id, idx.children);
     if (kids.length && !window.confirm(`למחוק את "${node.title || 'הצומת'}" ו-${kids.length} צמתים שמתחתיו? פעולה זו אינה הפיכה.`)) return;
     setBusy(true);
+    // Removing a node shrinks its parent's band, which re-flows every sibling
+    // that has no saved coords. Pin them where they are first.
+    if (freezeLayout) await freezeLayout(node.id);
     try { await deleteNode(node.id); toast.success('נמחק'); onSaved && onSaved(); onClose && onClose(); }
     catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
     finally { setBusy(false); }
@@ -124,6 +130,11 @@ export default function NodeDetailSheet({ node, ancestors = [], onClose, onSaved
     const subtreeIds = [node.id, ...allDescendants(node.id, idx.children).map(d => d.id)];
     const prevParent = node.parent_id;
     try {
+      // Pin the REST of the map before the move. The moved subtree is
+      // deliberately left unpinned (and cleared below) so it lays itself out
+      // under its new parent — that is the point of reparenting. Everything
+      // the user did NOT move stays exactly where it was.
+      if (freezeLayout) await freezeLayout(subtreeIds);
       await updateNode(node.id, { parent_id: targetId });
       await clearPositions(subtreeIds);
       toast.success('ההורה עודכן');

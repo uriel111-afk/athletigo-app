@@ -15,6 +15,18 @@ const LEVEL_GAP = 100;             // fixed vertical gap between levels
 const ROOT_GAP = 140;              // extra breathing room under the root
 const HIT_PAD = 12;                // invisible hit padding around each card
 
+// Zoom range. The floor is deliberately far below "readable": on a map with
+// hundreds of nodes the whole tree only fits at a very small scale, and the
+// old 0.5 floor made it impossible to ever see everything at once. Cards stop
+// being legible long before 0.05 — that is fine, this end of the range is for
+// surveying the shape of the map, not for reading it.
+const MIN_SCALE = 0.05;
+const MAX_SCALE = 2;
+// Multiplicative zoom step. A fixed ±0.2 was fine near 1× but useless at the
+// bottom of the range (0.3 → 0.1 → below zero); a ratio keeps every press the
+// same perceptual amount and can traverse the whole range.
+const ZOOM_STEP = 1.25;
+
 // Reserved heights (layout + edge anchoring). Cards may render a touch
 // shorter for single-line titles; the reserve guarantees no overlap.
 const H = {
@@ -216,7 +228,17 @@ export default function MindMapCanvas({
   // auto-layout slot of a node that has no saved pos_x/pos_y yet. Detaching a
   // node makes it a root of its own, which hands it a brand-new layout slot in
   // the root row; freezing these coords first is what stops it from jumping.
-  if (posApi) posApi.current = (id) => { const n = byId[id]; return n ? posOf(n) : null; };
+  // Returns null when the node has NO real position: a node inside a collapsed
+  // branch is never laid out, and posOf's {0,0} fallback would otherwise be
+  // mistaken for a genuine coordinate and pin the whole hidden subtree to the
+  // origin. Callers must treat null as "nothing to freeze", not as {0,0}.
+  if (posApi) posApi.current = (id) => {
+    const n = byId[id];
+    if (!n) return null;
+    if (livePos[id]) return livePos[id];
+    if (n.pos_x != null && n.pos_y != null) return { x: Number(n.pos_x), y: Number(n.pos_y) };
+    return layout[id] || null;
+  };
 
   // Arm colors: top-level branch → color; subtree inherits it.
   const armMap = useMemo(() => armColorMap(children, roots), [children, roots]);
@@ -224,7 +246,7 @@ export default function MindMapCanvas({
   const rectOf = (n) => { const p = posOf(n); const w = wOf(n), h = hOf(n); return { x: p.x, y: p.y, w, h, cx: p.x + w / 2, cy: p.y + h / 2 }; };
   const anchored = (A, B) => { const ra = rectOf(A), rb = rectOf(B); return { a: sideAnchor(ra, rb.cx, rb.cy), b: sideAnchor(rb, ra.cx, ra.cy) }; };
 
-  const clampScale = (s) => Math.min(2, Math.max(0.5, s));
+  const clampScale = (s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
   const nodeAt = (el) => { const e = el?.closest?.('[data-node-id]'); return e ? ctx.current.byId[e.getAttribute('data-node-id')] : null; };
   const toCanvas = (cx, cy) => {
     const rect = svgRef.current.getBoundingClientRect();
@@ -450,7 +472,7 @@ export default function MindMapCanvas({
     pan.current = { x: e.clientX, y: e.clientY, tx: viewRef.current.tx, ty: viewRef.current.ty, moved: false };
   };
 
-  const zoom = (dir) => commitView({ ...viewRef.current, scale: clampScale(+(viewRef.current.scale + dir * 0.2).toFixed(2)) });
+  const zoom = (dir) => commitView({ ...viewRef.current, scale: clampScale(viewRef.current.scale * (dir > 0 ? ZOOM_STEP : 1 / ZOOM_STEP)) });
 
   useEffect(() => {
     const el = containerRef.current;
@@ -492,7 +514,11 @@ export default function MindMapCanvas({
       maxX = Math.max(maxX, p.x + wOf(n)); maxY = Math.max(maxY, p.y + hOf(n));
     });
     const M = 24, bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY);
-    const scale = Math.min(2, Math.max(0.25, Math.min((rect.width - 2 * M) / bw, (rect.height - 2 * M) / bh)));
+    // Clamped to the same range as manual zoom, so "התאם" can always reach a
+    // scale that holds the entire tree no matter how many nodes there are.
+    // (The old 0.25 floor silently cropped big maps: the fit ran, but the
+    // outermost branches stayed off-screen with no way to reach them.)
+    const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min((rect.width - 2 * M) / bw, (rect.height - 2 * M) / bh)));
     const target = { scale, tx: rect.width / 2 - ((minX + maxX) / 2) * scale, ty: rect.height / 2 - ((minY + maxY) / 2) * scale };
     if (fitRaf.current) cancelAnimationFrame(fitRaf.current);
     if (!animate) { commitView(target); return; }

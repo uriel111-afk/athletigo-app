@@ -97,22 +97,25 @@ export default function FocusMap() {
         try { stored = localStorage.getItem(VIEW_KEY); } catch { /* noop */ }
         setSimple(stored ? stored === 'simple' : n.length > 12);
       }
-      // Orphan-link cleanup on EVERY load: drop (and delete) any link whose
-      // endpoint node is missing OR parked — these render as untappable
-      // "stuck" dashed lines. Logged so cleanups are visible.
-      // NOTE: parent-child cross-links are NOT cleaned up any more. Any node
-      // may link to any other node — including its own parent or child — and
-      // the map bows such a link away from the structure edge so both stay
-      // visible and separately deletable.
+      // Links touching a PARKED node are HIDDEN, never deleted. Parking is a
+      // reversible "put it aside" — un-parking must bring the node back with
+      // its links intact, so load() must not destroy them behind the user's
+      // back. This used to delete them, which made an unrelated link vanish
+      // from the DB on a plain page load: park one endpoint, reload, and the
+      // row was gone with no user action and no undo.
+      //
+      // A link can never have a genuinely MISSING endpoint — from_node/to_node
+      // are FKs with ON DELETE CASCADE (migrations/focus_links.sql), so
+      // deleting a node already removes its links server-side. Parked was
+      // therefore the only case this cleanup ever hit, i.e. it was purely
+      // destructive.
+      //
+      // NOTE: parent-child cross-links are NOT filtered out. Any node may link
+      // to any other node — including its own parent or child — and the map
+      // bows such a link away from the structure edge so both stay visible and
+      // separately deletable.
       const liveIds = new Set(all.filter(x => x.status !== 'parked').map(x => x.id));
-      const good = lk.filter(x => liveIds.has(x.from_node) && liveIds.has(x.to_node));
-      const dead = lk.filter(x => !(liveIds.has(x.from_node) && liveIds.has(x.to_node)));
-      setLinks(good);
-      if (dead.length) {
-        // eslint-disable-next-line no-console
-        console.log(`[FocusMap] cleaned ${dead.length} link(s) (missing/parked endpoint)`);
-        dead.forEach(o => { deleteLink(o.id).catch(() => {}); });
-      }
+      setLinks(lk.filter(x => liveIds.has(x.from_node) && liveIds.has(x.to_node)));
       // Expand all branches by default on first load.
       setExpanded(prev => prev.size ? prev : new Set(n.filter(x => x.node_type !== 'task').map(x => x.id)));
     } catch (e) { toast.error('שגיאה בטעינה'); }
@@ -239,6 +242,50 @@ export default function FocusMap() {
     }
   };
 
+  // ── Pin the CURRENT layout so an edit can't reshuffle the map ─────
+  // A node with no saved pos_x/pos_y is placed by MindMapCanvas's tidy-tree
+  // layout, and that layout is GLOBAL: sibling bands are laid out with a
+  // running cursor, so removing a node from a subtree (or handing it its own
+  // root band by detaching it) re-flows every other unpinned node on the map.
+  // Measured on the real map: cutting one structure line moved 6 untouched
+  // nodes, one of them by 1322px.
+  //
+  // Writing each unpinned node's CURRENT rendered coords before a structural
+  // edit makes the edit local — only what the user actually touched changes.
+  // Nothing is repositioned here: every node is pinned exactly where it is
+  // already drawn, so the freeze itself is invisible.
+  //
+  // Auto-arrange is NOT lost — it stays an explicit action (the סדר button →
+  // autoArrange → clearPositions), which is the only thing that should ever
+  // re-flow the map.
+  //
+  // `except` (an id, or an array of ids) skips nodes the caller handles
+  // itself — detachPatch pins its own node, and reparent deliberately
+  // re-lays-out the subtree it moved.
+  // Nodes inside a collapsed branch report no position and are left alone.
+  const freezeLayout = useCallback(async (except = null) => {
+    const read = posRef.current;
+    if (!read) return;
+    const skip = new Set(except == null ? [] : Array.isArray(except) ? except : [except]);
+    const patches = [];
+    nodes.forEach(n => {
+      if (skip.has(n.id)) return;
+      if (n.pos_x != null && n.pos_y != null) return;   // already pinned
+      const p = read(n.id);
+      if (p) patches.push({ id: n.id, pos_x: Math.round(p.x), pos_y: Math.round(p.y) });
+    });
+    if (!patches.length) return;
+    const byPatch = new Map(patches.map(p => [p.id, p]));
+    setNodes(prev => prev.map(n => {
+      const p = byPatch.get(n.id);
+      return p ? { ...n, pos_x: p.pos_x, pos_y: p.pos_y } : n;
+    }));
+    // Best-effort: a failed pin only means that node may still drift, which is
+    // strictly better than aborting the edit the user asked for.
+    await Promise.all(patches.map(p =>
+      updateNode(p.id, { pos_x: p.pos_x, pos_y: p.pos_y }).catch(() => {})));
+  }, [nodes]);
+
   // Freeze a node's CURRENT rendered position + colour, then cut its parent.
   // Both are preservation steps, not changes:
   //  • coords — detaching makes the node its own root, and a root with no
@@ -262,6 +309,9 @@ export default function FocusMap() {
   };
 
   const detachNode = async (node, { label } = {}) => {
+    // Pin everything else FIRST — detaching hands this node its own root band
+    // and re-flows every unpinned node otherwise. detachPatch pins `node`.
+    await freezeLayout(node.id);
     const patch = detachPatch(node);
     // Exact pre-state for undo, covering only the fields we actually wrote.
     const before = { parent_id: node.parent_id };
@@ -279,6 +329,7 @@ export default function FocusMap() {
   const detachAllLines = async (node) => {
     setNodeLines(null); setSelectedEdge(null);
     const mine = links.filter(l => l.from_node === node.id || l.to_node === node.id);
+    if (node.parent_id) await freezeLayout(node.id);   // same reason as detachNode
     const patch = detachPatch(node);
     const before = { parent_id: node.parent_id };
     if ('pos_x' in patch) { before.pos_x = node.pos_x ?? null; before.pos_y = node.pos_y ?? null; }
@@ -419,6 +470,9 @@ export default function FocusMap() {
 
   const convertIdea = async (idea, parentId, type) => {
     try {
+      // A new child widens its parent's band and pushes every unpinned
+      // sibling aside — pin the existing map before adding to it.
+      await freezeLayout();
       await createNode(userId, { parent_id: parentId, node_type: type, title: idea.content });
       await updateIdea(idea.id, { status: 'converted' });
       setIdeas(p => p.filter(x => x.id !== idea.id));
@@ -569,7 +623,7 @@ export default function FocusMap() {
             Hidden whenever any sheet/panel/capture overlay is open so it
             never covers panel content. */}
         {!(addOpen || sheetNode || inboxOpen || captureOpen || connectFrom || reconnect || selectedEdge || nodeLines) && (
-          <button onClick={() => setAddOpen(true)} aria-label="הוסף צומת"
+          <button onClick={() => { freezeLayout(); setAddOpen(true); }} aria-label="הוסף צומת"
             style={{ position: 'absolute', right: 16, bottom: 16, width: 52, height: 52, borderRadius: '50%', border: 'none', background: FOCUS.orangeGrad, color: '#fff', boxShadow: '0 6px 16px rgba(255,111,32,0.45)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Plus size={26} />
           </button>
@@ -601,7 +655,7 @@ export default function FocusMap() {
       )}
 
       <IdeaCaptureButton onSaved={load} hidden={!!(sheetNode || addOpen || inboxOpen || connectFrom || reconnect || selectedEdge || nodeLines)} onOpenChange={setCaptureOpen} />
-      {sheetNode && <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} allNodes={nodes} initialReparentOpen={sheetReparent} pushHistory={pushHistory} onClose={() => { setSheetNode(null); setSheetReparent(false); }} onSaved={load} />}
+      {sheetNode && <NodeDetailSheet node={nodes.find(n => n.id === sheetNode.id) || sheetNode} ancestors={ancestorsOf(sheetNode, byId)} allNodes={nodes} initialReparentOpen={sheetReparent} pushHistory={pushHistory} freezeLayout={freezeLayout} onClose={() => { setSheetNode(null); setSheetReparent(false); }} onSaved={load} />}
     </LifeOSLayout>
   );
 }
