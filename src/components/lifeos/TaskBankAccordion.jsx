@@ -25,6 +25,13 @@ import { weekProgressMap } from '@/lib/lifeos/week-math';
 // which meant the drawer opened at a different height every morning; a closed
 // drawer is a stable, scannable list of domains instead.
 //
+// NOTHING here scrolls on its own. An open category grows to fit every row it
+// has and the page scrolls as one surface. The drawer used to cap a category
+// and scroll inside it, which cost two things: rows were sliced in half at the
+// cap, and a drag that crossed the boundary was captured by the inner scroller
+// and died. Closed categories are what keeps the drawer short — not a clipped
+// window onto an open one.
+//
 // Order inside an open category is a fixed four-tier rule, not by date or name:
 //   0  a one-off already due (due/task_date <= today)      — it is late
 //   1  a recurring habit behind its weekly pace           — it is slipping
@@ -33,10 +40,11 @@ import { weekProgressMap } from '@/lib/lifeos/week-math';
 // Pace is pro-rata inside the week: target × (days elapsed / 7). On Sunday a
 // 3×/week habit is not yet "behind" at 0 done; by Thursday it is.
 //
-// Scheduling is the + BUTTON and nothing else. Touching the body of a row
-// opens the task's details instead. The two used to be the same gesture, which
-// meant every mis-tap while reading the drawer silently booked an hour — the
-// worst kind of bug, because the calendar then looks planned when it is not.
+// Scheduling is the + BUTTON and nothing else. A tap on the body of a row
+// selects it for dragging, and the ⓘ button opens its details. Scheduling used
+// to share the body tap, which meant every mis-tap while reading the drawer
+// silently booked an hour — the worst kind of bug, because the calendar then
+// looks planned when it is not.
 // A tap that drifts more than MOVE_CANCEL pixels between down and up is a
 // scroll and does nothing at all, since the drawer is a scrolling surface.
 //
@@ -51,7 +59,6 @@ import { weekProgressMap } from '@/lib/lifeos/week-math';
 // is worse than no drag at all. Delete mode opts out entirely.
 // ═══════════════════════════════════════════════════════════════════
 
-const OPEN_MAX_H = 260;
 // Finger slop: past this the gesture was a scroll, not a tap.
 const MOVE_CANCEL = 10;
 // Full touch target for the one destructive-ish action in the row.
@@ -257,11 +264,17 @@ export default function TaskBankAccordion({
             const on = isOpen(c);
             const openCount = c.tasks.filter(t => waitingIds.has(t.id)).length;
             const rows = on ? sortTasks(c.tasks) : [];
+            // No `overflow: hidden` on the card. It was there to clip the header
+            // to the rounded corners, but it also clipped a selected row's scale
+            // and an armed row's shadow at the card edge — a row visibly cut off.
+            // The header rounds its own top corners instead, so nothing clips.
             return (
-              <div key={c.key} style={{ background: FOCUS.card, border: `1px solid ${on ? hexAlpha(c.color, 0.45) : FOCUS.border}`, borderRadius: 13, boxShadow: FOCUS.neu, overflow: 'hidden' }}>
+              <div key={c.key} style={{ background: FOCUS.card, border: `1px solid ${on ? hexAlpha(c.color, 0.45) : FOCUS.border}`, borderRadius: 13, boxShadow: FOCUS.neu }}>
                 <button onClick={() => toggle(c.key)}
                   aria-expanded={on}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '11px 12px', border: 'none', background: on ? hexAlpha(c.color, 0.1) : '#fff', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right' }}>
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '11px 12px', border: 'none', background: on ? hexAlpha(c.color, 0.1) : '#fff', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right',
+                    borderTopLeftRadius: 12, borderTopRightRadius: 12,
+                    borderBottomLeftRadius: on ? 0 : 12, borderBottomRightRadius: on ? 0 : 12 }}>
                   <span style={{ width: 10, height: 10, borderRadius: '50%', background: c.color, flexShrink: 0 }} />
                   <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 800, color: FOCUS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.label}</span>
                   <span style={{ fontSize: 11, fontWeight: 800, borderRadius: 999, padding: '2px 8px', flexShrink: 0, minWidth: 22, textAlign: 'center',
@@ -272,7 +285,12 @@ export default function TaskBankAccordion({
                 </button>
 
                 {on && (
-                  <div style={{ maxHeight: OPEN_MAX_H, overflowY: 'auto', padding: '6px 8px 9px', display: 'flex', flexDirection: 'column', gap: 5, overscrollBehavior: 'contain' }}>
+                  // No maxHeight, no overflow, no overscroll containment: an open
+                  // category is as tall as its rows and the PAGE scrolls. A nested
+                  // scroller cut rows in half at its edges and swallowed a drag the
+                  // moment the finger crossed out of it, which is exactly the
+                  // gesture the drag model depends on.
+                  <div style={{ padding: '8px 10px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {rows.map(t => (
                       <TaskRow key={t.id} node={t} color={c.color}
                         done={taskLoggedOn(t, logSet, today)}
