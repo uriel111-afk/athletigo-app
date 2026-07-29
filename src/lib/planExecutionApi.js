@@ -1,5 +1,79 @@
 import { supabase } from './supabaseClient';
 
+// ── Per-execution exercise completion ────────────────────────────────
+// The ONLY place a "this exercise is done" fact is stored.
+//
+// exercises.completed used to carry this, but that column is global:
+// one row per exercise, shared by every trainee assigned the plan and
+// by every run of it. Ticking an exercise on Monday left it ticked on
+// Tuesday, and a copy inherited the source's ticks. Completion is a
+// property of a RUN, so it belongs on exercise_executions keyed by
+// workout_execution_id.
+//
+// These two helpers touch only columns from the verified live schema:
+//   exercise_executions: id, workout_execution_id, section_id,
+//                        exercise_id, is_completed, trainee_note,
+//                        completed_at
+// The older helpers below (startOrResumeExecution / markExerciseDone /
+// completeWorkout) reference columns that do not exist on the live
+// tables and have no callers; they are left untouched but unused.
+//
+// A read-then-write is used instead of upsert(onConflict) because there
+// is no verified unique index on (workout_execution_id, exercise_id).
+export async function setExerciseCompletion(executionId, { exerciseId, sectionId, isCompleted }) {
+  if (!executionId || !exerciseId) return null;
+
+  const { data: existing, error: findErr } = await supabase
+    .from('exercise_executions')
+    .select('id')
+    .eq('workout_execution_id', executionId)
+    .eq('exercise_id', exerciseId)
+    .limit(1);
+  if (findErr) throw findErr;
+
+  const patch = {
+    is_completed: !!isCompleted,
+    completed_at: isCompleted ? new Date().toISOString() : null,
+  };
+
+  if (existing && existing.length > 0) {
+    const { error } = await supabase
+      .from('exercise_executions').update(patch).eq('id', existing[0].id);
+    if (error) throw error;
+    return existing[0].id;
+  }
+
+  const { data, error } = await supabase
+    .from('exercise_executions')
+    .insert({
+      workout_execution_id: executionId,
+      exercise_id: exerciseId,
+      section_id: sectionId || null,
+      ...patch,
+    })
+    .select('id').single();
+  if (error) throw error;
+  return data?.id ?? null;
+}
+
+// { [exercise_id]: true } for one execution. Absent id === not done.
+export async function loadExerciseCompletion(executionId) {
+  if (!executionId) return {};
+  const { data, error } = await supabase
+    .from('exercise_executions')
+    .select('exercise_id, is_completed')
+    .eq('workout_execution_id', executionId);
+  if (error) {
+    console.warn('[planExecutionApi] completion load failed:', error.message);
+    return {};
+  }
+  const map = {};
+  for (const row of data || []) {
+    if (row?.exercise_id) map[row.exercise_id] = !!row.is_completed;
+  }
+  return map;
+}
+
 export async function startOrResumeExecution(planId, traineeId, seriesId, totalExercises) {
   const { data: existing } = await supabase
     .from('workout_executions')

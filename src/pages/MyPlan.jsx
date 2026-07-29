@@ -517,12 +517,18 @@ function MyPlanInner() {
 
         const sectionExercises = originalExercises.filter(e => e.training_section_id === section.id);
         for (const exercise of sectionExercises) {
+          // `completed` is stripped, not set — per-execution completion
+          // lives in exercise_executions.is_completed. Leaving the
+          // spread's value in would carry the source's ticks into the
+          // copy. source_exercise_id points at the family root so every
+          // copy in the chain resolves to the same alpha exercise.
+          const { completed: _drop, source_exercise_id: srcLink, ...exFields } = exercise;
           await base44.entities.Exercise.create({
-            ...exercise,
+            ...exFields,
             id: undefined,
             training_plan_id: newPlan.id,
             training_section_id: newSection.id,
-            completed: false, // Reset progress
+            source_exercise_id: srcLink ?? exercise.id,
             actual_result: "",
             difficulty_rating: null,
             control_rating: null

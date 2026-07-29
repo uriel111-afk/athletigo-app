@@ -425,12 +425,13 @@ export default function TrainingPlans() {
         const sectionExercises = allExercises.filter(e => e.training_section_id === originalSection.id).sort((a, b) => (a.order || 0) - (b.order || 0));
         
         for (const originalExercise of sectionExercises) {
+          const { completed: _drop, source_exercise_id: srcLink, ...exFields } = originalExercise;
           await base44.entities.Exercise.create({
-            ...originalExercise,
+            ...exFields,
             id: undefined,
             training_plan_id: newPlan.id,
             training_section_id: newSection.id,
-            completed: false,
+            source_exercise_id: srcLink ?? originalExercise.id,
             trainee_media_urls: []
           });
         }
@@ -487,12 +488,13 @@ export default function TrainingPlans() {
           const sectionExercises = allExercises.filter(e => e.training_section_id === originalSection.id).sort((a, b) => (a.order || 0) - (b.order || 0));
           
           for (const originalExercise of sectionExercises) {
+            const { completed: _drop, source_exercise_id: srcLink, ...exFields } = originalExercise;
             await base44.entities.Exercise.create({
-              ...originalExercise,
+              ...exFields,
               id: undefined,
               training_plan_id: newPlan.id,
               training_section_id: newSection.id,
-              completed: false,
+              source_exercise_id: srcLink ?? originalExercise.id,
               trainee_media_urls: []
             });
           }

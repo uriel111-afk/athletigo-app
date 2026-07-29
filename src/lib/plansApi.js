@@ -138,14 +138,22 @@ export async function duplicatePlan(sourcePlanId, options = {}) {
 
   for (const ex of srcExercises || []) {
     const {
-      id: _exId, training_section_id: oldSecId, training_plan_id: _etp,
-      created_at: _eca, completed: _ec, ...exRest
+      id: srcExId, training_section_id: oldSecId, training_plan_id: _etp,
+      created_at: _eca, completed: _ec, source_exercise_id: srcLink, ...exRest
     } = ex;
     const { error: exErr } = await supabase.from('exercises').insert({
       ...exRest,
       training_plan_id: newPlan.id,
       training_section_id: oldSecId ? (sectionIdMap.get(oldSecId) ?? null) : null,
-      completed: false,
+      // Always point at the FAMILY ROOT, never at the intermediate copy
+      // we happen to be duplicating. If the source is itself a copy it
+      // already carries the root id — inherit it. Otherwise the source
+      // IS the root. So alpha -> A -> B all resolve to the alpha id.
+      source_exercise_id: srcLink ?? srcExId,
+      // `completed` is deliberately NOT written. Per-execution
+      // completion lives in exercise_executions.is_completed, keyed by
+      // workout_execution_id — the column on `exercises` is global
+      // across every trainee and every run, so it is never authored.
     });
     if (exErr) throw exErr;
   }

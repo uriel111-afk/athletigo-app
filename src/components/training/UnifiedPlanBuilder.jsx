@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { createDuplicatedExecution, readSectionRating } from "@/lib/workoutExecutionApi";
 import { softDeletePlan, buildPlanDeleteMessage } from "@/lib/plansApi";
+import { setExerciseCompletion, loadExerciseCompletion } from "@/lib/planExecutionApi";
 import CopyBadge from "@/components/plans/CopyBadge";
 import { saveSetActual } from "@/lib/plannedSets";
 
@@ -464,6 +465,12 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // Shape: { [exerciseId]: { [setIndex]: { reps_completed, done } } }
   // Persisted to exercise_set_logs at workout-finish time.
   const [setLogs, setSetLogs] = useState({});
+  // Per-execution exercise completion — { [exerciseId]: true }. The
+  // single source of truth for "is this exercise done on THIS run",
+  // mirroring exercise_executions.is_completed for currentExecutionId.
+  // Replaces the global exercises.completed column, which was shared
+  // across every trainee and every run of the plan.
+  const [execCompletion, setExecCompletion] = useState({});
   // Per-drill-per-set marks for list-variant exercises (כל דריל בכל סט
   // נסמן בנפרד). Local state only — NOT persisted to DB in this phase
   // (exercise_set_logs has no drill_index column). The aggregate
@@ -496,6 +503,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     celebrationFiredRef.current = false;
     ratedSectionsRef.current = new Set();
     setSectionRatings({});
+    setExecCompletion({});
     setCurrentExecutionId(null);
     setShowSectionFeedbackDialog(false);
     setShowSummaryDialog(false);
@@ -548,6 +556,15 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         setCurrentExecutionId(exec.id);
         setSectionRatings(ratings);
         ratedSectionsRef.current = new Set(Object.keys(ratings));
+
+        // Rehydrate per-exercise completion for THIS execution from
+        // exercise_executions. Without this, re-opening a workout
+        // mid-run would show every exercise as untouched.
+        try {
+          setExecCompletion(await loadExerciseCompletion(exec.id));
+        } catch (e) {
+          console.warn('[UPB] completion hydrate failed:', e?.message);
+        }
 
         // Resume per-set state from the persisted exercise_set_logs
         // rows attached to this execution. Lets the trainee close the
@@ -621,7 +638,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     enabled: !!plan.id
   });
 
-  const { data: exercises = [], isLoading: exercisesLoading, error: exercisesError } = useQuery({
+  const { data: exercisesRaw = [], isLoading: exercisesLoading, error: exercisesError } = useQuery({
     queryKey: ['exercises', plan.id],
     queryFn: async () => {
       try {
@@ -641,6 +658,56 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     },
     enabled: !!plan.id
   });
+
+  // ── Completion overlay ──────────────────────────────────────────────
+  // exercises.completed is no longer written or read. Completion is a
+  // property of ONE RUN, so it lives in exercise_executions.is_completed
+  // keyed by workout_execution_id, hydrated below into execCompletion.
+  //
+  // We overlay it onto the exercise rows here so every existing consumer
+  // (`e.completed`, SectionCard, the progress bar, the section-feedback
+  // trigger) keeps working unchanged — this task changes the data layer
+  // only, not the UI. The DB column is force-overwritten rather than
+  // defaulted so a stale legacy `true` on the row can never leak through.
+  const exercises = React.useMemo(
+    () => (exercisesRaw || []).map((e) =>
+      e ? { ...e, completed: !!execCompletion[e.id] } : e),
+    [exercisesRaw, execCompletion],
+  );
+
+  // Create the workout_executions row on demand, shared by every path
+  // that needs one (first set fill, first exercise tick). Mutex via
+  // promise ref so a burst of writes shares ONE insert instead of
+  // racing. Deliberately lazy: nothing is created on plan mount.
+  const ensureExecutionId = React.useCallback(async () => {
+    if (currentExecutionId) return currentExecutionId;
+    const traineeId = plan?.assigned_to || plan?.created_by;
+    if (!traineeId || !plan?.id) return null;
+    if (!executionCreatePromiseRef.current) {
+      executionCreatePromiseRef.current = (async () => {
+        const { data, error } = await supabase
+          .from('workout_executions')
+          .insert({
+            trainee_id: traineeId,
+            workout_template_id: plan.id,
+            plan_id: plan.id,
+            executed_at: new Date().toISOString(),
+            section_ratings: {},
+            self_rating: null,
+          })
+          .select()
+          .single();
+        if (error || !data?.id) {
+          console.warn('[UPB] execution create failed:', error?.message);
+          executionCreatePromiseRef.current = null;
+          return null;
+        }
+        setCurrentExecutionId(data.id);
+        return data.id;
+      })();
+    }
+    return executionCreatePromiseRef.current;
+  }, [currentExecutionId, plan?.id, plan?.assigned_to, plan?.created_by]);
 
   // Real count of past workout_executions for this plan — drives the
   // "ביצועים" stat in the header card. Distinct from the legacy
@@ -817,9 +884,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       return await base44.entities.Exercise.create({
         ...exFields,
         name: makeDupName(originalExercise?.name),
-        // A duplicate is never born "done" — completion is per-execution
-        // and must not bleed across the clone.
-        completed: false,
+        // `completed` is not written — completion is per-execution and
+        // lives in exercise_executions, keyed by workout_execution_id.
         order: maxOrder + 1,
       });
     },
@@ -831,7 +897,13 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   });
 
   const prepareExerciseData = (formData) => {
-    const data = { ...formData };
+    // `completed` is stripped here, at the single choke point both the
+    // create and update mutations pass through, so no form or dialog
+    // path can write it. The exercises row holds the coach's plan
+    // definition; per-run progress lives in exercise_executions
+    // (is_completed, keyed by workout_execution_id).
+    const { completed: _dropCompleted, ...rest } = formData || {};
+    const data = { ...rest };
     Object.keys(data).forEach((key) => {
       if (typeof data[key] === 'string' && data[key] === "") {
         data[key] = null;
@@ -923,9 +995,10 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         });
         setShowSectionFeedbackDialog(true);
 
-        if (!section.completed) {
-          updateSectionMutation.mutate({ id: sectionId, data: { completed: true } });
-        }
+        // training_sections.completed is no longer written — like
+        // exercises.completed it is global across trainees and runs.
+        // A section is "done" when every exercise in it is done on the
+        // current execution, which the caller already computed above.
       }
       return; // STOP HERE.
     }
@@ -1104,11 +1177,25 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       }
     }
 
-    // 3. Mutate DB
-    await updateExerciseMutation.mutateAsync({
-      id: exercise.id,
-      data: { completed: newCompletedState }
-    });
+    // 3. Persist — to exercise_executions for THIS run, never to the
+    //    global exercises.completed column. Optimistic local update
+    //    first so the tick is instant; the row follows.
+    setExecCompletion((prev) => ({ ...prev, [exercise.id]: newCompletedState }));
+    try {
+      const execId = await ensureExecutionId();
+      if (!execId) return;
+      await setExerciseCompletion(execId, {
+        exerciseId: exercise.id,
+        sectionId: exercise.training_section_id || null,
+        isCompleted: newCompletedState,
+      });
+    } catch (e) {
+      // Roll the optimistic tick back so the UI never claims a save
+      // that did not land.
+      console.warn('[UPB] exercise completion save failed:', e?.message);
+      setExecCompletion((prev) => ({ ...prev, [exercise.id]: !newCompletedState }));
+      toast.error('שמירת ההתקדמות נכשלה');
+    }
   };
 
   // Per-set logging helpers. Local state only — persisted in
@@ -1206,34 +1293,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       const traineeId = plan?.assigned_to || plan?.created_by;
       if (!traineeId || !plan?.id || !exercise?.id) return;
       try {
-        // Ensure execution row exists; mutex via promise ref so a
-        // burst of fills shares one INSERT instead of racing.
-        let execId = currentExecutionId;
-        if (!execId) {
-          if (!executionCreatePromiseRef.current) {
-            executionCreatePromiseRef.current = (async () => {
-              const { data, error } = await supabase
-                .from('workout_executions')
-                .insert({
-                  trainee_id: traineeId,
-                  workout_template_id: plan.id,
-                  plan_id: plan.id,
-                  executed_at: new Date().toISOString(),
-                  section_ratings: {},
-                  self_rating: null,
-                })
-                .select()
-                .single();
-              if (error || !data?.id) {
-                executionCreatePromiseRef.current = null;
-                return null;
-              }
-              setCurrentExecutionId(data.id);
-              return data.id;
-            })();
-          }
-          execId = await executionCreatePromiseRef.current;
-        }
+        const execId = await ensureExecutionId();
         if (!execId) return;
 
         // saveSetActual writes drill_index=0 (single-exercise path)
@@ -1728,6 +1788,11 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         notes: feedbackText || null,
         feedback_chips: feedbackChips.length > 0 ? feedbackChips : null,
         exercise_summaries: exerciseSummaries,
+        // Workout end time. executed_at holds the start (set when the
+        // execution row was created on the trainee's first interaction);
+        // this is the single point where a workout is finalised, so it
+        // is the only place ended_at is written.
+        ended_at: new Date().toISOString(),
       });
 
       if (!execRow) {
@@ -2454,26 +2519,33 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                   const sectionExercises = exercises.filter(
                     (e) => e.training_section_id === s.id
                   );
-                  for (const ex of sectionExercises) {
-                    if (!ex.completed) {
-                      try {
-                        await updateExerciseMutation.mutateAsync({
-                          id: ex.id, data: { completed: true },
-                        });
-                      } catch (e) {
-                        console.warn('[markSectionDoneDisplay] exercise update failed:', e?.message);
+                  // Completion is per-execution: write every exercise in
+                  // the section to exercise_executions for the current
+                  // run. training_sections.completed is not written.
+                  try {
+                    const execId = await ensureExecutionId();
+                    if (execId) {
+                      for (const ex of sectionExercises) {
+                        if (ex.completed) continue;
+                        try {
+                          await setExerciseCompletion(execId, {
+                            exerciseId: ex.id,
+                            sectionId: s.id,
+                            isCompleted: true,
+                          });
+                        } catch (e) {
+                          console.warn('[markSectionDoneDisplay] exercise completion failed:', e?.message);
+                        }
                       }
                     }
+                  } catch (e) {
+                    console.warn('[markSectionDoneDisplay] execution ensure failed:', e?.message);
                   }
-                  if (!s.completed) {
-                    try {
-                      await updateSectionMutation.mutateAsync({
-                        id: s.id, data: { completed: true },
-                      });
-                    } catch (e) {
-                      console.warn('[markSectionDoneDisplay] section update failed:', e?.message);
-                    }
-                  }
+                  setExecCompletion((prev) => {
+                    const next = { ...prev };
+                    for (const ex of sectionExercises) next[ex.id] = true;
+                    return next;
+                  });
                   toast.success(`סקשן "${s.section_name}" סומן`);
                   // If this completion brings the whole workout to
                   // 100%, trigger the workout-summary popup the same
@@ -2565,7 +2637,24 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           }}
           exercise={executionExercise}
           onSave={async (data) => {
-            await updateExerciseMutation.mutateAsync({ id: executionExercise.id, data });
+            // Strip `completed` defensively — the exercise row carries
+            // the coach's plan definition, never per-run progress.
+            const { completed: _drop, ...planFields } = data || {};
+            await updateExerciseMutation.mutateAsync({ id: executionExercise.id, data: planFields });
+            // Progress goes to exercise_executions for this run.
+            setExecCompletion((prev) => ({ ...prev, [executionExercise.id]: true }));
+            try {
+              const execId = await ensureExecutionId();
+              if (execId) {
+                await setExerciseCompletion(execId, {
+                  exerciseId: executionExercise.id,
+                  sectionId: executionExercise.training_section_id || null,
+                  isCompleted: true,
+                });
+              }
+            } catch (e) {
+              console.warn('[UPB] execution-modal completion save failed:', e?.message);
+            }
             setShowExecutionModal(false);
             setExecutionExercise(null);
             toast.success("✅ בוצע");
@@ -2585,7 +2674,20 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           planId={plan.id}
           traineeId={plan.assigned_to || null}
           onCompletedExercise={async (ex) => {
-            await updateExerciseMutation.mutateAsync({ id: ex.id, data: { completed: true } });
+            // Per-execution completion only — never exercises.completed.
+            setExecCompletion((prev) => ({ ...prev, [ex.id]: true }));
+            try {
+              const execId = await ensureExecutionId();
+              if (execId) {
+                await setExerciseCompletion(execId, {
+                  exerciseId: ex.id,
+                  sectionId: ex.training_section_id || null,
+                  isCompleted: true,
+                });
+              }
+            } catch (e) {
+              console.warn('[UPB] onCompletedExercise save failed:', e?.message);
+            }
             hasInteractedRef.current = true;
             checkAndTriggerPopups(ex.id, true);
           }}

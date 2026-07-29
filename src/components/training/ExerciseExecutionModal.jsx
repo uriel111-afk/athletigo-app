@@ -113,7 +113,7 @@ const DetailRow = ({ icon: Icon, label, value }) => {
 export default function ExerciseExecutionModal({ isOpen, onClose, exercise, onSave, isLoading }) {
   const [formData, setFormData] = useState({
     actual_result: "", actual_weight: "", actual_reps: "",
-    rpe: 0, trainee_feedback: "", completed: false,
+    rpe: 0, trainee_feedback: "",
   });
   const [subCompleted, setSubCompleted] = useState({});
 
@@ -149,7 +149,11 @@ export default function ExerciseExecutionModal({ isOpen, onClose, exercise, onSa
   };
 
   const handleSave = () => {
-    onSave({ ...formData, completed: true });
+    // `completed` is deliberately not part of the payload — the parent
+    // records completion on exercise_executions for the current run.
+    // Writing it here would land on the global exercises.completed
+    // column, which is shared across every trainee and every run.
+    onSave({ ...formData });
   };
 
   // ── RENDER ──────────────────────────────────────────────────────────
