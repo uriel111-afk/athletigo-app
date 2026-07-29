@@ -8,7 +8,7 @@ import GuidedLeadFlow from '@/components/lifeos/GuidedLeadFlow';
 import LeadIntakeTree from '@/components/lifeos/LeadIntakeTree';
 import IntakeSchemaEditor from '@/components/lifeos/IntakeSchemaEditor';
 import { loadIntakeSchema, saveIntakeSchema } from '@/lib/lifeos/intake-schema-api';
-import { addOption } from '@/lib/lifeos/intake-tree-ops';
+import { addOption, updateOptionByKey, removeOptionByKey } from '@/lib/lifeos/intake-tree-ops';
 import { DEFAULT_INTAKE_TREE } from '@/lib/lifeos/intake-tree-schema';
 // QuickIntakeForm is out of the routing, but its helper exports are still
 // the source of truth for lead classification used across this page.
@@ -18,7 +18,7 @@ import AddTraineeDialog from '@/components/forms/AddTraineeDialog';
 import {
   LIFEOS_COLORS, LIFEOS_CARD,
   LEAD_STATUS, LEAD_SOURCES, LEAD_INTERESTED_IN, LEAD_CLOSE_RESULTS,
-  LADDER_MATCHES, ladderForExperience, LEAD_STATUS_DETAIL,
+  LADDER_MATCHES, ladderForExperience, LEAD_STATUS_DETAIL, COACH_USER_ID,
 } from '@/lib/lifeos/lifeos-constants';
 import { listLeads, updateLead, deleteLead } from '@/lib/lifeos/lifeos-api';
 import { waLink, telLink, relTime, followUpState, followUpSortKey } from '@/lib/lifeos/lead-helpers';
@@ -124,14 +124,27 @@ export default function Leads() {
     return () => { alive = false; };
   }, []);
 
-  // In-conversation quick-add — append a chip to a node's list and
-  // persist the schema (admins only; the button is gated in the tree).
-  const handleQuickAdd = async (nodeId, label) => {
-    const next = addOption(intakeSchema, nodeId, { label });
+  // In-conversation chip edits — each one persists a new schema version.
+  // Optimistic: local state first so the chip row updates immediately.
+  const saveSchemaVersion = async (next, okLabel) => {
     setIntakeSchema(next);
-    try { const v = await saveIntakeSchema(next, userId); toast.success(`נוסף · גרסה ${v}`); }
+    try { const v = await saveIntakeSchema(next, userId); toast.success(`${okLabel} · גרסה ${v}`); }
     catch (e) { toast.error('שמירת התהליך נכשלה: ' + (e?.message || '')); }
   };
+
+  // Quick-add — append a chip to a node's list (admins only; the button
+  // is gated in the tree). is_custom marks it as hand-added, which is
+  // what lets a coordinator edit/delete it later.
+  const handleQuickAdd = (nodeId, label) =>
+    saveSchemaVersion(addOption(intakeSchema, nodeId, { label, is_custom: true }), 'נוסף');
+
+  // Rename a chip. The option key never changes, so saved lead answers
+  // that reference it stay valid.
+  const handleOptionEdit = (nodeId, key, label) =>
+    saveSchemaVersion(updateOptionByKey(intakeSchema, nodeId, key, { label }), 'עודכן');
+
+  const handleOptionDelete = (nodeId, key) =>
+    saveSchemaVersion(removeOptionByKey(intakeSchema, nodeId, key), 'נמחק');
 
   // Follow-up urgency drives both the overdue badge and the list sort.
   const overdueIds = useMemo(() => {
@@ -354,7 +367,10 @@ export default function Leads() {
         lead={treeLead}
         schema={intakeSchema}
         canEdit={canEditSchema}
+        isMaster={userId === COACH_USER_ID}
         onQuickAdd={handleQuickAdd}
+        onOptionEdit={handleOptionEdit}
+        onOptionDelete={handleOptionDelete}
         onClose={() => { setShowTree(false); setTreeLead(null); }}
         onSaved={load}
       />

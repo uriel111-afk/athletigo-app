@@ -66,6 +66,33 @@ export function addOption(tree, nodeId, option) {
   }));
 }
 
+// Read-time shape guard. Options are objects ({ key, label, ... }), but a
+// legacy plain-string option must still render — normalize on read so the
+// renderer and `collect` never see a bare string.
+export function normalizeOption(o) {
+  if (typeof o === 'string') return { key: o, label: o };
+  return o || {};
+}
+
+// Key-addressed variants of update/removeOption. The intake screen hides
+// `hidden` options, so its rendered index does NOT match the stored index —
+// edits from the conversation screen must address an option by its key.
+export function updateOptionByKey(tree, nodeId, key, patch) {
+  return updateNode(tree, nodeId, (node) => ({
+    ...node,
+    options: (node.options || []).map((o) => (
+      normalizeOption(o).key === key ? { ...normalizeOption(o), ...patch } : o
+    )),
+  }));
+}
+
+export function removeOptionByKey(tree, nodeId, key) {
+  return updateNode(tree, nodeId, (node) => ({
+    ...node,
+    options: (node.options || []).filter((o) => normalizeOption(o).key !== key),
+  }));
+}
+
 export function removeOption(tree, nodeId, idx) {
   return updateNode(tree, nodeId, (node) => ({
     ...node,

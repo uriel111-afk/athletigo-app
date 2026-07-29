@@ -10,6 +10,7 @@ import { HESITATION_REASONS, hesitationResponse } from '@/lib/lifeos/need-respon
 import { rapportLine, valueIncludesFor } from '@/lib/lifeos/sales-playbook';
 import { groupPricing, monthlyFrame, offerSentence, compareOffer, nis, PRIVATE_PRICES } from '@/lib/lifeos/pricing-engine';
 import { DEFAULT_INTAKE_TREE, GROUPS } from '@/lib/lifeos/intake-tree-schema';
+import { normalizeOption } from '@/lib/lifeos/intake-tree-ops';
 
 const ORANGE = '#FF6F20';
 const RAPPORT_BG = '#FDF0E3';
@@ -35,7 +36,7 @@ const deriveLeadType = (f) => {
 
 // Single entry point for a NEW lead — the recursive intake tree.
 // Replaces GuidedIntakeFlow + QuickIntakeForm as the "new lead" screen.
-export default function LeadIntakeTree({ isOpen, onClose, userId, lead, onSaved, schema = DEFAULT_INTAKE_TREE, canEdit = false, onQuickAdd }) {
+export default function LeadIntakeTree({ isOpen, onClose, userId, lead, onSaved, schema = DEFAULT_INTAKE_TREE, canEdit = false, onQuickAdd, isMaster = false, onOptionEdit, onOptionDelete }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [answers, setAnswers] = useState({});   // nodeId → key | [keys]
@@ -53,6 +54,7 @@ export default function LeadIntakeTree({ isOpen, onClose, userId, lead, onSaved,
   const [leadId, setLeadId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(null);
+  const [optMenu, setOptMenu] = useState(null);  // long-press chip menu: { node, opt, rect }
   const summaryTouched = useRef(false);
 
   useEffect(() => {
@@ -63,6 +65,7 @@ export default function LeadIntakeTree({ isOpen, onClose, userId, lead, onSaved,
     setObjReasons([]); setObjAnswer(''); setCloseResult(''); setEnergy(''); setCloseNote('');
     setFollowUp(lead?.next_follow_up ? String(lead.next_follow_up).slice(0, 10) : isoInDays(1));
     setProposedActual(''); setLeadId(lead?.id || null); setBusy(false); setSaved(null);
+    setOptMenu(null);
   }, [isOpen, lead]);
 
   useSmartBackHandler(isOpen, () => handleClose());
@@ -142,16 +145,56 @@ export default function LeadIntakeTree({ isOpen, onClose, userId, lead, onSaved,
     });
   };
   const setText = (id, v) => setTexts((t) => ({ ...t, [id]: v }));
+  // Drop a key from this node's answer (used when its option is deleted).
+  const dropChip = (nodeId, key) => {
+    setAnswers((a) => {
+      const v = a[nodeId];
+      if (Array.isArray(v)) return v.includes(key) ? { ...a, [nodeId]: v.filter((k) => k !== key) } : a;
+      return v === key ? { ...a, [nodeId]: '' } : a;
+    });
+  };
   const selectedKeys = (node) => {
     const v = answers[node.id];
     if (node.multi) return Array.isArray(v) ? v : [];
     return v ? [v] : [];
   };
 
+  // ── Chip option menu (long press / right click) ─────────────────
+  // Master coach may edit every chip; anyone else only the chips that
+  // were added by hand in-conversation (is_custom). The "+ הוספה" chip
+  // is a separate button and never opens this menu.
+  const canOpenOptionMenu = (opt) => (!!onOptionEdit || !!onOptionDelete) && (isMaster || opt?.is_custom === true);
+  const openOptionMenu = (node, opt, el) => {
+    if (!el) return;
+    setOptMenu({ node, opt, rect: el.getBoundingClientRect() });
+  };
+  const submitOptionEdit = async (label) => {
+    const { node, opt } = optMenu;
+    const next = (label || '').trim();
+    if (!next) { toast.error('צריך טקסט לאפשרות'); return; }
+    const dup = (node.options || []).map(normalizeOption)
+      .some((o) => o.key !== opt.key && String(o.label || '').trim() === next);
+    if (dup) { toast.error('כבר קיימת אפשרות בשם הזה'); return; }
+    setOptMenu(null);
+    if (next === String(opt.label || '').trim()) return;
+    // Key stays put — saved lead answers that reference it are untouched.
+    await onOptionEdit?.(node.id, opt.key, next);
+  };
+  const submitOptionDelete = async () => {
+    const { node, opt } = optMenu;
+    setOptMenu(null);
+    // Deselect locally only. persistSafe() here would re-save the answers
+    // captured BEFORE the drop (setAnswers is async), writing the deleted
+    // option straight back into the lead — the next save picks it up.
+    dropChip(node.id, opt.key);
+    await onOptionDelete?.(node.id, opt.key);
+  };
+
   // Bundle state + handlers for the module-level renderers (kept OUTSIDE
   // the component so a keystroke never remounts them / drops focus).
   const ctx = {
     answers, texts, pickChip, setText, persistSafe, selectedKeys,
+    canOpenOptionMenu, openOptionMenu,
     summaryText, setSummaryText, summaryTouched,
     fields, leadType, proposedActual, setProposedActual,
     objReasons, setObjReasons, objAnswer, setObjAnswer,
@@ -213,6 +256,16 @@ export default function LeadIntakeTree({ isOpen, onClose, userId, lead, onSaved,
           </button>
         </div>
       )}
+
+      {optMenu && (
+        <OptionMenu
+          rect={optMenu.rect}
+          label={optMenu.opt.label}
+          onEdit={submitOptionEdit}
+          onDelete={submitOptionDelete}
+          onClose={() => setOptMenu(null)}
+        />
+      )}
     </div>
   );
 }
@@ -227,7 +280,7 @@ function collect(schema, { name, phone, answers, texts, notes, pov }) {
       if (['contact', 'summary', 'offer', 'objection', 'closing'].includes(node.kind)) continue;
       const v = answers[node.id];
       const sel = node.multi ? (Array.isArray(v) ? v : []) : (v ? [v] : []);
-      const opts = node.options || [];
+      const opts = (node.options || []).map(normalizeOption);
       const chosen = sel.map((k) => opts.find((o) => o.key === k)).filter(Boolean);
       const txt = (texts[node.id] || '').trim();
 
@@ -299,7 +352,7 @@ function RenderNode({ node, depth, ctx }) {
   if (node.kind === 'closing') return <ClosingBlock ctx={ctx} />;
 
   const sel = ctx.selectedKeys(node);
-  const opts = (node.options || []).filter((o) => !o.hidden);
+  const opts = (node.options || []).map(normalizeOption).filter((o) => !o.hidden);
   const isText = node.kind === 'text' || (node.options || []).length === 0;
   // Selected options' rapport lines — an inline override text wins over
   // the playbook key, so admins can edit the 💬 sentence in the schema.
@@ -311,7 +364,7 @@ function RenderNode({ node, depth, ctx }) {
       {!isText && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {opts.map((o) => (
-            <button key={o.key} type="button" onClick={() => { ctx.pickChip(node, o.key); ctx.persistSafe(); }} style={chip(sel.includes(o.key))}>{o.label}</button>
+            <ChipButton key={o.key} node={node} opt={o} selected={sel.includes(o.key)} ctx={ctx} />
           ))}
           {/* In-conversation quick-add (admins only) — appends a chip to
               this exact list and persists the schema immediately. */}
@@ -430,6 +483,117 @@ function ClosingBlock({ ctx }) {
   );
 }
 
+// ── Option chip ─────────────────────────────────────────────────────
+// A tap selects/deselects. A 500ms touch hold — or a right click on
+// desktop — opens the edit/delete menu instead, and that same gesture
+// must NOT also toggle the selection: the timer sets `fired`, and the
+// click that follows the finger lift is swallowed once. The press is
+// cancelled by touchmove and by any scroll so a flick past a chip never
+// pops the menu.
+function ChipButton({ node, opt, selected, ctx }) {
+  const ref = useRef(null);
+  const timer = useRef(null);
+  const unscroll = useRef(null);
+  const fired = useRef(false);
+  const allowed = ctx.canOpenOptionMenu(opt);
+
+  const cancelPress = () => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    if (unscroll.current) { unscroll.current(); unscroll.current = null; }
+  };
+  useEffect(() => () => cancelPress(), []);
+
+  const startPress = () => {
+    if (!allowed) return;
+    fired.current = false;
+    cancelPress();
+    const onScroll = () => cancelPress();
+    window.addEventListener('scroll', onScroll, true);
+    unscroll.current = () => window.removeEventListener('scroll', onScroll, true);
+    timer.current = setTimeout(() => {
+      cancelPress();
+      fired.current = true;
+      ctx.openOptionMenu(node, opt, ref.current);
+    }, 500);
+  };
+
+  return (
+    <button
+      ref={ref}
+      type="button"
+      onTouchStart={startPress}
+      onTouchMove={cancelPress}
+      onTouchEnd={cancelPress}
+      onTouchCancel={cancelPress}
+      onContextMenu={(e) => {
+        if (!allowed) return;
+        e.preventDefault();
+        fired.current = true;
+        ctx.openOptionMenu(node, opt, ref.current);
+      }}
+      onClick={() => {
+        if (fired.current) { fired.current = false; return; }  // long press — not a select
+        ctx.pickChip(node, opt.key);
+        ctx.persistSafe();
+      }}
+      style={chip(selected)}
+    >{opt.label}</button>
+  );
+}
+
+// Popup anchored to the pressed chip. Closes on outside click, on scroll
+// and on resize — the anchor rect is a snapshot, so it must not linger.
+function OptionMenu({ rect, label, onEdit, onDelete, onClose }) {
+  const [mode, setMode] = useState('menu');   // menu | edit | confirm
+  const [draft, setDraft] = useState(label || '');
+  const box = useRef(null);
+
+  useEffect(() => {
+    const onDown = (e) => { if (box.current && !box.current.contains(e.target)) onClose(); };
+    const bail = () => onClose();
+    document.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('scroll', bail, true);
+    window.addEventListener('resize', bail);
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('scroll', bail, true);
+      window.removeEventListener('resize', bail);
+    };
+  }, [onClose]);
+
+  const width = mode === 'menu' ? 132 : 220;
+  const top = Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 190));
+  const right = Math.max(8, Math.min(window.innerWidth - rect.right, window.innerWidth - width - 8));
+
+  return (
+    <div ref={box} dir="rtl" style={{ ...popupStyle, top, right, width }}>
+      {mode === 'menu' && (<>
+        <button type="button" onClick={() => setMode('edit')} style={{ ...popupBtn, color: '#333' }}>עריכה</button>
+        <button type="button" onClick={() => setMode('confirm')} style={{ ...popupBtn, color: '#C0392B' }}>מחיקה</button>
+        <button type="button" onClick={onClose} style={{ ...popupBtn, color: '#888' }}>ביטול</button>
+      </>)}
+
+      {mode === 'edit' && (<>
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onEdit(draft); } }}
+          style={{ width: '100%', minHeight: 38, padding: '8px 10px', borderRadius: 8, border: '1px solid #E8E0D8', fontSize: 15, color: '#333', outline: 'none', boxSizing: 'border-box', textAlign: 'right', fontFamily: 'inherit', marginBottom: 4 }}
+        />
+        <button type="button" onClick={() => onEdit(draft)} style={{ ...popupBtn, color: '#333', fontWeight: 800 }}>שמור</button>
+        <button type="button" onClick={onClose} style={{ ...popupBtn, color: '#888' }}>ביטול</button>
+      </>)}
+
+      {mode === 'confirm' && (<>
+        <div style={{ fontSize: 15, color: '#333', padding: '6px 10px', lineHeight: 1.4 }}>למחוק את האפשרות?</div>
+        <button type="button" onClick={onDelete} style={{ ...popupBtn, color: '#C0392B', fontWeight: 800 }}>מחק</button>
+        <button type="button" onClick={onClose} style={{ ...popupBtn, color: '#888' }}>ביטול</button>
+      </>)}
+    </div>
+  );
+}
+
 // ── Building blocks ─────────────────────────────────────────────────
 function DepthBlock({ depth, children }) {
   // Soft branch-open: each newly-expanded depth fades/slides in (~180ms).
@@ -511,4 +675,7 @@ const rapportStyle = { background: RAPPORT_BG, borderRadius: 10, padding: '8px 1
 const ghostBtn = { alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid #F0E4D0', background: '#fff', color: '#3a3a3a', borderRadius: 999, padding: '6px 14px', fontSize: 12, fontWeight: 800, cursor: 'pointer' };
 // Chip geometry aligned to the wizard's ChipRow: 36px tall, 2px orange
 // border when selected, neutral #F0E4D0 when not, 13/600 type.
-const chip = (on) => ({ minHeight: 36, padding: '0 13px', borderRadius: 999, cursor: 'pointer', boxSizing: 'border-box', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: on ? `2px solid ${ORANGE}` : '1px solid #F0E4D0', background: on ? ORANGE : '#fff', color: on ? '#fff' : '#3a3a3a', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' });
+const chip = (on) => ({ minHeight: 36, padding: '0 13px', borderRadius: 999, cursor: 'pointer', boxSizing: 'border-box', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', border: on ? `2px solid ${ORANGE}` : '1px solid #F0E4D0', background: on ? ORANGE : '#fff', color: on ? '#fff' : '#3a3a3a', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' });
+// Long-press chip menu.
+const popupStyle = { position: 'fixed', zIndex: 1700, background: '#FFFFFF', border: '1px solid #E8E0D8', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', padding: 6, direction: 'rtl', fontSize: 15, display: 'flex', flexDirection: 'column', gap: 2, boxSizing: 'border-box' };
+const popupBtn = { width: '100%', border: 'none', background: 'transparent', borderRadius: 8, padding: '8px 10px', fontSize: 15, fontWeight: 600, cursor: 'pointer', textAlign: 'right', fontFamily: 'inherit' };
