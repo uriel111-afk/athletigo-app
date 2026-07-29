@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { Copy, Trash2, Edit2, Check, Timer, Zap } from "lucide-react";
@@ -21,6 +21,10 @@ import { useLongPress } from '../../lib/useLongPress';
 import SetEntryWheels, { METRIC_DEFS } from './SetEntryWheels';
 import ExerciseEndCard from './ExerciseEndCard';
 import OpenExerciseShell, { ParamLine, PositionSquare } from './OpenExerciseShell';
+import {
+  resolveExerciseClock, useExerciseClock,
+  ExerciseClockChip, InlineExerciseClock, ClockSwapPrompt, ClockResultStrip,
+} from './ExerciseClock';
 
 // Stripe + border palette per exercise variant. The trainee execution
 // stripe flips to green once `exercise.completed` becomes true
@@ -1189,6 +1193,44 @@ export default function ExerciseCard({
   const clock = useClock();
   const navigate = useNavigate();
   const [launchingClock, setLaunchingClock] = useState(false);
+
+  // ── Inline exercise clock ─────────────────────────────────────────
+  // The chip → inline clock path. Separate from handleLaunchTabata
+  // (~line 1404), which is the OLD navigate-to-/clocks launcher wired
+  // into the tabata variant's own body. Both exist on purpose for now;
+  // the old one retires once the remaining variants are shell-wired.
+  //
+  // Declared HERE, above the `if (!exercise) return null` guard, so the
+  // hook order can never change between renders.
+  const exerciseClockSpec = useMemo(
+    () => resolveExerciseClock(exercise),
+    [exercise?.static_hold_time, exercise?.static_hold, exercise?.work_time,
+     exercise?.rest_time, exercise?.rounds, exercise?.mode, exercise?.tabata_data],
+  );
+  // Seconds the clock measured, held per set so switching sets clears it.
+  const [clockSeconds, setClockSeconds] = useState(null);
+  const [clockSecondsSetIdx, setClockSecondsSetIdx] = useState(null);
+  const pendingClockSetIdxRef = useRef(null);
+  // Stable identity — the hook's completion effect keys off it, and a
+  // fresh function each render would re-arm that effect on every tick.
+  const handleClockElapsed = useCallback((seconds) => {
+    setClockSeconds(seconds);
+    setClockSecondsSetIdx(pendingClockSetIdxRef.current);
+  }, []);
+  // Opening the card on start is deferred through a ref because
+  // `expanded` / `setExpanded` are declared below this point. Assigned
+  // once they exist; only ever called from an event handler.
+  const expandOnClockStartRef = useRef(null);
+  const handleClockStart = useCallback(() => {
+    if (expandOnClockStartRef.current) expandOnClockStartRef.current();
+  }, []);
+  const exerciseClock = useExerciseClock({
+    spec: exerciseClockSpec,
+    clock,
+    onElapsed: handleClockElapsed,
+    onStart: handleClockStart,
+  });
+
   // Controlled-or-internal expand. If the parent passes both
   // `externalExpanded` and `onToggleExpanded`, every existing
   // setExpanded(...) call site routes through the parent toggle —
@@ -1205,6 +1247,11 @@ export default function ExerciseCard({
   const setExpanded = isExpandControlled
     ? () => onToggleExpanded()
     : setInternalExpanded;
+  // A clock launched from the CLOSED card opens it, so the running
+  // block is visible where it runs. Guarded on `expanded` because the
+  // controlled setter is an atomic toggle — calling it while already
+  // open would collapse the card.
+  expandOnClockStartRef.current = () => { if (!expanded) setExpanded(true); };
   // Register a smart-back close: when this card is expanded, the
   // header's back button collapses it first instead of navigating
   // away from the page. Works in both modes because `expanded` and
@@ -2485,12 +2532,25 @@ export default function ExerciseCard({
       }
       return out;
     })();
+    // A clock result belongs to the set it was measured for; once the
+    // trainee moves to the next set it stops applying.
+    const clockSecondsForSet = (clockSeconds != null && clockSecondsSetIdx === activeSetIdx)
+      ? clockSeconds
+      : null;
+
     const effectiveWheelValues = (() => {
       const out = {};
       for (const m of wheelMetrics) {
-        out[m.key] = (wheelSetIdx === activeSetIdx && wheelValues[m.key] != null)
-          ? wheelValues[m.key]
-          : openingValues[m.key];
+        // Precedence: a wheel the trainee moved > what the clock
+        // measured > the opening value. The clock seeds the wheel, it
+        // never locks it — a drag after the clock finishes still wins.
+        if (wheelSetIdx === activeSetIdx && wheelValues[m.key] != null) {
+          out[m.key] = wheelValues[m.key];
+        } else if (m.key === 'seconds' && clockSecondsForSet != null) {
+          out[m.key] = clockSecondsForSet;
+        } else {
+          out[m.key] = openingValues[m.key];
+        }
       }
       return out;
     })();
@@ -2499,6 +2559,22 @@ export default function ExerciseCard({
       && sectionTrackingMode !== 'display'
       && wheelMetrics.length > 0
       && !allSetsDone;
+
+    // ── Clock chip visibility ────────────────────────────────────────
+    // The chip appears only where its running block can actually be
+    // hosted: inside the shared open shell, which today is wired for
+    // normal | none | reps_new. The ten unwired variants keep their own
+    // bodies and are deliberately left alone, so they get no chip.
+    // Trainee-side only — the running block replaces the wheel area,
+    // and the coach view has no wheels.
+    const shellWired = variant === 'normal' || variant === 'none' || variant === 'reps_new';
+    const showClockChip = !!exerciseClockSpec
+      && shellWired
+      && !isCoachMode
+      && sectionTrackingMode !== 'display'
+      && !allSetsDone;
+    // While the exercise's own clock runs it takes the wheel area.
+    const clockRunning = showClockChip && exerciseClock.owned;
 
     const deviatesFromPlan = wheelMetrics.some(
       (m) => effectiveWheelValues[m.key] !== wheelPlanned[m.key],
@@ -2692,6 +2768,20 @@ export default function ExerciseCard({
                   );
                 })()}
               </div>
+              {/* Clock chip — the trailing element of the row. Inset
+                  from the left edge (the row's own 10px padding plus
+                  4px) so nothing sits flush against it. Absent, not
+                  greyed, when the exercise carries no time value. */}
+              {showClockChip && (
+                <ExerciseClockChip
+                  spec={exerciseClockSpec}
+                  onLaunch={() => {
+                    pendingClockSetIdxRef.current = activeSetIdx;
+                    exerciseClock.launch();
+                  }}
+                  style={{ alignSelf: 'flex-start', marginTop: 2, marginInlineEnd: 4 }}
+                />
+              )}
             </>
           )}
 
@@ -2784,6 +2874,16 @@ export default function ExerciseCard({
             document.body
           )}
         </div>
+
+        {/* "another clock is running" confirmation. Rendered outside the
+            expanded gate and portalled, so it appears whether the chip
+            was tapped on the closed card or inside the open shell. No
+            running clock is ever stopped without passing through it. */}
+        <ClockSwapPrompt
+          open={exerciseClock.swapOpen}
+          onConfirm={exerciseClock.confirmSwap}
+          onCancel={exerciseClock.cancelSwap}
+        />
 
         {/* Open body — tabata-only summary tiles (5-box clock layout
             + the numbered drill list used by both coach and trainee
@@ -5071,13 +5171,49 @@ export default function ExerciseCard({
                   }
             }
           >
-            {showWheels && (
+            {/* Clock chip inside the open shell — the same pill, sitting
+                above the entry area. It steps aside while its own clock
+                runs, because the running block has taken that space. */}
+            {showClockChip && !clockRunning && (
+              <div style={{ display: 'flex', marginBottom: 10 }}>
+                <ExerciseClockChip
+                  spec={exerciseClockSpec}
+                  onLaunch={() => {
+                    pendingClockSetIdxRef.current = activeSetIdx;
+                    exerciseClock.launch();
+                  }}
+                />
+              </div>
+            )}
+
+            {/* The running clock REPLACES the wheel area. It renders
+                right here, inside the open card — no navigation, and the
+                wheel values below survive untouched because they live in
+                this component's state, not in the route. */}
+            {clockRunning && (
+              <InlineExerciseClock
+                spec={exerciseClockSpec}
+                clock={clock}
+                setNumber={Math.min(activeSetIdx + 1, Math.max(1, totalSets))}
+                totalSets={totalSets}
+                onStop={exerciseClock.stopNow}
+                onTogglePause={exerciseClock.togglePause}
+              />
+            )}
+
+            {/* What the clock measured, above the wheel. */}
+            {!clockRunning && clockSecondsForSet != null && (
+              <ClockResultStrip seconds={clockSecondsForSet} />
+            )}
+
+            {showWheels && !clockRunning && (
               <SetEntryWheels
                 metrics={wheelMetrics}
                 values={effectiveWheelValues}
                 planned={wheelPlanned}
                 previous={prevSetValues}
                 setNumber={activeSetIdx + 1}
+                fromClock={{ seconds: clockSecondsForSet }}
                 onChange={(k, v) => { setWheelSetIdx(activeSetIdx); onWheelChange(k, v); }}
               />
             )}

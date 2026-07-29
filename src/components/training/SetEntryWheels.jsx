@@ -123,7 +123,7 @@ function NumericKeypad({ open, title, initial, allowDecimal, onClose, onConfirm 
 }
 
 // ── One wheel ────────────────────────────────────────────────────────
-function NumberWheel({ metric, value, planned, previous, setNumber, onChange }) {
+function NumberWheel({ metric, value, planned, previous, setNumber, fromClock, onChange }) {
   const { key, step, question, unit, allowDecimal } = metric;
   const [dragging, setDragging] = useState(false);
   const [keypad, setKeypad] = useState(false);
@@ -187,6 +187,10 @@ function NumberWheel({ metric, value, planned, previous, setNumber, onChange }) 
           opacity: deviates ? 0.85 : 1,
         }}>
           מתוכנן {fmt(planned)}
+          {/* What the clock actually measured, when one ran for this
+              metric. Extends the planned line rather than adding a row,
+              so the wheel's height never changes. */}
+          {fromClock != null && ` · מהשעון ${fmt(fromClock)}`}
           {setNumber > 1 && previous != null && ` · בסט הקודם ${fmt(previous)}`}
         </div>
       )}
@@ -278,7 +282,8 @@ function NumberWheel({ metric, value, planned, previous, setNumber, onChange }) 
 }
 
 export default function SetEntryWheels({
-  metrics = [], values = {}, planned = {}, previous = {}, setNumber = 1, onChange,
+  metrics = [], values = {}, planned = {}, previous = {}, setNumber = 1,
+  fromClock = {}, onChange,
 }) {
   if (!metrics.length) return null;
   return (
@@ -291,6 +296,7 @@ export default function SetEntryWheels({
           planned={planned[m.key] ?? null}
           previous={previous[m.key] ?? null}
           setNumber={setNumber}
+          fromClock={fromClock[m.key] ?? null}
           onChange={onChange}
         />
       ))}
