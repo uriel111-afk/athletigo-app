@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AuthContext } from '@/lib/AuthContext';
 import LifeOSLayout from '@/components/lifeos/LifeOSLayout';
@@ -16,8 +16,8 @@ import {
 import { fetchExecutions, fetchDayStates } from '@/lib/lifeos/personal-day-api';
 import {
   getPlacements, scheduleTask, movePlacement, unschedule, restorePlacement,
-  setPlacementDone, snapshotOf, dateOf, startOf, placedNodeIds,
-  rolloverOncePerDay, schedulingProgress, timeLabel,
+  setPlacementDone, snapshotOf, dateOf, startOf, placedNodeIds, estimateMinutes,
+  rolloverOncePerDay, schedulingProgress, timeLabel, DEFAULT_DURATION,
 } from '@/lib/lifeos/schedule-api';
 import { categoryClassifier, colorOfCategory } from '@/lib/lifeos/categories';
 import { useTapDrag } from '@/lib/lifeos/use-tap-drag';
@@ -53,9 +53,33 @@ import { useTapDrag } from '@/lib/lifeos/use-tap-drag';
 // ═══════════════════════════════════════════════════════════════════
 
 const CAL_ZOOM_KEY = 'personal_calendar_zoom';
-// How far either side of today placements are loaded. The calendar can be
-// paged past it; the window is re-anchored on the visible date, not on today.
+// ─── the loaded window ────────────────────────────────────────────
+// Placements are fetched for WINDOW_DAYS either side of an ANCHOR date, and
+// the anchor follows the calendar rather than being pinned to today. Without
+// that, paging far enough forward or back walked off the end of the loaded
+// range and the grid simply drew empty rows — which reads as "nothing is
+// booked", the one thing a schedule must never say by accident.
+//
+// The re-anchor fires before the edge is reached, not at it: the month view
+// shows a whole month around `date` plus the neighbouring-month corners, so a
+// date sitting exactly on the boundary would still be missing its own tail.
+// MARGIN is comfortably wider than any period the calendar can display.
 const WINDOW_DAYS = 180;
+const REANCHOR_MARGIN = 45;
+const windowAround = (anchor) => ({ from: addDays(anchor, -WINDOW_DAYS), to: addDays(anchor, WINDOW_DAYS) });
+
+// ─── the duration a new block opens at ────────────────────────────
+// A task's own typical length, so an hour-long strength session books an hour
+// instead of a flat 30. This is a SEED: it is written once, at insert time,
+// into focus_placements.duration_minutes and stays editable after. durationOf
+// still reads that column and ONLY that column, so a block resized later never
+// snaps back to whatever net_minutes happens to say.
+// Every route that creates a placement goes through it, or the same task would
+// get one length when tapped in and another when dragged in.
+const seedDuration = (node) => {
+  const m = estimateMinutes(node);
+  return m > 0 ? m : DEFAULT_DURATION;
+};
 
 export default function TodayScreen({ headerSlot = null }) {
   const { user } = useContext(AuthContext);
@@ -94,22 +118,49 @@ export default function TodayScreen({ headerSlot = null }) {
   const [doc, setDoc] = useState(null);
   const [details, setDetails] = useState(null);   // drawer row → task details
 
+  // The window currently held in `placements`. A ref, not state: `load` must
+  // refetch the range that is actually on screen, and making that a dependency
+  // would rebuild `load` on every re-anchor and re-run the mount effect.
+  const rangeRef = useRef(null);
+
   const load = useCallback(async () => {
     if (!userId) return;
     const from = addDays(today, -120);
+    const w = rangeRef.current || windowAround(today);
+    rangeRef.current = w;
     const [ns, lg, ex, ds, pl] = await Promise.all([
       fetchNodes(userId),
       fetchLogs(userId, from, addDays(today, 60)),
       fetchExecutions(userId, from, today),
       fetchDayStates(userId, from, today),
-      getPlacements(userId, addDays(today, -WINDOW_DAYS), addDays(today, WINDOW_DAYS)),
+      getPlacements(userId, w.from, w.to),
     ]);
-    console.log('[TodayScreen] load ← raw placements', pl);
+    console.log('[TodayScreen] load ← raw placements', { range: w, rows: pl.length, data: pl });
     setNodes(ns); setLogs(lg); setExecutions(ex); setDayStates(ds); setPlacements(pl);
     setLoaded(true);
   }, [userId, today]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Re-anchor the window on the visible date and refetch just the placements.
+  // Only the placements move: nodes, logs, executions and day states are not
+  // windowed by the calendar's cursor.
+  const reanchor = useCallback(async (anchor) => {
+    if (!userId) return;
+    const w = windowAround(anchor);
+    rangeRef.current = w;
+    const pl = await getPlacements(userId, w.from, w.to);
+    console.log('[TodayScreen] placements window re-anchored ← raw', { anchor, from: w.from, to: w.to, rows: pl.length, data: pl });
+    setPlacements(pl);
+  }, [userId]);
+
+  useEffect(() => {
+    if (!loaded || !userId) return;
+    const w = rangeRef.current;
+    // Still comfortably inside the loaded range → nothing to do.
+    if (w && date > addDays(w.from, REANCHOR_MARGIN) && date < addDays(w.to, -REANCHOR_MARGIN)) return;
+    reanchor(date).catch(e => toast.error('שגיאה: ' + (e?.message || '')));
+  }, [date, loaded, userId, reanchor]);
 
   // The embedded node from the join carries only id/title/tags/frequency. The
   // category classifier walks parent_id up to the branch, so every placement
@@ -162,7 +213,7 @@ export default function TodayScreen({ headerSlot = null }) {
   // ── placement (both routes end here) ────────────────────────────
   const place = async (node, d, hour, quarter) => {
     try {
-      await scheduleTask(node.id, d, timeLabel(hour, quarter));
+      await scheduleTask(node.id, d, timeLabel(hour, quarter), seedDuration(node));
       setPending(null); setArmedSlot(null);
       toast.success(`נקבע ל-${timeLabel(hour, quarter)}`);
       await load();
@@ -196,7 +247,7 @@ export default function TodayScreen({ headerSlot = null }) {
         task_kind: 'oneoff', due_date: armedSlot.date, net_minutes: 30, sort_order: 100,
       });
       console.log('[TodayScreen] quickAdd ← raw createNode', created);
-      await scheduleTask(created.id, armedSlot.date, timeLabel(armedSlot.hour, armedSlot.quarter));
+      await scheduleTask(created.id, armedSlot.date, timeLabel(armedSlot.hour, armedSlot.quarter), seedDuration(created));
       setArmedSlot(null);
       toast.success('נוספה ושובצה ✓');
       await load();
@@ -250,7 +301,7 @@ export default function TodayScreen({ headerSlot = null }) {
         });
         return;
       }
-      const created = await scheduleTask(item.id, slot.date, time);
+      const created = await scheduleTask(item.id, slot.date, time, seedDuration(item));
       setPending(null); setArmedSlot(null);
       await load();
       toast.success(`נקבע ל-${time}`, {

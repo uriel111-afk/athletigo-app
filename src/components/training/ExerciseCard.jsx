@@ -2397,6 +2397,16 @@ export default function ExerciseCard({
     // static_hold fallback — BOTH columns exist on the live table and
     // the data currently sits in static_hold_time.
     const holdRaw = exercise.static_hold_time ?? exercise.static_hold;
+    // Seconds source for the ENTRY WHEEL, which falls back to work_time:
+    // an exercise carrying work_time is a time-based exercise, its
+    // seconds are a measured value, so it gets a seconds wheel and
+    // receives the clock's write-back. Mirrors the same fallback
+    // `actualsMetrics` already applies (~line 2230).
+    //
+    // Deliberately NOT folded into `holdRaw` above: that variable also
+    // feeds `plannedParamItems`, where a work_time row would then print
+    // the same number twice — "60 עבודה · 60 החזקה".
+    const wheelHoldRaw = holdRaw ?? exercise.work_time;
     const plannedParamItems = (() => {
       const items = [];
       const workSec = toSeconds(exercise.work_time);
@@ -2493,7 +2503,7 @@ export default function ExerciseCard({
     // rows show one wheel (reps) or one wheel (seconds).
     const wheelPlanned = {
       reps: hasValue(exercise.reps) ? Number(exercise.reps) : null,
-      seconds: hasValue(holdRaw) ? toSeconds(holdRaw) : null,
+      seconds: hasValue(wheelHoldRaw) ? toSeconds(wheelHoldRaw) : null,
       weight: hasValue(exercise.weight) ? Number(exercise.weight) : null,
     };
     const wheelMetrics = ['reps', 'seconds', 'weight']
