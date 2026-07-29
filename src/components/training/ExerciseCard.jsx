@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { MoreHorizontal, Copy, Trash2, Edit2, CircleCheck, Check, Timer, Zap } from "lucide-react";
+import { Copy, Trash2, Edit2, Check, Timer, Zap } from "lucide-react";
 import { base44 } from "@/api/base44Client";
 import { useQueryClient } from "@tanstack/react-query";
 import { notifyExerciseCompleted } from "@/functions/notificationTriggers";
@@ -16,6 +16,8 @@ import { supabase } from '../../lib/supabaseClient';
 import ScrollPickerPopup, { REPS_OPTIONS, SECONDS_OPTIONS, WEIGHT_OPTIONS } from '../ScrollPickerPopup';
 import ActualsGrid from './ActualsGrid';
 import { formatTime } from '../../lib/formatTime';
+import { useLongPress } from '../../lib/useLongPress';
+import OpenExerciseShell, { ParamLine, PositionSquare } from './OpenExerciseShell';
 
 // Stripe + border palette per exercise variant. The trainee execution
 // stripe flips to green once `exercise.completed` becomes true
@@ -1215,6 +1217,26 @@ export default function ExerciseCard({
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const [actionsMenuAnchor, setActionsMenuAnchor] = useState(null);
 
+  // Long-press opens the coach actions menu now that the 3-dot trigger
+  // is gone. suppressTapRef swallows the click that a long-press emits
+  // on release, so opening the menu never also toggles the card.
+  const suppressTapRef = useRef(false);
+  const openActionsMenuAtCard = React.useCallback((el) => {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const MENU_W = 160;
+    let leftPos = rect.left + 8;
+    if (leftPos < 8) leftPos = 8;
+    if (leftPos + MENU_W > window.innerWidth - 8) leftPos = window.innerWidth - MENU_W - 8;
+    setActionsMenuAnchor({ top: rect.bottom + 4, left: leftPos });
+    setActionsMenuOpen(true);
+  }, []);
+  const cardElRef = useRef(null);
+  const cardLongPress = useLongPress(() => {
+    suppressTapRef.current = true;
+    openActionsMenuAtCard(cardElRef.current);
+  });
+
   // Pyramid open-card live state — actuals are persisted to
   // exercise_set_logs via the loadActualsForExercise / saveSetActual
   // helpers in src/lib/plannedSets.js. The map is keyed 1-based by
@@ -2286,6 +2308,83 @@ export default function ExerciseCard({
     // Premium-Soft outer container styling per status. 'done' lifts to
     // a soft green-tinted gradient with a green rail; 'partial' adds
     // an orange-tinted shadow; 'none' is the default cream-white.
+    // ── Parameter line data ──────────────────────────────────────────
+    // Only populated fields become entries; an empty parameter is never
+    // rendered as 0 or as a dash. Reads static_hold_time with a
+    // static_hold fallback — BOTH columns exist on the live table and
+    // the data currently sits in static_hold_time.
+    const holdRaw = exercise.static_hold_time ?? exercise.static_hold;
+    const plannedParamItems = (() => {
+      const items = [];
+      const workSec = toSeconds(exercise.work_time);
+      const restSec = toSeconds(exercise.rest_time);
+      const holdSec = toSeconds(holdRaw);
+      if (hasValue(closedSummary.sets)) items.push({ value: String(closedSummary.sets), label: 'סטים' });
+      if (hasValue(closedSummary.reps)) items.push({ value: String(closedSummary.reps), label: 'חזרות' });
+      if (workSec != null) items.push({ value: formatTime(workSec), label: 'עבודה' });
+      if (holdSec != null) items.push({ value: formatTime(holdSec), label: 'החזקה' });
+      if (restSec != null) items.push({ value: formatTime(restSec), label: 'מנוחה' });
+      if (hasValue(exercise.weight)) items.push({ value: String(exercise.weight), label: 'ק"ג' });
+      return items;
+    })();
+
+    // Done state: the planned line is replaced by what was performed.
+    // Aggregated from the per-set log; falls back to the set count when
+    // nothing numeric was recorded.
+    const performedItems = (() => {
+      const log = setLog || {};
+      let doneSets = 0, reps = 0, secs = 0, kg = 0;
+      for (let i = 0; i < totalSets; i++) {
+        const row = log[i];
+        if (!row) continue;
+        if (row.done) doneSets++;
+        const r = Number(row.reps_completed); if (Number.isFinite(r)) reps += r;
+        const t = Number(row.time_completed); if (Number.isFinite(t)) secs += t;
+        const w = Number(row.weight_used); if (Number.isFinite(w) && w > kg) kg = w;
+      }
+      const items = [];
+      if (doneSets > 0) items.push({ value: String(doneSets), label: 'סטים בוצעו' });
+      if (reps > 0) items.push({ value: String(reps), label: 'חזרות סה"כ' });
+      if (secs > 0) items.push({ value: formatTime(secs), label: 'זמן סה"כ' });
+      if (kg > 0) items.push({ value: String(kg), label: 'ק"ג מרבי' });
+      if (items.length === 0 && totalSets > 0) {
+        items.push({ value: String(totalSets), label: 'סטים בוצעו' });
+      }
+      return items;
+    })();
+
+    // Instruction chips for the open shell — text prescriptions only.
+    const instructionChips = [
+      { label: 'מנוחה', value: (() => { const s = toSeconds(exercise.rest_time); return s != null ? formatTime(s) : null; })() },
+      { label: 'אחיזה', value: exercise.grip },
+      { label: 'טווח תנועה', value: exercise.range_of_motion },
+      { label: 'מנח גוף', value: exercise.body_position },
+      { label: 'ציוד', value: exercise.equipment },
+      { label: 'צד', value: exercise.side },
+    ];
+
+    // Completed-set strip for the open shell.
+    const completedSetsStrip = (() => {
+      const log = setLog || {};
+      const out = [];
+      for (let i = 0; i < totalSets; i++) {
+        if (!isSetDone(i)) continue;
+        const row = log[i] || {};
+        const bits = [];
+        if (hasValue(row.reps_completed)) bits.push(`${row.reps_completed} חז׳`);
+        if (hasValue(row.time_completed)) bits.push(formatTime(Number(row.time_completed)));
+        if (hasValue(row.weight_used)) bits.push(`${row.weight_used} ק"ג`);
+        out.push({ label: `סט ${i + 1}`, sub: bits.join(' · ') });
+      }
+      return out;
+    })();
+
+    const doneSetCount = (() => {
+      let n = 0;
+      for (let i = 0; i < totalSets; i++) if (isSetDone(i)) n++;
+      return n;
+    })();
+
     const wrapperByStatus = (() => {
       if (expanded) {
         return {
@@ -2320,24 +2419,24 @@ export default function ExerciseCard({
     })();
 
     return (
-      <div style={{
+      <div ref={cardElRef} style={{
         ...wrapperByStatus,
         borderRadius: 10,
-        marginBottom: 12,
+        marginBottom: expanded ? 12 : 5,
         overflow: 'hidden',
         direction: 'rtl',
       }}>
-        {/* Header band — single row, flex space-between. Right cluster
-            (RTL = visual right): 30×30 orange index square + 18px
-            Barlow-700 title that wraps if long. Left cluster: 10×10
-            colored status dot + 3-dot menu (now hosting ערוך) +
-            chevron. Tap toggles expand. */}
+        {/* Header band. Right-to-left: 24px orange position square,
+            status circle, then the text block. NOTHING sits on the
+            left — the chevron and the 3-dot menu are gone. A tap
+            anywhere opens the card; a long-press opens the actions
+            menu (coach only). */}
         <div
           onClick={() => {
-            const nextOpen = !expanded;
-            console.log('CARD TAP fired, isOpen ->', nextOpen);
+            if (suppressTapRef.current) { suppressTapRef.current = false; return; }
             setExpanded(v => !v);
           }}
+          {...(isCoachMode && (onEdit || onDuplicate || onDelete) ? cardLongPress : {})}
           role="button"
           tabIndex={0}
           aria-expanded={expanded}
@@ -2349,10 +2448,10 @@ export default function ExerciseCard({
           }}
           style={{
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            padding: '14px 16px',
+            alignItems: 'flex-start',
+            justifyContent: 'flex-start',
+            gap: 8,
+            padding: expanded ? '9px 10px 0' : '9px 10px',
             background: expanded ? '#F0E9D6' : 'transparent',
             cursor: 'pointer',
             userSelect: 'none',
@@ -2360,338 +2459,199 @@ export default function ExerciseCard({
             WebkitTapHighlightColor: 'transparent',
           }}
         >
-          {/* ── Right cluster: index + title (+ closed-state pills) ── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-            {exerciseIndex != null && (
-              <span style={{
-                width: 32, height: 32,
-                background: cardStatus === 'done'
-                  ? 'linear-gradient(135deg, #22C55E 0%, #16A34A 100%)'
-                  : 'linear-gradient(135deg, #FF8B47 0%, #FF6F20 100%)',
-                color: '#FFFFFF',
-                borderRadius: 8,
-                fontFamily: NUM_FONT,
-                fontSize: 17,
-                fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                lineHeight: 1,
-                boxShadow: cardStatus === 'done'
-                  ? '0 3px 8px rgba(22,163,74,0.3)'
-                  : '0 3px 8px rgba(255,111,32,0.28)',
-              }} aria-hidden>{cardStatus === 'done' ? '✓' : exerciseIndex}</span>
-            )}
-
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{
-                fontSize: 17,
-                fontWeight: 800,
-                color: completed ? '#aaa' : '#09090B',
-                textDecoration: completed ? 'line-through' : 'none',
-                fontFamily: SANS_FONT,
-                lineHeight: 1.1,
-                wordBreak: 'break-word',
-              }}>{name}</div>
-              {/* Method chip — one small pill per training method, brand
-                  color per variant. Hidden for plain exercise rows
-                  (none / normal / reps_new) so unmethodised rows don't
-                  carry a noisy tag. */}
-              {!expanded && (() => {
-                const chip = methodChipFor(variant);
-                if (!chip) return null;
-                return (
-                  <div style={{ marginTop: 5, direction: 'rtl' }}>
-                    <span style={{
-                      background: chip.color,
-                      color: '#FFFFFF',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      padding: '2px 10px',
-                      borderRadius: 10,
-                      flexShrink: 0,
-                      display: 'inline-block',
-                      lineHeight: 1.4,
-                    }}>{chip.label}</span>
-                  </div>
-                );
-              })()}
-              {/* Phase 4 — method-specific summary + preview chip.
-                  Shown only when closed; takes precedence over the
-                  generic chip row. Preview is a single cream pill
-                  with names joined by " · ". */}
-              {!expanded && (() => {
-                const customSummary = buildClosedSummary(exercise, variant);
-                const previewText = buildClosedPreview(exercise, variant);
-                if (!customSummary && !previewText) return null;
-                return (
-                  <>
-                    {customSummary && (
-                      <div style={{
+          {!expanded && (
+            <>
+              {exerciseIndex != null && (
+                <PositionSquare n={exerciseIndex} size={24} done={cardStatus === 'done'} />
+              )}
+              {/* Status circle — sits beside the square, on the RIGHT
+                  side of the row. Never on the left. */}
+              <span
+                aria-label={
+                  cardStatus === 'done' ? 'הושלם'
+                    : cardStatus === 'partial' ? 'בוצע חלקית'
+                    : cardStatus === 'display' ? 'תצוגה' : 'לא בוצע'
+                }
+                style={{
+                  width: 12, height: 12, borderRadius: '50%',
+                  marginTop: 6, flexShrink: 0, display: 'inline-block',
+                  background: cardStatus === 'done' ? '#16A34A'
+                    : cardStatus === 'partial' ? '#FF6F20' : '#D6CCBE',
+                }}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {/* Name + method chip on one wrapping line. */}
+                <div style={{
+                  display: 'flex', flexWrap: 'wrap',
+                  alignItems: 'center', gap: 6,
+                }}>
+                  <span style={{
+                    fontFamily: SANS_FONT,
+                    fontSize: 16,
+                    fontWeight: 500,
+                    color: cardStatus === 'done' ? '#9aa0a6' : '#1a1a1a',
+                    lineHeight: 1.2,
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
+                  }}>{name}</span>
+                  {(() => {
+                    const chip = methodChipFor(variant);
+                    if (!chip) return null;
+                    return (
+                      <span style={{
+                        background: chip.color,
+                        color: '#FFFFFF',
+                        fontFamily: SANS_FONT,
                         fontSize: 11,
-                        color: '#888',
-                        marginTop: 3,
                         fontWeight: 500,
-                        lineHeight: 1.4,
-                        direction: 'rtl',
-                      }}>{customSummary}</div>
-                    )}
-                    {previewText && (
-                      <div style={{
-                        fontSize: 10,
-                        color: '#7A3A0F',
-                        marginTop: 5,
-                        fontWeight: 600,
-                        lineHeight: 1.3,
-                        background: '#FFF6EE',
-                        padding: '4px 8px',
-                        borderRadius: 6,
-                        display: 'inline-block',
-                        maxWidth: '100%',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        direction: 'rtl',
-                      }}>{previewText}</div>
-                    )}
-                  </>
-                );
-              })()}
-              {/* Generic param chips — fallback for basic / reps_new /
-                  none / normal (any variant where buildClosedSummary
-                  returned null). Row 2 under the title. Inline
-                  <num>+<label> groups with a thin gray "·" between them.
-                  Each chip pairs a Bebas Neue number with a 10px Hebrew
-                  label and the full word "שניות" (never the ״ symbol).
-                  Only truthy values render. Order: sets → reps → hold → rest. */}
-              {!expanded && !buildClosedSummary(exercise, variant) && (() => {
-                const workSec = toSeconds(exercise.work_time);
-                const restSec = toSeconds(exercise.rest_time);
-                const holdSec = toSeconds(exercise.static_hold_time);
-                const chips = [];
-                if (hasValue(closedSummary.sets)) chips.push({ value: String(closedSummary.sets), label: 'סטים' });
-                if (hasValue(closedSummary.reps)) chips.push({ value: String(closedSummary.reps), label: 'חזרות' });
-                if (workSec != null) chips.push({ value: formatTime(workSec), label: 'עבודה' });
-                if (holdSec != null) chips.push({ value: formatTime(holdSec), label: 'החזקה' });
-                if (restSec != null) chips.push({ value: formatTime(restSec), label: 'מנוחה' });
-                if (chips.length === 0) return null;
-                return (
-                  <div style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    alignItems: 'baseline',
-                    gap: 8,
-                    marginTop: 2,
-                    direction: 'rtl',
-                  }}>
-                    {chips.map((c, i) => (
-                      <React.Fragment key={c.label}>
-                        {i > 0 && (
-                          <span style={{ color: '#D1D5DB', lineHeight: 1 }} aria-hidden>·</span>
-                        )}
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'baseline',
-                          gap: 3,
-                        }}>
-                          <span style={{
-                            fontFamily: "'Bebas Neue', sans-serif",
-                            fontSize: 17,
-                            color: '#FF6F20',
-                            lineHeight: 1,
-                          }}>{c.value}</span>
-                          <span style={{
-                            fontSize: 10,
-                            color: '#6b7280',
-                            fontWeight: 600,
-                          }}>{c.label}</span>
-                        </span>
-                      </React.Fragment>
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
+                        padding: '2px 8px',
+                        borderRadius: 999,
+                        flexShrink: 0,
+                        lineHeight: 1.5,
+                      }}>{chip.label}</span>
+                    );
+                  })()}
+                </div>
+                {/* Parameter line. When the exercise is done it is
+                    replaced by what was actually performed. */}
+                <div style={{ marginTop: 1 }}>
+                  <ParamLine
+                    items={cardStatus === 'done' ? performedItems : plannedParamItems}
+                    fontSize={14}
+                    dimmed={cardStatus === 'done'}
+                  />
+                </div>
+                {/* Method-specific summary + preview. No truncation —
+                    both wrap to as many lines as they need. */}
+                {(() => {
+                  const customSummary = buildClosedSummary(exercise, variant);
+                  const previewText = buildClosedPreview(exercise, variant);
+                  if (!customSummary && !previewText) return null;
+                  return (
+                    <>
+                      {customSummary && (
+                        <div style={{
+                          fontFamily: SANS_FONT,
+                          fontSize: 12,
+                          color: '#8a8177',
+                          marginTop: 3,
+                          lineHeight: 1.45,
+                          wordBreak: 'break-word',
+                          overflowWrap: 'break-word',
+                        }}>{customSummary}</div>
+                      )}
+                      {previewText && (
+                        <div style={{
+                          fontFamily: SANS_FONT,
+                          fontSize: 12,
+                          color: '#7A3A0F',
+                          marginTop: 4,
+                          fontWeight: 500,
+                          lineHeight: 1.45,
+                          background: '#FFF6EE',
+                          padding: '4px 8px',
+                          borderRadius: 6,
+                          display: 'inline-block',
+                          maxWidth: '100%',
+                          wordBreak: 'break-word',
+                          overflowWrap: 'break-word',
+                        }}>{previewText}</div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </>
+          )}
 
-          {/* ── Left cluster: status dot + 3-dot menu + chevron ── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-            {/* Status indicator — 'done' renders a CircleCheck icon at
-                22px in brand green; other states are a 10×10 colored
-                dot with a soft halo shadow. Reuses the lifted
-                `cardStatus` so the dot, the index square, and the
-                outer wrapper all agree on the same value. */}
-            {(() => {
-              if (cardStatus === 'done') {
-                return (
-                  <CircleCheck aria-label="הושלם" size={22}
-                    style={{ color: '#16A34A', flexShrink: 0 }} />
-                );
-              }
-              if (cardStatus === 'display') {
-                return (
-                  <span aria-label="תצוגה" style={{
-                    width: 10, height: 10, borderRadius: '50%',
-                    background: '#9CA3AF', flexShrink: 0,
-                    display: 'inline-block',
-                    boxShadow: '0 0 0 3px rgba(156,163,175,0.18)',
-                  }} />
-                );
-              }
-              if (cardStatus === 'partial') {
-                return (
-                  <span aria-label="בוצע חלקית" style={{
-                    width: 10, height: 10, borderRadius: '50%',
-                    background: '#FF6F20', flexShrink: 0,
-                    display: 'inline-block',
-                    boxShadow: '0 0 0 3px rgba(255,111,32,0.22), 0 0 10px rgba(255,111,32,0.35)',
-                  }} />
-                );
-              }
-              // cardStatus === 'none'
-              return (
-                <span aria-label="לא בוצע" style={{
-                  width: 10, height: 10, borderRadius: '50%',
-                  background: '#9CA3AF', flexShrink: 0,
-                  display: 'inline-block',
-                  boxShadow: '0 0 0 3px rgba(156,163,175,0.18)',
-                }} />
-              );
-            })()}
+        </div>
 
-            {/* Coach 3-dot menu — ערוך + שכפל + מחק. Trigger renders
-                when any of the three handlers is wired. Popover lives
-                in a portal so it can't be clipped by the card's
-                overflow:hidden. */}
-            {isCoachMode && (onEdit || onDuplicate || onDelete) && (
-              <div ref={actionsMenuRef} style={{ flexShrink: 0 }}>
+        {/* Coach actions menu. The 3-dot trigger is gone — a
+            long-press anywhere on the card opens this. The popover
+            still renders through a portal so the card's
+            overflow:'hidden' can't clip it. */}
+        <div ref={actionsMenuRef} style={{ display: 'contents' }}>
+          {actionsMenuOpen && actionsMenuAnchor && typeof document !== 'undefined' && createPortal(
+            <div
+              ref={actionsPopoverRef}
+              role="menu"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: 'fixed',
+                top: actionsMenuAnchor.top,
+                left: actionsMenuAnchor.left,
+                zIndex: 1000,
+                background: '#FFFFFF',
+                border: '1px solid #E8DEC4',
+                borderRadius: 12,
+                boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
+                padding: 8,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                minWidth: 160,
+                direction: 'rtl',
+                fontFamily: SANS_FONT,
+              }}
+            >
+              {onEdit && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setActionsMenuOpen(false); onEdit(exercise); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    width: '100%', padding: '8px 10px',
+                    background: '#FCFBF7', border: '1px solid #EFE9D8',
+                    borderRadius: 8, cursor: 'pointer',
+                    fontSize: 13, fontWeight: 600, color: '#1a1a1a',
+                    textAlign: 'right', direction: 'rtl', lineHeight: 1.2,
+                  }}
+                >
+                  <Edit2 size={14} style={{ color: '#FF6F20', flexShrink: 0 }} />
+                  <span>ערוך</span>
+                </button>
+              )}
+              {onDuplicate && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setActionsMenuOpen(false); onDuplicate(exercise); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    width: '100%', padding: '8px 10px',
+                    background: '#FCFBF7', border: '1px solid #EFE9D8',
+                    borderRadius: 8, cursor: 'pointer',
+                    fontSize: 13, fontWeight: 600, color: '#1a1a1a',
+                    textAlign: 'right', direction: 'rtl', lineHeight: 1.2,
+                  }}
+                >
+                  <Copy size={14} style={{ color: '#FF6F20', flexShrink: 0 }} />
+                  <span>שכפל</span>
+                </button>
+              )}
+              {onDelete && (
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const MENU_W = 160;
-                    let leftPos = rect.left;
-                    // Clamp to viewport edges with an 8px breathing room.
-                    if (leftPos < 8) leftPos = 8;
-                    if (leftPos + MENU_W > window.innerWidth - 8) {
-                      leftPos = window.innerWidth - MENU_W - 8;
-                    }
-                    setActionsMenuAnchor({ top: rect.bottom + 6, left: leftPos });
-                    setActionsMenuOpen((v) => !v);
+                    setActionsMenuOpen(false);
+                    if (window.confirm('למחוק תרגיל זה?')) onDelete(exercise);
                   }}
-                  aria-label="פעולות"
-                  aria-expanded={actionsMenuOpen}
-                  title="פעולות"
                   style={{
-                    width: 24, height: 24,
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#6b7280',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: 0,
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    width: '100%', padding: '8px 10px',
+                    background: '#FCEBEB', border: '1px solid #F5C9C9',
+                    borderRadius: 8, cursor: 'pointer',
+                    fontSize: 13, fontWeight: 600, color: '#a32d2d',
+                    textAlign: 'right', direction: 'rtl', lineHeight: 1.2,
                   }}
                 >
-                  <MoreHorizontal size={18} />
+                  <Trash2 size={14} style={{ color: '#a32d2d', flexShrink: 0 }} />
+                  <span>מחק</span>
                 </button>
-                {actionsMenuOpen && actionsMenuAnchor && typeof document !== 'undefined' && createPortal(
-                  <div
-                    ref={actionsPopoverRef}
-                    role="menu"
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                      position: 'fixed',
-                      top: actionsMenuAnchor.top,
-                      left: actionsMenuAnchor.left,
-                      zIndex: 1000,
-                      background: '#FFFFFF',
-                      border: '1px solid #E8DEC4',
-                      borderRadius: 12,
-                      boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
-                      padding: 8,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 6,
-                      minWidth: 160,
-                      direction: 'rtl',
-                      fontFamily: SANS_FONT,
-                    }}
-                  >
-                    {onEdit && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setActionsMenuOpen(false); onEdit(exercise); }}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          width: '100%', padding: '8px 10px',
-                          background: '#FCFBF7', border: '1px solid #EFE9D8',
-                          borderRadius: 8, cursor: 'pointer',
-                          fontSize: 13, fontWeight: 600, color: '#1a1a1a',
-                          textAlign: 'right', direction: 'rtl', lineHeight: 1.2,
-                        }}
-                      >
-                        <Edit2 size={14} style={{ color: '#FF6F20', flexShrink: 0 }} />
-                        <span>ערוך</span>
-                      </button>
-                    )}
-                    {onDuplicate && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setActionsMenuOpen(false); onDuplicate(exercise); }}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          width: '100%', padding: '8px 10px',
-                          background: '#FCFBF7', border: '1px solid #EFE9D8',
-                          borderRadius: 8, cursor: 'pointer',
-                          fontSize: 13, fontWeight: 600, color: '#1a1a1a',
-                          textAlign: 'right', direction: 'rtl', lineHeight: 1.2,
-                        }}
-                      >
-                        <Copy size={14} style={{ color: '#FF6F20', flexShrink: 0 }} />
-                        <span>שכפל</span>
-                      </button>
-                    )}
-                    {onDelete && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActionsMenuOpen(false);
-                          if (window.confirm('למחוק תרגיל זה?')) onDelete(exercise);
-                        }}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          width: '100%', padding: '8px 10px',
-                          background: '#FCEBEB', border: '1px solid #F5C9C9',
-                          borderRadius: 8, cursor: 'pointer',
-                          fontSize: 13, fontWeight: 600, color: '#a32d2d',
-                          textAlign: 'right', direction: 'rtl', lineHeight: 1.2,
-                        }}
-                      >
-                        <Trash2 size={14} style={{ color: '#a32d2d', flexShrink: 0 }} />
-                        <span>מחק</span>
-                      </button>
-                    )}
-                  </div>,
-                  document.body
-                )}
-              </div>
-            )}
-
-            {/* Chevron — rotates 180° when expanded. */}
-            <span aria-hidden style={{
-              color: '#C9A24A',
-              fontSize: 14,
-              lineHeight: 1,
-              transition: 'transform 0.2s',
-              transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-              flexShrink: 0,
-            }}>▼</span>
-          </div>
+              )}
+            </div>,
+            document.body
+          )}
         </div>
 
         {/* Open body — tabata-only summary tiles (5-box clock layout
@@ -4914,6 +4874,41 @@ export default function ExerciseCard({
             reps-box + seconds-box. Coach view AND "no active execution yet"
             render read-only; display-mode sections fall to the legacy IIFE
             below. */}
+        {/* ── SHARED OPEN SHELL ───────────────────────────────────
+            Wired for normal | none | reps_new only. The other ten
+            variants still render their own open bodies below and are
+            deliberately untouched — they get wired in a follow-up so a
+            regression stays traceable to one batch.
+            The shell owns the grab bar, summary row, tempo rubric,
+            instruction chips, divider, set counter, completed-set strip
+            and primary button. The blocks inside supply ONLY entry UI. */}
+        {expanded && (variant === 'normal' || variant === 'none' || variant === 'reps_new') && (
+          <OpenExerciseShell
+            index={exerciseIndex}
+            name={name}
+            paramItems={plannedParamItems}
+            tempo={exercise.tempo}
+            chips={instructionChips}
+            setCounter={{ current: Math.min(doneSetCount + 1, totalSets), total: totalSets }}
+            completedSets={completedSetsStrip}
+            onCollapse={() => setExpanded(false)}
+            primaryButton={
+              sectionTrackingMode === 'display' || isCoachMode
+                ? null
+                : {
+                    label: doneSetCount >= totalSets && totalSets > 0
+                      ? 'התרגיל הושלם'
+                      : `סיים סט ${Math.min(doneSetCount + 1, totalSets)}`,
+                    disabled: totalSets === 0 || doneSetCount >= totalSets,
+                    onClick: () => {
+                      // Advance to the first set that is not yet done.
+                      for (let i = 0; i < totalSets; i++) {
+                        if (!isSetDone(i)) { handleSetToggle(i); return; }
+                      }
+                    },
+                  }
+            }
+          >
         {expanded && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
           && sectionTrackingMode !== 'display'
           && actualsMetrics.length > 0
@@ -5479,62 +5474,29 @@ export default function ExerciseCard({
         })()}
 
         {/* Fallback — never render a blank body for normal/none/reps_new.
-            When all three render paths above short-circuit (no fillable
-            rep card, no fillable time card, and no legacy display rows
-            because paramItems + subExercises are both empty), show a
-            minimal "סטים: 1" pill + a muted hint so the open card never
-            appears broken. Display-only — does NOT write to the DB. */}
+            The set count that used to live here was a duplicate of the
+            shell's set-counter pill and has been removed; only the
+            muted hint remains. Display-only — does NOT write to the DB. */}
         {expanded && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
           && !(sectionTrackingMode !== 'display' && hasValue(exercise.sets) && hasValue(exercise.reps))
           && !(sectionTrackingMode !== 'display' && hasValue(exercise.sets) && !hasValue(exercise.reps)
-               && (hasValue(exercise.work_time) || hasValue(exercise.static_hold_time)))
+               && (hasValue(exercise.work_time) || hasValue(holdRaw)))
           && paramItems.length === 0
           && subExercises.length === 0
-          && (() => {
-          const sNum = Number(exercise.sets) || 0;
-          const displaySets = sNum > 0 ? sNum : 1;
-          return (
-            <div style={{ padding: '0 36px 14px 16px', direction: 'rtl' }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'flex-end',
-                gap: 12,
-                padding: '11px 0',
-                direction: 'rtl',
-              }}>
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'baseline',
-                  gap: 6,
-                  flexShrink: 0,
-                }}>
-                  <span style={{
-                    fontFamily: NUM_FONT,
-                    fontSize: 24,
-                    fontWeight: 700,
-                    color: '#1a1a1a',
-                    lineHeight: 1,
-                  }}>{displaySets}</span>
-                  <span style={{
-                    fontFamily: SANS_FONT,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: '#777',
-                  }}>סטים</span>
-                </span>
-              </div>
-              <div style={{
-                fontFamily: SANS_FONT,
-                fontSize: 12,
-                color: '#888',
-                marginTop: 6,
-                textAlign: 'right',
-              }}>
-                לתרגיל לא הוגדרו פרמטרים — לחץ על העריכה כדי להוסיף
-              </div>
+          && (
+            <div style={{
+              fontFamily: SANS_FONT,
+              fontSize: 12,
+              color: '#8a8177',
+              textAlign: 'right',
+              direction: 'rtl',
+              lineHeight: 1.5,
+            }}>
+              לתרגיל לא הוגדרו פרמטרים — לחץ על העריכה כדי להוסיף
             </div>
-          );
-        })()}
+          )}
+          </OpenExerciseShell>
+        )}
       </div>
     );
   }

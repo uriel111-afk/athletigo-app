@@ -177,26 +177,26 @@ export default function SectionCard({
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-start',
           gap: 10,
           background: `linear-gradient(180deg, ${accentHeaderTintStrong} 0%, transparent 100%)`,
           borderBottom: expanded ? 'none' : '2px solid #E8DEC4',
-          padding: '12px 36px 12px 10px',
+          // Symmetric padding. Was '12px 36px 12px 10px' to make room
+          // for the left-hand gear + chevron cluster; both are gone.
+          padding: '12px 14px',
           cursor: 'pointer',
           userSelect: 'none',
         }}
       >
-        {/* Title area — NOT a flex:1 item. Takes its natural content
-            width so the name can never be squeezed to zero by the
-            outer row's coach-actions cluster. If everything still
-            doesn't fit on a very narrow row, the chevron at the END
-            of the outer flex line is the one that overflows, NOT
-            the name. */}
+        {/* Everything anchors to the RTL start (visual right) and wraps
+            rather than truncating. justifyContent:flex-start keeps the
+            cluster hugging the right edge with no left-side controls to
+            balance against. */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
           gap: 6,
-          flexShrink: 0,
+          flexWrap: 'wrap',
           minWidth: 0,
         }}>
           {renamingSection && showEditButtons ? (
@@ -228,13 +228,9 @@ export default function SectionCard({
               }}
             />
           ) : (
-            // Section name: natural width via nowrap. No maxWidth tied
-            // to the parent (that was the previous bug — when the
-            // parent shrunk to 0 via flex math, maxWidth:100% became
-            // 0% and overflow:hidden clipped everything to invisible).
-            // The viewport-relative safety net `maxWidth: 60vw` only
-            // truncates pathologically long names; short / medium
-            // names render at their natural intrinsic width.
+            // Section name wraps to as many lines as it needs. No
+            // nowrap / overflow / ellipsis and no maxWidth — a long
+            // name grows the header instead of being cut off.
             <span
               {...(showEditButtons ? longPressRename : {})}
               style={{
@@ -242,15 +238,11 @@ export default function SectionCard({
                 fontSize: 18,
                 fontWeight: 700,
                 color: '#1a1a1a',
-                lineHeight: 1.2,
+                lineHeight: 1.25,
                 letterSpacing: '-0.3px',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                maxWidth: '60vw',
-                display: 'inline-block',
+                wordBreak: 'break-word',
+                overflowWrap: 'break-word',
               }}
-              title={section.section_name}
             >{section.section_name}</span>
           )}
           <span style={{
@@ -283,16 +275,10 @@ export default function SectionCard({
               הושלם
             </span>
           )}
-        </div>
-        {/* Actions cluster — gear + chevron grouped on the visual
-            left (RTL "end") so the outer space-between layout puts
-            the title cluster on the right and these controls hug
-            the leftmost edge of the row. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          {/* DOM order gear → chevron. Under RTL flex the last DOM
-              child sits at the visual leftmost edge of the row, so
-              the chevron hugs the section's left margin and the
-              gear sits next to it (toward the title). */}
+          {/* Settings sits INSIDE the right-hand cluster, immediately
+              after the count — not in a left-edge actions group. The
+              chevron is gone entirely: tapping the header row is what
+              collapses the section. */}
           {showEditButtons && (
             <button
               type="button"
@@ -301,7 +287,7 @@ export default function SectionCard({
               aria-label="עריכת סקשן"
               title="עריכת סקשן"
               style={{
-                width: 32, height: 32,
+                width: 28, height: 28,
                 background: 'transparent',
                 border: 'none',
                 color: '#6b7280',
@@ -311,19 +297,12 @@ export default function SectionCard({
                 justifyContent: 'center',
                 padding: 0,
                 flexShrink: 0,
+                marginInlineStart: 2,
               }}
             >
               <Settings size={18} />
             </button>
           )}
-          <span aria-hidden style={{
-            color: '#C9A24A',
-            fontSize: 14,
-            lineHeight: 1,
-            transition: 'transform 0.2s',
-            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-            flexShrink: 0,
-          }}>▼</span>
         </div>
       </div>
 
