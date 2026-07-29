@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LayoutGrid, Sparkles, SlidersHorizontal } from 'lucide-react';
 import { AuthContext } from '@/lib/AuthContext';
@@ -30,7 +30,7 @@ const ZOOMS = [
   { key: 'month', label: 'חודש' },
 ];
 
-export default function BoardScreen({ headerSlot = null }) {
+export default function BoardScreen({ headerSlot = null, date, onDate }) {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
   const navigate = useNavigate();
@@ -41,6 +41,16 @@ export default function BoardScreen({ headerSlot = null }) {
   const [dayStates, setDayStates] = useState([]);
   const [nodes, setNodes] = useState([]);
   const [structOpen, setStructOpen] = useState(false);
+  // The relocated ענפים/הכל/חודש row, as a popover off one icon button.
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef(null);
+  useEffect(() => {
+    if (!filterOpen) return undefined;
+    const away = (e) => { if (filterRef.current && !filterRef.current.contains(e.target)) setFilterOpen(false); };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('touchstart', away);
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('touchstart', away); };
+  }, [filterOpen]);
   // Zoom: 'ענפים' = the collapsed accordion (a branch row that expands in
   // place), 'הכל' = every group open, 'חודש' = 30 day columns.
   const [zoom, setZoom] = useState(() => {
@@ -135,23 +145,46 @@ export default function BoardScreen({ headerSlot = null }) {
     </div>
   );
 
-  // The segment bar plus the zoom chips, handed down as one header slot.
-  const header = (
-    <>
-      {headerSlot}
-      <div style={{ padding: '0 12px 8px', display: 'flex', gap: 6 }}>
-        {ZOOMS.map(z => {
-          const on = zoom === z.key;
-          return (
-            <button key={z.key} onClick={() => pickZoom(z.key)}
-              style={{ flex: 1, padding: '7px 6px', borderRadius: 11, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: on ? 800 : 600,
-                border: `1px solid ${on ? FOCUS.orange : FOCUS.border}`, background: on ? hexAlpha(FOCUS.orange, 0.13) : '#fff', color: on ? '#B4531A' : FOCUS.muted }}>
-              {z.label}
-            </button>
-          );
-        })}
-      </div>
-    </>
+  // The segment bar is the whole header now. The ענפים / הכל / חודש row that
+  // used to sit under it is gone from the visible chrome — it became the
+  // filter button below, at the left edge of the controls row. Same three
+  // options, same three strings, one row less.
+  const header = <>{headerSlot}</>;
+
+  const filter = (
+    <div style={{ position: 'relative', flexShrink: 0 }} ref={filterRef}>
+      <button onClick={() => setFilterOpen(o => !o)}
+        aria-label={`תצוגה: ${ZOOMS.find(z => z.key === zoom)?.label || ''}`}
+        aria-expanded={filterOpen}
+        style={{ width: 32, height: 30, borderRadius: 9, cursor: 'pointer', fontFamily: 'inherit',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          border: `1px solid ${zoom === 'branches' ? FOCUS.border : FOCUS.orange}`,
+          background: zoom === 'branches' ? '#fff' : hexAlpha(FOCUS.orange, 0.13),
+          color: zoom === 'branches' ? FOCUS.muted : '#B4531A' }}>
+        <SlidersHorizontal size={15} />
+      </button>
+      {filterOpen && (
+        <div role="menu"
+          style={{ position: 'absolute', top: 34, left: 0, zIndex: 30, minWidth: 116,
+            background: '#fff', border: `1px solid ${FOCUS.border}`, borderRadius: 12,
+            boxShadow: '0 6px 18px rgba(0,0,0,0.12)', padding: 5,
+            display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {ZOOMS.map(z => {
+            const on = zoom === z.key;
+            return (
+              <button key={z.key} onClick={() => { pickZoom(z.key); setFilterOpen(false); }}
+                style={{ padding: '8px 11px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
+                  fontSize: 12.5, fontWeight: on ? 800 : 600, textAlign: 'right', direction: 'rtl',
+                  border: `1px solid ${on ? FOCUS.orange : 'transparent'}`,
+                  background: on ? hexAlpha(FOCUS.orange, 0.13) : '#FFFDFA',
+                  color: on ? '#B4531A' : FOCUS.ink }}>
+                {z.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 
   return (
@@ -170,6 +203,18 @@ export default function BoardScreen({ headerSlot = null }) {
         pageScroll
         defaultPeriod={zoom === 'month' ? 'month' : 'week'}
         hideTopBar
+        /* The day strip in PersonalBoard drives this cursor, so tapping a day
+           moves the matrix and the calendar together. */
+        cursor={date}
+        onCursor={onDate}
+        /* Chrome collapse: the filter row became one button at the left edge
+           of the controls row, quick-add moved to the bottom as one button,
+           the summary card became the week bar, and the matrix lost its %
+           column + streak. All four are personal-board only. */
+        filterSlot={filter}
+        quickAddFooter
+        leanBoard
+        hideTodayStrip
         headerSlot={header}
         footerSlot={footer}
         execCounts={execCounts}

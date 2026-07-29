@@ -81,7 +81,11 @@ const seedDuration = (node) => {
   return m > 0 ? m : DEFAULT_DURATION;
 };
 
-export default function TodayScreen({ headerSlot = null }) {
+// `date` is CONTROLLED by PersonalBoard so the day strip can move the
+// calendar and the habit matrix together. The local fallback keeps the
+// component standalone-renderable (and is what runs if it is ever mounted
+// without the pair of props).
+export default function TodayScreen({ headerSlot = null, date: dateProp, onDate }) {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
   const today = isoDate();
@@ -93,7 +97,10 @@ export default function TodayScreen({ headerSlot = null }) {
   const [placements, setPlacements] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
-  const [date, setDate] = useState(today);
+  const [ownDate, setOwnDate] = useState(today);
+  const controlledDate = dateProp !== undefined && typeof onDate === 'function';
+  const date = controlledDate ? dateProp : ownDate;
+  const setDate = controlledDate ? onDate : setOwnDate;
   const [view, setView] = useState(() => {
     try { return localStorage.getItem('personal_cal_view') || 'day'; } catch { return 'day'; }
   });

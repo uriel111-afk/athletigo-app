@@ -121,6 +121,24 @@ export default function FocusTracker({
   // cell tap on the board offers the same user-defined fields as the day screen.
   customFields = [],
   onFieldsChanged = null,
+  // ── personal-tab chrome (all default off → business tracker unchanged) ──
+  // cursor/onCursor — CONTROLLED period cursor. The personal day strip has to
+  //                move the matrix and the calendar together, so the date lives
+  //                in PersonalBoard. Omit both and the tracker keeps its own.
+  // filterSlot   — rendered at the LEFT edge of the controls row. The personal
+  //                board puts its ענפים/הכל/חודש popover trigger here instead
+  //                of spending a whole row on three buttons.
+  // quickAddFooter — render the quick-add at the BOTTOM of the content rather
+  //                than above it, collapsed to a single primary button.
+  // leanBoard    — drop the % column and the 🔥 streak from the matrix and give
+  //                the width to the task name. Personal board only; the
+  //                business tracker keeps both.
+  cursor: cursorProp,
+  onCursor = null,
+  filterSlot = null,
+  quickAddFooter = false,
+  leanBoard = false,
+  hideTodayStrip = false,
 } = {}) {
   const { user } = useContext(AuthContext);
   const userId = user?.id;
@@ -131,7 +149,14 @@ export default function FocusTracker({
   const [logs, setLogs] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [period, setPeriod] = useState(defaultPeriod); // week | month | year
-  const [cursor, setCursor] = useState(today);         // a date inside the shown period
+  const [ownCursor, setOwnCursor] = useState(today);   // a date inside the shown period
+  const cursorControlled = cursorProp !== undefined && typeof onCursor === 'function';
+  const cursor = cursorControlled ? cursorProp : ownCursor;
+  const setCursor = cursorControlled
+    // The internal callers pass an updater fn (setCursor(c => ...)); the
+    // controlled parent only understands a value, so resolve it here.
+    ? ((v) => onCursor(typeof v === 'function' ? v(cursor) : v))
+    : setOwnCursor;
   const [armFilter, setArmFilter] = useState(null);
   const [docNode, setDocNode] = useState(null);        // { task, date, existing } — done-cell doc/edit
   const [notDoneNode, setNotDoneNode] = useState(null); // { task, date, existing } — skip reason
@@ -481,8 +506,16 @@ export default function FocusTracker({
   const brokenSet = new Set(brokenDays);
   const fitWidth = colKind === 'day' && columns.length <= 7;
   const cellW = colKind === 'month' ? 46 : 34;
-  const labelW = fitWidth ? 104 : (pageScroll ? 116 : 132);
-  const statW = fitWidth ? 40 : 50;
+  // leanBoard drops the % column entirely, so its width goes to the task name
+  // — that is the whole point of removing it. 104 + 40 = 144 at fit width,
+  // which leaves (366 − 144) / 7 ≈ 31px per day column on a 390px screen,
+  // still comfortably wider than the 16px mark.
+  const labelW = leanBoard
+    ? (fitWidth ? 144 : (pageScroll ? 166 : 182))
+    : (fitWidth ? 104 : (pageScroll ? 116 : 132));
+  const statW = leanBoard ? 0 : (fitWidth ? 40 : 50);
+  // Every colSpan that used to span "name + days + %" loses the % column.
+  const spanAll = columns.length + (leanBoard ? 1 : 2);
   const bdr = `1px solid ${FOCUS.border}`;
   const nameCell = { position: 'sticky', right: 0, zIndex: 3, background: '#fff', width: labelW, minWidth: fitWidth ? 0 : labelW, maxWidth: labelW, boxSizing: 'border-box', borderBottom: bdr, borderLeft: bdr, overflow: 'hidden' };
   const pctCell = { position: 'sticky', left: 0, zIndex: 3, background: '#fff', width: statW, minWidth: fitWidth ? 0 : statW, boxSizing: 'border-box', borderBottom: bdr, borderRight: bdr, textAlign: 'center' };
@@ -531,7 +564,7 @@ export default function FocusTracker({
               </td>
             );
           })}
-          <td style={{ ...pctCell, zIndex: 4, background: '#FFFDFA', height: 34, fontWeight: 700, color: FOCUS.muted, fontSize: 10 }}>%</td>
+          {!leanBoard && <td style={{ ...pctCell, zIndex: 4, background: '#FFFDFA', height: 34, fontWeight: 700, color: FOCUS.muted, fontSize: 10 }}>%</td>}
         </tr>
       </thead>
       <tbody>
@@ -545,7 +578,7 @@ export default function FocusTracker({
                 group's habit rows. The label stays pinned to the right while
                 the coloured bar scrolls (month/year zoom). */}
             <tr>
-              <td colSpan={columns.length + 2} onClick={() => toggleGroup(g.id)}
+              <td colSpan={spanAll} onClick={() => toggleGroup(g.id)}
                 style={{ padding: 0, borderBottom: bdr, background: hexAlpha(g.color, 0.08), cursor: 'pointer', userSelect: 'none' }}>
                 <div style={{ position: 'sticky', right: 0, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 8px', maxWidth: '100%' }}>
                   <ChevronDown size={14} color={darken(g.color)} style={{ flexShrink: 0, transform: open ? 'none' : 'rotate(90deg)', transition: 'transform .15s' }} />
@@ -576,6 +609,7 @@ export default function FocusTracker({
                       ? `${weekProgress[task.id].met ? '✓' : '◦'} ${weekProgress[task.id].label}${invested > 0 ? ` · ⏱ ${fmtInvested(invested)}` : ''}`
                       : (invested > 0 ? `⏱ ${fmtInvested(invested)}` : null)}
                     bankCount={bankCounts[task.id] || 0}
+                    wrapTitle={leanBoard}
                     /* Personal board: the row opens the habit's task bank
                        (its details stay one long-press away). Business
                        tracker keeps opening the node's home sheet. */
@@ -583,19 +617,25 @@ export default function FocusTracker({
                     onLongPress={boardTag ? (x, y) => setRowMenu({ task, x, y }) : null} />
                   {columns.map(col => (
                     <Cell key={col} task={task} col={col} colKind={colKind} logSet={logSet} logMap={logMap} today={today} color={g.color} w={fitWidth ? null : cellW} onToggle={onCellTap}
-                      execCount={execCounts[task.id + '|' + col] || 0} />
+                      execCount={execCounts[task.id + '|' + col] || 0} lean={leanBoard} />
                   ))}
-                  <td style={{ ...pctCell }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1.1, minHeight: 34, padding: '2px 0' }}>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: rowStat.expected ? pctColor(p) : FOCUS.muted }}>{pctText(rowStat.done, rowStat.expected)}</span>
-                      <span style={{ fontSize: 9, color: FOCUS.muted }}>🔥{streak}</span>
-                      {period === 'month' && rowStat.expected > 0 && (
-                        <div style={{ width: '82%', height: 3, borderRadius: 2, background: '#F0E4D0', overflow: 'hidden', marginTop: 2 }}>
-                          <div style={{ width: `${Math.round(p * 100)}%`, height: '100%', background: pctColor(p) }} />
-                        </div>
-                      )}
-                    </div>
-                  </td>
+                  {/* The % column and the 🔥 streak are gone on the personal
+                      board — their width belongs to the task name. The per-row
+                      progress survives as the fraction under the name
+                      (weekProgress label), so nothing is lost, only moved. */}
+                  {!leanBoard && (
+                    <td style={{ ...pctCell }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1.1, minHeight: 34, padding: '2px 0' }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: rowStat.expected ? pctColor(p) : FOCUS.muted }}>{pctText(rowStat.done, rowStat.expected)}</span>
+                        <span style={{ fontSize: 9, color: FOCUS.muted }}>🔥{streak}</span>
+                        {period === 'month' && rowStat.expected > 0 && (
+                          <div style={{ width: '82%', height: 3, borderRadius: 2, background: '#F0E4D0', overflow: 'hidden', marginTop: 2 }}>
+                            <div style={{ width: `${Math.round(p * 100)}%`, height: '100%', background: pctColor(p) }} />
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -603,7 +643,7 @@ export default function FocusTracker({
                 'חד פעמי' chips). colSpan spans the whole width like the header. */}
             {open && groupFooter && (
               <tr>
-                <td colSpan={columns.length + 2} style={{ padding: 0, borderBottom: bdr, background: hexAlpha(g.color, 0.04) }}>
+                <td colSpan={spanAll} style={{ padding: 0, borderBottom: bdr, background: hexAlpha(g.color, 0.04) }}>
                   <div style={{ position: 'sticky', right: 0, display: 'inline-block', maxWidth: '100%' }}>
                     {groupFooter(g)}
                   </div>
@@ -625,9 +665,11 @@ export default function FocusTracker({
               </td>
             );
           })}
-          <td style={{ ...pctCell, background: '#FFFDFA', borderTop: `2px solid ${FOCUS.border}`, fontSize: 12, fontWeight: 800, color: grandStat.expected ? pctColor(grandStat.done / grandStat.expected) : FOCUS.muted }}>
-            {pctText(grandStat.done, grandStat.expected)}
-          </td>
+          {!leanBoard && (
+            <td style={{ ...pctCell, background: '#FFFDFA', borderTop: `2px solid ${FOCUS.border}`, fontSize: 12, fontWeight: 800, color: grandStat.expected ? pctColor(grandStat.done / grandStat.expected) : FOCUS.muted }}>
+              {pctText(grandStat.done, grandStat.expected)}
+            </td>
+          )}
         </tr>
       </tbody>
     </table>
@@ -638,8 +680,10 @@ export default function FocusTracker({
       {chips}
       {headerSlot}
 
-      {/* ── Quick add (collapsible) + add-from-existing ── */}
-      {quickAdd && (
+      {/* ── Quick add (collapsible) + add-from-existing ──
+          quickAddFooter moves this to the BOTTOM of the content (personal
+          tab); the business tracker keeps it here at the top. */}
+      {quickAdd && !quickAddFooter && (
         <QuickAddRow arms={quickAddArms} defaultArmId={defaultArmId} onAdd={createRecurring}
           onPick={boardTag ? () => setPickerOpen(true) : null}
           onAddTopic={groupByDomain ? createDomain : null} />
@@ -651,6 +695,10 @@ export default function FocusTracker({
           only thing on screen. It used to navigate to /lifeos/focus/today —
           the business Focus screen — which was wrong for אישי. The business
           tracker keeps that navigation. */}
+      {/* hideTodayStrip: the personal tab replaced this card with the week bar
+          in PersonalBoard, which carries the same נותרו count and אומץ line.
+          The business tracker still renders it. */}
+      {!hideTodayStrip && (
       <div onClick={() => (boardTag ? (setPeriod('day'), setCursor(today)) : navigate('/lifeos/focus/today'))}
         style={{ margin: '0 12px 8px', display: 'flex', alignItems: 'center', gap: 12, background: allDone ? 'linear-gradient(135deg,#FFF3E9,#FFE4CF)' : FOCUS.card, border: `1px solid ${FOCUS.border}`, borderRadius: 14, boxShadow: FOCUS.neu, padding: '9px 14px', cursor: 'pointer' }}>
         <MiniRing done={strip.done} total={strip.total} />
@@ -668,6 +716,7 @@ export default function FocusTracker({
         </div>
         <ChevronLeft size={18} color={FOCUS.muted} />
       </div>
+      )}
 
       {/* ── Controls: one compact row (arrows + period + scope) ── */}
       <div style={{ padding: '0 12px 8px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -692,6 +741,15 @@ export default function FocusTracker({
             ))}
           </div>
         )}
+        {/* The filter trigger sits at the LEFT edge of this row. RTL flex lays
+            children right→left, so "left edge" is the LAST child; the spacer
+            pushes it there when there are no arm chips to take the slack. */}
+        {filterSlot && (
+          <>
+            {armChips.length <= 1 && <div style={{ flex: 1, minWidth: 0 }} />}
+            {filterSlot}
+          </>
+        )}
       </div>
 
       {/* ── Monthly single-habit trend line across the weeks ── */}
@@ -705,6 +763,18 @@ export default function FocusTracker({
       ) : (
         <div style={{ flex: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 12px 24px' }}>{grid}</div>
       )}
+      {/* Quick add at the BOTTOM (personal tab). `single` collapses the three
+          buttons into one primary — the other two become secondary rows inside
+          the panel it opens. */}
+      {quickAdd && quickAddFooter && (
+        <div style={{ paddingTop: 10 }}>
+          <QuickAddRow arms={quickAddArms} defaultArmId={defaultArmId} onAdd={createRecurring}
+            onPick={boardTag ? () => setPickerOpen(true) : null}
+            onAddTopic={groupByDomain ? createDomain : null}
+            single />
+        </div>
+      )}
+
       {footerSlot}
 
       {/* ── Long-press mini bar ── */}
@@ -761,7 +831,7 @@ export default function FocusTracker({
 }
 
 // ── Row label: tap = open home sheet, long-press = mini bar ─────────
-function RowLabel({ task, style, onTap, onLongPress, subline = null, bankCount = 0 }) {
+function RowLabel({ task, style, onTap, onLongPress, subline = null, bankCount = 0, wrapTitle = false }) {
   const t = useRef({ x: 0, y: 0, moved: false, long: false, timer: null });
   const start = (e) => {
     const p = e.touches ? e.touches[0] : e;
@@ -775,14 +845,22 @@ function RowLabel({ task, style, onTap, onLongPress, subline = null, bankCount =
   const end = () => { clearTimeout(t.current.timer); if (!t.current.long && !t.current.moved) onTap(); };
   return (
     <td onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerLeave={() => clearTimeout(t.current.timer)}
-      style={{ ...style, padding: '2px 8px', cursor: 'pointer', userSelect: 'none', touchAction: 'pan-y' }}>
+      style={{ ...style, padding: '2px 8px', cursor: 'pointer', userSelect: 'none', touchAction: 'pan-y',
+        // wrapTitle rows grow instead of clipping, so `overflow:hidden` from
+        // the shared nameCell style must not apply here.
+        ...(wrapTitle ? { overflow: 'visible' } : {}) }}>
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1, minHeight: 30 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          {task.is_fear_task && <Flame size={11} color={FOCUS.red} style={{ flexShrink: 0 }} />}
-          {/* minWidth:0 so the title actually ellipsises inside the narrower
-              fit-mode name column instead of pushing the cell wider (a flex
-              item won't shrink below its content without it). */}
-          <span style={{ minWidth: 0, fontSize: 12.5, fontWeight: 600, color: FOCUS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title || 'משימה'}</span>
+        <div style={{ display: 'flex', alignItems: wrapTitle ? 'flex-start' : 'center', gap: 5, flexWrap: wrapTitle ? 'wrap' : 'nowrap' }}>
+          {task.is_fear_task && <Flame size={11} color={FOCUS.red} style={{ flexShrink: 0, marginTop: wrapTitle ? 2 : 0 }} />}
+          {/* Default: minWidth:0 so the title ellipsises inside the narrow
+              fit-mode column instead of pushing the cell wider.
+              wrapTitle: the opposite contract — the name is never truncated,
+              so it WRAPS and the row gets taller. Ellipsis at any fixed width
+              can always cut a name; wrapping is the only way to promise it
+              won't. */}
+          <span style={wrapTitle
+            ? { flex: '1 1 100%', minWidth: 0, fontSize: 12.5, fontWeight: 600, color: FOCUS.ink, whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.3 }
+            : { minWidth: 0, fontSize: 12.5, fontWeight: 600, color: FOCUS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title || 'משימה'}</span>
           <span style={{ fontSize: 9, color: FOCUS.muted, flexShrink: 0 }}>{freqLabel(task)}</span>
           {/* Bank badge — makes the sub-item list discoverable on the row. */}
           {bankCount > 0 && (
@@ -796,7 +874,7 @@ function RowLabel({ task, style, onTap, onLongPress, subline = null, bankCount =
 }
 
 // ── Quick-add: collapsed to a [+] button; expands to the full form ──
-function QuickAddRow({ arms, defaultArmId, onAdd, onPick, onAddTopic }) {
+function QuickAddRow({ arms, defaultArmId, onAdd, onPick, onAddTopic, single = false }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [freq, setFreq] = useState('daily');
@@ -824,6 +902,19 @@ function QuickAddRow({ arms, defaultArmId, onAdd, onPick, onAddTopic }) {
     <button key={k} onClick={() => setFreq(k)}
       style={{ padding: '6px 11px', borderRadius: 18, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', border: `1px solid ${freq === k ? FOCUS.orange : FOCUS.border}`, background: freq === k ? hexAlpha(FOCUS.orange, 0.14) : '#fff', color: freq === k ? '#B4531A' : FOCUS.muted }}>{l}</button>
   );
+
+  // `single` — ONE primary button. מהקיים and נושא חדש are not gone: they move
+  // inside the panel this opens, as secondary rows, with their strings intact.
+  if (!open && single) {
+    return (
+      <div style={{ margin: '0 12px 8px' }}>
+        <button onClick={() => setOpen(true)}
+          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '13px', borderRadius: 14, border: 'none', background: FOCUS.orangeGrad, boxShadow: '0 4px 12px rgba(255,111,32,0.35)', color: '#fff', fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+          <Plus size={18} /> הוסף הרגל
+        </button>
+      </div>
+    );
+  }
 
   if (!open) {
     return (
@@ -887,9 +978,42 @@ function QuickAddRow({ arms, defaultArmId, onAdd, onPick, onAddTopic }) {
           </select>
         )}
       </div>
+
+      {/* The other two actions, relocated here as secondary rows when the row
+          above collapsed to a single primary button. Same strings, same
+          handlers — only the placement changed. */}
+      {single && (onPick || onAddTopic) && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${FOCUS.border}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {onPick && (
+            <button onClick={onPick} style={secondaryRow}>
+              <ListPlus size={16} color={FOCUS.orange} /> <span>מהקיים</span>
+            </button>
+          )}
+          {onAddTopic && (
+            <button onClick={() => setTopicOpen(o => !o)} style={secondaryRow}>
+              <FolderPlus size={16} color={FOCUS.orange} /> <span>נושא חדש</span>
+            </button>
+          )}
+          {onAddTopic && topicOpen && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input autoFocus value={topic} onChange={(e) => setTopic(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') saveTopic(); }}
+                placeholder="שם הנושא החדש…" style={{ flex: 1, minWidth: 0, border: `1px solid ${FOCUS.border}`, borderRadius: 11, padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', color: FOCUS.ink, background: '#FFFDFA', outline: 'none' }} />
+              <button onClick={saveTopic} disabled={!topic.trim()} style={{ flexShrink: 0, padding: '0 16px', borderRadius: 11, border: 'none', background: topic.trim() ? FOCUS.orangeGrad : FOCUS.border, color: '#fff', fontWeight: 800, fontSize: 13.5, cursor: topic.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}>הוסף</button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
+const secondaryRow = {
+  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+  padding: '10px 12px', borderRadius: 11,
+  border: `1px solid ${FOCUS.border}`, background: '#FFFDFA',
+  color: FOCUS.ink, fontSize: 13, fontWeight: 700,
+  cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right',
+};
 
 // ── Add-from-existing: recurring tasks NOT on the board, by arm ─────
 function AddExistingSheet({ groups, onAdd, onClose }) {
@@ -926,7 +1050,7 @@ function AddExistingSheet({ groups, onAdd, onClose }) {
 }
 
 // ── One table cell (<td>) ──────────────────────────────────────────
-function Cell({ task, col, colKind, logSet, logMap, today, color, w, onToggle, execCount = 0 }) {
+function Cell({ task, col, colKind, logSet, logMap, today, color, w, onToggle, execCount = 0, lean = false }) {
   if (colKind === 'month') {
     // Year zoom: month columns → compact percent number.
     const s = taskMonthStats(task, logSet, monthDays(col), today);
@@ -947,6 +1071,48 @@ function Cell({ task, col, colKind, logSet, logMap, today, color, w, onToggle, e
   const tappable = !future && (wN ? true : (expected || logged));
   const isToday = col === today;
   let inner;
+  // ── lean board: exactly THREE cell states, nothing else ──
+  //   done    filled ORANGE square, white check
+  //   missed  white square, faint dash
+  //   empty   recessed neutral square, no orange anywhere
+  // Orange is reserved for the active tab, the current day and completed
+  // marks — so the mark uses FOCUS.orange, not the group colour.
+  if (lean) {
+    if (logged) {
+      inner = (
+        <span style={{
+          width: 17, height: 17, borderRadius: 5, background: FOCUS.orange, color: '#fff',
+          fontSize: execCount >= 2 ? 10 : 11, fontWeight: 900,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        }}>{execCount >= 2 ? execCount : '✓'}</span>
+      );
+    } else if (row?.status === 'skipped') {
+      inner = (
+        <span style={{
+          width: 17, height: 17, borderRadius: 5, background: '#fff',
+          border: `1px solid ${FOCUS.border}`,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{ width: 8, height: 2, borderRadius: 2, background: hexAlpha(FOCUS.muted, 0.45), display: 'block' }} />
+        </span>
+      );
+    } else {
+      inner = (
+        <span style={{
+          width: 17, height: 17, borderRadius: 5,
+          background: '#F4EEE4',
+          boxShadow: 'inset 1px 1px 3px rgba(184,160,128,0.45), inset -1px -1px 2px rgba(255,255,255,0.85)',
+          display: 'inline-block', opacity: future ? 0.55 : 1,
+        }} />
+      );
+    }
+    return (
+      <td onClick={tappable ? () => onToggle(task, col) : undefined}
+        style={{ ...(w ? { width: w, minWidth: w } : {}), height: 34, textAlign: 'center', verticalAlign: 'middle', borderBottom: `1px solid ${FOCUS.border}`, cursor: tappable ? 'pointer' : 'default', background: isToday ? hexAlpha(FOCUS.orange, 0.1) : 'transparent', padding: 0 }}>
+        {inner}
+      </td>
+    );
+  }
   if (logged) {
     // Done → checkmark + the short summary text (if any) inside the cell.
     // Two or more executions that day → the COUNT replaces the checkmark, the
