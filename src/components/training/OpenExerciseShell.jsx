@@ -122,7 +122,8 @@ export default function OpenExerciseShell({
   tempo,
   chips = [],
   setCounter,          // { current, total }
-  completedSets = [],  // [{ label, sub }]
+  completedSets = [],  // [{ label, sub, rest }]
+  restAverage = null,  // measured mean rest, seconds
   primaryButton,       // { label, onClick, disabled }
   onCollapse,
   children,
@@ -263,24 +264,43 @@ export default function OpenExerciseShell({
       {/* 7 — the variant's own entry UI, untouched. */}
       {children}
 
-      {/* 8 — strip of completed sets. */}
+      {/* 8 — strip of completed sets. Three columns: set, what was
+             performed, and the MEASURED rest before it. Rest is never
+             asked of the trainee; when it can't be measured the cell
+             reads לא נמדד rather than 0. */}
       {completedSets.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
-          {completedSets.map((s, i) => (
-            <span key={i} style={{
-              display: 'inline-flex', alignItems: 'baseline', gap: 5,
-              background: '#F0FDF4',
-              border: '1px solid #BBF7D0',
-              borderRadius: 8,
-              padding: '5px 10px',
-              fontFamily: SANS, fontSize: 13, color: '#166534',
+        <div style={{ marginTop: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {completedSets.map((s, i) => (
+              <span key={i} style={{
+                display: 'inline-flex', alignItems: 'baseline', gap: 6,
+                background: '#F0FDF4',
+                border: '1px solid #BBF7D0',
+                borderRadius: 8,
+                padding: '5px 10px',
+                fontFamily: SANS, fontSize: 13, color: '#166534',
+                lineHeight: 1.5,
+              }}>
+                <span style={{ fontWeight: 500 }}>{s.label}</span>
+                {s.sub != null && String(s.sub).trim() !== '' && (
+                  <span style={{ color: '#4d7c5a', fontSize: 12 }}>{s.sub}</span>
+                )}
+                {s.rest != null && String(s.rest).trim() !== '' && (
+                  <span style={{ color: '#7a8f80', fontSize: 12 }}>{s.rest}</span>
+                )}
+              </span>
+            ))}
+          </div>
+          {restAverage != null && (
+            <div style={{
+              fontFamily: SANS, fontSize: 12, color: MUTED,
+              marginTop: 6, textAlign: 'right',
             }}>
-              <span style={{ fontWeight: 500 }}>{s.label}</span>
-              {s.sub != null && String(s.sub).trim() !== '' && (
-                <span style={{ color: '#4d7c5a', fontSize: 12 }}>{s.sub}</span>
-              )}
-            </span>
-          ))}
+              מנוחה ממוצעת {Math.floor(restAverage / 60) > 0
+                ? `${Math.floor(restAverage / 60)}:${String(restAverage % 60).padStart(2, '0')} דק׳`
+                : `${restAverage} שנ׳`}
+            </div>
+          )}
         </div>
       )}
 

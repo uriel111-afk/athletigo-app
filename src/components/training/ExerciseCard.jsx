@@ -16,7 +16,10 @@ import { supabase } from '../../lib/supabaseClient';
 import ScrollPickerPopup, { REPS_OPTIONS, SECONDS_OPTIONS, WEIGHT_OPTIONS } from '../ScrollPickerPopup';
 import ActualsGrid from './ActualsGrid';
 import { formatTime } from '../../lib/formatTime';
+import { toast } from 'sonner';
 import { useLongPress } from '../../lib/useLongPress';
+import SetEntryWheels, { METRIC_DEFS } from './SetEntryWheels';
+import ExerciseEndCard from './ExerciseEndCard';
 import OpenExerciseShell, { ParamLine, PositionSquare } from './OpenExerciseShell';
 
 // Stripe + border palette per exercise variant. The trainee execution
@@ -2126,6 +2129,38 @@ export default function ExerciseCard({
     parseInt(exercise.sets, 10) || 0,
   );
   const isSetDone = (idx) => !!(setLog?.[idx]?.done);
+
+  // ── Wheel entry state ─────────────────────────────────────────────
+  // One entry per measured value the exercise actually uses. Values are
+  // held per open set and flushed to exercise_set_logs when the trainee
+  // taps the primary button.
+  const [wheelValues, setWheelValues] = useState({});
+  const [wheelSetIdx, setWheelSetIdx] = useState(null);
+  const [savingSet, setSavingSet] = useState(false);
+  const [showEndCard, setShowEndCard] = useState(false);
+  const [endCardSaving, setEndCardSaving] = useState(false);
+  const onWheelChange = React.useCallback((k, v) => {
+    setWheelValues((prev) => ({ ...prev, [k]: v }));
+  }, []);
+
+  // ── Measured rest ─────────────────────────────────────────────────
+  // Wall-clock seconds between the previous set's save and this one,
+  // for the SAME exercise inside the SAME execution. Never asked of the
+  // trainee. Set 1 writes null; a gap over 600s writes null rather than
+  // a bogus number (the trainee walked away). Held in a ref, so a
+  // page reload mid-workout also yields null — unmeasurable, not
+  // guessed.
+  const lastSetSavedAtRef = useRef(null);
+  const REST_CAP_SECONDS = 600;
+  const measureRestSeconds = React.useCallback((setIdx) => {
+    if (setIdx <= 0) return null;
+    const prev = lastSetSavedAtRef.current;
+    if (!prev) return null;
+    const delta = Math.round((Date.now() - prev) / 1000);
+    if (!Number.isFinite(delta) || delta < 0) return null;
+    if (delta > REST_CAP_SECONDS) return null;
+    return delta;
+  }, []);
   // Scroll-picker open state for the single rep-based exercise block.
   // Held here (not inside the render IIFE) so the picker survives
   // re-renders triggered by the picker's own onSelect.
@@ -2374,15 +2409,110 @@ export default function ExerciseCard({
         if (hasValue(row.reps_completed)) bits.push(`${row.reps_completed} חז׳`);
         if (hasValue(row.time_completed)) bits.push(formatTime(Number(row.time_completed)));
         if (hasValue(row.weight_used)) bits.push(`${row.weight_used} ק"ג`);
-        out.push({ label: `סט ${i + 1}`, sub: bits.join(' · ') });
+        // Third column — measured rest. Set 1 and unmeasurable gaps
+        // read לא נמדד rather than 0, which would be a lie.
+        const restRaw = pyramidActuals?.[i + 1]?.rest_seconds_actual ?? row.rest_seconds_actual;
+        const rest = i === 0
+          ? 'לא נמדד'
+          : (hasValue(restRaw) ? `מנוחה ${formatTime(Number(restRaw))}` : 'לא נמדד');
+        out.push({ label: `סט ${i + 1}`, sub: bits.join(' · '), rest });
       }
       return out;
+    })();
+
+    // Average measured rest across the sets that produced a number.
+    const restAverageSeconds = (() => {
+      const log = setLog || {};
+      const vals = [];
+      for (let i = 1; i < totalSets; i++) {
+        if (!isSetDone(i)) continue;
+        const r = pyramidActuals?.[i + 1]?.rest_seconds_actual ?? (log[i] || {}).rest_seconds_actual;
+        if (hasValue(r) && Number.isFinite(Number(r))) vals.push(Number(r));
+      }
+      if (vals.length === 0) return null;
+      return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
     })();
 
     const doneSetCount = (() => {
       let n = 0;
       for (let i = 0; i < totalSets; i++) if (isSetDone(i)) n++;
       return n;
+    })();
+
+    // ── Wheel metrics ────────────────────────────────────────────────
+    // Only values the exercise actually prescribes get a wheel. weight
+    // is absent from every live exercise today, so in practice most
+    // rows show one wheel (reps) or one wheel (seconds).
+    const wheelPlanned = {
+      reps: hasValue(exercise.reps) ? Number(exercise.reps) : null,
+      seconds: hasValue(holdRaw) ? toSeconds(holdRaw) : null,
+      weight: hasValue(exercise.weight) ? Number(exercise.weight) : null,
+    };
+    const wheelMetrics = ['reps', 'seconds', 'weight']
+      .filter((k) => wheelPlanned[k] != null)
+      .map((k) => METRIC_DEFS[k]);
+
+    // The set being entered = the first one not yet done.
+    const activeSetIdx = (() => {
+      for (let i = 0; i < totalSets; i++) if (!isSetDone(i)) return i;
+      return totalSets;                     // all done
+    })();
+    const isLastSet = totalSets > 0 && activeSetIdx === totalSets - 1;
+    const allSetsDone = totalSets > 0 && activeSetIdx >= totalSets;
+
+    // What the PREVIOUS set recorded — drives both the "בסט הקודם"
+    // line and the opening value from set 2 onward.
+    const prevSetValues = (() => {
+      if (activeSetIdx <= 0) return {};
+      const row = (setLog || {})[activeSetIdx - 1] || {};
+      const out = {};
+      if (hasValue(row.reps_completed)) out.reps = Number(row.reps_completed);
+      if (hasValue(row.time_completed)) out.seconds = Number(row.time_completed);
+      if (hasValue(row.weight_used)) out.weight = Number(row.weight_used);
+      return out;
+    })();
+
+    // Opening value: set 1 opens on planned, later sets on what the
+    // previous set recorded (falling back to planned when it recorded
+    // nothing for that metric).
+    const openingValues = (() => {
+      const out = {};
+      for (const m of wheelMetrics) {
+        out[m.key] = activeSetIdx === 0
+          ? wheelPlanned[m.key]
+          : (prevSetValues[m.key] ?? wheelPlanned[m.key]);
+      }
+      return out;
+    })();
+    const effectiveWheelValues = (() => {
+      const out = {};
+      for (const m of wheelMetrics) {
+        out[m.key] = (wheelSetIdx === activeSetIdx && wheelValues[m.key] != null)
+          ? wheelValues[m.key]
+          : openingValues[m.key];
+      }
+      return out;
+    })();
+
+    const showWheels = !isCoachMode
+      && sectionTrackingMode !== 'display'
+      && wheelMetrics.length > 0
+      && !allSetsDone;
+
+    const deviatesFromPlan = wheelMetrics.some(
+      (m) => effectiveWheelValues[m.key] !== wheelPlanned[m.key],
+    );
+    const leadMetric = wheelMetrics[0] || null;
+
+    const primaryLabel = (() => {
+      if (allSetsDone) return 'התרגיל הושלם';
+      if (isLastSet) return 'שמור וסיים תרגיל';
+      if (!deviatesFromPlan) return 'בוצע כמתוכנן · לסט הבא';
+      const lm = leadMetric;
+      const val = lm ? effectiveWheelValues[lm.key] : null;
+      return lm && val != null
+        ? `שמור ${val} ${lm.noun} · לסט הבא`
+        : 'שמור · לסט הבא';
     })();
 
     const wrapperByStatus = (() => {
@@ -4892,24 +5022,119 @@ export default function ExerciseCard({
             setCounter={{ current: Math.min(doneSetCount + 1, totalSets), total: totalSets }}
             completedSets={completedSetsStrip}
             onCollapse={() => setExpanded(false)}
+            restAverage={restAverageSeconds}
             primaryButton={
-              sectionTrackingMode === 'display' || isCoachMode
+              sectionTrackingMode === 'display' || isCoachMode || allSetsDone
                 ? null
                 : {
-                    label: doneSetCount >= totalSets && totalSets > 0
-                      ? 'התרגיל הושלם'
-                      : `סיים סט ${Math.min(doneSetCount + 1, totalSets)}`,
-                    disabled: totalSets === 0 || doneSetCount >= totalSets,
-                    onClick: () => {
-                      // Advance to the first set that is not yet done.
-                      for (let i = 0; i < totalSets; i++) {
-                        if (!isSetDone(i)) { handleSetToggle(i); return; }
+                    label: primaryLabel,
+                    disabled: totalSets === 0 || savingSet,
+                    onClick: async () => {
+                      if (savingSet || activeSetIdx >= totalSets) return;
+                      const idx = activeSetIdx;
+                      setSavingSet(true);
+                      try {
+                        // Persist the wheel values through the existing
+                        // save path, with the measured rest attached.
+                        if (pyramidExecutionId && wheelMetrics.length > 0) {
+                          await saveSetActual(
+                            supabase, pyramidExecutionId, exercise.id, 0, idx + 1,
+                            {
+                              reps: effectiveWheelValues.reps ?? null,
+                              hold_seconds: effectiveWheelValues.seconds ?? null,
+                              weight_kg: effectiveWheelValues.weight ?? null,
+                              rest_seconds: measureRestSeconds(idx),
+                            },
+                          );
+                        }
+                        lastSetSavedAtRef.current = Date.now();
+                        // Mirror the values into the in-memory set log so
+                        // the completed-sets strip updates immediately.
+                        if (typeof onSetValueChange === 'function') {
+                          if (effectiveWheelValues.reps != null) onSetValueChange(exercise, idx, effectiveWheelValues.reps, 'reps');
+                          if (effectiveWheelValues.seconds != null) onSetValueChange(exercise, idx, effectiveWheelValues.seconds, 'seconds');
+                          if (effectiveWheelValues.weight != null) onSetValueChange(exercise, idx, effectiveWheelValues.weight, 'kg');
+                        }
+                        handleSetToggle(idx);
+                        // Reset so the next set opens on its own value.
+                        setWheelValues({});
+                        setWheelSetIdx(null);
+                        if (idx === totalSets - 1) setShowEndCard(true);
+                      } catch (e) {
+                        console.warn('[ExerciseCard] set save failed:', e?.message);
+                        toast.error('שמירת הסט נכשלה');
+                      } finally {
+                        setSavingSet(false);
                       }
                     },
                   }
             }
           >
-        {expanded && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
+            {showWheels && (
+              <SetEntryWheels
+                metrics={wheelMetrics}
+                values={effectiveWheelValues}
+                planned={wheelPlanned}
+                previous={prevSetValues}
+                setNumber={activeSetIdx + 1}
+                onChange={(k, v) => { setWheelSetIdx(activeSetIdx); onWheelChange(k, v); }}
+              />
+            )}
+
+            {/* Closing card — appears once the last set is saved.
+                Every field is optional; לתרגיל הבא always proceeds. */}
+            {showEndCard && !isCoachMode && (
+              <ExerciseEndCard
+                exerciseName={name}
+                setsCompleted={doneSetCount}
+                saving={endCardSaving}
+                onSubmit={async ({ difficulty, note }) => {
+                  setEndCardSaving(true);
+                  try {
+                    // Difficulty lands on the LAST set's log row.
+                    if (difficulty != null && pyramidExecutionId && totalSets > 0) {
+                      const { error } = await supabase
+                        .from('exercise_set_logs')
+                        .update({ difficulty_rating: difficulty })
+                        .eq('execution_id', pyramidExecutionId)
+                        .eq('exercise_id', exercise.id)
+                        .eq('drill_index', 0)
+                        .eq('set_number', totalSets);
+                      if (error) console.warn('[end-card] difficulty save failed:', error.message);
+                    }
+                    // Free text lands on exercise_executions.trainee_note.
+                    if (note && pyramidExecutionId) {
+                      const { data: existing } = await supabase
+                        .from('exercise_executions')
+                        .select('id')
+                        .eq('workout_execution_id', pyramidExecutionId)
+                        .eq('exercise_id', exercise.id)
+                        .limit(1);
+                      if (existing && existing.length > 0) {
+                        await supabase.from('exercise_executions')
+                          .update({ trainee_note: note }).eq('id', existing[0].id);
+                      } else {
+                        await supabase.from('exercise_executions').insert({
+                          workout_execution_id: pyramidExecutionId,
+                          exercise_id: exercise.id,
+                          section_id: exercise.training_section_id || null,
+                          is_completed: true,
+                          trainee_note: note,
+                          completed_at: new Date().toISOString(),
+                        });
+                      }
+                    }
+                  } catch (e) {
+                    console.warn('[end-card] save failed:', e?.message);
+                  } finally {
+                    setEndCardSaving(false);
+                    setShowEndCard(false);
+                    setExpanded(false);
+                  }
+                }}
+              />
+            )}
+        {expanded && !showWheels && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
           && sectionTrackingMode !== 'display'
           && actualsMetrics.length > 0
           && (() => {
@@ -4962,7 +5187,7 @@ export default function ExerciseCard({
           );
         })()}
 
-        {expanded && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
+        {expanded && !showWheels && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
           /* Legacy IIFE — now fires ONLY for display-mode sections, or for
              exercises that prescribe no fillable metric at all (so the new
              ActualsGrid above renders nothing). In every executable case
@@ -5477,7 +5702,7 @@ export default function ExerciseCard({
             The set count that used to live here was a duplicate of the
             shell's set-counter pill and has been removed; only the
             muted hint remains. Display-only — does NOT write to the DB. */}
-        {expanded && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
+        {expanded && !showWheels && (variant === 'normal' || variant === 'none' || variant === 'reps_new')
           && !(sectionTrackingMode !== 'display' && hasValue(exercise.sets) && hasValue(exercise.reps))
           && !(sectionTrackingMode !== 'display' && hasValue(exercise.sets) && !hasValue(exercise.reps)
                && (hasValue(exercise.work_time) || hasValue(holdRaw)))
