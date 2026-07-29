@@ -33,16 +33,8 @@ export async function getExecutionsForPlan(planId, traineeId) {
 // every progress graph that groups by plan still sees this as another
 // performance of the same workout (a new data point).
 //
-// Crucially: the per-exercise `completed` flag and the per-section
-// `completed` flag live on the plan-shared `exercises` /
-// `training_sections` rows, NOT inside workout_executions. If we only
-// inserted the new execution row, the lined-page UI would still read
-// `exercise.completed === true` from the previous performance and
-// render every exercise as done. So we also reset those two flags
-// for the plan before returning. Historical executions still keep
-// their own `exercise_set_logs` rows (different execution_id), so
-// previous performances are intact in WorkoutExecutionReadOnly — that
-// component derives completion from set logs, not from these flags.
+// This function INSERTS one workout_executions row and nothing else.
+// It must never update or delete anything keyed to the source plan.
 export async function createDuplicatedExecution({
   planId, traineeId, note = 'שוכפל על ידי המאמן',
 }) {
@@ -71,28 +63,13 @@ export async function createDuplicatedExecution({
     throw error;
   }
 
-  // Reset the plan-level completion flags so the duplicate opens
-  // with every exercise/section as "לא בוצע". Best-effort — a
-  // failure here doesn't invalidate the duplicate row itself, just
-  // means the trainee may see stale completion ticks until the
-  // first toggle clears them.
-  try {
-    await supabase
-      .from('exercises')
-      .update({ completed: false })
-      .eq('training_plan_id', planId);
-  } catch (e) {
-    console.warn('[createDuplicatedExecution] exercises reset failed:', e?.message);
-  }
-  try {
-    await supabase
-      .from('training_sections')
-      .update({ completed: false })
-      .eq('training_plan_id', planId);
-  } catch (e) {
-    console.warn('[createDuplicatedExecution] sections reset failed:', e?.message);
-  }
-
+  // NOTE: this function used to follow the insert with two writes
+  // against the SOURCE plan:
+  //   exercises.update({completed:false}).eq('training_plan_id', planId)
+  //   training_sections.update({completed:false}).eq('training_plan_id', planId)
+  // Both were removed. No duplicate flow may write to the plan it is
+  // copying from — that is the class of bug behind the 2026-07-29
+  // data loss. This function now only INSERTS its own execution row.
   return data;
 }
 

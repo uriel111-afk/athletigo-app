@@ -2325,8 +2325,8 @@ export default function TraineeProfile() {
     queryKey: ['training-plans', user?.id],
     queryFn: async () => {
       const [assigned, created] = await Promise.all([
-        base44.entities.TrainingPlan.filter({ assigned_to: user.id }, '-created_at').catch(() => []),
-        base44.entities.TrainingPlan.filter({ created_by: user.id }, '-created_at').catch(() => [])
+        base44.entities.TrainingPlan.filter({ assigned_to: user.id, status: { $ne: 'deleted' } }, '-created_at').catch(() => []),
+        base44.entities.TrainingPlan.filter({ created_by: user.id, status: { $ne: 'deleted' } }, '-created_at').catch(() => [])
       ]);
       const combined = [...(assigned || []), ...(created || [])];
       const uniquePlans = Array.from(new Map(combined.map(item => [item.id, item])).values());

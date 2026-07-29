@@ -20,6 +20,8 @@ import { notifyExerciseUpdated, notifyPlanUpdated } from "@/functions/notificati
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { createDuplicatedExecution, readSectionRating } from "@/lib/workoutExecutionApi";
+import { softDeletePlan, buildPlanDeleteMessage } from "@/lib/plansApi";
+import CopyBadge from "@/components/plans/CopyBadge";
 import { saveSetActual } from "@/lib/plannedSets";
 
 // End-of-workout multi-select chips. Stored verbatim into
@@ -2087,19 +2089,18 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     }
   };
 
-  // Coach-only: hard-delete the plan and everything keyed to it.
-  // Confirmed via window.confirm because the action is irreversible.
-  // Order matters: child rows first so foreign keys don't block the
-  // final plan delete.
+  // Coach-only: SOFT-delete the plan. Flips training_plans.status to
+  // 'deleted' for this one id and nothing else — no cascade into
+  // exercises, training_sections or workout_executions. The row and
+  // all of its content stay recoverable, which is the whole point:
+  // the previous hard cascade destroyed a source plan that a coach
+  // had mistaken for its own duplicate (2026-07-29).
   const handleDeletePlan = async () => {
     if (!plan?.id) return;
-    if (!window.confirm(`למחוק את התוכנית "${plan.plan_name || ''}" לצמיתות? לא ניתן לשחזר.`)) return;
+    const message = await buildPlanDeleteMessage(plan);
+    if (!window.confirm(message)) return;
     try {
-      await supabase.from('exercises').delete().eq('training_plan_id', plan.id);
-      await supabase.from('training_sections').delete().eq('training_plan_id', plan.id);
-      await supabase.from('workout_executions').delete().eq('plan_id', plan.id);
-      const { error } = await supabase.from('training_plans').delete().eq('id', plan.id);
-      if (error) throw error;
+      await softDeletePlan(plan.id);
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
       queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
       queryClient.invalidateQueries({ queryKey: ['workouts-plan-details'] });
@@ -2228,8 +2229,13 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
               flex: 1,
               minWidth: 0,
               wordBreak: 'break-word',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              flexWrap: 'wrap',
             }}>
-              {plan?.plan_name || 'תכנית אימון'}
+              <span>{plan?.plan_name || 'תכנית אימון'}</span>
+              <CopyBadge plan={plan} style={{ fontFamily: 'Rubik, sans-serif' }} />
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
               {/* DOM order gear → chevron. Under RTL flex the last DOM

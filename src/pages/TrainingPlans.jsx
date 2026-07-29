@@ -28,6 +28,8 @@ import { notifyPlanCreated } from "@/functions/notificationTriggers";
 import TraineePlanGroup from "../components/training/TraineePlanGroup";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import useMultiSelect from "../hooks/useMultiSelect";
+import { duplicatePlan } from "@/lib/plansApi";
+import CopyBadge from "@/components/plans/CopyBadge";
 import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
@@ -363,16 +365,12 @@ export default function TrainingPlans() {
 
   const deletePlanMutation = useMutation({
     mutationFn: async (planId) => {
-      // Soft-delete: status='deleted' + deleted_at=now. Trainees see
-      // the change immediately because MyPlan filters out deleted
-      // plans, and we don't lose the row + its exercise history.
-      // The previous version cascade-DELETED sections + exercises
-      // too, which was destructive and made the coach's "ביטול
-      // טעות" impossible — we intentionally drop that cascade.
-      await base44.entities.TrainingPlan.update(planId, {
-        status: 'deleted',
-        deleted_at: new Date().toISOString(),
-      });
+      // Soft-delete: status='deleted' on the plan row only. Trainees
+      // see the change immediately because every plan read filters
+      // the 'deleted' value out, and we don't lose the row + its
+      // exercise history. No cascade into sections / exercises.
+      // training_plans has no deleted_at column — do not add one here.
+      await base44.entities.TrainingPlan.update(planId, { status: 'deleted' });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
@@ -1088,16 +1086,12 @@ export default function TrainingPlans() {
               onClick: async () => {
                 const ids = Array.from(planSel.selectedIds);
                 try {
+                  // Deep copy via the shared implementation — one call
+                  // per selected plan. Each copy gets its own sections
+                  // and exercises plus a parent_plan_id, so it can
+                  // never be confused with the plan it came from.
                   for (const id of ids) {
-                    const src = plans.find(p => p.id === id);
-                    if (!src) continue;
-                    const { id: _omit, created_at: _omit2, ...rest } = src;
-                    await supabase.from('training_plans').insert({
-                      ...rest,
-                      plan_name: ((src.plan_name || src.name || '') + ' (עותק)').trim(),
-                      name: ((src.name || src.plan_name || '') + ' (עותק)').trim(),
-                      created_at: new Date().toISOString(),
-                    });
+                    await duplicatePlan(id);
                   }
                   queryClient.invalidateQueries({ queryKey: ['training-plans'] });
                   invalidateDashboard(queryClient);
@@ -1262,9 +1256,15 @@ function PlanCard({ plan, contents, isExpanded, onToggle, onEdit, onDuplicate, o
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontSize: 16, fontWeight: 600, marginBottom: 4, color: '#1A1A1A',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            display: 'flex', alignItems: 'center', gap: 8, minWidth: 0,
           }}>
-            {plan.plan_name || plan.name || 'תוכנית ללא שם'}
+            <span style={{
+              overflow: 'hidden', textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap', minWidth: 0,
+            }}>
+              {plan.plan_name || plan.name || 'תוכנית ללא שם'}
+            </span>
+            <CopyBadge plan={plan} />
           </div>
           <div style={{
             fontSize: 13, color: '#888',

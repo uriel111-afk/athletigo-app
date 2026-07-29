@@ -14,7 +14,7 @@ const buildCoachSteps = (userId) => [
   { key: "sessions", label: "טוען מפגשים", queryKey: QUERY_KEYS.SESSIONS,
     fn: () => base44.entities.Session.list('-date', 1000).catch(() => []) },
   { key: "plans", label: "טוען תוכניות", queryKey: QUERY_KEYS.PLANS,
-    fn: () => base44.entities.TrainingPlan.filter({ created_by: userId }, '-created_at', 1000).catch(() => []) },
+    fn: () => base44.entities.TrainingPlan.filter({ created_by: userId, status: { $ne: 'deleted' } }, '-created_at', 1000).catch(() => []) },
   { key: "leads", label: "טוען לידים", queryKey: QUERY_KEYS.LEADS,
     fn: () => base44.entities.Lead.list('-created_at', 1000).catch(() => []) },
 ];
@@ -22,7 +22,7 @@ const buildCoachSteps = (userId) => [
 const buildTraineeSteps = (userId) => [
   { key: "plans", label: "טוען תוכניות אימון",
     queryKey: ['training-plans', userId],
-    fn: () => base44.entities.TrainingPlan.filter({ assigned_to: userId }, '-start_date').catch(() => []) },
+    fn: () => base44.entities.TrainingPlan.filter({ assigned_to: userId, status: { $ne: 'deleted' } }, '-start_date').catch(() => []) },
   { key: "sessions", label: "טוען מפגשים",
     queryKey: ['trainee-sessions', userId],
     fn: async () => {

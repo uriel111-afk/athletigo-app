@@ -33,6 +33,8 @@ export default function TrainingPlanView() {
     queryFn: async () => {
       const result = await base44.entities.TrainingPlan.get(planId);
       if (!result) throw new Error('Plan not found');
+      // A soft-deleted plan must not open, even via a direct link.
+      if (result.status === 'deleted') throw new Error('Plan not found');
       return result;
     },
     enabled: !!planId,

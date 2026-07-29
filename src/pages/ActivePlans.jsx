@@ -19,6 +19,8 @@ import PlanFormDialog from "@/components/training/PlanFormDialog";
 import ViewToggle, { useViewToggle } from "@/components/ViewToggle";
 import { QUERY_KEYS } from "@/components/utils/queryKeys";
 import { notifyPlanCreated } from "@/functions/notificationTriggers";
+import { buildPlanDeleteMessage } from "@/lib/plansApi";
+import CopyBadge from "@/components/plans/CopyBadge";
 
 export default function ActivePlans() {
   const navigate = useNavigate();
@@ -40,7 +42,7 @@ export default function ActivePlans() {
   // ── Plans ──────────────────────────────────────────────────────────────
   const { data: plans = [], isLoading } = useQuery({
     queryKey: QUERY_KEYS.PLANS,
-    queryFn: () => base44.entities.TrainingPlan.filter({ created_by: coach?.id }, "-created_at", 1000),
+    queryFn: () => base44.entities.TrainingPlan.filter({ created_by: coach?.id, status: { $ne: 'deleted' } }, "-created_at", 1000),
     initialData: [],
   });
 
@@ -159,10 +161,9 @@ export default function ActivePlans() {
   const deletePlanMutation = useMutation({
     // Soft-delete so trainees and the cascade UI both update without
     // losing the row + its exercise history.
-    mutationFn: (id) => base44.entities.TrainingPlan.update(id, {
-      status: 'deleted',
-      deleted_at: new Date().toISOString(),
-    }),
+    // training_plans has no deleted_at column — status is the only
+    // marker. Nothing but the plan row is touched.
+    mutationFn: (id) => base44.entities.TrainingPlan.update(id, { status: 'deleted' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PLANS });
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
@@ -172,8 +173,9 @@ export default function ActivePlans() {
       toast.error("❌ שגיאה במחיקה: " + (err.message || "נסה שוב")),
   });
 
-  const handleDelete = (plan) => {
-    if (!window.confirm(`למחוק את תוכנית "${plan.plan_name}"?`)) return;
+  const handleDelete = async (plan) => {
+    const message = await buildPlanDeleteMessage(plan);
+    if (!window.confirm(message)) return;
     deletePlanMutation.mutate(plan.id);
   };
 
@@ -304,9 +306,12 @@ export default function ActivePlans() {
                     {/* Title row */}
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-black text-base text-gray-900 leading-snug truncate">
-                          {plan.plan_name || plan.title || "תוכנית ללא שם"}
-                        </h3>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <h3 className="font-black text-base text-gray-900 leading-snug truncate">
+                            {plan.plan_name || plan.title || "תוכנית ללא שם"}
+                          </h3>
+                          <CopyBadge plan={plan} />
+                        </div>
                         <div className="flex items-center gap-1 mt-0.5 text-xs text-gray-500">
                           <User className="w-3 h-3" />
                           <span>{plan.assigned_to_name || "לא שויך"}</span>

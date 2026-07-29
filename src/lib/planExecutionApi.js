@@ -74,7 +74,8 @@ export async function completeWorkout(executionId, feedback) {
   if (error) throw error;
   if (data.plan_id && avg != null) {
     const { data: plan } = await supabase.from('training_plans')
-      .select('best_score, execution_count').eq('id', data.plan_id).single();
+      .select('best_score, execution_count')
+      .eq('id', data.plan_id).neq('status', 'deleted').single();
     if (plan) {
       const best = (!plan.best_score || avg > Number(plan.best_score)) ? avg : plan.best_score;
       await supabase.from('training_plans')

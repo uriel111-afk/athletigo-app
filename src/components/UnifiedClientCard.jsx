@@ -223,7 +223,7 @@ export default function UnifiedClientCard({
         }
       }
 
-      const plans = await base44.entities.TrainingPlan.filter({ assigned_to: clientId });
+      const plans = await base44.entities.TrainingPlan.filter({ assigned_to: clientId, status: { $ne: 'deleted' } });
       for (const plan of plans) {
         const sections = await base44.entities.TrainingSection.filter({ training_plan_id: plan.id });
         for (const section of sections) {

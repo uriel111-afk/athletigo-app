@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
 import { base44 } from '@/api/base44Client';
 import { readExerciseSummary, readSectionRating } from '@/lib/workoutExecutionApi';
+import { duplicatePlan, softDeletePlan, buildPlanDeleteMessage } from '@/lib/plansApi';
+import CopyBadge from '@/components/plans/CopyBadge';
 import UnifiedPlanBuilder from './UnifiedPlanBuilder';
 import WorkoutExecutionReadOnly from './WorkoutExecutionReadOnly';
 import FullscreenChart from '@/components/FullscreenChart';
@@ -1082,14 +1084,13 @@ function MasterCard({
       return;
     }
     if (action === 'duplicate') {
+      // Deep copy via the shared implementation — new section and
+      // exercise rows, parent_plan_id set so the copy is identifiable.
       try {
-        const { id, created_at, ...rest } = plan;
-        const { error } = await supabase
-          .from('training_plans')
-          .insert({ ...rest, plan_name: `${plan.plan_name || 'תוכנית'} (עותק)` });
-        if (error) throw error;
+        await duplicatePlan(plan.id);
         toast.success('התוכנית שוכפלה ✅');
         queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
+        queryClient.invalidateQueries({ queryKey: ['workouts-plan-details'] });
         queryClient.invalidateQueries({ queryKey: ['training-plans'] });
       } catch (e) {
         toast.error('שכפול נכשל: ' + (e?.message || 'נסה שוב'));
@@ -1101,15 +1102,15 @@ function MasterCard({
       return;
     }
     if (action === 'delete') {
-      if (!window.confirm(`למחוק את "${plan.plan_name || ''}" לצמיתות? לא ניתן לשחזר.`)) return;
+      const message = await buildPlanDeleteMessage(plan);
+      if (!window.confirm(message)) return;
       try {
-        await supabase.from('exercises').delete().eq('training_plan_id', plan.id);
-        await supabase.from('training_sections').delete().eq('training_plan_id', plan.id);
-        await supabase.from('workout_executions').delete().eq('plan_id', plan.id);
-        const { error } = await supabase.from('training_plans').delete().eq('id', plan.id);
-        if (error) throw error;
+        // Soft delete — the plan row only. Sections, exercises and
+        // execution history are deliberately left untouched.
+        await softDeletePlan(plan.id);
         toast.success('התוכנית נמחקה');
         queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
+        queryClient.invalidateQueries({ queryKey: ['workouts-plan-details'] });
         queryClient.invalidateQueries({ queryKey: ['training-plans'] });
         if (onPlanDeleted) onPlanDeleted();
       } catch (e) {
@@ -1120,13 +1121,14 @@ function MasterCard({
 
   const copyPlanToTrainee = async (traineeId) => {
     try {
-      const { id, created_at, ...rest } = plan;
-      const { error } = await supabase
-        .from('training_plans')
-        .insert({ ...rest, assigned_to: traineeId });
-      if (error) throw error;
+      const target = (trainees || []).find((t) => t.id === traineeId);
+      await duplicatePlan(plan.id, {
+        traineeId,
+        traineeName: target?.full_name ?? null,
+      });
       toast.success('התוכנית הועתקה בהצלחה ✅');
       queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['workouts-plan-details'] });
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
     } catch (e) {
       toast.error('העתקה נכשלה: ' + (e?.message || 'נסה שוב'));
@@ -1171,8 +1173,10 @@ function MasterCard({
         fontSize: 17, fontWeight: 800, color: DARK,
         marginBottom: 4,
         paddingLeft: isCoach ? 44 : 0,
+        display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
       }}>
-        {plan.plan_name || plan.title || 'תוכנית'}
+        <span>{plan.plan_name || plan.title || 'תוכנית'}</span>
+        <CopyBadge plan={plan} />
       </div>
       <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 12 }}>
         {sectionsCount} סקשנים · {exercisesCount} תרגילים

@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronLeft } from 'lucide-react';
 import SwipeableCard from '@/components/SwipeableCard';
+import CopyBadge from '@/components/plans/CopyBadge';
 
 const ORANGE = '#FF6F20';
 const DARK = '#1a1a1a';
@@ -43,10 +44,16 @@ export default function WorkoutFolder({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontSize: 18, fontWeight: 800, color: DARK,
-            marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            marginBottom: 6,
+            display: 'flex', alignItems: 'center', gap: 8, minWidth: 0,
           }}>
-            💪 {plan.plan_name || plan.title || 'תוכנית'}
+            <span style={{
+              overflow: 'hidden', textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap', minWidth: 0,
+            }}>
+              💪 {plan.plan_name || plan.title || 'תוכנית'}
+            </span>
+            <CopyBadge plan={plan} />
           </div>
           <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>
             {sectionsCount} סקשנים · {exercisesCount} תרגילים

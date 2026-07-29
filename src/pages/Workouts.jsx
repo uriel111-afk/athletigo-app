@@ -9,7 +9,7 @@ import WorkoutFolderDetail from '@/components/training/WorkoutFolderDetail';
 import UnifiedPlanBuilder from '@/components/training/UnifiedPlanBuilder';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
-import { getPlansForTrainee, getPlanWithDetails } from '@/lib/plansApi';
+import { getPlansForTrainee, getPlanWithDetails, softDeletePlan, buildPlanDeleteMessage } from '@/lib/plansApi';
 import { getExecutionsForPlan, createDuplicatedExecution } from '@/lib/workoutExecutionApi';
 
 // Persist the (view, openPlanId) tuple in sessionStorage so a reload
@@ -187,17 +187,14 @@ export function WorkoutsInner({
     }
   };
 
-  // Coach-only: cascade-delete the plan after window.confirm. Order
-  // matters so FKs don't block the final delete.
+  // Coach-only: SOFT-delete the plan. One status flip on one row —
+  // no cascade into exercises, training_sections or workout_executions.
   const handleDeletePlan = async (plan) => {
     if (!plan?.id) return;
-    if (!window.confirm(`למחוק את "${plan.plan_name || ''}" לצמיתות? לא ניתן לשחזר.`)) return;
+    const message = await buildPlanDeleteMessage(plan);
+    if (!window.confirm(message)) return;
     try {
-      await supabase.from('exercises').delete().eq('training_plan_id', plan.id);
-      await supabase.from('training_sections').delete().eq('training_plan_id', plan.id);
-      await supabase.from('workout_executions').delete().eq('plan_id', plan.id);
-      const { error } = await supabase.from('training_plans').delete().eq('id', plan.id);
-      if (error) throw error;
+      await softDeletePlan(plan.id);
       toast.success('התוכנית נמחקה ✅');
       queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
       queryClient.invalidateQueries({ queryKey: ['workouts-plan-details'] });

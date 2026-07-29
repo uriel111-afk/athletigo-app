@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { FOCUS_LABELS } from "@/lib/sectionTypes";
 import PageLoader from "@/components/PageLoader";
 import PermGate from "@/components/PermGate";
+import CopyBadge from "@/components/plans/CopyBadge";
+import { buildPlanDeleteMessage } from "@/lib/plansApi";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts";
@@ -41,6 +43,7 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelec
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="text-xl font-black truncate text-black">{plan.plan_name}</h3>
+              <CopyBadge plan={plan} />
               {plan.status === 'פעילה' && <span className="px-2 py-0.5 rounded-full bg-[#E8F5E9] text-[#4CAF50] text-xs font-bold flex items-center gap-1"><CheckCircle className="w-3 h-3" /> פעילה</span>}
             </div>
             <div className="flex flex-wrap gap-1 mb-1">
@@ -243,9 +246,9 @@ function MyPlanInner() {
       if (!user || isCoach) return [];
       console.log('[MyPlan] loading plans for trainee:', user.id);
       try {
-        const directPlansPromise = base44.entities.TrainingPlan.filter({ assigned_to: user.id }, '-start_date').catch(() => []);
+        const directPlansPromise = base44.entities.TrainingPlan.filter({ assigned_to: user.id, status: { $ne: 'deleted' } }, '-start_date').catch(() => []);
         const assignmentsPromise = base44.entities.TrainingPlanAssignment.filter({ trainee_id: user.id }).catch(() => []);
-        const createdPlansPromise = base44.entities.TrainingPlan.filter({ created_by: user.id }, '-created_at').catch(() => []);
+        const createdPlansPromise = base44.entities.TrainingPlan.filter({ created_by: user.id, status: { $ne: 'deleted' } }, '-created_at').catch(() => []);
 
         const [directPlans, assignments, createdByMe] = await Promise.all([directPlansPromise, assignmentsPromise, createdPlansPromise]);
         console.log('[MyPlan] plans result:', {
@@ -256,7 +259,7 @@ function MyPlanInner() {
         if (assignments && assignments.length > 0) {
           const planIds = assignments.map(a => a.plan_id).filter(Boolean);
           if (planIds.length > 0) {
-            const sharedPlansPromises = planIds.map(id => base44.entities.TrainingPlan.filter({ id }).catch(() => []));
+            const sharedPlansPromises = planIds.map(id => base44.entities.TrainingPlan.filter({ id, status: { $ne: 'deleted' } }).catch(() => []));
             const sharedPlansResults = await Promise.all(sharedPlansPromises);
             sharedPlans = sharedPlansResults.flat().filter(Boolean);
           }
@@ -470,10 +473,10 @@ function MyPlanInner() {
       // trainee's MyPlan loader filters status='deleted' and the
       // coach's plan list does too, so the visual effect is the
       // same: plan disappears.
-      await base44.entities.TrainingPlan.update(planId, {
-        status: 'deleted',
-        deleted_at: new Date().toISOString(),
-      });
+      // training_plans has NO deleted_at column — writing one here was
+      // silently dropped by the entity layer's unknown-column retry.
+      // status is the single source of truth for a deleted plan.
+      await base44.entities.TrainingPlan.update(planId, { status: 'deleted' });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
@@ -537,7 +540,8 @@ function MyPlanInner() {
   });
 
   const handleDeletePlan = async (planToDelete) => {
-    if (window.confirm(`למחוק את התוכנית "${planToDelete.plan_name}"?`)) {
+    const message = await buildPlanDeleteMessage(planToDelete);
+    if (window.confirm(message)) {
       await deletePlanMutation.mutateAsync(planToDelete.id);
     }
   };

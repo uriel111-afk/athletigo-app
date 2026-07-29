@@ -11,12 +11,13 @@ export function useProgramStats() {
     queryKey: QUERY_KEYS.PLANS,
     queryFn: async () => {
       try {
-        const all = await base44.entities.TrainingPlan.filter({ created_by: user?.id }, '-created_at', 1000);
-        // Filter soft-deleted plans (status='deleted' / deleted_at
-        // populated) so a coach who deletes a plan stops seeing it
-        // on this list immediately. Old data stays in DB; the list
-        // hides it.
-        return (all || []).filter(p => p.status !== 'deleted' && !p.deleted_at);
+        // Soft-deleted plans are excluded in the query itself.
+        // Filter the 'deleted' value OUT — never filter an active
+        // value IN, because statuses are mixed Hebrew and English
+        // ('פעילה' and 'deleted'). There is no deleted_at column.
+        const all = await base44.entities.TrainingPlan.filter(
+          { created_by: user?.id, status: { $ne: 'deleted' } }, '-created_at', 1000);
+        return all || [];
       } catch { return []; }
     },
     initialData: [],
