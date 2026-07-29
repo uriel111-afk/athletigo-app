@@ -161,9 +161,12 @@ function NumberWheel({ metric, value, planned, previous, setNumber, onChange }) 
 
   return (
     <div style={{
-      background: deviates ? AMBER_BG : '#FFFFFF',
-      border: `1px solid ${deviates ? '#EBD5B0' : '#F0E4D0'}`,
-      borderRadius: 12,
+      // Sunken well — the exact opposite of the floating card it sits
+      // in, so the entry area reads as something you press into.
+      background: deviates ? AMBER_BG : '#FBF6EE',
+      border: 'none',
+      boxShadow: 'inset 2px 2px 6px rgba(197,175,145,0.40), inset -1px -1px 4px rgba(255,255,255,0.90)',
+      borderRadius: 13,
       padding: '11px 12px 9px',
       marginBottom: 10,
       transition: 'background 0.15s',
@@ -214,10 +217,11 @@ function NumberWheel({ metric, value, planned, previous, setNumber, onChange }) 
             <span key={s.offset} style={{
               fontFamily: SANS,
               fontSize: size,
-              fontWeight: isCentre ? 500 : 400,
+              fontWeight: isCentre ? 600 : 400,
               color: isCentre
-                ? (deviates ? AMBER_INK : ORANGE)
-                : (deviates ? 'rgba(65,36,2,0.32)' : '#D8CFC2'),
+                ? (deviates ? AMBER_INK : '#1a1a1a')
+                : (deviates ? 'rgba(65,36,2,0.32)'
+                  : Math.abs(s.offset) === 1 ? '#B3A794' : '#D9CDBA'),
               lineHeight: 1.1,
               minWidth: isCentre ? 44 : undefined,
               textAlign: 'center',
@@ -244,7 +248,7 @@ function NumberWheel({ metric, value, planned, previous, setNumber, onChange }) 
               <span style={{
                 width: onPlanned ? 8 : 4,
                 height: onPlanned ? 8 : 4,
-                borderRadius: 999,
+                borderRadius: 99,
                 background: onPlanned ? ORANGE : '#E4DACB',
                 display: 'block',
               }} />

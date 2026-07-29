@@ -1171,6 +1171,7 @@ export default function ExerciseCard({
   // keeps the existing set-fill UX and derived status pill. 'display'
   // means the trainee just reads the card — no fill rows, no live
   // status math, just the "תצוגה" indicator.
+  sectionTheme = null,
   sectionTrackingMode = 'full',
   // Per-set previous + record lookup for THIS exercise. Shape:
   //   { [setIdx]: { previous_reps, record_reps, previous_time, record_time } }
@@ -2515,43 +2516,39 @@ export default function ExerciseCard({
         : 'שמור · לסט הבא';
     })();
 
+    // Cards FLOAT above the recessed section tray: white, rounded, with
+    // a drop shadow tinted by the section's own colour. The ACTIVE card
+    // (next up) is always orange, in every section — that is why brand
+    // orange is excluded from the section palette.
+    const themeCardShadow = sectionTheme?.cardShadow || 'rgba(150,120,80,0.18)';
     const wrapperByStatus = (() => {
       if (expanded) {
         return {
-          background: '#F8F3E9',
-          border: 'none',
-          borderRight: '4px solid #FF6F20',
-          boxShadow: 'none',
-        };
-      }
-      if (cardStatus === 'done') {
-        return {
-          background: 'linear-gradient(135deg, #FFFFFF 0%, #F0FAF4 100%)',
-          border: 'none',
-          borderRight: '4px solid #16A34A',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(22,163,74,0.1)',
+          background: '#FFFFFF',
+          border: '1.5px solid #FF6F20',
+          boxShadow: `0 8px 20px rgba(255,111,32,0.24), 0 2px 5px ${themeCardShadow}`,
         };
       }
       if (cardStatus === 'partial') {
+        // Partial = the set in progress = the active card.
         return {
           background: '#FFFFFF',
-          border: 'none',
-          borderRight: '4px solid #FF6F20',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(255,111,32,0.08)',
+          border: '1.5px solid #FF6F20',
+          boxShadow: `0 6px 16px rgba(255,111,32,0.26), 0 1px 3px ${themeCardShadow}`,
         };
       }
+      // pending and done share the floating-card treatment
       return {
         background: '#FFFFFF',
         border: 'none',
-        borderRight: '4px solid #FF6F20',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05)',
+        boxShadow: `0 3px 8px ${themeCardShadow}, 0 1px 2px rgba(150,120,80,0.10)`,
       };
     })();
 
     return (
       <div ref={cardElRef} style={{
         ...wrapperByStatus,
-        borderRadius: 10,
+        borderRadius: expanded ? 15 : 13,
         marginBottom: expanded ? 12 : 5,
         overflow: 'hidden',
         direction: 'rtl',
@@ -2592,7 +2589,7 @@ export default function ExerciseCard({
           {!expanded && (
             <>
               {exerciseIndex != null && (
-                <PositionSquare n={exerciseIndex} size={24} done={cardStatus === 'done'} />
+                <PositionSquare n={exerciseIndex} size={24} done={cardStatus === 'done'} badge={sectionTheme?.badge} />
               )}
               {/* Status circle — sits beside the square, on the RIGHT
                   side of the row. Never on the left. */}
@@ -2605,8 +2602,12 @@ export default function ExerciseCard({
                 style={{
                   width: 12, height: 12, borderRadius: '50%',
                   marginTop: 6, flexShrink: 0, display: 'inline-block',
+                  boxSizing: 'border-box',
                   background: cardStatus === 'done' ? '#16A34A'
-                    : cardStatus === 'partial' ? '#FF6F20' : '#D6CCBE',
+                    : cardStatus === 'partial' ? '#FF6F20' : 'transparent',
+                  border: (cardStatus === 'done' || cardStatus === 'partial')
+                    ? 'none'
+                    : `2px solid ${sectionTheme?.base ? sectionTheme.base + '4D' : 'rgba(150,120,80,0.30)'}`,
                 }}
               />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -2618,8 +2619,8 @@ export default function ExerciseCard({
                   <span style={{
                     fontFamily: SANS_FONT,
                     fontSize: 16,
-                    fontWeight: 500,
-                    color: cardStatus === 'done' ? '#9aa0a6' : '#1a1a1a',
+                    fontWeight: 600,
+                    color: cardStatus === 'done' ? '#8A7E6D' : '#1a1a1a',
                     lineHeight: 1.2,
                     wordBreak: 'break-word',
                     overflowWrap: 'break-word',
@@ -2663,7 +2664,7 @@ export default function ExerciseCard({
                         <div style={{
                           fontFamily: SANS_FONT,
                           fontSize: 12,
-                          color: '#8a8177',
+                          color: '#8A7E6D',
                           marginTop: 3,
                           lineHeight: 1.45,
                           wordBreak: 'break-word',

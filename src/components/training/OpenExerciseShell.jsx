@@ -27,6 +27,9 @@ import React from 'react';
 const ORANGE = '#FF6F20';
 const INK = '#1a1a1a';
 const MUTED = '#8a8177';
+// Muted / completed text is a WARM grey, never a neutral one — a cold
+// grey reads as "disabled" against the cream surfaces.
+const WARM_GREY = '#8A7E6D';
 const SANS = "'Rubik', system-ui, sans-serif";
 
 // Tempo digits, in the order they appear in the 4-character string.
@@ -75,11 +78,11 @@ export function ParamLine({ items, fontSize = 14, dimmed = false }) {
           {i > 0 && <span style={{ color: '#D8CFC2' }} aria-hidden>·</span>}
           <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4 }}>
             <span style={{
-              color: dimmed ? '#9aa0a6' : ORANGE,
-              fontWeight: 500,
+              color: dimmed ? WARM_GREY : ORANGE,
+              fontWeight: 600,
             }}>{it.value}</span>
             <span style={{
-              color: dimmed ? '#9aa0a6' : MUTED,
+              color: WARM_GREY,
               fontWeight: 400,
               fontSize: fontSize - 2,
             }}>{it.label}</span>
@@ -92,15 +95,15 @@ export function ParamLine({ items, fontSize = 14, dimmed = false }) {
 
 // The orange rounded position square used by both the closed card and
 // the open summary row. 24px closed, 28px open.
-export function PositionSquare({ n, size = 24, done = false }) {
+export function PositionSquare({ n, size = 24, done = false, badge = null }) {
   return (
     <span
       aria-hidden
       style={{
         width: size,
         height: size,
-        borderRadius: 7,
-        background: done ? '#16A34A' : ORANGE,
+        borderRadius: 9,
+        background: done ? '#16A34A' : (badge || ORANGE),
         color: '#FFFFFF',
         fontFamily: SANS,
         fontSize: size <= 24 ? 12 : 14,
@@ -156,7 +159,7 @@ export default function OpenExerciseShell({
       >
         <span style={{
           width: 38, height: 4, borderRadius: 999,
-          background: '#E0D5C4', display: 'block',
+          background: '#E4D8C4', display: 'block',
         }} />
       </div>
 
@@ -242,20 +245,23 @@ export default function OpenExerciseShell({
       {total > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
           <span style={{
-            background: ORANGE, color: '#FFFFFF',
+            background: '#FDEDE3', color: '#993C1D',
+            boxShadow: 'inset 1px 1px 3px rgba(200,120,70,0.18)',
             borderRadius: 999, padding: '6px 14px',
-            fontFamily: SANS, fontSize: 19, fontWeight: 500,
+            fontFamily: SANS, fontSize: 19, fontWeight: 600,
             lineHeight: 1.25, flexShrink: 0,
           }}>
             סט {Math.max(1, current || 1)} מתוך {total}
           </span>
           <span style={{
             flex: 1, height: 6, borderRadius: 999,
-            background: '#F0E4D0', overflow: 'hidden', minWidth: 40,
+            background: '#F3EADC', boxShadow: 'inset 1px 1px 3px rgba(184,160,128,0.5)',
+            overflow: 'hidden', minWidth: 40,
           }}>
             <span style={{
               display: 'block', height: '100%', width: `${pct}%`,
               background: ORANGE, borderRadius: 999,
+              boxShadow: '0 1px 3px rgba(255,111,32,0.5)',
             }} />
           </span>
         </div>
@@ -320,7 +326,10 @@ export default function OpenExerciseShell({
             borderRadius: 12,
             fontFamily: SANS,
             fontSize: 16,
-            fontWeight: 500,
+            fontWeight: 600,
+            boxShadow: primaryButton.disabled
+              ? 'none'
+              : '0 4px 12px rgba(255,111,32,0.40), inset 0 1px 0 rgba(255,255,255,0.25)',
             cursor: primaryButton.disabled ? 'default' : 'pointer',
             lineHeight: 1.4,
           }}

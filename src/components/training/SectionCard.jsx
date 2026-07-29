@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Settings } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -6,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import ExerciseCard from "./ExerciseCard";
 import { getSectionType } from "@/lib/sectionTypes";
 import { getSectionColor } from "@/lib/plansApi";
+import { getSectionTheme, SECTION_PALETTE } from "@/lib/sectionTheme";
 import { useLongPress } from "@/lib/useLongPress";
 import { readSectionRating } from "@/lib/workoutExecutionApi";
 import { useSmartBackHandler } from "@/hooks/useSmartBack";
@@ -66,6 +68,8 @@ export default function SectionCard({
   useSmartBackHandler(expanded, () => setExpanded(false));
   const [renamingSection, setRenamingSection] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [colorSheetOpen, setColorSheetOpen] = useState(false);
+  const [savingColor, setSavingColor] = useState(false);
   const longPressRename = useLongPress(() => {
     if (showEditButtons && onRenameSection) setRenamingSection(true);
   });
@@ -79,6 +83,32 @@ export default function SectionCard({
   useEffect(() => {
     setCoachNotes(section?.coach_notes || "");
   }, [section?.id, section?.coach_notes]);
+
+  // Colour is saved BY SECTION NAME, not by row: choosing a colour for
+  // "חימום" paints every חימום this coach owns, in every plan, so a
+  // warm-up looks the same wherever the trainee meets it. Falls back to
+  // this single row when the section carries no coach_id.
+  const saveSectionColor = async (key) => {
+    if (!section?.id) return;
+    setSavingColor(true);
+    try {
+      let q = supabase.from('training_sections').update({ color_theme: key });
+      q = (section.section_name && section.coach_id)
+        ? q.eq('section_name', section.section_name).eq('coach_id', section.coach_id)
+        : q.eq('id', section.id);
+      const { data, error } = await q.select('id');
+      if (error) {
+        console.warn('[SectionCard] colour save failed:', error.message);
+        toast.error('שמירת הצבע נכשלה');
+        return;
+      }
+      const n = (data || []).length;
+      toast.success(n > 1 ? `הצבע הוחל על ${n} מקטעים בשם הזה` : 'הצבע נשמר');
+      setColorSheetOpen(false);
+    } finally {
+      setSavingColor(false);
+    }
+  };
 
   const saveSectionNotes = async (next) => {
     if (!section?.id) return;
@@ -132,6 +162,9 @@ export default function SectionCard({
     const b = parseInt(base.slice(5, 7), 16) || 0;
     return `rgba(${r},${g},${b},${alpha})`;
   };
+  // Per-section theme. Everything below is derived from one base hex;
+  // brand orange is never a section colour (it marks the active card).
+  const theme = getSectionTheme(section?.color_theme, index);
   const accentColor = sectionColor;
   const sectionRowBg = softTint(accentColor, 0.1);
   // Premium-Soft accent-tinted card chrome — derived from the same
@@ -150,14 +183,18 @@ export default function SectionCard({
   };
   return (
     <div style={{
-      background: '#FCFBF7',
-      border: `1px solid ${accentBorder}`,
-      borderRight: `4px solid ${accentColor}`,
-      borderRadius: 14,
+      // Recessed tray in the section's own colour. Inset shadows only —
+      // the section reads as carved into the page, so the exercise
+      // cards can float above it.
+      background: theme.tray,
+      border: 'none',
+      borderRadius: expanded ? 18 : 16,
       overflow: 'hidden',
       marginBottom: 8,
       direction: 'rtl',
-      boxShadow: `0 2px 4px rgba(0,0,0,0.03), 0 14px 28px ${accentShadow}`,
+      boxShadow: expanded
+        ? `inset 3px 3px 8px ${theme.trayShadow}, inset -2px -2px 6px rgba(255,255,255,0.85)`
+        : `inset 2px 2px 6px ${theme.trayShadow}, inset -2px -2px 6px rgba(255,255,255,0.85)`,
     }}>
       {/* Thin white "page header" band with the brand-orange rule. */}
       <div style={{ background: '#FFFFFF', borderBottom: '3px solid #FF6F20', height: 6 }} aria-hidden />
@@ -236,17 +273,17 @@ export default function SectionCard({
               style={{
                 fontFamily: "'Rubik', system-ui, sans-serif",
                 fontSize: 18,
-                fontWeight: 700,
-                color: '#1a1a1a',
+                fontWeight: 600,
+                color: theme.titleText,
                 lineHeight: 1.25,
-                letterSpacing: '-0.3px',
+                letterSpacing: '-0.2px',
                 wordBreak: 'break-word',
                 overflowWrap: 'break-word',
               }}
             >{section.section_name}</span>
           )}
           <span style={{
-            fontSize: 11, color: accentColor, fontWeight: 500,
+            fontSize: 11, color: theme.subText, fontWeight: 500,
             letterSpacing: '0.3px',
             flexShrink: 0, whiteSpace: 'nowrap',
           }}>
@@ -378,6 +415,7 @@ export default function SectionCard({
             {onRenameSection && (
               <Item icon="✎" label="שנה שם" onClick={() => setRenamingSection(true)} />
             )}
+            <Item icon="🎨" label="צבע המקטע" onClick={() => setColorSheetOpen(true)} />
             {onDuplicateSection && (
               <Item icon="📋" label="שכפל" onClick={() => onDuplicateSection(section)} />
             )}
@@ -472,6 +510,7 @@ export default function SectionCard({
                     onToggleExpanded={setExpandedExerciseId
                       ? () => setExpandedExerciseId((prev) => prev === exercise.id ? null : exercise.id)
                       : undefined}
+                    sectionTheme={theme}
                     sectionTrackingMode={section?.tracking_mode || 'full'}
                     previousSetData={previousSetDataByExercise[exercise.id] || null}
                   />
@@ -536,6 +575,86 @@ export default function SectionCard({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Section colour sheet — opened from the existing gear menu. */}
+      {colorSheetOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          onClick={() => setColorSheetOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9998,
+            background: 'rgba(20,14,8,0.42)',
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          }}
+        >
+          <div
+            dir="rtl"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 420, background: '#FFFFFF',
+              borderRadius: '18px 18px 0 0',
+              padding: '16px 16px calc(16px + env(safe-area-inset-bottom,0px))',
+              fontFamily: "'Rubik', system-ui, sans-serif",
+            }}
+          >
+            <div style={{ fontSize: 17, fontWeight: 600, color: '#1a1a1a' }}>צבע המקטע</div>
+
+            {/* Live preview: the tray, with one sample card floating in it. */}
+            <div style={{
+              background: theme.tray,
+              borderRadius: 18,
+              boxShadow: `inset 3px 3px 8px ${theme.trayShadow}, inset -2px -2px 6px rgba(255,255,255,0.85)`,
+              padding: 12, marginTop: 12,
+            }}>
+              <div style={{
+                fontSize: 15, fontWeight: 600, color: theme.titleText,
+                letterSpacing: '-0.2px', marginBottom: 8,
+              }}>{section.section_name || 'מקטע'}</div>
+              <div style={{
+                background: '#FFFFFF', borderRadius: 13, border: 'none',
+                boxShadow: `0 3px 8px ${theme.cardShadow}, 0 1px 2px rgba(150,120,80,0.10)`,
+                padding: '9px 10px', display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <span style={{
+                  width: 24, height: 24, borderRadius: 9, background: theme.badge,
+                  color: '#FFFFFF', fontSize: 12, fontWeight: 600,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                }}>1</span>
+                <span style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a' }}>תרגיל לדוגמה</span>
+              </div>
+            </div>
+
+            {/* Eight 40x40 swatches; the selected one is ringed. */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 14 }}>
+              {SECTION_PALETTE.map((sw) => {
+                const on = (section?.color_theme || SECTION_PALETTE[index % SECTION_PALETTE.length].key) === sw.key;
+                return (
+                  <button
+                    key={sw.key}
+                    type="button"
+                    disabled={savingColor}
+                    onClick={() => saveSectionColor(sw.key)}
+                    aria-label={sw.label}
+                    title={sw.label}
+                    style={{
+                      width: 40, height: 40, borderRadius: 12,
+                      background: sw.base, cursor: 'pointer', padding: 0,
+                      border: on ? '2px solid #FFFFFF' : 'none',
+                      boxShadow: on
+                        ? `0 0 0 3px ${sw.base}, 0 2px 6px rgba(0,0,0,0.18)`
+                        : '0 2px 6px rgba(0,0,0,0.12)',
+                    }}
+                  />
+                );
+              })}
+            </div>
+
+            <div style={{ fontSize: 13, color: '#8A7E6D', marginTop: 14, lineHeight: 1.6 }}>
+              הכתום שמור לתרגיל הפעיל
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
