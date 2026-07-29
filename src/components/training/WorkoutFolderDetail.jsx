@@ -16,6 +16,7 @@ import WorkoutExecutionReadOnly from './WorkoutExecutionReadOnly';
 import FullscreenChart from '@/components/FullscreenChart';
 import SwipeableCard from '@/components/SwipeableCard';
 import SharedExerciseNumericTrendGraph from '@/components/charts/ExerciseNumericTrendGraph';
+import ProgressGraph from './ProgressGraph';
 
 const ORANGE = '#FF6F20';
 const DARK = '#1a1a1a';
@@ -1731,6 +1732,16 @@ export default function WorkoutFolderDetail({
         {graphExpanded && (
           <ExerciseNumericTrendGraph plan={plan} completed={completed} />
         )}
+      </div>
+
+      {/* Progress graph — folder level. Visible to trainee and coach
+          alike; tracks each exercise across every duplicate of the plan
+          via exercises.source_exercise_id. */}
+      <div style={{ marginTop: 12 }}>
+        <ProgressGraph
+          planId={plan?.id}
+          traineeId={plan?.assigned_to || plan?.created_by || null}
+        />
       </div>
     </div>
   );

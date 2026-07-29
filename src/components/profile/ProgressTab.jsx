@@ -9,6 +9,7 @@ import {
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { exerciseInfoFor, unitLabel } from '@/lib/recordExercises';
+import ProgressGraph from '@/components/training/ProgressGraph';
 import NewRecordDialog from '@/components/forms/NewRecordDialog';
 import { Chip } from '@/components/ui/Chip';
 import { GOAL_STATUS } from '@/lib/goalsApi';
@@ -335,6 +336,23 @@ export default function ProgressTab({ traineeId }) {
   const { width: viewportWidth } = useWindowSize();
   const isMobile = viewportWidth < 480;
   const chartHeight = isMobile ? 260 : 360;
+
+  // Plans assigned to this trainee — one ProgressGraph per plan family.
+  // Deduped by family root so a plan and its copies render one graph.
+  const { data: progressPlanIds = [] } = useQuery({
+    queryKey: ['progress-tab-plans', traineeId],
+    queryFn: async () => {
+      if (!traineeId) return [];
+      const { data } = await supabase
+        .from('training_plans')
+        .select('id, parent_plan_id')
+        .eq('assigned_to', traineeId)
+        .neq('status', 'deleted');
+      const roots = new Set((data || []).map((p) => p.parent_plan_id || p.id));
+      return [...roots];
+    },
+    enabled: !!traineeId,
+  });
 
   const [openRecordFolder, setOpenRecordFolder] = useState(null);
   const [filterExercise, setFilterExercise] = useState('all');
@@ -1263,6 +1281,15 @@ export default function ProgressTab({ traineeId }) {
           }}
         />
       )}
+
+      {/* Progress graph — same component as the plans folder view, so
+          coach and trainee read identical numbers. Mounted per active
+          plan of this trainee. */}
+      {(progressPlanIds || []).map((pid) => (
+        <div key={pid} style={{ marginTop: 12 }}>
+          <ProgressGraph planId={pid} traineeId={traineeId} />
+        </div>
+      ))}
     </div>
   );
 }
