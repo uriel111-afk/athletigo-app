@@ -126,10 +126,14 @@ export default function Leads() {
 
   // In-conversation chip edits — each one persists a new schema version.
   // Optimistic: local state first so the chip row updates immediately.
+  // Rolls the chip row back on failure — the intake_schema write policy
+  // only lets a coach/admin insert a version, so a coordinator's edit is
+  // rejected by the DB and must not linger on screen as if it stuck.
   const saveSchemaVersion = async (next, okLabel) => {
+    const prev = intakeSchema;
     setIntakeSchema(next);
     try { const v = await saveIntakeSchema(next, userId); toast.success(`${okLabel} · גרסה ${v}`); }
-    catch (e) { toast.error('שמירת התהליך נכשלה: ' + (e?.message || '')); }
+    catch (e) { setIntakeSchema(prev); toast.error('שמירת התהליך נכשלה: ' + (e?.message || '')); }
   };
 
   // Quick-add — append a chip to a node's list (admins only; the button
