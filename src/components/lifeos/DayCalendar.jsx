@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { ChevronRight, ChevronLeft, Check, X, Rows3 } from 'lucide-react';
 import { FOCUS, hexAlpha, isoDate, addDays, HEB_DAYS, monthLabel } from '@/lib/lifeos/focus-api';
 import {
-  HOURS, QUARTERS, pad2, timeLabel, hourOf, hhmm, dayItems, itemsAtHour, itemsAtQuarter,
-  weekOf, monthWeeks, sameMonth, placedOn, durationOf,
+  HOURS, QUARTERS, pad2, timeLabel, hourOf, dayItems, itemsAtHour, itemsAtQuarter,
+  weekOf, monthWeeks, sameMonth, placementsOn, durationOf, startOf, isPlacementDone,
 } from '@/lib/lifeos/schedule-api';
 import { colorOfCategory } from '@/lib/lifeos/categories';
 
@@ -25,10 +25,15 @@ import { colorOfCategory } from '@/lib/lifeos/categories';
 // it is currently on. The container blocks Safari's gesture events and pins
 // touch-action to pan-y so the browser cannot zoom here at all.
 //
-// A coarser row NEVER rounds a block's time. task_time is untouched by zoom;
+// A coarser row NEVER rounds a block's time. start_time is untouched by zoom;
 // a two-hour row simply holds the blocks of both its hours, and every block
 // prints its own hh:mm (see `showTime`), so 07:45 in the 06–07 row still reads
 // as 07:45. Only a DROP is quantised, to the row's opening minute.
+//
+// The grid renders focus_placements rows, not focus_nodes. Each one carries
+// its own date, start_time, duration_minutes and done_at, and a `.node` with
+// the task it points at — so the same task may legitimately appear twice in
+// one day, and each block ticks independently.
 //
 // Placing a task never opens a dialog. Two routes, both ending in onPlace:
 //   • drag  — select an item, then drag it onto a slot (lib/lifeos/use-tap-drag)
@@ -85,7 +90,7 @@ export const parseSlotId = (id) => {
 };
 
 export default function DayCalendar({
-  nodes = [], logSet = new Set(), doneOf,
+  placements = [],
   date, onDate, view, onView, zoom = DEFAULT_ZOOM, onZoom,
   armed = null, onArm, onClearArm,
   onToggleDone, onOpenDoc, onUnschedule,
@@ -193,11 +198,11 @@ export default function DayCalendar({
       )}
 
       {view === 'month' ? (
-        <MonthGrid nodes={nodes} date={date} today={today} doneOf={doneOf} categoryOf={categoryOf}
+        <MonthGrid placements={placements} date={date} today={today} categoryOf={categoryOf}
           onPickDay={(d) => onDate(d)} />
       ) : (
-        <TimeGrid days={days} today={today} nowHour={nowHour} nodes={nodes} zoom={zoom} onZoom={onZoom}
-          armed={armed} onArm={onArm} doneOf={doneOf} categoryOf={categoryOf}
+        <TimeGrid days={days} today={today} nowHour={nowHour} placements={placements} zoom={zoom} onZoom={onZoom}
+          armed={armed} onArm={onArm} categoryOf={categoryOf}
           onToggleDone={onToggleDone} onOpenDoc={onOpenDoc} onUnschedule={onUnschedule}
           itemProps={itemProps} isSelected={isSelected} isArmed={isArmed} onEmptyTap={onEmptyTap} />
       )}
@@ -206,13 +211,13 @@ export default function DayCalendar({
 }
 
 // ── יום / שבוע: date columns × time rows ──────────────────────────
-function TimeGrid({ days, today, nowHour, nodes, zoom, onZoom, armed, onArm, doneOf, categoryOf, onToggleDone, onOpenDoc, onUnschedule, itemProps, isSelected, isArmed, onEmptyTap }) {
+function TimeGrid({ days, today, nowHour, placements, zoom, onZoom, armed, onArm, categoryOf, onToggleDone, onOpenDoc, onUnschedule, itemProps, isSelected, isArmed, onEmptyTap }) {
   const scrollRef = useRef(null);
   const wide = days.length === 1;
 
   const perDay = useMemo(
-    () => Object.fromEntries(days.map(d => [d, dayItems(nodes, d)])),
-    [days, nodes]);
+    () => Object.fromEntries(days.map(d => [d, dayItems(placements, d)])),
+    [days, placements]);
 
   // ── the rows of the grid, one descriptor each ───────────────────
   // `hours` is what the row DISPLAYS (two of them at the coarse level); drop
@@ -244,7 +249,7 @@ function TimeGrid({ days, today, nowHour, nodes, zoom, onZoom, armed, onArm, don
   const itemsIn = useCallback((row, timed) => {
     if (row.quarter != null) return itemsAtQuarter(timed, row.hours[0], row.quarter);
     if (row.hours.length === 1) return itemsAtHour(timed, row.hours[0]);
-    return timed.filter(n => row.hours.includes(hourOf(n.task_time)));
+    return timed.filter(p => row.hours.includes(hourOf(p.start_time)));
   }, []);
 
   // Scroll to the row holding the current hour when today is on screen. Keyed
@@ -301,7 +306,7 @@ function TimeGrid({ days, today, nowHour, nodes, zoom, onZoom, armed, onArm, don
                     <Slot date={d} hour={row.dropHour} quarter={row.quarter ?? 0}
                       wide={wide} minH={rowHeight} showTime={showTime}
                       items={itemsIn(row, perDay[d]?.timed || [])}
-                      armed={armed} onArm={onArm} doneOf={doneOf} categoryOf={categoryOf}
+                      armed={armed} onArm={onArm} categoryOf={categoryOf}
                       onToggleDone={onToggleDone} onOpenDoc={onOpenDoc} onUnschedule={onUnschedule}
                       itemProps={itemProps} isSelected={isSelected} isArmed={isArmed} onEmptyTap={onEmptyTap} />
                   </div>
@@ -319,7 +324,7 @@ function TimeGrid({ days, today, nowHour, nodes, zoom, onZoom, armed, onArm, don
 // A slot is a drop target for the tap-drag controller, which finds it by the
 // `data-slot` attribute — no registration, so a slot scrolled into view during
 // a drag is immediately droppable.
-function Slot({ date, hour, quarter, items, wide, minH = 26, showTime = false, armed, onArm, doneOf, categoryOf, onToggleDone, onOpenDoc, onUnschedule, itemProps, isSelected, isArmed, onEmptyTap }) {
+function Slot({ date, hour, quarter, items, wide, minH = 26, showTime = false, armed, onArm, categoryOf, onToggleDone, onOpenDoc, onUnschedule, itemProps, isSelected, isArmed, onEmptyTap }) {
   const id = slotId(date, hour, quarter);
   const slotArmed = armed && armed.date === date && armed.hour === hour && armed.quarter === quarter;
   const empty = items.length === 0;
@@ -351,24 +356,26 @@ function Slot({ date, hour, quarter, items, wide, minH = 26, showTime = false, a
         slotArmed ? (
           <span style={{ textAlign: 'center', fontSize: 13, fontWeight: 900, color: '#B4531A', lineHeight: 1 }}>+</span>
         ) : null
-      ) : items.map(n => (
-        <Block key={n.id} node={n} date={date} wide={wide} showTime={showTime} color={colorOfCategory(categoryOf(n))}
-          done={doneOf(n, date)} onTick={() => onToggleDone(n, date)}
-          onOpen={() => onOpenDoc(n, date)} onUnschedule={() => onUnschedule(n)}
-          selected={isSelected(n.id)} armedForDrag={isArmed(n.id)} dragProps={itemProps(n)} />
+      ) : items.map(p => (
+        <Block key={p.id} placement={p} wide={wide} showTime={showTime} color={colorOfCategory(categoryOf(p.node))}
+          done={isPlacementDone(p)} onTick={() => onToggleDone(p)}
+          onOpen={() => onOpenDoc(p)} onUnschedule={() => onUnschedule(p)}
+          selected={isSelected(p.id)} armedForDrag={isArmed(p.id)} dragProps={itemProps(p)} />
       ))}
     </div>
   );
 }
 
-// A placed task. Tick box at EVERY zoom level — the write is the same one the
-// habit matrix performs, whether the block sits in a two-hour row or a quarter.
+// A placed task — one focus_placements row. Tick box at EVERY zoom level; the
+// tick still writes the day mark and the execution, through the one shared
+// writer in schedule-api, so this cannot drift from the habit matrix.
 // `showTime` prints the exact hh:mm, which is what keeps a coarse row honest:
-// the row says 06–07, the block says 07:45, and the stored task_time is 07:45.
+// the row says 06–07, the block says 07:45, and the stored start_time is 07:45.
 // A block is itself a draggable item, so moving something to another hour is
 // the same gesture as bringing it in from the drawer: select, then drag.
-function Block({ node, wide, showTime, color, done, onTick, onOpen, onUnschedule, selected, armedForDrag, dragProps = {} }) {
-  const time = hhmm(node.task_time);
+function Block({ placement, wide, showTime, color, done, onTick, onOpen, onUnschedule, selected, armedForDrag, dragProps = {} }) {
+  const time = startOf(placement);
+  const title = placement.node?.title || '';
   const edge = armedForDrag ? FOCUS.orange
     : selected ? hexAlpha(FOCUS.orange, 0.85)
       : done ? hexAlpha('#16a34a', 0.5) : hexAlpha(color, 0.5);
@@ -391,14 +398,14 @@ function Block({ node, wide, showTime, color, done, onTick, onOpen, onUnschedule
       </button>
       <button onPointerDown={stop} onClick={(e) => { e.stopPropagation(); onOpen(); }}
         style={{ flex: 1, minWidth: 0, textAlign: 'right', border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit' }}>
-        <div style={{ fontSize: wide ? 12 : 8.5, fontWeight: 700, color: done ? '#15803d' : FOCUS.ink, textDecoration: done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.25 }}>{node.title}</div>
+        <div style={{ fontSize: wide ? 12 : 8.5, fontWeight: 700, color: done ? '#15803d' : FOCUS.ink, textDecoration: done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.25 }}>{title}</div>
         {wide
-          ? <div style={{ fontSize: 9, color: FOCUS.muted }}>{time} · {durationOf(node)} דק׳</div>
+          ? <div style={{ fontSize: 9, color: FOCUS.muted }}>{time} · {durationOf(placement)} דק׳</div>
           : showTime && time && <div style={{ fontSize: 7.5, fontWeight: 800, color: FOCUS.muted, lineHeight: 1.2 }}>{time}</div>}
       </button>
       {/* Always present — every zoom level, day view and week view alike. A
           block you cannot take back out is a block you stop trusting. */}
-      <button onPointerDown={stop} onClick={(e) => { e.stopPropagation(); onUnschedule(); }} aria-label={`הסר מהשעה: ${node.title}`}
+      <button onPointerDown={stop} onClick={(e) => { e.stopPropagation(); onUnschedule(); }} aria-label={`הסר מהשעה: ${title}`}
         style={{ border: 'none', background: 'none', cursor: 'pointer', color: FOCUS.muted, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, width: wide ? 20 : 14, height: wide ? 20 : 14 }}>
         <X size={wide ? 13 : 10} />
       </button>
@@ -416,7 +423,7 @@ const MAX_CELL = 78;
 const GAP = 3;
 const BOTTOM_RESERVE = 14;
 
-function MonthGrid({ nodes, date, today, doneOf, categoryOf, onPickDay }) {
+function MonthGrid({ placements, date, today, categoryOf, onPickDay }) {
   const weeks = useMemo(() => monthWeeks(date), [date]);
   const wrapRef = useRef(null);
   const rowsRef = useRef(null);
@@ -448,13 +455,14 @@ function MonthGrid({ nodes, date, today, doneOf, categoryOf, onPickDay }) {
   }, [fit]);
 
   // Dots per day, by category, capped at the 3×3 the cell can hold.
-  // placedOn, not occursOn: a dot means "something is actually booked at an
-  // hour on this day". A day with nothing booked stays completely empty, which
-  // is the only way the month view can show where the free days are.
+  // One dot per PLACEMENT, so a day holding the same task twice shows two —
+  // which is the honest reading of "how full is this day". A day with nothing
+  // booked stays completely empty, which is the only way the month view can
+  // show where the free days are.
   const dotsOf = useCallback((d) => {
-    const due = nodes.filter(n => placedOn(n, d));
-    return due.slice(0, 9).map(n => ({ id: n.id, color: colorOfCategory(categoryOf(n)), done: doneOf(n, d) }));
-  }, [nodes, categoryOf, doneOf]);
+    const due = placementsOn(placements, d);
+    return due.slice(0, 9).map(p => ({ id: p.id, color: colorOfCategory(categoryOf(p.node)), done: isPlacementDone(p) }));
+  }, [placements, categoryOf]);
 
   const dotSize = cellH >= 56 ? 5 : cellH >= 44 ? 4 : 3;
 

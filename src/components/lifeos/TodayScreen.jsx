@@ -10,12 +10,13 @@ import FocusDocSheet from '@/components/lifeos/FocusDocSheet';
 import QuickCapture from '@/components/lifeos/QuickCapture';
 import {
   FOCUS, isoDate, addDays, fetchNodes, fetchLogs, logSetFrom, logByKey,
-  logTask, unlogTask, taskLoggedOn, createNode, BOARD_TAG, PERSONAL_ARM_TITLE,
+  unlogTask, createNode, BOARD_TAG, PERSONAL_ARM_TITLE,
   indexNodes, ancestorsOf,
 } from '@/lib/lifeos/focus-api';
-import { fetchExecutions, fetchDayStates, addExecution, deleteExecution } from '@/lib/lifeos/personal-day-api';
+import { fetchExecutions, fetchDayStates } from '@/lib/lifeos/personal-day-api';
 import {
-  scheduleTask, unscheduleTask, restoreTaskTime, restorePlacement, placementOf,
+  getPlacements, scheduleTask, movePlacement, unschedule, restorePlacement,
+  setPlacementDone, snapshotOf, dateOf, startOf, placedNodeIds,
   rolloverOncePerDay, schedulingProgress, timeLabel,
 } from '@/lib/lifeos/schedule-api';
 import { categoryClassifier, colorOfCategory } from '@/lib/lifeos/categories';
@@ -24,20 +25,25 @@ import { useTapDrag } from '@/lib/lifeos/use-tap-drag';
 // ═══════════════════════════════════════════════════════════════════
 // היום — the schedule on top, the task drawer under it
 // ═══════════════════════════════════════════════════════════════════
-// Owns the data for the calendar and the drawer, because they are two views of
-// one set of rows: the drawer lists tasks, the calendar shows the ones carrying
-// a task_time. Placing writes those columns on the task itself — nothing is
-// created, nothing is copied.
+// The calendar renders focus_placements rows; the drawer renders focus_nodes
+// that have no placement yet. Placing no longer edits the task — it inserts a
+// placement, so the same task can sit twice in one day and a recurring habit
+// can be booked on a specific date.
 //
-// The next-move engine is NOT rendered here any more. NextMoveScreen.jsx is
+// focus_nodes.task_date / task_time are NOT read and NOT written here any
+// more. Both columns are still in the database, untouched.
+//
+// The next-move engine is NOT rendered here. NextMoveScreen.jsx is
 // deliberately kept on disk, unreferenced, along with priority-engine.js and
 // the focus_modes / focus_day_state reads behind it: the component still works
 // as a standalone screen, so bringing it back is a route away and needs no
 // rewrite. Nothing on this screen reads it.
 //
-// Ticking is the SAME write the habit matrix performs, at every zoom level:
-//   focus_task_logs  (logTask)      — the day mark the matrix draws
-//   focus_executions (addExecution) — the history the week maths counts
+// Ticking a block is ONE call — setPlacementDone in lib/lifeos/schedule-api —
+// which writes all three tables (the placement's done_at, the focus_task_logs
+// day mark, one focus_executions row) and, on untick, refuses to clear the day
+// mark while another placement of that task on that day is still done. The
+// calendar and the habit matrix therefore cannot drift.
 //
 // Dragging is select-then-drag, in lib/lifeos/use-tap-drag.js — @dnd-kit is
 // gone from this screen. It could not express an activation that depends on the
@@ -47,6 +53,9 @@ import { useTapDrag } from '@/lib/lifeos/use-tap-drag';
 // ═══════════════════════════════════════════════════════════════════
 
 const CAL_ZOOM_KEY = 'personal_calendar_zoom';
+// How far either side of today placements are loaded. The calendar can be
+// paged past it; the window is re-anchored on the visible date, not on today.
+const WINDOW_DAYS = 180;
 
 export default function TodayScreen({ headerSlot = null }) {
   const { user } = useContext(AuthContext);
@@ -57,6 +66,7 @@ export default function TodayScreen({ headerSlot = null }) {
   const [logs, setLogs] = useState([]);
   const [executions, setExecutions] = useState([]);
   const [dayStates, setDayStates] = useState([]);
+  const [placements, setPlacements] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
   const [date, setDate] = useState(today);
@@ -87,23 +97,35 @@ export default function TodayScreen({ headerSlot = null }) {
   const load = useCallback(async () => {
     if (!userId) return;
     const from = addDays(today, -120);
-    const [ns, lg, ex, ds] = await Promise.all([
+    const [ns, lg, ex, ds, pl] = await Promise.all([
       fetchNodes(userId),
       fetchLogs(userId, from, addDays(today, 60)),
       fetchExecutions(userId, from, today),
       fetchDayStates(userId, from, today),
+      getPlacements(userId, addDays(today, -WINDOW_DAYS), addDays(today, WINDOW_DAYS)),
     ]);
-    setNodes(ns); setLogs(lg); setExecutions(ex); setDayStates(ds);
+    console.log('[TodayScreen] load ← raw placements', pl);
+    setNodes(ns); setLogs(lg); setExecutions(ex); setDayStates(ds); setPlacements(pl);
     setLoaded(true);
   }, [userId, today]);
 
   useEffect(() => { load(); }, [load]);
 
+  // The embedded node from the join carries only id/title/tags/frequency. The
+  // category classifier walks parent_id up to the branch, so every placement
+  // gets the FULL node swapped in and falls back to the stub if the tree has
+  // not arrived yet.
+  const byId = useMemo(() => indexNodes(nodes).byId, [nodes]);
+  const placed = useMemo(
+    () => placements.map(p => ({ ...p, node: byId[p.node_id] || p.node || null })),
+    [placements, byId]);
+  const placedIds = useMemo(() => placedNodeIds(placements), [placements]);
+
   useEffect(() => {
-    if (!loaded || !nodes.length) return;
+    if (!loaded || !placed.length) return;
     let cancelled = false;
     (async () => {
-      const moved = await rolloverOncePerDay(nodes, today);
+      const moved = await rolloverOncePerDay(placed, today);
       if (!cancelled && moved.length) {
         toast(`${moved.length} משימות שלא בוצעו הועברו להיום`);
         load();
@@ -114,39 +136,33 @@ export default function TodayScreen({ headerSlot = null }) {
 
   const logSet = useMemo(() => logSetFrom(logs), [logs]);
   const logMap = useMemo(() => logByKey(logs), [logs]);
-  const doneOf = useCallback((node, d) => taskLoggedOn(node, logSet, d), [logSet]);
   const classify = useMemo(() => categoryClassifier(nodes), [nodes]);
-  const progress = useMemo(() => schedulingProgress(nodes, { date, view }), [nodes, date, view]);
+  const progress = useMemo(() => schedulingProgress(nodes, placed, { date, view }), [nodes, placed, date, view]);
 
-  // ── the one write both screens share ────────────────────────────
-  const toggleDone = async (node, d) => {
+  // ── the one write the calendar and the board share ──────────────
+  // Three tables, one call. See setPlacementDone in schedule-api.
+  const toggleDone = async (placement) => {
+    const d = dateOf(placement);
     if (d > today) { toast('אי אפשר לסמן יום עתידי'); return; }
-    const already = taskLoggedOn(node, logSet, d);
     try {
-      if (already) {
-        await unlogTask(node, d);
-        // Drop the matching execution too, or the week maths would keep
-        // counting a session on a day the matrix shows as not done.
-        const mine = executions.filter(x => x.node_id === node.id && String(x.day).slice(0, 10) === d);
-        const last = mine[mine.length - 1];
-        if (last) { try { await deleteExecution(last.id); } catch { /* log row already gone */ } }
-        toast('הסימון בוטל');
-      } else {
-        await logTask(userId, node, d);
-        try { await addExecution(userId, { node_id: node.id, day: d, minutes: node.net_minutes ?? null }); }
-        catch { /* executions table missing → the day mark still stands */ }
-        toast.success('בוצע ✓');
-      }
+      const next = !placement.done_at;
+      await setPlacementDone(placement, next, { userId, node: placement.node });
+      if (next) toast.success('בוצע ✓'); else toast('הסימון בוטל');
       await load();
     } catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
   };
 
-  const openDoc = (node, d) => setDoc({ node, date: d, existing: logMap[node.id + '|' + d] || null });
+  const openDoc = (placement) => {
+    const node = placement.node;
+    if (!node) return;
+    const d = dateOf(placement);
+    setDoc({ node, date: d, existing: logMap[node.id + '|' + d] || null });
+  };
 
   // ── placement (both routes end here) ────────────────────────────
   const place = async (node, d, hour, quarter) => {
     try {
-      await scheduleTask(node, d, hour, quarter);
+      await scheduleTask(node.id, d, timeLabel(hour, quarter));
       setPending(null); setArmedSlot(null);
       toast.success(`נקבע ל-${timeLabel(hour, quarter)}`);
       await load();
@@ -166,6 +182,8 @@ export default function TodayScreen({ headerSlot = null }) {
   };
 
   // Quick add from inside the picker — create, then place, without a dialog.
+  // due_date, not task_date: the day this is DUE is a property of the task,
+  // the hour it sits at is the placement, and task_date is no longer written.
   const quickAdd = async (title) => {
     if (!armedSlot) return;
     try {
@@ -175,9 +193,10 @@ export default function TodayScreen({ headerSlot = null }) {
       if (!parent) { toast.error('לא נמצא ענף לשייך אליו'); return; }
       const created = await createNode(userId, {
         parent_id: parent, node_type: 'task', title, tags: [BOARD_TAG],
-        task_kind: 'oneoff', task_date: armedSlot.date, net_minutes: 30, sort_order: 100,
+        task_kind: 'oneoff', due_date: armedSlot.date, net_minutes: 30, sort_order: 100,
       });
-      await scheduleTask(created, armedSlot.date, armedSlot.hour, armedSlot.quarter);
+      console.log('[TodayScreen] quickAdd ← raw createNode', created);
+      await scheduleTask(created.id, armedSlot.date, timeLabel(armedSlot.hour, armedSlot.quarter));
       setArmedSlot(null);
       toast.success('נוספה ושובצה ✓');
       await load();
@@ -185,18 +204,18 @@ export default function TodayScreen({ headerSlot = null }) {
   };
 
   // No dialog on the way out — the block leaves the grid at once and the toast
-  // carries the way back. `prev` is captured BEFORE the write, so undo restores
-  // the exact minute rather than guessing an hour from the row it sat in.
-  const unschedule = async (node) => {
-    const prev = node.task_time;
+  // carries the way back. The snapshot is taken BEFORE the delete, so undo
+  // re-places the exact minute for the exact length rather than guessing.
+  const removePlacement = async (placement) => {
+    const prev = snapshotOf(placement);
     try {
-      await unscheduleTask(node);
+      await unschedule(placement.id);
       await load();
       toast('הוחזר למגירה', {
         action: {
           label: 'ביטול',
           onClick: async () => {
-            try { await restoreTaskTime(node, prev); await load(); toast.success('הוחזר ליומן'); }
+            try { await restorePlacement(prev); await load(); toast.success('הוחזר ליומן'); }
             catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
           },
         },
@@ -205,24 +224,40 @@ export default function TodayScreen({ headerSlot = null }) {
   };
 
   // ── drag: select, then drag ─────────────────────────────────────
-  // One controller for BOTH directions — a row coming in from the drawer and a
-  // block moving between hours are the same gesture on the same code path, and
-  // both end here with the slot the finger was over.
-  const onDrop = useCallback(async (node, rawSlot) => {
+  // One controller for BOTH directions, and the dropped item tells them apart:
+  // anything carrying node_id is an existing PLACEMENT being moved, anything
+  // else is a task coming in from the drawer for the first time.
+  const onDrop = useCallback(async (item, rawSlot) => {
     const slot = parseSlotId(rawSlot);
     if (!slot) return;
-    if (String(node.task_time || '').slice(0, 5) === timeLabel(slot.hour, slot.quarter)
-      && String(node.task_date || '').slice(0, 10) === slot.date) return;   // dropped where it already was
-    const prev = placementOf(node);
+    const time = timeLabel(slot.hour, slot.quarter);
+    const isPlacement = !!item?.node_id;
     try {
-      await scheduleTask(node, slot.date, slot.hour, slot.quarter);
+      if (isPlacement) {
+        if (startOf(item) === time && dateOf(item) === slot.date) return;   // dropped where it already was
+        const prev = snapshotOf(item);
+        await movePlacement(item.id, slot.date, time);
+        setPending(null); setArmedSlot(null);
+        await load();
+        toast.success(`נקבע ל-${time}`, {
+          action: {
+            label: 'ביטול',
+            onClick: async () => {
+              try { await movePlacement(prev.id, prev.date, prev.start_time); await load(); toast('בוטל'); }
+              catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
+            },
+          },
+        });
+        return;
+      }
+      const created = await scheduleTask(item.id, slot.date, time);
       setPending(null); setArmedSlot(null);
       await load();
-      toast.success(`נקבע ל-${timeLabel(slot.hour, slot.quarter)}`, {
+      toast.success(`נקבע ל-${time}`, {
         action: {
           label: 'ביטול',
           onClick: async () => {
-            try { await restorePlacement(node, prev); await load(); toast('בוטל'); }
+            try { await unschedule(created.id); await load(); toast('בוטל'); }
             catch (e) { toast.error('שגיאה: ' + (e?.message || '')); }
           },
         },
@@ -239,6 +274,10 @@ export default function TodayScreen({ headerSlot = null }) {
     drag.clearSelection();
     return true;
   }, [drag]);
+
+  // The ghost carries either a drawer task or a calendar block.
+  const dragged = drag.dragNode;
+  const draggedNode = dragged ? (dragged.node || dragged) : null;
 
   if (!loaded) {
     return (
@@ -257,11 +296,11 @@ export default function TodayScreen({ headerSlot = null }) {
           viewport meta is untouched — every other tab zooms as before. */}
       <div style={{ touchAction: 'pan-y' }}>
         <DayCalendar
-          nodes={nodes} logSet={logSet} doneOf={doneOf}
+          placements={placed}
           date={date} onDate={setDate} view={view} onView={pickView}
           zoom={zoom} onZoom={pickZoom}
           armed={armedSlot} onArm={armSlot} onClearArm={() => setArmedSlot(null)}
-          onToggleDone={toggleDone} onOpenDoc={openDoc} onUnschedule={unschedule}
+          onToggleDone={toggleDone} onOpenDoc={openDoc} onUnschedule={removePlacement}
           categoryOf={classify} progress={progress}
           itemProps={drag.itemProps} isSelected={drag.isSelected} isArmed={drag.isArmed}
           onEmptyTap={clearIfSelected}
@@ -270,6 +309,7 @@ export default function TodayScreen({ headerSlot = null }) {
         <TaskBankAccordion
           userId={userId} nodes={nodes} logSet={logSet}
           executions={executions} dayStates={dayStates} date={date}
+          placedIds={placedIds}
           pendingId={pending?.id || null} armedSlot={armedSlot}
           classify={classify}
           onPick={pickTask} onOpenDetails={setDetails} onQuickAdd={quickAdd} onSaved={load}
@@ -283,13 +323,13 @@ export default function TodayScreen({ headerSlot = null }) {
 
       {/* The floating item. pointerEvents:none — it sits under the finger, and
           elementFromPoint has to see the slot beneath it, not this. */}
-      {drag.dragNode && (
+      {dragged && (
         <div ref={drag.ghostRef}
           style={{ position: 'fixed', left: 0, top: 0, transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 3000,
             padding: '8px 13px', borderRadius: 999, background: '#fff',
-            border: `2px solid ${colorOfCategory(classify(drag.dragNode))}`,
+            border: `2px solid ${colorOfCategory(classify(draggedNode))}`,
             boxShadow: '0 8px 22px rgba(0,0,0,0.28)', fontSize: 13, fontWeight: 800, color: FOCUS.ink, whiteSpace: 'nowrap' }}>
-          {drag.dragNode.title}
+          {draggedNode?.title}
         </div>
       )}
 

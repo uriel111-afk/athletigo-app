@@ -5,7 +5,7 @@ import {
   FOCUS, hexAlpha, isoDate, dowOf, HEB_DAYS_FULL, BOARD_TAG, BANK_TAG, INSPIRATION_TAG,
   PERSONAL_ARM_TITLE, indexNodes, createNode, deleteNode, weeklyTargetOf, weekDoneCount, taskLoggedOn,
 } from '@/lib/lifeos/focus-api';
-import { timeLabel, durationOf } from '@/lib/lifeos/schedule-api';
+import { timeLabel, estimateMinutes } from '@/lib/lifeos/schedule-api';
 import { categoryClassifier, groupByCategory, CATEGORIES, catTagFor } from '@/lib/lifeos/categories';
 import { weekProgressMap } from '@/lib/lifeos/week-math';
 
@@ -73,7 +73,7 @@ const FREQS = [
 
 export default function TaskBankAccordion({
   nodes = [], logSet = new Set(), executions = [], dayStates = [],
-  date = isoDate(), pendingId = null, armedSlot = null,
+  date = isoDate(), pendingId = null, armedSlot = null, placedIds = new Set(),
   onPick, onOpenDetails, onQuickAdd, onSaved, userId, classify,
   itemProps = () => ({}), isSelected = () => false, isArmed = () => false,
 }) {
@@ -101,9 +101,10 @@ export default function TaskBankAccordion({
 
   const categories = useMemo(() => groupByCategory(tasks, classifier), [tasks, classifier]);
 
-  // "ממתינות" = has no hour yet. That is what the drawer is for, so it is the
-  // number the header carries.
-  const waiting = useMemo(() => tasks.filter(t => !t.task_time), [tasks]);
+  // "ממתינות" = has no placement yet. That is what the drawer is for, so it is
+  // the number the header carries. placedIds comes from focus_placements, not
+  // from a column on the task — one placement anywhere counts as placed.
+  const waiting = useMemo(() => tasks.filter(t => !placedIds.has(t.id)), [tasks, placedIds]);
   const waitingIds = useMemo(() => new Set(waiting.map(t => t.id)), [waiting]);
 
   // Personal habits show the executions-based weekly number, the same one the
@@ -169,7 +170,7 @@ export default function TaskBankAccordion({
     if (taskLoggedOn(t, logSet, today)) return '✓ היום';
     const r = ratioOf(t);
     if (r) return `${r.count}/${r.target} השבוע`;
-    return `${durationOf(t)} דק׳`;
+    return `${estimateMinutes(t)} דק׳`;
   };
 
   const picking = !!armedSlot;
@@ -299,7 +300,7 @@ export default function TaskBankAccordion({
                         pending={pendingId === t.id}
                         picking={picking}
                         label={labelOf(t)}
-                        scheduled={!!t.task_time}
+                        scheduled={placedIds.has(t.id)}
                         delMode={delMode}
                         checked={sel.has(t.id)}
                         dragSelected={isSelected(t.id)}
@@ -545,7 +546,10 @@ function NewTaskSheet({ userId, nodes, classifier, initialCategory = null, onClo
       };
       if (freq === 'oneoff') {
         fields.task_kind = 'oneoff';
-        fields.task_date = when || null;
+        // due_date, not task_date: the day a one-off is DUE is a property of
+        // the task. The hour it sits at is a focus_placements row, and nothing
+        // writes task_date any more.
+        fields.due_date = when || null;
       } else {
         fields.task_kind = 'recurring';
         fields.frequency = freq === 'weekly' ? 'weekly' : 'daily';
