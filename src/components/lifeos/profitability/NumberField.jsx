@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BRAND } from './profitabilityConstants';
+import { numericToNumber, sanitizeNumericInput } from './sanitizeNumericInput';
+
+export { numericToNumber, sanitizeNumericInput };
 
 // The numeric input for the whole profitability feature.
 //
@@ -8,31 +11,6 @@ import { BRAND } from './profitabilityConstants';
 // page the caret jumped to the wrong side — typing 250 produced 2500 / 0250.
 // Here the internal state is a STRING (empty string is legal), the element is
 // `type="text"` + `dir="ltr"`, and a leading zero is stripped as you type.
-
-export function sanitizeNumeric(raw) {
-  let s = String(raw == null ? '' : raw).replace(/[^\d.]/g, '');
-
-  // at most one decimal point
-  const firstDot = s.indexOf('.');
-  if (firstDot !== -1) {
-    s = s.slice(0, firstDot + 1) + s.slice(firstDot + 1).replace(/\./g, '');
-  }
-
-  // strip leading zeros unless the string is exactly "0" or starts "0."
-  if (s.length > 1 && s[0] === '0' && s[1] !== '.') {
-    s = s.replace(/^0+/, '');
-    if (s === '') s = '0';
-    else if (s[0] === '.') s = '0' + s;
-  }
-
-  return s;
-}
-
-export function numericToNumber(s) {
-  if (s === '' || s === '.') return 0;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : 0;
-}
 
 function textFor(value) {
   const n = Number(value);
@@ -68,7 +46,7 @@ export default function NumberField({
   };
 
   const handleChange = (e) => {
-    const next = sanitizeNumeric(e.target.value);
+    const next = sanitizeNumericInput(e.target.value);
     setText(next);
     emit(numericToNumber(next));
   };

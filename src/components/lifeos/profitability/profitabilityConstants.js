@@ -63,6 +63,23 @@ export const SERVICE_OPTIONS = [
   { label: 'מוצר', lineType: 'single' },
 ];
 
+// ── Tabs ──────────────────────────────────────────────────────────────
+export const TAB_LABELS = {
+  svc: 'שירותים',
+  prod: 'מוצרים',
+  course: 'קורסים',
+};
+
+// Per-product cost fields. `key` and `flag` are EXISTING field names inside
+// the stored `prods[]` entries — nothing here is new or renamed.
+export const PRODUCT_COST_FIELDS = [
+  { key: 'c', label: 'עלות יחידה', suffix: '₪' },
+  { key: 'ship', label: 'משלוח ליחידה', suffix: '₪', flag: 'hasShip' },
+  { key: 'agentPct', label: 'עמלת סוכן', suffix: '%', flag: 'hasAgent' },
+  { key: 'warehouse', label: 'מחסן לחודש', suffix: '₪', flag: 'hasWarehouse' },
+  { key: 'processingPct', label: 'סליקה', suffix: '%', flag: 'hasProcessing' },
+];
+
 // ── Factors ───────────────────────────────────────────────────────────
 export const FACTOR_LABELS = {
   occupancy: 'תפוסה',
@@ -97,6 +114,11 @@ export const COPY = {
   quantity: 'כמות',
   price: 'מחיר',
   noRows: 'אין עדיין שורות',
+  costs: 'עלויות',
+  hideCosts: 'הסתר עלויות',
+
+  rankingTitle: 'דירוג שורות הכנסה',
+  totalsRowLabel: 'סיכום לפי לשונית',
 
   emptyTitle: 'עוד אין תרחיש רווחיות',
   emptyBody: 'נבנה אותו יחד בחמישה צעדים קצרים',

@@ -15,8 +15,12 @@ export default function RevenueRowItem({
   onPriceChange,
   onDuplicate,
   onDelete,
+  // optional per-row cost fields — [{ key, label, value, suffix }]
+  extras = [],
+  onExtraChange,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [costsOpen, setCostsOpen] = useState(false);
   const total = rowTotal(row);
 
   return (
@@ -147,6 +151,52 @@ export default function RevenueRowItem({
           />
         </div>
       </div>
+
+      {/* optional cost fields — kept in the row so nothing becomes uneditable */}
+      {extras.length > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={() => setCostsOpen((v) => !v)}
+            style={{
+              width: '100%',
+              minHeight: 44,
+              marginTop: 6,
+              background: 'transparent',
+              border: 'none',
+              color: BRAND.textSecondary,
+              fontSize: 13,
+              fontWeight: 700,
+              fontFamily: 'inherit',
+              cursor: 'pointer',
+            }}
+          >
+            {costsOpen ? COPY.hideCosts : COPY.costs} {costsOpen ? '▲' : '▼'}
+          </button>
+
+          {costsOpen && (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                gap: 8,
+              }}
+            >
+              {extras.map((x) => (
+                <div key={x.key} style={{ minWidth: 0 }}>
+                  <div style={labelStyle}>{x.label}</div>
+                  <NumberField
+                    value={x.value}
+                    onChange={(v) => onExtraChange && onExtraChange(x.key, v)}
+                    suffix={x.suffix}
+                    ariaLabel={x.label}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

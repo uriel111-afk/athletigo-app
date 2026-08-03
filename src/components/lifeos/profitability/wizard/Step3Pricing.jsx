@@ -2,6 +2,7 @@ import React from 'react';
 import NumberField from '../NumberField';
 import QuantityStepper from '../QuantityStepper';
 import { BRAND, COPY } from '../profitabilityConstants';
+import { toNum } from '../profitabilityModel';
 import { pairsOf } from './wizardDraft';
 
 // One quantity stepper + one price field per audience × service pair.
@@ -56,7 +57,7 @@ export default function Step3Pricing({ value, onChange }) {
               <div style={{ minWidth: 0 }}>
                 <div style={labelStyle}>{COPY.quantity}</div>
                 <QuantityStepper
-                  value={Number(cell.qty) || 0}
+                  value={toNum(cell.qty)}
                   onChange={set(key, 'qty')}
                   ariaLabel={COPY.quantity}
                 />
@@ -64,7 +65,7 @@ export default function Step3Pricing({ value, onChange }) {
               <div style={{ minWidth: 0 }}>
                 <div style={labelStyle}>{COPY.price}</div>
                 <NumberField
-                  value={Number(cell.price) || 0}
+                  value={toNum(cell.price)}
                   onChange={set(key, 'price')}
                   suffix={COPY.currency}
                   ariaLabel={COPY.price}

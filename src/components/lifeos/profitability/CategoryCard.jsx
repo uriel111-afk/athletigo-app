@@ -22,6 +22,9 @@ export default function CategoryCard({
   onRowPriceChange,
   onRowDuplicate,
   onRowDelete,
+  // optional: (row) => [{ key, label, value, suffix }]
+  rowExtras,
+  onRowExtraChange,
 }) {
   const [ownExpanded, setOwnExpanded] = useState(defaultExpanded);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -190,6 +193,8 @@ export default function CategoryCard({
               onPriceChange={(v) => onRowPriceChange && onRowPriceChange(row.id, v)}
               onDuplicate={() => onRowDuplicate && onRowDuplicate(row.id)}
               onDelete={() => onRowDelete && onRowDelete(row.id)}
+              extras={rowExtras ? rowExtras(row) : []}
+              onExtraChange={(key, v) => onRowExtraChange && onRowExtraChange(row.id, key, v)}
             />
           ))}
 
