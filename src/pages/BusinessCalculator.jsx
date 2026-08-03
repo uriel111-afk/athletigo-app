@@ -1,6 +1,28 @@
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
+import SummaryBar from "@/components/lifeos/profitability/SummaryBar";
+import CategoryCard from "@/components/lifeos/profitability/CategoryCard";
+import FactorsPanel from "@/components/lifeos/profitability/FactorsPanel";
+import ProfitabilityWizard from "@/components/lifeos/profitability/wizard/ProfitabilityWizard";
+import {
+  BRAND,
+  CARD_SHADOW,
+  CATEGORY_COLORS,
+  COPY,
+  DEFAULT_FACTORS,
+} from "@/components/lifeos/profitability/profitabilityConstants";
+import {
+  categoryBreakdown,
+  duplicateCategory,
+  duplicateRow,
+  grandTotalMonthly,
+  grandTotalYearly,
+  makeCategory,
+  makeRow,
+  withRowPrice,
+  withRowQuantity,
+} from "@/components/lifeos/profitability/profitabilityModel";
 
 // ── Lumen palette ─────────────────────────────────────────────────────
 // Calculator v3 (sub tiers, manager commission, 8 expense categories,
@@ -342,6 +364,13 @@ export default function BusinessCalculator() {
   const [showAdd, setShowAdd] = useState(false);
   const [showChart, setShowChart] = useState(false);
 
+  /* ─ Profitability surface (services tab) ─ */
+  // `factors` is an additive key inside the SAME `calculator_data.data` jsonb
+  // blob — no new column, no migration.
+  const [factors, setFactors] = useState(DEFAULT_FACTORS);
+  const [showWizard, setShowWizard] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
+
   /* ─ Services ─ */
   const [items, setItems] = useState([]);
   const addItem = pr => { setItems(p => [...p, { id: uid(), city: "", months: 10, lines: [], hasMgr: false, mgrMode: "both", mgrBase: 0, mgrComm: 0, mgrNewReg: 0, hasVenue: false, venueMode: "hr", venueHr: 0, venuePct: 0, venueSess: 8, hasProcessing: false, processingPct: 3, hasMarketing: false, marketing: 0, hasInsurance: false, insurance: 0, hasEquipment: false, equipment: 0, hasAccounting: false, accounting: 0, hasTransport: false, transport: 0, ...pr.d }]); setShowAdd(false); };
@@ -364,6 +393,44 @@ export default function BusinessCalculator() {
   const setC = (id, k, v) => setCrs(p => p.map(x => x.id === id ? { ...x, [k]: v } : x));
   const delC = id => setCrs(p => p.filter(x => x.id !== id));
 
+  /* ─ Category / row handlers for the rebuilt services surface ─
+     All of them reuse the existing `items` state and the existing shape. */
+  const addCategory = () => {
+    const c = makeCategory(COPY.newCategoryName);
+    setItems(p => [...p, c]);
+    setExpandedId(c.id);
+  };
+  const duplicateCategoryById = id => setItems(p => {
+    const src = p.find(x => x.id === id);
+    return src ? [...p, duplicateCategory(src, COPY.copySuffix)] : p;
+  });
+  const addRow = catId => {
+    const row = makeRow({ name: COPY.newRowName, lineType: "single" });
+    setItems(p => p.map(x => x.id === catId ? { ...x, lines: [...(x.lines || []), row] } : x));
+    setExpandedId(catId);
+  };
+  const mapRow = (catId, rowId, fn) => setItems(p => p.map(x =>
+    x.id === catId ? { ...x, lines: (x.lines || []).map(l => l.id === rowId ? fn(l) : l) } : x
+  ));
+  const duplicateRowById = (catId, rowId) => setItems(p => p.map(x => {
+    if (x.id !== catId) return x;
+    const src = (x.lines || []).find(l => l.id === rowId);
+    return src ? { ...x, lines: [...x.lines, duplicateRow(src, COPY.copySuffix)] } : x;
+  }));
+  const applyScenario = scenario => {
+    setItems(scenario.items || []);
+    setFactors({ ...DEFAULT_FACTORS, ...(scenario.factors || {}) });
+    setExpandedId((scenario.items || [])[0]?.id || null);
+    setShowWizard(false);
+  };
+  const openWizard = () => {
+    if (items.length > 0 && !window.confirm(COPY.replaceConfirm)) return;
+    setShowWizard(true);
+  };
+
+  const scenario = useMemo(() => ({ items, factors }), [items, factors]);
+  const monthlyGross = grandTotalMonthly(scenario);
+
   // ── Load saved calculator data on entry ───────────────────────────────
   useEffect(() => {
     if (!coachId) return;
@@ -380,6 +447,7 @@ export default function BusinessCalculator() {
         if (Array.isArray(saved.items)) setItems(saved.items);
         if (Array.isArray(saved.prods)) setProds(saved.prods);
         if (Array.isArray(saved.courses)) setCrs(saved.courses);
+        if (saved.factors) setFactors({ ...DEFAULT_FACTORS, ...saved.factors });
       }
       setHydrated(true);
     })();
@@ -394,13 +462,13 @@ export default function BusinessCalculator() {
         .from("calculator_data")
         .upsert({
           coach_id: coachId,
-          data: { items, prods, courses },
+          data: { items, prods, courses, factors },
           updated_at: new Date().toISOString(),
         }, { onConflict: "coach_id" })
         .then(({ error }) => { if (error) console.error("[BusinessCalculator] save failed:", error); });
     }, 3000);
     return () => clearTimeout(timer);
-  }, [items, prods, courses, coachId, hydrated]);
+  }, [items, prods, courses, factors, coachId, hydrated]);
 
   /* ─ Calculations ─ */
   const calc = useMemo(() => {
@@ -495,22 +563,34 @@ export default function BusinessCalculator() {
   const mx = Math.max(...calc.bars.map(b => Math.abs(b.value)), 1);
 
   return (
-    <div style={{ background: BG, minHeight: "100vh", color: CR, fontFamily: "'Heebo', sans-serif", direction: "rtl", paddingBottom: showChart ? 320 : 140 }}>
+    <div style={{
+      background: BG, flex: 1, minHeight: 0, color: CR, fontFamily: "'Heebo', sans-serif", direction: "rtl",
+      paddingBottom: tab === "svc"
+        ? "calc(96px + env(safe-area-inset-bottom))"
+        : (showChart ? 320 : 140),
+    }}>
 
       {/* Header */}
       <div style={{ position: "sticky", top: 0, zIndex: 10, background: "#fff", boxShadow: "0 2px 10px rgba(200,180,150,0.3)", borderBottom: "1px solid #e8e0d4", padding: "14px 16px 12px" }}>
-        <div style={{ maxWidth: 600, margin: "0 auto", textAlign: "center" }}>
+        <div style={{ maxWidth: 720, margin: "0 auto", textAlign: "center", position: "relative" }}>
           <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 18, letterSpacing: 4, color: O, fontWeight: 700 }}>ATHLETIGO</div>
           <div style={{ fontSize: 13, color: DM, marginTop: 2 }}>מחשבון עסקי</div>
           <div style={{ marginTop: 6 }}>
             <span style={{ fontSize: 32, fontWeight: 800, color: calc.total > 0 ? G : calc.total < 0 ? R : DM }}>{nis(calc.total)}</span>
             <span style={{ fontSize: 14, color: DM, marginRight: 6 }}>לחודש</span>
           </div>
+          {tab === "svc" && !showWizard && (
+            <button type="button" onClick={openWizard} style={{
+              position: "absolute", top: 0, left: 0, minHeight: 44, padding: "0 12px", borderRadius: 10,
+              border: `1px solid ${BRAND.border}`, background: BRAND.selected, color: BRAND.orange,
+              fontSize: 13, fontWeight: 800, fontFamily: "inherit", cursor: "pointer",
+            }}>{COPY.newScenario}</button>
+          )}
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ maxWidth: 600, margin: "0 auto", padding: "14px 16px 0" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "14px 16px 0" }}>
         <div style={{ display: "flex", gap: 6, background: "#f0ebe3", borderRadius: 12, padding: 4 }}>
           {[["svc", "שירותים"], ["prod", "מוצרים"], ["course", "קורסים"]].map(([id, l]) => (
             <button key={id} onClick={() => setTab(id)} style={{
@@ -522,237 +602,90 @@ export default function BusinessCalculator() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 600, margin: "0 auto", padding: "12px 16px" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "12px 16px" }}>
 
-        {/* Ranking */}
-        <Ranking items={calc.rankItems} />
+        {/* Ranking — products / courses only; the services surface has its own SummaryBar */}
+        {tab !== "svc" && <Ranking items={calc.rankItems} />}
 
-        {/* ═══ SERVICES ═══ */}
-        {tab === "svc" && (
-          <div style={{ display: "grid", gap: 12 }}>
-            <button onClick={() => setShowAdd(!showAdd)} style={{ background: O, color: "#fff", border: "none", borderRadius: 10, padding: "14px", fontSize: 16, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", width: "100%" }}>
-              + הוסף שירות
-            </button>
-
-            {showAdd && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, background: CARD, borderRadius: 12, padding: 14, border: "1px solid #e8e0d4" }}>
-                {PRESETS.map((pr, i) => (
-                  <button key={i} onClick={() => addItem(pr)} style={{
-                    padding: "10px 16px", borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: "pointer",
-                    background: "#e8e0d4", color: CR, border: "1px solid #ddd5c8", fontFamily: "inherit"
-                  }}>{pr.label}</button>
-                ))}
-              </div>
-            )}
-
-            {items.map((g, idx) => {
-              const d = calc.iData[idx];
-              return (
-                <div key={g.id} style={{ background: CARD, borderRadius: 14, padding: 18, border: "1px solid #e8e0d4", borderTop: `3px solid ${CL[idx % CL.length]}` }}>
-                  {/* Header */}
-                  <div style={{ textAlign: "center", marginBottom: 14 }}>
-                    <div style={{ display: "flex", justifyContent: "center", gap: 10, alignItems: "center" }}>
-                      <input value={g.name} onChange={e => setI(g.id, "name", e.target.value)} placeholder="שם השירות"
-                        style={{ background: "transparent", border: "none", borderBottom: `2px solid ${CL[idx % CL.length]}`, color: CR, fontSize: 22, fontWeight: 800, width: 140, outline: "none", fontFamily: "inherit", textAlign: "center" }} />
-                      <input value={g.city} onChange={e => setI(g.id, "city", e.target.value)} placeholder="עיר"
-                        style={{ background: "transparent", border: "none", borderBottom: "1px solid #ddd5c8", color: DM, fontSize: 14, width: 55, outline: "none", fontFamily: "inherit", textAlign: "center" }} />
-                    </div>
-                    <div style={{ fontSize: 26, fontWeight: 800, color: d?.profit > 0 ? G : d?.profit < 0 ? R : DM, marginTop: 6 }}>{nis(d?.profit || 0)}<span style={{ fontSize: 13, color: DM, fontWeight: 400 }}> /חודש</span></div>
-                    <div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 6 }}>
-                      <button onClick={() => cloneI(g.id)} style={{ background: "#e8e0d4", border: "1px solid #ddd5c8", color: "#3498DB", fontSize: 13, cursor: "pointer", borderRadius: 6, padding: "4px 12px", fontFamily: "inherit" }}>שכפול</button>
-                      <button onClick={() => delI(g.id)} style={{ background: "#e8e0d4", border: "1px solid #ddd5c8", color: "#999", fontSize: 13, cursor: "pointer", borderRadius: 6, padding: "4px 12px", fontFamily: "inherit" }}>מחיקה</button>
-                    </div>
-                  </div>
-
-                  {/* Income Lines */}
-                  <div style={{ fontSize: 15, color: O, fontWeight: 700, marginBottom: 10, textAlign: "center", paddingBottom: 6, borderBottom: "1px solid #e8e0d4" }}>שורות הכנסה</div>
-                  {(g.lines || []).map((l, li) => (
-                    <IncomeLine key={l.id} line={l} calc={d?.linesCalc?.[li]}
-                      onUpdate={(k, v) => updateLine(g.id, l.id, k, v)}
-                      onDelete={() => delLine(g.id, l.id)} />
-                  ))}
-
-                  <button onClick={() => addLine(g.id)}
-                    style={{ width: "100%", padding: "12px", borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: "pointer",
-                      background: "transparent", color: DM, border: "1px dashed #ccc", fontFamily: "inherit", marginBottom: 12 }}>
-                    + שורת הכנסה חדשה
-                  </button>
-
-                  {/* Expenses */}
-                  {(g.lines || []).length > 0 && <>
-                    <div style={{ marginBottom: 10 }}>
-                      <Input label="תקופה (חודשים)" value={g.months} onChange={v => setI(g.id, "months", v)} suffix="חודשים" />
-                    </div>
-
-                    <div style={{ fontSize: 15, color: R, fontWeight: 700, marginTop: 14, marginBottom: 10, textAlign: "center", paddingBottom: 6, borderBottom: "1px solid #e8e0d4" }}>הוצאות חודשיות</div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      <div style={{ padding: 10, background: g.hasMgr ? "#f9f5ee" : "transparent", borderRadius: 8 }}>
-                        <Toggle label="מנהל/ת" on={g.hasMgr} set={v => setI(g.id, "hasMgr", v)} />
-                        {g.hasMgr && <>
-                          <Pills options={[{ value: "base", label: "בסיס" }, { value: "comm", label: "עמלה" }, { value: "both", label: "בסיס+עמלה" }]} value={g.mgrMode} onChange={v => setI(g.id, "mgrMode", v)} />
-                          {(g.mgrMode === "base" || g.mgrMode === "both") && <div style={{ marginTop: 6 }}><Input label="שכר בסיס/חודש" value={g.mgrBase} onChange={v => setI(g.id, "mgrBase", v)} small /></div>}
-                          {(g.mgrMode === "comm" || g.mgrMode === "both") && (
-                            <div style={{ marginTop: 6, display: "grid", gap: 6 }}>
-                              <Input label="₪ לכל הרשמה" value={g.mgrComm} onChange={v => setI(g.id, "mgrComm", v)} small />
-                              <Input label="הרשמות חדשות/חודש" value={g.mgrNewReg} onChange={v => setI(g.id, "mgrNewReg", v)} suffix="" small />
-                            </div>
-                          )}
-                          {g.hasMgr && (g.mgrMode === "comm" || g.mgrMode === "both") && (g.mgrComm || 0) > 0 && (g.mgrNewReg || 0) > 0 && (
-                            <div style={{ fontSize: 13, color: DM, marginTop: 4, textAlign: "center" }}>
-                              {`${g.mgrNewReg} × ${nis(g.mgrComm)} = ${nis(g.mgrNewReg * g.mgrComm)} עמלות/חודש`}
-                            </div>
-                          )}
-                        </>}
-                      </div>
-                      <div style={{ padding: 10, background: g.hasVenue ? "#f9f5ee" : "transparent", borderRadius: 8 }}>
-                        <Toggle label="מתחם" on={g.hasVenue} set={v => setI(g.id, "hasVenue", v)} />
-                        {g.hasVenue && <>
-                          <Pills options={[{ value: "hr", label: "₪/שעה" }, { value: "pct", label: "%" }]} value={g.venueMode} onChange={v => setI(g.id, "venueMode", v)} />
-                          {g.venueMode === "hr"
-                            ? <div style={{ marginTop: 6, display: "grid", gap: 6 }}><Input label="₪/שעה" value={g.venueHr} onChange={v => setI(g.id, "venueHr", v)} small /><Input label="מפגשים" value={g.venueSess} onChange={v => setI(g.id, "venueSess", v)} suffix="" small /></div>
-                            : <div style={{ marginTop: 6 }}><Input label="%" value={g.venuePct} onChange={v => setI(g.id, "venuePct", v)} suffix="%" small /></div>
-                          }
-                        </>}
-                      </div>
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
-                      <div style={{ padding: 10, background: g.hasProcessing ? "#f9f5ee" : "transparent", borderRadius: 8 }}>
-                        <Toggle label="סליקה" on={g.hasProcessing} set={v => setI(g.id, "hasProcessing", v)} />
-                        {g.hasProcessing && <div style={{ marginTop: 6 }}><Input label="%" value={g.processingPct} onChange={v => setI(g.id, "processingPct", v)} suffix="%" small /></div>}
-                      </div>
-                      <div style={{ padding: 10, background: g.hasMarketing ? "#f9f5ee" : "transparent", borderRadius: 8 }}>
-                        <Toggle label="שיווק" on={g.hasMarketing} set={v => setI(g.id, "hasMarketing", v)} />
-                        {g.hasMarketing && <div style={{ marginTop: 6 }}><Input label="₪/חודש" value={g.marketing} onChange={v => setI(g.id, "marketing", v)} small /></div>}
-                      </div>
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
-                      <div style={{ padding: 10, background: g.hasInsurance ? "#f9f5ee" : "transparent", borderRadius: 8 }}>
-                        <Toggle label="ביטוח" on={g.hasInsurance} set={v => setI(g.id, "hasInsurance", v)} />
-                        {g.hasInsurance && <div style={{ marginTop: 6 }}><Input label="₪/חודש" value={g.insurance} onChange={v => setI(g.id, "insurance", v)} small /></div>}
-                      </div>
-                      <div style={{ padding: 10, background: g.hasEquipment ? "#f9f5ee" : "transparent", borderRadius: 8 }}>
-                        <Toggle label="ציוד" on={g.hasEquipment} set={v => setI(g.id, "hasEquipment", v)} />
-                        {g.hasEquipment && <div style={{ marginTop: 6 }}><Input label="₪/חודש" value={g.equipment} onChange={v => setI(g.id, "equipment", v)} small /></div>}
-                      </div>
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
-                      <div style={{ padding: 10, background: g.hasAccounting ? "#f9f5ee" : "transparent", borderRadius: 8 }}>
-                        <Toggle label="הנה״ח" on={g.hasAccounting} set={v => setI(g.id, "hasAccounting", v)} />
-                        {g.hasAccounting && <div style={{ marginTop: 6 }}><Input label="₪/חודש" value={g.accounting} onChange={v => setI(g.id, "accounting", v)} small /></div>}
-                      </div>
-                      <div style={{ padding: 10, background: g.hasTransport ? "#f9f5ee" : "transparent", borderRadius: 8 }}>
-                        <Toggle label="נסיעות" on={g.hasTransport} set={v => setI(g.id, "hasTransport", v)} />
-                        {g.hasTransport && <div style={{ marginTop: 6 }}><Input label="₪/חודש" value={g.transport} onChange={v => setI(g.id, "transport", v)} small /></div>}
-                      </div>
-                    </div>
-
-                    {/* Summary */}
-                    {d && d.linesRev > 0 && (() => {
-                      const margin = d.revenue > 0 ? Math.round((d.profit / d.revenue) * 100) : 0;
-                      const costPerPerson = d.totalPeople > 0 ? Math.round(d.expenses / d.totalPeople) : 0;
-                      const revenuePerPerson = d.totalPeople > 0 ? Math.round(d.revenue / d.totalPeople) : 0;
-                      const profitPerPerson = d.totalPeople > 0 ? Math.round(d.profit / d.totalPeople) : 0;
-                      // Break-even: how many avg-priced subscribers needed to cover fixed costs
-                      const avgRevPerPerson = d.totalPeople > 0 ? d.revenue / d.totalPeople : 0;
-                      const fixedCosts = (d.mgrTotal || 0) + (d.venueTotal || 0) + (d.processing || 0) + (d.marketing || 0) + (g.hasInsurance ? (g.insurance || 0) : 0) + (g.hasEquipment ? (g.equipment || 0) : 0) + (g.hasAccounting ? (g.accounting || 0) : 0) + (g.hasTransport ? (g.transport || 0) : 0);
-                      const variableCostPerPerson = d.totalPeople > 0 ? d.linesTrCost / d.totalPeople : 0;
-                      const contributionPerPerson = avgRevPerPerson - variableCostPerPerson;
-                      const breakEven = contributionPerPerson > 0 ? Math.ceil(fixedCosts / contributionPerPerson) : 0;
-
-                      return (
-                      <div style={{ marginTop: 14, background: "#f5f0e8", borderRadius: 12, padding: 14, border: "1px solid #e8e0d4" }}>
-                        {/* People + Sessions */}
-                        {d.totalPeople > 0 && (
-                          <div style={{ display: "flex", justifyContent: "center", gap: 24, marginBottom: 12, paddingBottom: 10, borderBottom: "1px solid #e8e0d4" }}>
-                            <div style={{ textAlign: "center" }}>
-                              <div style={{ fontSize: 26, fontWeight: 800, color: O }}>{d.totalPeople}</div>
-                              <div style={{ fontSize: 13, color: DM }}>משתתפים</div>
-                            </div>
-                            {d.weeklySessions > 0 && (
-                              <div style={{ textAlign: "center" }}>
-                                <div style={{ fontSize: 26, fontWeight: 800, color: "#3498DB" }}>{d.weeklySessions}</div>
-                                <div style={{ fontSize: 13, color: DM }}>מפגשים/שבוע</div>
-                              </div>
-                            )}
-                            {breakEven > 0 && (
-                              <div style={{ textAlign: "center" }}>
-                                <div style={{ fontSize: 26, fontWeight: 800, color: d.totalPeople >= breakEven ? G : R }}>{breakEven}</div>
-                                <div style={{ fontSize: 13, color: DM }}>נק׳ איזון</div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Revenue / Expenses / Profit — monthly */}
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, textAlign: "center", marginBottom: 10 }}>
-                          <div>
-                            <div style={{ fontSize: 18, fontWeight: 800, color: CR }}>{nis(d.revenue)}</div>
-                            <div style={{ fontSize: 13, color: DM }}>הכנסה/חודש</div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 18, fontWeight: 800, color: R }}>{nis(d.expenses)}</div>
-                            <div style={{ fontSize: 13, color: DM }}>הוצאות/חודש</div>
-                          </div>
-                          <div>
-                            <div style={{ fontSize: 18, fontWeight: 800, color: d.profit > 0 ? G : R }}>{nis(d.profit)}</div>
-                            <div style={{ fontSize: 13, color: DM }}>רווח/חודש</div>
-                          </div>
-                        </div>
-
-                        {/* Profit bar */}
-                        <div style={{ height: 8, borderRadius: 4, background: "#e8e0d4", overflow: "hidden", marginBottom: 10 }}>
-                          <div style={{ height: "100%", width: `${Math.max(0, Math.min(100, (d.profit / (d.revenue || 1)) * 100))}%`, background: d.profit > 0 ? G : R, borderRadius: 4, transition: "width 0.3s" }} />
-                        </div>
-
-                        {/* Per-person insights */}
-                        {d.totalPeople > 0 && (
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, textAlign: "center", marginBottom: 10, paddingTop: 8, borderTop: "1px solid #e8e0d4" }}>
-                            <div>
-                              <div style={{ fontSize: 16, fontWeight: 800, color: CR }}>{nis(revenuePerPerson)}</div>
-                              <div style={{ fontSize: 12, color: DM }}>הכנסה/משתתף</div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 16, fontWeight: 800, color: R }}>{nis(costPerPerson)}</div>
-                              <div style={{ fontSize: 12, color: DM }}>עלות/משתתף</div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 16, fontWeight: 800, color: profitPerPerson > 0 ? G : R }}>{nis(profitPerPerson)}</div>
-                              <div style={{ fontSize: 12, color: DM }}>רווח/משתתף</div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Margin */}
-                        <div style={{ textAlign: "center", fontSize: 15, fontWeight: 700, color: margin > 0 ? G : margin < 0 ? R : DM }}>
-                          שולי רווח: {margin}%
-                        </div>
-
-                        {/* Season total */}
-                        {g.months > 1 && (
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, textAlign: "center", marginTop: 12, paddingTop: 10, borderTop: "1px solid #e8e0d4" }}>
-                            <div>
-                              <div style={{ fontSize: 20, fontWeight: 800, color: d.revenue > 0 ? O : DM }}>{nis(d.revenue * g.months)}</div>
-                              <div style={{ fontSize: 13, color: DM }}>הכנסה לעונה ({g.months} ח׳)</div>
-                            </div>
-                            <div>
-                              <div style={{ fontSize: 20, fontWeight: 800, color: d.seasonProfit > 0 ? G : R }}>{nis(d.seasonProfit)}</div>
-                              <div style={{ fontSize: 13, color: DM }}>רווח לעונה ({g.months} ח׳)</div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      );
-                    })()}
-                  </>}
-                </div>
-              );
-            })}
+        {/* ═══ SERVICES — profitability surface ═══ */}
+        {tab === "svc" && (showWizard ? (
+          <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+            <ProfitabilityWizard onComplete={applyScenario} onCancel={() => setShowWizard(false)} />
           </div>
-        )}
+        ) : items.length === 0 ? (
+          <div style={{
+            background: BRAND.card, border: `1px solid ${BRAND.border}`, borderRadius: 14,
+            boxShadow: CARD_SHADOW, padding: 24, textAlign: "center", overflow: "hidden",
+          }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: BRAND.textPrimary, marginBottom: 6 }}>{COPY.emptyTitle}</div>
+            <div style={{ fontSize: 14, color: BRAND.textSecondary, marginBottom: 16 }}>{COPY.emptyBody}</div>
+            <button type="button" onClick={() => setShowWizard(true)} style={{
+              width: "100%", minHeight: 44, borderRadius: 10, border: "none", background: BRAND.orange,
+              color: "#fff", fontSize: 16, fontWeight: 800, fontFamily: "inherit", cursor: "pointer",
+            }}>{COPY.emptyCta}</button>
+          </div>
+        ) : (
+          <>
+            <SummaryBar
+              monthly={monthlyGross}
+              yearly={grandTotalYearly(scenario)}
+              segments={categoryBreakdown(scenario)}
+            />
+
+            {/* category tabs + add-category chip */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+              {items.map((c, i) => {
+                const on = expandedId === c.id;
+                return (
+                  <button key={c.id} type="button" onClick={() => setExpandedId(on ? null : c.id)} style={{
+                    minHeight: 44, padding: "0 14px", borderRadius: 22,
+                    border: `1px solid ${on ? CATEGORY_COLORS[i % CATEGORY_COLORS.length] : BRAND.border}`,
+                    background: on ? BRAND.selected : BRAND.card,
+                    color: on ? CATEGORY_COLORS[i % CATEGORY_COLORS.length] : BRAND.textSecondary,
+                    fontSize: 15, fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
+                    maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}>{c.name || COPY.newCategoryName}</button>
+                );
+              })}
+              <button type="button" onClick={addCategory} style={{
+                minHeight: 44, padding: "0 14px", borderRadius: 22,
+                border: `1px dashed ${BRAND.border}`, background: "transparent",
+                color: BRAND.orange, fontSize: 15, fontWeight: 800, fontFamily: "inherit", cursor: "pointer",
+              }}>+ {COPY.addCategory}</button>
+            </div>
+
+            {items.map((c, i) => (
+              <CategoryCard
+                key={c.id}
+                category={c}
+                grandTotal={monthlyGross}
+                accent={CATEGORY_COLORS[i % CATEGORY_COLORS.length]}
+                expanded={expandedId === c.id}
+                onToggleExpanded={next => setExpandedId(next ? c.id : null)}
+                onRename={v => setI(c.id, "name", v)}
+                onAddRow={() => addRow(c.id)}
+                onDuplicate={() => duplicateCategoryById(c.id)}
+                onDelete={() => delI(c.id)}
+                onRowRename={(rowId, v) => updateLine(c.id, rowId, "name", v)}
+                onRowQuantityChange={(rowId, v) => mapRow(c.id, rowId, l => withRowQuantity(l, v))}
+                onRowPriceChange={(rowId, v) => mapRow(c.id, rowId, l => withRowPrice(l, v))}
+                onRowDuplicate={rowId => duplicateRowById(c.id, rowId)}
+                onRowDelete={rowId => delLine(c.id, rowId)}
+              />
+            ))}
+
+            <FactorsPanel
+              factors={factors}
+              gross={monthlyGross}
+              onChange={(k, v) => setFactors(f => ({ ...f, [k]: v }))}
+            />
+
+            <button type="button" onClick={() => addRow(expandedId || items[items.length - 1].id)} style={{
+              width: "100%", minHeight: 44, borderRadius: 10, border: "none", background: BRAND.orange,
+              color: "#fff", fontSize: 16, fontWeight: 800, fontFamily: "inherit", cursor: "pointer",
+            }}>+ {COPY.addRow}</button>
+          </>
+        ))}
 
         {/* ═══ PRODUCTS ═══ */}
         {tab === "prod" && (
@@ -824,7 +757,10 @@ export default function BusinessCalculator() {
         )}
       </div>
 
-      {/* STICKY BOTTOM — z-index 1060 sits above the app bottom nav; bottom:60 clears it */}
+      {/* STICKY BOTTOM — products / courses only. The services surface carries
+          its own SummaryBar + bottom action, so the fixed bar would double up
+          and cover it. z-index 1060 sits above the app bottom nav; bottom:60 clears it */}
+      {tab !== "svc" && (
       <div style={{ position: "fixed", bottom: 60, left: 0, right: 0, background: "#fff", boxShadow: "0 -2px 10px rgba(200,180,150,0.3)", borderTop: "1px solid #e8e0d4", zIndex: 1060 }}>
         <div onClick={() => setShowChart(!showChart)} style={{ textAlign: "center", padding: "5px", cursor: "pointer" }}>
           <span style={{ fontSize: 13, color: O }}>{showChart ? "▼ הסתר גרף" : "▲ הצג גרף"}</span>
@@ -858,6 +794,7 @@ export default function BusinessCalculator() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
