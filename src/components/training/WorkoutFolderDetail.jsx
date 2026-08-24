@@ -11,6 +11,7 @@ import { base44 } from '@/api/base44Client';
 import { readExerciseSummary, readSectionRating } from '@/lib/workoutExecutionApi';
 import { duplicatePlan, softDeletePlan, buildPlanDeleteMessage } from '@/lib/plansApi';
 import { useHiddenStatusBar } from '@/hooks/useHiddenStatusBar';
+import { readOpenWorkout, writeOpenWorkout } from '@/lib/workoutResume';
 import CopyBadge from '@/components/plans/CopyBadge';
 import UnifiedPlanBuilder from './UnifiedPlanBuilder';
 import WorkoutExecutionReadOnly from './WorkoutExecutionReadOnly';
@@ -1510,7 +1511,22 @@ export default function WorkoutFolderDetail({
 }) {
   // null = render the folder body. 'active' = full-screen workout via the
   // master button (canEdit/isCoach mirror the user's role).
-  const [activeMode, setActiveMode] = useState(null);
+  // Seeded from the open-workout pointer, so a trainee who was inside
+  // the sheet lands back inside the sheet — not on the folder page with
+  // a start button, which is what "screen off threw me out of the
+  // workout" actually was. Nothing about it was ever persisted before:
+  // this state started at null on every mount.
+  const [activeMode, setActiveMode] = useState(() => {
+    if (isCoach) return null;
+    const open = readOpenWorkout();
+    return (open?.active && open.planId === plan?.id) ? 'active' : null;
+  });
+
+  // Record it on every change, including the exit back to the folder.
+  useEffect(() => {
+    if (isCoach || !plan?.id) return;
+    writeOpenWorkout(plan.id, activeMode === 'active');
+  }, [isCoach, plan?.id, activeMode]);
 
   // Trainee side only: hide the device status bar for the whole time
   // this screen is open. The WebView already draws behind the system

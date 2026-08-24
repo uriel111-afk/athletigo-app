@@ -105,3 +105,57 @@ export function draftHasValues(draft) {
   }
   return false;
 }
+
+// ────────────────────────────────────────────────────────────────
+// Where the trainee actually IS: which plan, and whether the workout
+// sheet itself is open.
+//
+// This is separate from the resume point above, and it has to be,
+// because the resume point can only be written while
+// UnifiedPlanBuilder is mounted — and the whole problem is that after
+// the screen goes off, it isn't. Something has to say "there was a
+// workout open" before any of that code runs.
+//
+// localStorage, deliberately. The workout screen used to be remembered
+// in sessionStorage, which does not survive the Android WebView being
+// killed — exactly the case this is for. sessionStorage also only ever
+// recorded the plan FOLDER, never that the sheet was open inside it,
+// so even a plain reload dropped the trainee back to the folder page.
+// ────────────────────────────────────────────────────────────────
+
+const OPEN_KEY = 'athletigo_open_workout';
+
+export function readOpenWorkout() {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(OPEN_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || !parsed.planId) return null;
+    const age = Date.now() - (Number(parsed.savedAt) || 0);
+    if (!Number.isFinite(age) || age > MAX_AGE_MS) {
+      localStorage.removeItem(OPEN_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+// active = true means the workout sheet is open, not just the folder.
+export function writeOpenWorkout(planId, active) {
+  if (!planId || typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(OPEN_KEY, JSON.stringify({
+      planId, active: !!active, savedAt: Date.now(),
+    }));
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+export function clearOpenWorkout() {
+  if (typeof localStorage === 'undefined') return;
+  try { localStorage.removeItem(OPEN_KEY); } catch { /* ignore */ }
+}

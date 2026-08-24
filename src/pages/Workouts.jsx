@@ -6,6 +6,7 @@ import PageLoader from '@/components/PageLoader';
 import PermGate from '@/components/PermGate';
 import WorkoutFolder from '@/components/training/WorkoutFolder';
 import WorkoutFolderDetail from '@/components/training/WorkoutFolderDetail';
+import { readOpenWorkout, writeOpenWorkout, clearOpenWorkout } from '@/lib/workoutResume';
 import UnifiedPlanBuilder from '@/components/training/UnifiedPlanBuilder';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
@@ -71,11 +72,20 @@ export function WorkoutsInner({
   // selectedPlan starts as a minimal { id } placeholder until plans
   // load; the existing planDetails[selectedPlan.id] || selectedPlan
   // fallback inside the folder render handles the gap.
+  // readNavStorage is sessionStorage, which dies with the browsing
+  // context — precisely what happens when Android reclaims the WebView
+  // after the screen goes off. readOpenWorkout is the localStorage
+  // pointer that survives that, so it is consulted first and the
+  // session copy is kept only as a same-session fallback.
   const [view, setView] = useState(() => {
+    const open = readOpenWorkout();
+    if (open?.planId) return 'folder';
     const stored = readNavStorage();
     return stored?.view === 'folder' && stored?.planId ? 'folder' : 'list';
   });
   const [selectedPlan, setSelectedPlan] = useState(() => {
+    const open = readOpenWorkout();
+    if (open?.planId) return { id: open.planId };
     const stored = readNavStorage();
     return stored?.view === 'folder' && stored?.planId
       ? { id: stored.planId }
@@ -234,10 +244,19 @@ export function WorkoutsInner({
   useEffect(() => {
     if (view === 'folder' && selectedPlan?.id) {
       writeNavStorage({ view: 'folder', planId: selectedPlan.id });
+      // Coach browsing a trainee's plans is not "in a workout" and must
+      // not be dragged back into one on the next launch.
+      if (!isCoach) {
+        const open = readOpenWorkout();
+        // Preserve the sheet-open flag the folder itself maintains;
+        // this effect only records WHICH plan.
+        writeOpenWorkout(selectedPlan.id, open?.planId === selectedPlan.id ? open.active : false);
+      }
     } else {
       writeNavStorage(null);
+      if (!isCoach) clearOpenWorkout();
     }
-  }, [view, selectedPlan?.id]);
+  }, [view, selectedPlan?.id, isCoach]);
 
   // Once plans have finished loading, validate the restored planId. If
   // the trainee no longer has that plan assigned (deleted, unshared,

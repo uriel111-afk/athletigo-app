@@ -515,6 +515,20 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // change and read back on the next open. localStorage only; see
   // src/lib/workoutResume.js. The DB save paths are untouched — this
   // is a net under them, not a replacement.
+  // Which sections the trainee has folded shut. Everything starts open;
+  // the set travels with the resume point so a closed section is still
+  // closed when they come back.
+  const [collapsedSections, setCollapsedSections] = useState([]);
+  const collapsedRef = useRef(collapsedSections);
+  collapsedRef.current = collapsedSections;
+
+  const toggleSection = React.useCallback((sectionId) => {
+    if (!sectionId) return;
+    setCollapsedSections((prev) => (prev.includes(sectionId)
+      ? prev.filter((id) => id !== sectionId)
+      : [...prev, sectionId]));
+  }, []);
+
   const lastResumeRef = useRef('');
   const persistResumePoint = React.useCallback((patchFields = {}) => {
     if (canEdit || !plan?.id) return;                 // trainee flow only
@@ -524,6 +538,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       setIdx:     patchFields.setIdx     ?? prev.setIdx     ?? 0,
       sectionId:  patchFields.sectionId  ?? prev.sectionId  ?? null,
       scrollY:    patchFields.scrollY    ?? (typeof window !== 'undefined' ? Math.round(window.scrollY) : 0),
+      collapsed:  patchFields.collapsed  ?? collapsedRef.current ?? [],
       draft:      patchFields.draft      ?? setLogsRef.current ?? {},
     };
     // Cheap dedupe — this runs on every keystroke-sized change.
@@ -2130,7 +2145,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   React.useEffect(() => {
     if (canEdit || !resumeHydrated) return;
     persistResumePoint({ exerciseId: expandedExerciseId ?? undefined });
-  }, [setLogs, expandedExerciseId, resumeHydrated, canEdit, persistResumePoint]);
+  }, [setLogs, expandedExerciseId, collapsedSections, resumeHydrated, canEdit, persistResumePoint]);
 
   // Scroll position is not React state — track it separately, throttled
   // through rAF so a scroll never costs more than one write per frame.
@@ -2146,13 +2161,20 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       });
     };
     window.addEventListener('scroll', onScroll, { passive: true });
-    // A backgrounded tab can be killed without warning — flush on the
-    // way out rather than waiting for the next scroll.
-    const onHide = () => { if (document.visibilityState === 'hidden') persistResumePoint(); };
+    // A backgrounded tab can be killed without warning, so flush on the
+    // way out rather than waiting for the next scroll. Both events:
+    // visibilitychange is what fires when the screen goes off, pagehide
+    // is the one that survives a bfcache/teardown path. Both fire
+    // BEFORE the freeze, and the write is synchronous, so the point is
+    // already on disk by the time the WebView is reclaimed.
+    const flush = () => persistResumePoint();
+    const onHide = () => { if (document.visibilityState === 'hidden') flush(); };
     document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', flush);
     return () => {
       window.removeEventListener('scroll', onScroll);
       document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', flush);
     };
   }, [canEdit, resumeHydrated, persistResumePoint]);
 
@@ -2167,15 +2189,26 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     resumeAppliedRef.current = true;
 
     if (point.exerciseId) setExpandedExerciseId(point.exerciseId);
+    if (Array.isArray(point.collapsed)) setCollapsedSections(point.collapsed);
 
-    if (typeof window !== 'undefined' && Number.isFinite(Number(point.scrollY)) && Number(point.scrollY) > 0) {
-      // Two frames: one for the exercise card to expand, one for the
-      // taller layout to settle before we jump.
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => {
-          window.scrollTo({ top: Number(point.scrollY), behavior: 'auto' });
-        });
-      });
+    const target = Number(point.scrollY);
+    if (typeof window !== 'undefined' && Number.isFinite(target) && target > 0) {
+      // Two frames are not enough on a cold launch: the sheet is still
+      // waiting on its sections and exercises, so the document is short
+      // and a jump to the saved offset lands at the bottom of a stub.
+      // Keep trying until the page is actually tall enough to hold the
+      // offset, then stop. ~1.6s of attempts, then give up quietly.
+      let attempts = 0;
+      const tryScroll = () => {
+        attempts += 1;
+        const tall = document.documentElement.scrollHeight >= target + window.innerHeight * 0.5;
+        if (tall) {
+          window.scrollTo({ top: target, behavior: 'auto' });
+          return;
+        }
+        if (attempts < 20) window.setTimeout(tryScroll, 80);
+      };
+      window.requestAnimationFrame(() => window.requestAnimationFrame(tryScroll));
     }
   }, [canEdit, resumeHydrated, plan?.id]);
 
@@ -2744,6 +2777,9 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             setLogs={setLogs}
             execCompletion={execCompletion}
             saving={savingWorkout}
+            progressPct={progressPct}
+            collapsedSections={collapsedSections}
+            onToggleSection={toggleSection}
             onSetValue={setSetValue}
             onToggleDone={toggleSetDone}
             onFinish={handleFinishAndSave}
@@ -3422,12 +3458,10 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           exercise. Bottom offset accounts for the trainee footer
           (~140px including safe-area) OR just the global nav (~70px)
           for coach view, plus any active timer-bar height. */}
-      {exercisesTotal > 0 && (
+      {canEdit && exercisesTotal > 0 && (
         <div style={{
           position: 'fixed',
-          bottom: !canEdit
-            ? 'calc(140px + env(safe-area-inset-bottom) + var(--timer-bar-height, 0px))'
-            : 'calc(70px + var(--timer-bar-height, 0px))',
+          bottom: 'calc(70px + var(--timer-bar-height, 0px))',
           left: 0, right: 0,
           background: '#FFFFFF',
           borderTop: '1px solid #F0E4D0',

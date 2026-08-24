@@ -172,8 +172,15 @@ function unitLabelFor(metric) {
   return metric.unit || null;
 }
 
+// Fixed fill-box widths. A clock value ("1:30") needs more room than a
+// rep count, and nothing here stretches — the width the boxes do not
+// use belongs to the exercise name.
+const BOX_W = 50;
+const BOX_W_TIME = 70;
+const BOX_W_PANEL = 96;
+
 // ── One fill box ────────────────────────────────────────────────
-function FillBox({ value, target, active, readOnly, metric, onTap, wide = false }) {
+function FillBox({ value, target, active, readOnly, metric, onTap }) {
   const filled = has(value);
   const num = filled ? Number(value) : null;
 
@@ -194,12 +201,12 @@ function FillBox({ value, target, active, readOnly, metric, onTap, wide = false 
       disabled={readOnly}
       onClick={(e) => { e.stopPropagation(); if (!readOnly) onTap(); }}
       style={{
-        flex: wide ? 1 : '0 0 38px',
-        minWidth: 0,
+        flex: '0 0 auto',
+        width: metric?.isTime ? BOX_W_TIME : BOX_W,
         height: 34,
         borderRadius: 8,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: SANS, fontSize: 13, fontWeight: 700,
+        fontFamily: SANS, fontSize: 17, fontWeight: 700,
         padding: 0,
         cursor: readOnly ? 'default' : 'pointer',
         ...style,
@@ -449,7 +456,11 @@ function ExerciseRow({
 
   const valueAt = (i) => (metric ? logs?.[i]?.[metric.logField] : null);
 
-  const nameSize = isActive ? 15 : 14;
+  // Fixed type scale — the screen is narrow, nothing grows past this.
+  // The active row is marked by its background and its rail, not by a
+  // bigger font, which was what pushed long names into a third line.
+  const nameSize = 15;
+  const paramSize = 15;
 
   const bits = paramBits(exercise);
   // exercises.notes is the coach's דגשים for this row. (There is no
@@ -468,7 +479,15 @@ function ExerciseRow({
 
         {/* RIGHT column — tick, number, name, params, notes */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+          {/* One line: tick, number, name, params. The name is the
+              only part allowed to shrink, and it ellipsises rather
+              than wrapping — an exercise called "קפיצה בחבל" used to
+              break across three lines while a single fill box held
+              half the screen. */}
+          <div style={{
+            display: 'flex', flexWrap: 'nowrap', alignItems: 'center',
+            gap: 6, minWidth: 0, overflow: 'hidden',
+          }}>
             {/* The tick for a row with nothing to measure. It belongs
                 here — first in the RTL line, right before the running
                 number, at text height — not as a slab on the far side
@@ -493,28 +512,39 @@ function ExerciseRow({
             <span style={{
               fontFamily: SANS, fontSize: nameSize, fontWeight: 800, color: C.number,
             }}>{runningIndex}.</span>
+            <span
+              title={exercise?.exercise_name || ''}
+              style={{
+                flex: '1 1 auto', minWidth: 0,
+                fontFamily: SANS, fontSize: nameSize, fontWeight: isActive ? 700 : 600,
+                color: C.ink,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}
+            >{exercise?.exercise_name || 'תרגיל'}</span>
+
             <span style={{
-              fontFamily: SANS, fontSize: nameSize, fontWeight: isActive ? 700 : 600,
-              color: C.ink, wordBreak: 'break-word',
-            }}>{exercise?.exercise_name || 'תרגיל'}</span>
+              flex: '0 1 auto', minWidth: 0,
+              display: 'flex', alignItems: 'center', gap: 6,
+              whiteSpace: 'nowrap', overflow: 'hidden',
+            }}>
+              {bits.map((b, i) => (
+                <React.Fragment key={`${b}-${i}`}>
+                  <span style={{ color: C.dot, fontSize: nameSize }}>·</span>
+                  <span style={{
+                    fontFamily: SANS, fontSize: paramSize, fontWeight: 700, color: C.ink,
+                  }}>{b}</span>
+                </React.Fragment>
+              ))}
 
-            {bits.map((b, i) => (
-              <React.Fragment key={`${b}-${i}`}>
-                <span style={{ color: C.dot, fontSize: nameSize }}>·</span>
-                <span style={{
-                  fontFamily: SANS, fontSize: nameSize - 1, fontWeight: 700, color: C.ink,
-                }}>{b}</span>
-              </React.Fragment>
-            ))}
-
-            {isMulti && inner.length > 0 && (
-              <>
-                <span style={{ color: C.dot, fontSize: nameSize }}>·</span>
-                <span style={{ fontFamily: SANS, fontSize: nameSize - 1, fontWeight: 700, color: C.number }}>
-                  {inner.length} תרגילים
-                </span>
-              </>
-            )}
+              {isMulti && inner.length > 0 && (
+                <>
+                  <span style={{ color: C.dot, fontSize: nameSize }}>·</span>
+                  <span style={{ fontFamily: SANS, fontSize: paramSize, fontWeight: 700, color: C.number }}>
+                    {inner.length} תרגילים
+                  </span>
+                </>
+              )}
+            </span>
           </div>
 
           {notes && (
@@ -527,13 +557,13 @@ function ExerciseRow({
 
         {measurable && (
           <>
-            {/* MIDDLE column — the numeric target */}
+            {/* MIDDLE column — the numeric target, fixed 48 */}
             <div style={{
               flex: '0 0 48px', width: 48, textAlign: 'center',
-              paddingTop: 4, lineHeight: 1.15,
+              paddingTop: 2, lineHeight: 1.1,
             }}>
               <div style={{
-                fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.note,
+                fontFamily: SANS, fontSize: 18, fontWeight: 700, color: C.note,
               }}>
                 {metric && metric.target > 0 ? formatFor(metric, metric.target) : '—'}
               </div>
@@ -544,15 +574,16 @@ function ExerciseRow({
               )}
             </div>
 
-            {/* LEFT column — the fill boxes */}
-            <div style={{ flex: '0 0 172px', width: 172, paddingTop: 2 }}>
+            {/* LEFT column — the fill boxes. Sized to what it holds:
+                50 per box, 70 when the value is a clock. */}
+            <div style={{ flex: '0 0 auto', paddingTop: 2 }}>
               {boxCount > 4 ? (
                 <button
                   type="button"
                   disabled={readOnly}
                   onClick={() => onOpenEntry({ exercise, metric, mode: 'panel' })}
                   style={{
-                    width: '100%', height: 34, borderRadius: 8,
+                    width: BOX_W_PANEL, height: 34, borderRadius: 8,
                     border: `1px solid ${C.cardBorder}`, background: C.card,
                     fontFamily: SANS, fontSize: 12.5, fontWeight: 700, color: C.ink,
                     cursor: readOnly ? 'default' : 'pointer',
@@ -570,7 +601,6 @@ function ExerciseRow({
                       metric={metric}
                       active={!completed && i === doneCount}
                       readOnly={readOnly || !metric}
-                      wide={boxCount <= 2}
                       onTap={() => onOpenEntry({ exercise, metric, setIdx: i, mode: 'single' })}
                     />
                   ))}
@@ -644,10 +674,17 @@ export default function WorkoutSheet({
   execCompletion = {},
   readOnly = false,
   saving = false,
+  progressPct = 0,
+  collapsedSections = [],
+  onToggleSection,
   onSetValue,
   onToggleDone,
   onFinish,
 }) {
+  const collapsed = useMemo(
+    () => new Set(collapsedSections || []),
+    [collapsedSections],
+  );
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const [entry, setEntry] = useState(null);     // { exercise, metric, setIdx, mode }
 
@@ -735,34 +772,38 @@ export default function WorkoutSheet({
         position: 'relative',
       }}>
 
-        {/* Top strip — dark triangle on the LEFT, orange block with the
-            logo on the RIGHT. */}
-        <div style={{ position: 'relative', height: 54, background: C.page }}>
+        {/* Top strip, 56 tall.
+            The dark wedge runs off the top-LEFT corner and is the
+            larger of the two; the orange block sits on the RIGHT and is
+            cut diagonally on its left edge, with the logo inside it.
+            Colours and logo unchanged — only the proportions, which had
+            the orange dominating a stub of a triangle. */}
+        <div style={{ position: 'relative', height: 56, background: C.page }}>
+          <div style={{
+            position: 'absolute', insetInlineStart: 0, top: 0,
+            width: 138, height: 56, background: C.frame,
+            clipPath: 'polygon(0 0, 100% 0, 0 100%)',
+          }} />
+
           <div style={{
             position: 'absolute', insetInlineEnd: 0, top: 0,
-            height: 54, minWidth: 148, background: C.orange,
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '0 16px 0 22px',
-            clipPath: 'polygon(0 0, 100% 0, 100% 100%, 14% 100%)',
+            height: 56, width: 132, background: C.orange,
+            display: 'flex', alignItems: 'center', gap: 7,
+            padding: '0 12px 0 18px',
+            clipPath: 'polygon(0 0, 100% 0, 100% 100%, 22% 100%)',
           }}>
             <img
               src="/icon-192.png"
               alt=""
-              width={26}
-              height={26}
-              style={{ borderRadius: 6, flexShrink: 0 }}
+              width={22}
+              height={22}
+              style={{ borderRadius: 5, flexShrink: 0 }}
             />
             <span style={{
-              fontFamily: SANS, fontSize: 15, fontWeight: 900, color: '#FFFFFF',
-              letterSpacing: 0.3,
+              fontFamily: SANS, fontSize: 13, fontWeight: 900, color: '#FFFFFF',
+              letterSpacing: 0.2, whiteSpace: 'nowrap',
             }}>AthletiGo</span>
           </div>
-
-          <div style={{
-            position: 'absolute', insetInlineStart: 0, top: 0,
-            width: 74, height: 54, background: C.frame,
-            clipPath: 'polygon(0 0, 100% 0, 0 100%)',
-          }} />
         </div>
 
         {/* Title, on its own line under the strip */}
@@ -775,37 +816,64 @@ export default function WorkoutSheet({
 
         {/* Sections */}
         <div style={{ padding: '0 10px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {laidOut.map(({ section, rows, showColumnHeaders }) => (
+          {laidOut.map(({ section, rows, showColumnHeaders }) => {
+            const isClosed = collapsed.has(section.id);
+            return (
             <div key={section.id} style={{
               background: C.card, border: `1px solid ${C.cardBorder}`,
               borderRadius: 12, overflow: 'hidden',
             }}>
-              <div style={{
-                background: C.band, padding: '8px 10px',
-                display: 'flex', alignItems: 'center', gap: 8,
-              }}>
+              <div
+                role="button"
+                tabIndex={0}
+                aria-expanded={!isClosed}
+                onClick={() => onToggleSection && onToggleSection(section.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onToggleSection && onToggleSection(section.id);
+                  }
+                }}
+                style={{
+                  background: C.band, padding: '8px 10px',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  cursor: 'pointer', userSelect: 'none',
+                }}
+              >
+                {isClosed
+                  ? <ChevronDown size={15} color={C.number} style={{ flexShrink: 0 }} />
+                  : <ChevronUp size={15} color={C.number} style={{ flexShrink: 0 }} />}
                 <span style={{
                   flex: 1, minWidth: 0, fontFamily: SANS, fontSize: 14,
                   fontWeight: 800, color: C.ink,
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 }}>{section.section_name || 'מקטע'}</span>
+
+                {/* A closed section still says what is inside it. */}
+                {isClosed && (
+                  <span style={{
+                    flexShrink: 0, fontFamily: SANS, fontSize: 11.5,
+                    fontWeight: 700, color: C.number,
+                  }}>{rows.length} תרגילים</span>
+                )}
 
                 {/* Column headers live on the band wherever the
                     section actually has a target/actual column pair. */}
-                {showColumnHeaders && (
+                {!isClosed && showColumnHeaders && (
                   <>
                     <span style={{
                       flex: '0 0 48px', width: 48, textAlign: 'center',
                       fontFamily: SANS, fontSize: 10.5, fontWeight: 800, color: C.number,
                     }}>יעד</span>
                     <span style={{
-                      flex: '0 0 172px', width: 172, textAlign: 'center',
+                      flex: '0 0 auto', minWidth: BOX_W, textAlign: 'center',
                       fontFamily: SANS, fontSize: 10.5, fontWeight: 800, color: C.number,
                     }}>ביצוע בפועל</span>
                   </>
                 )}
               </div>
 
-              {rows.length === 0 ? (
+              {isClosed ? null : rows.length === 0 ? (
                 <div style={{
                   padding: '12px 10px', fontFamily: SANS, fontSize: 12, color: C.note,
                 }}>אין תרגילים במקטע הזה</div>
@@ -827,7 +895,8 @@ export default function WorkoutSheet({
                 </div>
               ))}
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Orange diagonal — in the flow, directly under the last
@@ -841,7 +910,9 @@ export default function WorkoutSheet({
         </div>
       </div>
 
-      {/* Fixed bottom bar — stays put while the sheet scrolls */}
+      {/* Fixed bottom bar — stays put while the sheet scrolls. The
+          progress bar rides on top of it rather than floating on its
+          own offset partway up the screen. */}
       {!readOnly && (
         <div style={{
           position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
@@ -849,8 +920,31 @@ export default function WorkoutSheet({
           boxShadow: '0 -6px 12px rgba(0,0,0,0.06)',
           padding: '8px 10px',
           paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
-          display: 'flex', gap: 8, alignItems: 'center',
         }}>
+        <div style={{ marginBottom: 8 }}>
+          <div style={{
+            display: 'flex', justifyContent: 'space-between',
+            alignItems: 'center', marginBottom: 4,
+          }}>
+            <span style={{
+              fontFamily: SANS, fontSize: 11, fontWeight: 600, color: C.note,
+            }}>התקדמות</span>
+            <span style={{
+              fontFamily: SANS, fontSize: 12, fontWeight: 800, color: C.orange,
+            }}>{Math.round(progressPct || 0)}%</span>
+          </div>
+          <div style={{
+            height: 4, background: '#F5EEE0', borderRadius: 2, overflow: 'hidden',
+          }}>
+            <div style={{
+              width: `${Math.max(2, Math.round(progressPct || 0))}%`,
+              height: '100%', background: C.orange, borderRadius: 2,
+              transition: 'width 0.4s ease',
+            }} />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button
             type="button"
             disabled={saving}
@@ -875,6 +969,7 @@ export default function WorkoutSheet({
               cursor: activeExerciseId ? 'pointer' : 'default',
             }}
           >לתרגיל הבא</button>
+        </div>
         </div>
       )}
 

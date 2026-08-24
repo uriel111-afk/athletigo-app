@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import './App.css'
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -76,6 +76,7 @@ import BirthdayBlessingPopup from './components/BirthdayBlessingPopup';
 import InstallPrompt from './components/InstallPrompt';
 import NotificationPopup from './components/NotificationPopup';
 import { wasShown, markShown } from './lib/shownNotifications';
+import { readOpenWorkout } from './lib/workoutResume';
 import { supabase } from '@/lib/supabaseClient';
 import { SmartBackProvider } from '@/hooks/useSmartBack';
 import AndroidBackButton from './components/AndroidBackButton';
@@ -220,6 +221,42 @@ const AuthenticatedApp = () => {
       navigate('/hub', { replace: true });
     }
   }, [user?.id, location.pathname, navigate]);
+
+  // ── Back into an open workout ─────────────────────────────────────
+  //
+  // When Android reclaims the WebView — which is what a screen going
+  // off for a few minutes amounts to — the app relaunches at "/", and
+  // "/" is the configured landing page (Onboarding). Every piece of
+  // "where was I" lived below that point: the plan folder in
+  // sessionStorage (gone with the context), the sheet-open flag nowhere
+  // at all, and the scroll/draft resume point inside a component that
+  // never got mounted. The trainee was simply somewhere else.
+  //
+  // So this runs first: if the pointer says a workout was open, go to
+  // the workouts route and let Workouts + WorkoutFolderDetail restore
+  // the plan and the sheet from the same pointer, and
+  // UnifiedPlanBuilder restore the section, scroll offset and draft
+  // from the resume point.
+  //
+  // Once per launch, and only from the landing route, so it can never
+  // hijack a deliberate navigation.
+  const workoutResumeRef = useRef(false);
+  useEffect(() => {
+    if (workoutResumeRef.current) return;
+    if (!user?.id) return;
+    const isTraineeUser = !(user.role === 'coach' || user.role === 'admin' || user.is_coach === true);
+    if (!isTraineeUser) return;
+
+    const landing = location.pathname === '/' || location.pathname === ''
+      || location.pathname === '/trainee-home';
+    if (!landing) return;
+
+    workoutResumeRef.current = true;
+    const open = readOpenWorkout();
+    if (open?.planId && open.active) {
+      navigate('/workouts', { replace: true });
+    }
+  }, [user?.id, user?.role, user?.is_coach, location.pathname, navigate]);
 
   // ── Realtime notification popup (coach only) ──────────────────────
   const [popupNotif, setPopupNotif] = useState(null);
