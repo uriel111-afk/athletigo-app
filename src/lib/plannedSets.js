@@ -132,8 +132,29 @@ export async function loadActualsByDrillForExercise(supabase, executionId, exerc
 // to the upsert ONLY when the caller passed a non-empty value — so a
 // later partial save that doesn't include them won't wipe what was
 // already stored for the same (execution, exercise, drill, set) key.
-export async function saveSetActual(supabase, executionId, exerciseId, drillIndex, setIndex, payload) {
+// A payload carrying no measurement at all is NOT written — see the
+// guard in the body. Pass { allowEmpty: true } to force the write
+// (the "clear this set" path).
+export async function saveSetActual(supabase, executionId, exerciseId, drillIndex, setIndex, payload, options = {}) {
   if (!supabase || !executionId || !exerciseId) return { error: 'missing ids' };
+
+  // Empty-write guard. A payload with no measurement in it used to land
+  // as a row with completed = true and reps_completed / time_completed /
+  // weight_used all NULL. ProgressGraph counts such a row as a performed
+  // set and then reads it back as "nothing entered", so it inflates the
+  // set count and flattens the trend — the pollution this guard stops.
+  // Callers that legitimately clear a saved value pass allowEmpty.
+  const has = (v) => v != null && v !== '';
+  const carriesValue = has(payload?.reps) || has(payload?.hold_seconds)
+    || has(payload?.weight_kg) || has(payload?.rpe)
+    || has(payload?.rest_seconds) || has(payload?.tempo);
+  if (!carriesValue && !options.allowEmpty) {
+    console.warn('[saveSetActual] empty payload — no row written', {
+      executionId, exerciseId, drillIndex, setIndex, payload,
+    });
+    return { error: null, skipped: true };
+  }
+
   const row = {
     execution_id: executionId,
     exercise_id: exerciseId,
@@ -148,6 +169,12 @@ export async function saveSetActual(supabase, executionId, exerciseId, drillInde
   if (hasVal(payload?.rpe))          row.rpe_actual          = payload.rpe;
   if (hasVal(payload?.rest_seconds)) row.rest_seconds_actual = payload.rest_seconds;
   if (hasVal(payload?.tempo))        row.tempo_actual        = payload.tempo;
+
+  // TEMPORARY (2026-08-24) — prints the exact row handed to Supabase so
+  // the console shows what actually leaves the client. Remove once the
+  // per-set persistence has been observed working in production.
+  console.log('[saveSetActual] writing row →', JSON.stringify(row));
+
   const { error } = await supabase
     .from('exercise_set_logs')
     .upsert(row, { onConflict: 'execution_id,exercise_id,drill_index,set_number' });

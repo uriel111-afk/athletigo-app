@@ -465,6 +465,27 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // Shape: { [exerciseId]: { [setIndex]: { reps_completed, done } } }
   // Persisted to exercise_set_logs at workout-finish time.
   const [setLogs, setSetLogs] = useState({});
+  // Synchronous mirror of setLogs.
+  //
+  // ExerciseCard's "save set" handler calls onSetValueChange (the wheel
+  // values) and then onSetToggleDone (the done flag) back-to-back inside
+  // ONE click. Both callbacks used to rebuild the exercise's set map
+  // from the `setLogs` captured at render time, so the second call
+  // started from a snapshot taken BEFORE the first one ran and wrote it
+  // back wholesale — dropping the value the trainee had just entered.
+  // What reached exercise_set_logs was done:true with reps_completed /
+  // time_completed / weight_used all NULL.
+  //
+  // Every reader and writer below goes through this ref, which is
+  // updated in the same tick as the state, so the second call in a pair
+  // sees the first call's result.
+  const setLogsRef = useRef(setLogs);
+  const commitSetLogs = React.useCallback((exId, nextExerciseLogs) => {
+    const next = { ...setLogsRef.current, [exId]: nextExerciseLogs };
+    setLogsRef.current = next;
+    setSetLogs(next);
+    return next;
+  }, []);
   // Per-execution exercise completion — { [exerciseId]: true }. The
   // single source of truth for "is this exercise done on THIS run",
   // mirroring exercise_executions.is_completed for currentExecutionId.
@@ -575,7 +596,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         try {
           const { data: setLogRows, error: logsErr } = await supabase
             .from('exercise_set_logs')
-            .select('exercise_id, drill_index, set_number, reps_completed, time_completed, completed')
+            .select('exercise_id, drill_index, set_number, reps_completed, time_completed, weight_used, completed')
             .eq('execution_id', exec.id)
             .eq('drill_index', 0);
           if (!logsErr && Array.isArray(setLogRows) && setLogRows.length > 0) {
@@ -586,9 +607,11 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
               restored[row.exercise_id][idx] = {
                 reps_completed: row.reps_completed,
                 time_completed: row.time_completed,
+                weight_used: row.weight_used,
                 done: !!row.completed,
               };
             }
+            setLogsRef.current = restored;
             setSetLogs(restored);
           }
         } catch (e) {
@@ -1201,30 +1224,37 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // Per-set logging helpers. Local state only — persisted in
   // saveWorkoutExecution to exercise_set_logs once the trainee finishes.
   const updateSetLog = React.useCallback((exId, setIdx, field, value) => {
-    setSetLogs((prev) => ({
-      ...prev,
-      [exId]: {
-        ...(prev[exId] || {}),
-        [setIdx]: { ...((prev[exId] || {})[setIdx] || {}), [field]: value },
-      },
-    }));
-  }, []);
+    const current = setLogsRef.current[exId] || {};
+    commitSetLogs(exId, {
+      ...current,
+      [setIdx]: { ...(current[setIdx] || {}), [field]: value },
+    });
+  }, [commitSetLogs]);
 
   // Toggle a single set's done flag. When the toggle flips the LAST
   // remaining set into done, the exercise as a whole becomes
   // completed — that triggers the existing section-feedback /
   // workout-summary popups via handleToggleComplete.
-  const toggleSetDone = React.useCallback((exercise, setIdx) => {
+  //
+  // forceDone: leave it undefined for the checkbox (a real toggle).
+  // The wheel "save set" path passes true, because there the intent is
+  // "this set is done", not "flip it". That path calls
+  // onSetValueChange first, which already marks done:true — a blind
+  // flip would immediately undo it.
+  const toggleSetDone = React.useCallback((exercise, setIdx, forceDone) => {
     const exId = exercise.id;
     const totalSets = Math.max(1, parseInt(exercise.sets, 10) || 1);
-    const current = setLogs[exId] || {};
+    // Read through the ref, never the render-time `setLogs` — this
+    // callback runs immediately after onSetValueChange in the same
+    // click and must build on top of the value that just landed.
+    const current = setLogsRef.current[exId] || {};
     const cur = current[setIdx] || {};
-    const nextDone = !cur.done;
+    const nextDone = forceDone === undefined ? !cur.done : !!forceDone;
     const nextLogs = {
       ...current,
       [setIdx]: { ...cur, done: nextDone },
     };
-    setSetLogs((prev) => ({ ...prev, [exId]: nextLogs }));
+    commitSetLogs(exId, nextLogs);
 
     // Did this toggle just complete the exercise? (every set done)
     let doneCount = 0;
@@ -1240,7 +1270,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       // un-marks the exercise too.
       handleToggleComplete(exercise);
     }
-  }, [setLogs, handleToggleComplete]);
+  }, [handleToggleComplete, commitSetLogs]);
 
   // Single rep-based exercise — picker writes a numeric value to the
   // mode-matched column on exercise_set_logs (reps_completed /
@@ -1264,14 +1294,14 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       : mode === 'kg' || mode === 'weight'
         ? 'weight_used'
         : 'reps_completed';
-    const current = setLogs[exId] || {};
+    const current = setLogsRef.current[exId] || {};
     const cur = current[setIdx] || {};
     const isClear = value == null || value === '';
     const nextLogs = {
       ...current,
       [setIdx]: { ...cur, [field]: isClear ? null : value, done: !isClear },
     };
-    setSetLogs((prev) => ({ ...prev, [exId]: nextLogs }));
+    commitSetLogs(exId, nextLogs);
 
     let doneCount = 0;
     for (let i = 0; i < totalSets; i++) {
@@ -1314,6 +1344,10 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           0,
           setIdx + 1,
           payload,
+          // A clear is an intentionally empty payload — it has to get
+          // past saveSetActual's empty-write guard so the previously
+          // saved value is actually removed.
+          { allowEmpty: isClear },
         );
         if (saveErr) {
           console.warn('[UPB] immediate saveSetActual failed (autosave will retry):', saveErr.message || saveErr);
@@ -1322,7 +1356,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         console.warn('[UPB] immediate set persist threw:', e?.message || e);
       }
     })();
-  }, [setLogs, handleToggleComplete, currentExecutionId, plan?.id, plan?.assigned_to, plan?.created_by]);
+  }, [handleToggleComplete, commitSetLogs, currentExecutionId, plan?.id, plan?.assigned_to, plan?.created_by]);
 
   // List-variant per-drill-per-set toggle. Maintains drillSetLogs and
   // — like toggleSetDone — flips exercise.completed when every (drill,
@@ -1720,13 +1754,18 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       // Per-set completion gives a more accurate completion %, falling
       // back to per-exercise when no set logs exist (e.g. coach
       // toggled the legacy checkbox flow).
+      // Read the mirror, not the render-time state: this function is
+      // called from a 3s timer and from the finish button, and must see
+      // every value entered up to this instant.
+      const logsNow = setLogsRef.current || {};
+
       let totalSets = 0;
       let doneSets = 0;
       for (const ex of exercises) {
         if (!ex) continue;
         const n = Math.max(1, parseInt(ex.sets, 10) || 1);
         totalSets += n;
-        const log = setLogs[ex.id] || {};
+        const log = logsNow[ex.id] || {};
         for (let i = 0; i < n; i++) {
           if (log[i]?.done) doneSets++;
         }
@@ -1747,7 +1786,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       const exerciseSummaries = {};
       for (const exercise of exercises) {
         if (!exercise || !exercise.id) continue;
-        const logs = setLogs[exercise.id] || {};
+        const logs = logsNow[exercise.id] || {};
         const setEntries = Object.values(logs).filter(Boolean);
         if (setEntries.length === 0) continue;
         const doneSetsExc = setEntries.filter((s) => s.done).length;
@@ -1801,21 +1840,28 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
 
       const avg = execRow.self_rating;
 
-      // Re-finishing the same workout (UPDATE path) — wipe the prior
-      // set logs for this execution so the fresh INSERT below doesn't
-      // duplicate them. Best-effort: a failure here only risks duplicate
-      // rows on the analytics side, not a broken save.
-      const { error: clearErr } = await supabase
-        .from('exercise_set_logs')
-        .delete()
-        .eq('execution_id', execRow.id);
-      if (clearErr) console.warn('[saveWorkoutExecution] prior set-log clear failed:', clearErr.message);
+      // NOTE — there used to be a
+      //   delete().eq('execution_id', execRow.id)
+      // here, to stop the INSERT below from duplicating rows when the
+      // same workout was finished twice. It also ran on every 3s
+      // autosave, and it deleted EVERY row on the execution — including
+      // the rows written straight to the DB by the saveSetActual upsert
+      // paths (ActualsGrid, pyramid / drop-set / delorme, rest-pause,
+      // superset+combo round fills). Those paths never touch the local
+      // setLogs state, so the reinsert below could not restore them and
+      // the trainee's numbers were destroyed seconds after being saved.
+      //
+      // The delete is gone. Duplicates are now prevented the right way:
+      // the write below is an UPSERT on the same four-column key the
+      // per-cell path uses (execution_id, exercise_id, drill_index,
+      // set_number), so re-finishing updates its own rows in place and
+      // leaves everyone else's alone.
 
       // Persist per-set logs against the just-created execution.
       // Best-effort — if set logs fail to write, the execution row
       // still lands so the score chart updates.
       const setLogRows = [];
-      for (const [exerciseId, sets] of Object.entries(setLogs)) {
+      for (const [exerciseId, sets] of Object.entries(logsNow)) {
         for (const [setIdxStr, log] of Object.entries(sets || {})) {
           if (!log) continue;
           const reps = log.reps_completed != null && log.reps_completed !== ''
@@ -1827,16 +1873,22 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           const difficulty = log.difficulty != null && log.difficulty !== ''
             ? parseInt(log.difficulty, 10)
             : null;
-          // Skip empty rows — nothing the trainee actually touched on
-          // this set. time_completed counts as "touched" for time-based
-          // exercises just like reps_completed does for reps-based ones.
-          if (!log.done
-              && (reps == null || Number.isNaN(reps))
-              && (timeC == null || Number.isNaN(timeC))
-              && difficulty == null) continue;
           const weight = log.weight_used != null && log.weight_used !== ''
             ? Number(log.weight_used)
             : null;
+          // Skip rows that carry no measurement. A set that was only
+          // ticked used to be written as completed = true with all three
+          // value columns NULL; ProgressGraph counts that as a performed
+          // set with nothing in it, which inflates the set count and
+          // flattens the trend. An absent row is better than an empty
+          // one. done alone is no longer enough to earn a row —
+          // completion for the run is tracked on exercise_executions and
+          // in completion_percent, not here.
+          const hasMeasurement = Number.isFinite(reps)
+            || Number.isFinite(timeC)
+            || Number.isFinite(weight)
+            || Number.isFinite(difficulty);
+          if (!hasMeasurement) continue;
           setLogRows.push({
             execution_id: execRow.id,
             exercise_id: exerciseId,
@@ -1854,9 +1906,14 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         }
       }
       if (setLogRows.length > 0) {
+        // TEMPORARY (2026-08-24) — mirrors the per-cell log in
+        // saveSetActual so the console shows the finish-time batch too.
+        console.log('[saveWorkoutExecution] upserting set logs →', JSON.stringify(setLogRows));
         const { error: logErr } = await supabase
           .from('exercise_set_logs')
-          .insert(setLogRows);
+          .upsert(setLogRows, {
+            onConflict: 'execution_id,exercise_id,drill_index,set_number',
+          });
         if (logErr) console.warn('[saveWorkoutExecution] set logs failed:', logErr.message);
       }
 

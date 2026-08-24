@@ -2300,9 +2300,13 @@ export default function ExerciseCard({
     };
   }, [exercise?.tabata_data, exercise?.sets, exercise?.reps, exercise?.mode]);
 
-  const handleSetToggle = (idx) => {
+  // forceDone is passed only by the wheel save path, where the set is
+  // being completed rather than toggled — see toggleSetDone in
+  // UnifiedPlanBuilder. The checkbox call sites omit it and keep the
+  // original flip behaviour.
+  const handleSetToggle = (idx, forceDone) => {
     if (typeof onSetToggleDone !== 'function') return;
-    onSetToggleDone(exercise, idx);
+    onSetToggleDone(exercise, idx, forceDone);
     // When this toggle completes the last open set, fire the
     // "exercise completed" notification (best-effort, never blocks).
     const aboutToComplete = !isSetDone(idx);
@@ -5166,7 +5170,7 @@ export default function ExerciseCard({
                           if (effectiveWheelValues.seconds != null) onSetValueChange(exercise, idx, effectiveWheelValues.seconds, 'seconds');
                           if (effectiveWheelValues.weight != null) onSetValueChange(exercise, idx, effectiveWheelValues.weight, 'kg');
                         }
-                        handleSetToggle(idx);
+                        handleSetToggle(idx, true);
                         // Reset so the next set opens on its own value.
                         setWheelValues({});
                         setWheelSetIdx(null);
