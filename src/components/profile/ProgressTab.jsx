@@ -20,6 +20,7 @@ import ChartCard from '@/components/charts/ChartCard';
 import StepMilestones from '@/components/charts/StepMilestones';
 import TimeRangeSelector from '@/components/charts/TimeRangeSelector';
 import ExerciseNumericTrendGraph from '@/components/charts/ExerciseNumericTrendGraph';
+import TraineeProgressBoard from '@/components/profile/TraineeProgressBoard';
 import { aggregateRecords } from '@/lib/chartDataHelpers';
 
 const O = '#FF6F20';
@@ -731,6 +732,14 @@ export default function ProgressTab({ traineeId }) {
 
   return (
     <div dir="rtl" style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {/* Reading order for this page: how the month is going, every
+          exercise on one line with its record and a small trend, and
+          a full chart when one is tapped. The records tooling below
+          is unchanged and now sits beneath it. */}
+      <div style={{ marginBottom: 18 }}>
+        <TraineeProgressBoard traineeId={traineeId} />
+      </div>
+
       <button
         onClick={() => setShowNewRecord(true)}
         style={{
@@ -998,7 +1007,13 @@ export default function ProgressTab({ traineeId }) {
           personal_records. Duplicate-and-compare runs naturally appear
           as separate points because the per-execution grouping inside
           the shared chart keys on execution_id. */}
-      <ExecutionTrendsSection traineeId={traineeId} />
+      {/* ExecutionTrendsSection used to render here — the shared
+          ExerciseNumericTrendGraph with its per-series chip strip. The
+          board at the top of this page replaces it: same source
+          (exercise_set_logs), one chart per exercise instead of one
+          chart with a chip picker, and the honesty rules the old one
+          did not carry. The shared component itself is untouched and
+          still serves the plan folder. */}
 
       {/* Per-day folder view — sits between the master chart and
           the per-exercise folders. Mirrors the chip filter so a

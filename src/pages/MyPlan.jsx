@@ -16,7 +16,6 @@ import PermGate from "@/components/PermGate";
 import CopyBadge from "@/components/plans/CopyBadge";
 import { buildPlanDeleteMessage } from "@/lib/plansApi";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts";
 
 // Extracted Component for performance and safety
@@ -40,66 +39,68 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelec
 
   return (
     <div className="rounded-2xl overflow-hidden transition-all bg-white border-2 border-[#E0E0E0] shadow-sm mb-4">
-      <div className="p-5 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => onSelect(plan)}>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-xl font-black truncate text-black">{plan.plan_name}</h3>
-              <CopyBadge plan={plan} />
-              {/* The plan's workflow status (פעילה / טיוטה / ארכיון) is
-                  the coach's bookkeeping, not the trainee's business —
-                  the chip is gone from this screen. Nothing else reads
-                  it here; the status column itself is untouched. */}
-            </div>
-            <div className="flex flex-wrap gap-1 mb-1">
-              {(Array.isArray(plan.goal_focus) ? plan.goal_focus : []).map(k => (
-                <span key={k} style={{ padding:'3px 8px', borderRadius:9999, background:'var(--ag-bg)', color:'var(--ag-accent)', border:'1px solid #FFD0A0', fontSize:11, fontWeight:600 }}>
-                  {FOCUS_LABELS[k] || k}
-                </span>
-              ))}
-            </div>
-            
-            {/* Improvement Indicator */}
-            {improvement && (
-              <div className="flex gap-3 mt-2 text-xs font-bold">
-                <span className={improvement.control >= 0 ? "text-green-600" : "text-red-500"}>
-                  שליטה: {improvement.control > 0 ? '+' : ''}{improvement.control}
-                </span>
-                <span className={improvement.difficulty <= 0 ? "text-green-600" : "text-red-500"}>
-                  קושי: {improvement.difficulty > 0 ? '+' : ''}{improvement.difficulty}
-                </span>
-              </div>
-            )}
+      <div className="px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => onSelect(plan)}>
+        {/* Title line. The name sits hard against the right edge and
+            the controls against the left, on ONE baseline — they used
+            to be centred against a tall block that also carried the
+            goal tags and the improvement row, which is why they
+            floated at different heights. Everything else moved below. */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <h3 className="text-xl font-black truncate text-black">{plan.plan_name}</h3>
+            <CopyBadge plan={plan} />
+            {/* The plan's workflow status (פעילה / טיוטה / ארכיון) is
+                the coach's bookkeeping, not the trainee's business —
+                the chip is gone from this screen. Nothing else reads
+                it here; the status column itself is untouched. */}
           </div>
-          
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <Button
+              onClick={(e) => { e.stopPropagation(); onDuplicate(plan); }}
+              size="sm" variant="ghost"
+              className="h-8 w-8 p-0 rounded-full"
+              style={{ color: '#FF6F20' }}
+              title="שכפל">
+              <Copy className="w-4 h-4" />
+            </Button>
             {isMine && (
-              <>
-                <Button 
-                  onClick={(e) => { e.stopPropagation(); onDuplicate(plan); }}
-                  size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-full text-blue-500 hover:text-blue-700" title="שכפל">
-                  <Copy className="w-4 h-4" />
-                </Button>
-                <Button 
-                  onClick={(e) => { e.stopPropagation(); onDelete(plan); }}
-                  size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-full text-red-500 hover:text-red-700" title="מחק">
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </>
+              <Button
+                onClick={(e) => { e.stopPropagation(); onDelete(plan); }}
+                size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-full text-red-500 hover:text-red-700" title="מחק">
+                <Trash2 className="w-4 h-4" />
+              </Button>
             )}
-            {!isMine && (
-               <Button 
-                  onClick={(e) => { e.stopPropagation(); onDuplicate(plan); }}
-                  size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-full text-blue-500 hover:text-blue-700" title="שכפל">
-                  <Copy className="w-4 h-4" />
-                </Button>
-            )}
-            <ChevronDown className="w-6 h-6 text-[var(--ag-accent)]" />
+            <ChevronDown className="w-6 h-6" style={{ color: '#FF6F20' }} />
           </div>
         </div>
 
+        {/* Goal tags — only when there are any. The wrapper used to
+            render empty with a margin, which is where the dead space
+            under the title came from. */}
+        {Array.isArray(plan.goal_focus) && plan.goal_focus.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {plan.goal_focus.map(k => (
+              <span key={k} style={{ padding:'3px 8px', borderRadius:9999, background:'var(--ag-bg)', color:'var(--ag-accent)', border:'1px solid #FFD0A0', fontSize:11, fontWeight:600 }}>
+                {FOCUS_LABELS[k] || k}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {improvement && (
+          <div className="flex gap-3 mt-2 text-xs font-bold">
+            <span style={{ color: improvement.control >= 0 ? '#15803D' : '#B3401F' }}>
+              שליטה: {improvement.control > 0 ? '+' : ''}{improvement.control}
+            </span>
+            <span style={{ color: improvement.difficulty <= 0 ? '#15803D' : '#B3401F' }}>
+              קושי: {improvement.difficulty > 0 ? '+' : ''}{improvement.difficulty}
+            </span>
+          </div>
+        )}
+
         {total > 0 && (
-          <div className="pt-3 border-t border-[#E0E0E0]">
+          <div className="pt-3 mt-3 border-t border-[#E0E0E0]">
             <div className="flex justify-between text-xs mb-2 text-[#7D7D7D]">
               <span>{completed}/{total} תרגילים</span>
               <span className="font-bold text-[var(--ag-accent)]">{progressPercent}%</span>
@@ -203,7 +204,7 @@ function MyPlanInner() {
   const [selectedPlan, setSelectedPlanState] = useState(null);
   const [selectedSeries, setSelectedSeries] = useState(null); // For drilling down
   const [showCreatePlan, setShowCreatePlan] = useState(false);
-  const [activeTab, setActiveTab] = useState("coach");
+  // activeTab is gone with the tab switch — the plans list has one state.
 
   const queryClient = useQueryClient();
 
@@ -645,14 +646,13 @@ function MyPlanInner() {
             )}
           </div>
 
-          <Tabs defaultValue="coach" value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6 h-auto p-1 bg-gray-100 rounded-xl">
-              <TabsTrigger value="coach" className="py-3 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[var(--ag-accent)] font-bold">תוכניות מהמאמן</TabsTrigger>
-              <TabsTrigger value="my_plans" className="py-3 rounded-lg data-[state=active]:bg-white data-[state=active]:text-[var(--ag-accent)] font-bold">תוכניות שלי</TabsTrigger>
-              {/* Removed: history + improvement tabs — cleaned for simplicity */}
-            </TabsList>
-
-            <TabsContent value="coach" className="space-y-4">
+          {/* No tab switch. The trainee does not author training
+              plans — the coach does — so a two-way toggle where one
+              side was permanently empty was a control that could only
+              ever be wrong. The plans render directly. A personal plan,
+              if one exists on the account, is listed underneath rather
+              than hidden behind a tab. */}
+          <div className="space-y-4">
               {!selectedSeries ? (
                 <>
                   {/* Series */}
@@ -713,12 +713,14 @@ function MyPlanInner() {
                     </div>
                 </div>
               )}
-            </TabsContent>
 
-            <TabsContent value="my_plans" className="space-y-4">
-              {/* Standalone only for My Plans for now, as user cannot create series in UI yet */}
-              {myStandalonePlans.length > 0 ? (
-                myStandalonePlans.map(plan => (
+            {/* Personal plans, when the account has any. */}
+            {myStandalonePlans.length > 0 && (
+              <>
+                <div className="pt-2 text-sm font-bold" style={{ color: '#807A6A' }}>
+                  תוכניות שיצרת
+                </div>
+                {myStandalonePlans.map(plan => (
                   <PlanCard
                     key={plan.id}
                     plan={plan}
@@ -730,82 +732,10 @@ function MyPlanInner() {
                     onDuplicate={(p) => duplicatePlanMutation.mutate(p)}
                     onDelete={handleDeletePlan}
                   />
-                ))
-              ) : (
-                <div className="p-8 rounded-2xl text-center border-2 border-dashed border-gray-200">
-                  <p className="text-gray-500 mb-3">לא יצרת תוכניות אישיות</p>
-                  {canCreatePlans && (
-                    <Button onClick={() => setShowCreatePlan(true)} variant="outline" className="font-bold">
-                      <Plus className="w-4 h-4 ml-2" /> תוכנית חדשה
-                    </Button>
-                  )}
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="history" className="space-y-4">
-              {workoutHistory.length > 0 ? (
-                <div className="space-y-3">
-                  {workoutHistory.slice(0, 20).map((entry, index) => (
-                    <div key={entry.id || index} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-800 flex items-center justify-center text-sm font-bold">
-                            {index + 1}
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-gray-900">{entry.planName || 'אימון'}</h4>
-                            <p className="text-sm text-gray-500">{new Date(entry.date).toLocaleDateString('he-IL')}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-bold text-gray-900">שליטה: {entry.mastery_avg?.toFixed(1) || 'N/A'}</div>
-                          <div className="text-sm font-bold text-gray-900">קושי: {entry.difficulty_avg?.toFixed(1) || 'N/A'}</div>
-                        </div>
-                      </div>
-                      <div className="flex justify-end">
-                        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold">
-                          הושלם
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-8 rounded-2xl text-center border-2 border-dashed border-gray-200">
-                  <p className="text-gray-500">אין היסטוריית אימונים עדיין</p>
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="improvement" className="space-y-8">
-              {historyChartData.length > 0 ? (
-                  <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-                    <h3 className="font-bold text-lg mb-4 border-b pb-2">היסטוריית ביצועים כללית</h3>
-                    <div className="h-64 w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={historyChartData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="date" fontSize={12} />
-                          <YAxis domain={[0, 10]} />
-                          <Tooltip />
-                          <Legend />
-                          <Line type="monotone" dataKey="control" name="שליטה" stroke="#4CAF50" strokeWidth={2} />
-                          <Line type="monotone" dataKey="difficulty" name="קושי" stroke="var(--ag-accent)" strokeWidth={2} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="mt-4 text-center text-xs text-gray-500">
-                      מציג את 10 האימונים האחרונים שבוצעו
-                    </div>
-                  </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  טרם בוצעו אימונים להצגת גרף התקדמות
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+                ))}
+              </>
+            )}
+          </div>
 
           <PlanFormDialog
             isOpen={showCreatePlan}
