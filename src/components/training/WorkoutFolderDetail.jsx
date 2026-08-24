@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { ArrowRight, ChevronDown } from 'lucide-react';
 import {
   AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -11,7 +11,7 @@ import { base44 } from '@/api/base44Client';
 import { readExerciseSummary, readSectionRating } from '@/lib/workoutExecutionApi';
 import { duplicatePlan, softDeletePlan, buildPlanDeleteMessage } from '@/lib/plansApi';
 import { useHiddenStatusBar } from '@/hooks/useHiddenStatusBar';
-import { readOpenWorkout, writeOpenWorkout } from '@/lib/workoutResume';
+import { readOpenWorkout, writeOpenWorkout, takeGraphFocus } from '@/lib/workoutResume';
 import CopyBadge from '@/components/plans/CopyBadge';
 import UnifiedPlanBuilder from './UnifiedPlanBuilder';
 import WorkoutExecutionReadOnly from './WorkoutExecutionReadOnly';
@@ -1537,7 +1537,28 @@ export default function WorkoutFolderDetail({
   // Collapsible state for the bottom progress graph. Closed by
   // default — the graph block is tall and noisy on first scroll;
   // the trainee/coach opens it when they want to inspect trends.
-  const [graphExpanded, setGraphExpanded] = useState(false);
+  // Open by default for the trainee: the graph is the whole point of
+  // having logged the sets, and it was four taps and a collapsed
+  // section away. The coach's copy still starts closed — their folder
+  // view is a working list, not a progress report.
+  const [graphExpanded, setGraphExpanded] = useState(!isCoach);
+  const graphRef = useRef(null);
+
+  // "צפה בתוצאות" on the finish dialog sets a one-shot flag; landing
+  // here we consume it, make sure the graph is open, and scroll to it.
+  useEffect(() => {
+    if (isCoach) return;
+    if (!takeGraphFocus()) return;
+    setGraphExpanded(true);
+    let tries = 0;
+    const go = () => {
+      tries += 1;
+      const el = graphRef.current;
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      if (tries < 20) window.setTimeout(go, 80);
+    };
+    window.requestAnimationFrame(go);
+  }, [isCoach]);
 
   // Full-focus screen: while an open plan is mounted, tell the app shell
   // (Layout) to hide its top header + bottom nav so the whole viewport is
@@ -1759,7 +1780,9 @@ export default function WorkoutFolderDetail({
           </span>
         </button>
         {graphExpanded && (
-          <ExerciseNumericTrendGraph plan={plan} completed={completed} />
+          <div ref={graphRef}>
+            <ExerciseNumericTrendGraph plan={plan} completed={completed} />
+          </div>
         )}
       </div>
 

@@ -27,6 +27,7 @@ import CopyBadge from "@/components/plans/CopyBadge";
 import { saveSetActual, resolveSetCount } from "@/lib/plannedSets";
 import {
   readResume, writeResume, clearResume, mergeDraftUnder, draftHasValues,
+  requestGraphFocus,
 } from "@/lib/workoutResume";
 import { useExerciseBackGuard } from "@/hooks/useExerciseBackGuard";
 
@@ -515,6 +516,38 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // change and read back on the next open. localStorage only; see
   // src/lib/workoutResume.js. The DB save paths are untouched — this
   // is a net under them, not a replacement.
+  // Values entered against an INNER exercise of a multi-exercise block
+  // (superset / combo / circuit / tabata / rest-pause).
+  // Shape: { [exId]: { [drillIdx]: { [setIdx]: { field: value } } } }.
+  //
+  // Kept beside setLogs rather than inside it: setLogs is a flat
+  // per-set map that the hydration, the finish-time write and every
+  // completion counter walk numerically, and threading a second axis
+  // through it would have touched all of them. drill_index has existed
+  // on exercise_set_logs since the 2026-06 migration and the graph
+  // already splits series by it — the only thing missing was a writer
+  // that passed anything other than a hardcoded 0.
+  const [innerLogs, setInnerLogs] = useState({});
+  const innerLogsRef = useRef(innerLogs);
+  const commitInnerLogs = React.useCallback((exId, drillIdx, setIdx, patchFields) => {
+    const prevEx = innerLogsRef.current[exId] || {};
+    const prevDrill = prevEx[drillIdx] || {};
+    const next = {
+      ...innerLogsRef.current,
+      [exId]: {
+        ...prevEx,
+        [drillIdx]: {
+          ...prevDrill,
+          [setIdx]: { ...(prevDrill[setIdx] || {}), ...patchFields },
+        },
+      },
+    };
+    innerLogsRef.current = next;
+    setInnerLogs(next);
+    setDirtySinceSave(true);
+    return next;
+  }, []);
+
   // Which sections the trainee has folded shut. Everything starts open;
   // the set travels with the resume point so a closed section is still
   // closed when they come back.
@@ -650,15 +683,31 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         // so we filter to drill_index = 0 here — multi-element drill rows
         // are restored by their own (later) hydration path.
         try {
+          // No drill filter any more: drill 0 rehydrates setLogs, every
+          // other drill rehydrates innerLogs. Filtering to 0 here was
+          // why a superset's inner values vanished on a refresh even
+          // when they had been written correctly.
           const { data: setLogRows, error: logsErr } = await supabase
             .from('exercise_set_logs')
             .select('exercise_id, drill_index, set_number, reps_completed, time_completed, weight_used, completed')
-            .eq('execution_id', exec.id)
-            .eq('drill_index', 0);
+            .eq('execution_id', exec.id);
           const restored = {};
+          const restoredInner = {};
           if (!logsErr && Array.isArray(setLogRows)) {
             for (const row of setLogRows) {
               const idx = Math.max(0, (Number(row.set_number) || 1) - 1);
+              const drill = Number.isFinite(row.drill_index) ? row.drill_index : 0;
+              if (drill > 0) {
+                if (!restoredInner[row.exercise_id]) restoredInner[row.exercise_id] = {};
+                if (!restoredInner[row.exercise_id][drill]) restoredInner[row.exercise_id][drill] = {};
+                restoredInner[row.exercise_id][drill][idx] = {
+                  reps_completed: row.reps_completed,
+                  time_completed: row.time_completed,
+                  weight_used: row.weight_used,
+                  done: !!row.completed && hasLogValue(row),
+                };
+                continue;
+              }
               if (!restored[row.exercise_id]) restored[row.exercise_id] = {};
               // saveSetActual stamps completed=true on EVERY row it
               // writes, so a set-log row alone is not evidence that the
@@ -683,6 +732,10 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           if (Object.keys(merged).length > 0) {
             setLogsRef.current = merged;
             setSetLogs(merged);
+          }
+          if (Object.keys(restoredInner).length > 0) {
+            innerLogsRef.current = restoredInner;
+            setInnerLogs(restoredInner);
           }
         } catch (e) {
           console.warn('[UPB] set-log resume failed:', e?.message);
@@ -836,6 +889,42 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     }
     return executionCreatePromiseRef.current;
   }, [currentExecutionId, plan?.id, plan?.assigned_to, plan?.created_by]);
+
+  // One inner exercise, one set. drillIdx is the inner's position in
+  // the block and is written through verbatim — there is no default
+  // and no fallback to 0 here, because a 0 that did not come from the
+  // caller is exactly the bug this replaces.
+  const setInnerSetValue = React.useCallback(async (exercise, drillIdx, setIdx, value, mode) => {
+    if (!exercise?.id || !Number.isFinite(drillIdx)) return;
+    const isClear = value == null || value === '';
+    const field = mode === 'seconds' || mode === 'time'
+      ? 'time_completed'
+      : mode === 'kg' || mode === 'weight'
+        ? 'weight_used'
+        : 'reps_completed';
+
+    commitInnerLogs(exercise.id, drillIdx, setIdx, {
+      [field]: isClear ? null : value,
+      done: !isClear,
+    });
+
+    try {
+      const execId = await ensureExecutionId();
+      if (!execId) return;
+      const payload = {};
+      if (mode === 'seconds' || mode === 'time') payload.hold_seconds = isClear ? null : value;
+      else if (mode === 'kg' || mode === 'weight') payload.weight_kg = isClear ? null : value;
+      else payload.reps = isClear ? null : value;
+
+      const { error } = await saveSetActual(
+        supabase, execId, exercise.id, drillIdx, setIdx + 1, payload,
+        { allowEmpty: isClear },
+      );
+      if (error) console.warn('[UPB] inner set persist failed:', error.message || error);
+    } catch (e) {
+      console.warn('[UPB] inner set persist threw:', e?.message || e);
+    }
+  }, [commitInnerLogs, ensureExecutionId]);
 
   // Real count of past workout_executions for this plan — drives the
   // "ביצועים" stat in the header card. Distinct from the legacy
@@ -1891,6 +1980,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       // called from a 3s timer and from the finish button, and must see
       // every value entered up to this instant.
       const logsNow = setLogsRef.current || {};
+      const logsInnerNow = innerLogsRef.current || {};
 
       let totalSets = 0;
       let doneSets = 0;
@@ -1994,6 +2084,23 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       // Best-effort — if set logs fail to write, the execution row
       // still lands so the score chart updates.
       const setLogRows = [];
+
+      // The drill index a single-exercise row belongs to. Named rather
+      // than written inline as 0 so there is no bare literal left in a
+      // write path — every row below states where its value came from.
+      const DRILL_SINGLE = 0;
+      const buildLogRow = (exerciseId, drillIdx, setIdxStr, log, nums) => ({
+        execution_id: execRow.id,
+        exercise_id: exerciseId,
+        drill_index: drillIdx,
+        set_number: parseInt(setIdxStr, 10) + 1,
+        reps_completed: Number.isFinite(nums.reps) ? nums.reps : null,
+        time_completed: Number.isFinite(nums.timeC) ? nums.timeC : null,
+        weight_used: Number.isFinite(nums.weight) ? nums.weight : null,
+        completed: !!log.done,
+        difficulty_rating: Number.isFinite(nums.difficulty) ? nums.difficulty : null,
+      });
+
       for (const [exerciseId, sets] of Object.entries(logsNow)) {
         for (const [setIdxStr, log] of Object.entries(sets || {})) {
           if (!log) continue;
@@ -2022,20 +2129,35 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             || Number.isFinite(weight)
             || Number.isFinite(difficulty);
           if (!hasMeasurement) continue;
-          setLogRows.push({
-            execution_id: execRow.id,
-            exercise_id: exerciseId,
-            // drill_index=0 — UPB's setLogs state is single-drill today;
-            // multi-element per-inner rows are written through the
-            // ExerciseCard fill path, not this finish-time bulk insert.
-            drill_index: 0,
-            set_number: parseInt(setIdxStr, 10) + 1,
-            reps_completed: Number.isFinite(reps) ? reps : null,
-            time_completed: Number.isFinite(timeC) ? timeC : null,
-            weight_used: Number.isFinite(weight) ? weight : null,
-            completed: !!log.done,
-            difficulty_rating: Number.isFinite(difficulty) ? difficulty : null,
-          });
+          setLogRows.push(buildLogRow(exerciseId, DRILL_SINGLE, setIdxStr, log, {
+            reps, timeC, weight, difficulty,
+          }));
+        }
+      }
+
+      // Inner exercises of a multi-exercise block. Same builder, same
+      // skip rule — the only difference is that the drill index comes
+      // from where the value was actually entered instead of a literal.
+      for (const [exerciseId, byDrill] of Object.entries(logsInnerNow)) {
+        for (const [drillStr, sets] of Object.entries(byDrill || {})) {
+          const drillIdx = parseInt(drillStr, 10);
+          if (!Number.isFinite(drillIdx)) continue;
+          for (const [setIdxStr, log] of Object.entries(sets || {})) {
+            if (!log) continue;
+            const reps = log.reps_completed != null && log.reps_completed !== ''
+              ? parseInt(log.reps_completed, 10) : null;
+            const timeC = log.time_completed != null && log.time_completed !== ''
+              ? parseInt(log.time_completed, 10) : null;
+            const weight = log.weight_used != null && log.weight_used !== ''
+              ? Number(log.weight_used) : null;
+            const difficulty = log.difficulty != null && log.difficulty !== ''
+              ? parseInt(log.difficulty, 10) : null;
+            if (!(Number.isFinite(reps) || Number.isFinite(timeC)
+                  || Number.isFinite(weight) || Number.isFinite(difficulty))) continue;
+            setLogRows.push(buildLogRow(exerciseId, drillIdx, setIdxStr, log, {
+              reps, timeC, weight, difficulty,
+            }));
+          }
         }
       }
       if (setLogRows.length > 0) {
@@ -2082,6 +2204,56 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // because both the explicit finish handler below and the autosave
   // effect further down call through it.
   const saveExecRef = React.useRef(null);
+
+  // Closing card for one exercise. Difficulty lands on the LAST set's
+  // log row, the free note on exercise_executions.trainee_note — the
+  // same two targets the old ExerciseCard wrote to. Both columns
+  // already exist; neither has had a producer since the sheet replaced
+  // that card. Best-effort: a failed note must never block the workout.
+  const handleExerciseEnd = React.useCallback(async ({ exercise, difficulty, note }) => {
+    if (!exercise?.id) return;
+    if (difficulty == null && !note) return;          // skipped — nothing to write
+    try {
+      const execId = await ensureExecutionId();
+      if (!execId) return;
+
+      if (difficulty != null) {
+        const lastSet = resolveSetCount(exercise);
+        const { error } = await supabase
+          .from('exercise_set_logs')
+          .update({ difficulty_rating: difficulty })
+          .eq('execution_id', execId)
+          .eq('exercise_id', exercise.id)
+          .eq('drill_index', 0)
+          .eq('set_number', lastSet);
+        if (error) console.warn('[end-card] difficulty save failed:', error.message);
+      }
+
+      if (note) {
+        const { data: existing } = await supabase
+          .from('exercise_executions')
+          .select('id')
+          .eq('workout_execution_id', execId)
+          .eq('exercise_id', exercise.id)
+          .limit(1);
+        if (existing && existing.length > 0) {
+          await supabase.from('exercise_executions')
+            .update({ trainee_note: note }).eq('id', existing[0].id);
+        } else {
+          await supabase.from('exercise_executions').insert({
+            workout_execution_id: execId,
+            exercise_id: exercise.id,
+            section_id: exercise.training_section_id || null,
+            is_completed: true,
+            trainee_note: note,
+            completed_at: new Date().toISOString(),
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('[end-card] save failed:', e?.message || e);
+    }
+  }, [ensureExecutionId]);
 
   // Explicit "finish and save". Saves FIRST and unconditionally — the
   // handler this replaced only opened the summary dialog and refused to
@@ -2787,6 +2959,10 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             exercises={exercises.filter(Boolean)}
             setLogs={setLogs}
             execCompletion={execCompletion}
+            previousSetData={previousSetData}
+            innerLogs={innerLogs}
+            onInnerSetValue={setInnerSetValue}
+            onExerciseEnd={handleExerciseEnd}
             saving={savingWorkout}
             progressPct={progressPct}
             collapsedSections={collapsedSections}
@@ -3253,6 +3429,11 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                               });
                             } catch (e) { console.error(e); }
                           }
+                          // Ask the folder to open on the graph
+                          // rather than at the top of the page. It is a
+                          // one-shot flag: the folder reads it, clears
+                          // it, expands the graph and scrolls to it.
+                          requestGraphFocus();
                           setShowSummaryDialog(false);
                           if (onBack) onBack();
                         }}

@@ -11,6 +11,7 @@ import {
 } from '@/lib/tabataSettings';
 import ScrollPickerPopup, { REPS_OPTIONS, WEIGHT_OPTIONS } from '@/components/ScrollPickerPopup';
 import { TimeEntryPopup } from '@/components/TimeEntry';
+import ExerciseEndCard from './ExerciseEndCard';
 
 // ────────────────────────────────────────────────────────────────
 // The trainee's workout sheet.
@@ -48,6 +49,11 @@ const C = {
   emptyBg:      '#FBF7F2',
   emptyBorder:  '#DED5C8',
   activeRowBg:  '#FFFAF5',
+  // Personal best. New tones, added alongside the existing palette —
+  // no existing colour is redefined.
+  goldBg:       '#FDF6E3',
+  goldBorder:   '#D9A625',
+  goldText:     '#8A6410',
 };
 
 const SANS = "'Rubik', system-ui, sans-serif";
@@ -179,13 +185,64 @@ const BOX_W = 50;
 const BOX_W_TIME = 70;
 const BOX_W_PANEL = 96;
 
+// What the trainee did last time, and their best ever, for one set.
+// usePreviousSetData hands UnifiedPlanBuilder a 0-based per-set map:
+//   { [setIdx]: { previous_reps, record_reps, previous_time, record_time } }
+// It has been computed on every workout for months and shown to nobody
+// since the sheet replaced the old card — this is what puts it back on
+// screen. Reps and time are the only two it tracks.
+function historyFor(setHistory, metric) {
+  if (!setHistory || !metric) return { prev: null, record: null };
+  if (metric.logField === 'reps_completed') {
+    return {
+      prev: setHistory.previous_reps ?? null,
+      record: setHistory.record_reps ?? null,
+    };
+  }
+  if (metric.logField === 'time_completed') {
+    return {
+      prev: setHistory.previous_time ?? null,
+      record: setHistory.record_time ?? null,
+    };
+  }
+  return { prev: null, record: null };
+}
+
+// A record only falls to a real, typed, strictly-greater value.
+function beatsRecord(value, record) {
+  if (!has(value) || record == null) return false;
+  const v = Number(value);
+  return Number.isFinite(v) && v > 0 && v > Number(record);
+}
+
+// An inner exercise carries its own reps / hold_seconds inside
+// tabata_data; fall back to the block's own metric when it carries
+// neither, so the box still writes somewhere sensible.
+function innerMetric(sub, blockMetric) {
+  if (has(sub?.reps)) {
+    return { key: 'reps', mode: 'reps', target: Number(sub.reps) || 0, logField: 'reps_completed', isTime: false, unit: null };
+  }
+  if (has(sub?.hold_seconds)) {
+    return { key: 'hold', mode: 'seconds', target: Number(sub.hold_seconds) || 0, logField: 'time_completed', isTime: true, unit: null };
+  }
+  if (has(sub?.weight_kg)) {
+    return { key: 'weight', mode: 'kg', target: Number(sub.weight_kg) || 0, logField: 'weight_used', isTime: false, unit: 'ק"ג' };
+  }
+  return blockMetric || { key: 'reps', mode: 'reps', target: 0, logField: 'reps_completed', isTime: false, unit: null };
+}
+
 // ── One fill box ────────────────────────────────────────────────
-function FillBox({ value, target, active, readOnly, metric, onTap }) {
+function FillBox({ value, target, active, readOnly, metric, onTap, isRecord = false }) {
   const filled = has(value);
   const num = filled ? Number(value) : null;
 
   let style;
-  if (active && !filled) {
+  if (filled && isRecord) {
+    // Gold: this value beat everything the trainee has logged for this
+    // set before. Checked first — a personal best outranks every other
+    // state the box could be in.
+    style = { background: C.goldBg, border: `2px solid ${C.goldBorder}`, color: C.goldText };
+  } else if (active && !filled) {
     style = { background: '#FFFFFF', border: `2px solid ${C.orange}`, color: C.orange };
   } else if (!filled) {
     style = { background: C.emptyBg, border: `1px dashed ${C.emptyBorder}`, color: C.note };
@@ -409,7 +466,8 @@ function TabataPanel({ exercise, rotationCount }) {
 // ── One exercise row ────────────────────────────────────────────
 function ExerciseRow({
   exercise, runningIndex, measurable, readOnly, markedComplete,
-  logs, isActive, onOpenEntry, onToggleDone, expanded, onToggleExpanded,
+  logs, history, innerLogs, isActive, onOpenEntry, onToggleDone,
+  expanded, onToggleExpanded,
 }) {
   const variant = variantOf(exercise);
   const isMulti = MULTI_VARIANTS.has(variant);
@@ -601,11 +659,44 @@ function ExerciseRow({
                       metric={metric}
                       active={!completed && i === doneCount}
                       readOnly={readOnly || !metric}
+                      isRecord={beatsRecord(valueAt(i), historyFor(history?.[i], metric).record)}
                       onTap={() => onOpenEntry({ exercise, metric, setIdx: i, mode: 'single' })}
                     />
                   ))}
                 </div>
               )}
+
+              {/* Last time, and best ever, for the set in play.
+                  One line under the boxes rather than one under each
+                  box: at 11px "קודם 12 · שיא 15" is wider than the
+                  50px a box is allowed to be, and squeezing it in
+                  would have meant either wrapping it or shrinking the
+                  box the previous round fixed at 50. Nothing renders
+                  at all when there is no history. */}
+              {(() => {
+                if (!metric || boxCount > 4) return null;
+                const idx = completed ? Math.max(0, setCount - 1) : Math.min(doneCount, setCount - 1);
+                const { prev, record } = historyFor(history?.[idx], metric);
+                const brokeIt = beatsRecord(valueAt(idx), record);
+                if (!brokeIt && prev == null && record == null) return null;
+
+                const fmt = (n) => formatFor(metric, n);
+                return (
+                  <div style={{
+                    marginTop: 3, fontFamily: SANS, fontSize: 11,
+                    color: brokeIt ? C.goldText : C.note,
+                    fontWeight: brokeIt ? 800 : 500,
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {brokeIt
+                      ? 'שיא חדש'
+                      : [
+                          prev != null ? `קודם ${fmt(prev)}` : null,
+                          record != null ? `שיא ${fmt(record)}` : null,
+                        ].filter(Boolean).join(' · ')}
+                  </div>
+                );
+              })()}
             </div>
 
             {isMulti && (
@@ -633,28 +724,54 @@ function ExerciseRow({
           marginTop: 8, marginRight: 18,
           borderRight: `2px solid ${C.band}`, paddingRight: 10,
         }}>
-          {inner.map((sub, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'baseline', gap: 6, padding: '3px 0',
-            }}>
-              <span style={{ fontFamily: SANS, fontSize: 12, fontWeight: 800, color: C.number }}>{i + 1}.</span>
-              <span style={{ fontFamily: SANS, fontSize: 12.5, color: C.ink }}>
-                {sub?.name || sub?.exercise_name || sub?.variation_name || 'תרגיל'}
-              </span>
-              {has(sub?.reps) && (
-                <>
-                  <span style={{ color: C.dot }}>·</span>
-                  <span style={{ fontFamily: SANS, fontSize: 12, fontWeight: 700, color: C.ink }}>{sub.reps} חזרות</span>
-                </>
-              )}
-              {has(sub?.hold_seconds) && (
-                <>
-                  <span style={{ color: C.dot }}>·</span>
-                  <span style={{ fontFamily: SANS, fontSize: 12, fontWeight: 700, color: C.ink }}>{formatTime(sub.hold_seconds)}</span>
-                </>
-              )}
-            </div>
-          ))}
+          {inner.map((sub, i) => {
+            // i IS the drill index — the inner's position in the block.
+            // Every value entered on this line is written with it, so a
+            // superset finally lands as one series per inner exercise
+            // instead of everything piled onto drill 0.
+            const subMetric = innerMetric(sub, metric);
+            const subLogs = innerLogs?.[i] || {};
+            const roundCount = Math.max(1, Math.min(8,
+              metric?.key === 'rounds' && metric.target > 0 ? metric.target : setCount));
+            return (
+              <div key={i} style={{ padding: '4px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontFamily: SANS, fontSize: 12, fontWeight: 800, color: C.number }}>{i + 1}.</span>
+                  <span style={{
+                    flex: 1, minWidth: 0, fontFamily: SANS, fontSize: 12.5, color: C.ink,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    {sub?.name || sub?.exercise_name || sub?.variation_name || 'תרגיל'}
+                  </span>
+                  {subMetric.target > 0 && (
+                    <span style={{ flexShrink: 0, fontFamily: SANS, fontSize: 12, fontWeight: 700, color: C.note }}>
+                      {formatFor(subMetric, subMetric.target)}
+                    </span>
+                  )}
+                </div>
+
+                {!readOnly && (
+                  <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                    {Array.from({ length: roundCount }, (_, r) => (
+                      <FillBox
+                        key={r}
+                        value={subLogs?.[r]?.[subMetric.logField]}
+                        target={subMetric.target}
+                        metric={subMetric}
+                        active={false}
+                        readOnly={readOnly}
+                        onTap={() => onOpenEntry({
+                          exercise, metric: subMetric, setIdx: r,
+                          drillIdx: i, drillName: sub?.name || sub?.exercise_name || null,
+                          mode: 'single',
+                        })}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
           {variant === 'tabata' && (
             <TabataPanel exercise={exercise} rotationCount={inner.length} />
@@ -672,13 +789,17 @@ export default function WorkoutSheet({
   exercises = [],
   setLogs = {},
   execCompletion = {},
+  previousSetData = {},
+  innerLogs = {},
   readOnly = false,
   saving = false,
   progressPct = 0,
   collapsedSections = [],
   onToggleSection,
   onSetValue,
+  onInnerSetValue,
   onToggleDone,
+  onExerciseEnd,
   onFinish,
 }) {
   const collapsed = useMemo(
@@ -687,6 +808,14 @@ export default function WorkoutSheet({
   );
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const [entry, setEntry] = useState(null);     // { exercise, metric, setIdx, mode }
+  // The closing card for one exercise: difficulty + a free note, both
+  // optional. It rides on the last set being filled — the same moment
+  // the old card used — and it is the only thing that writes
+  // exercise_set_logs.difficulty_rating and
+  // exercise_executions.trainee_note, which have had no producer at all
+  // since this sheet replaced ExerciseCard for the trainee.
+  const [endCard, setEndCard] = useState(null); // { exercise, setsCompleted }
+  const [endCardSaving, setEndCardSaving] = useState(false);
 
   const toggleExpanded = (id) => {
     setExpandedIds((prev) => {
@@ -752,12 +881,42 @@ export default function WorkoutSheet({
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
-  const commit = (exercise, setIdx, value, metric) => {
+  const commit = (exercise, setIdx, value, metric, drillIdx) => {
+    // A value entered on an inner line of a multi-exercise block goes
+    // out with that inner's index. Only a top-level row takes the
+    // single-exercise path.
+    if (Number.isFinite(drillIdx)) {
+      if (typeof onInnerSetValue === 'function') {
+        onInnerSetValue(exercise, drillIdx, setIdx, value, metric?.mode || 'reps');
+      }
+      setEntry(null);
+      return;
+    }
+
     if (typeof onSetValue === 'function') onSetValue(exercise, setIdx, value, metric?.mode || 'reps');
     setEntry(null);
+
+    // Was that the exercise's last open set? Counted here rather than
+    // waiting for the parent's state to come back, so the card appears
+    // in the same tap.
+    if (!has(value) || typeof onExerciseEnd !== 'function') return;
+    const total = resolveSetCount(exercise);
+    const logs = setLogs[exercise.id] || {};
+    let filled = 0;
+    for (let i = 0; i < total; i++) {
+      if (i === setIdx) { filled += 1; continue; }
+      const row = logs[i];
+      if (!row) continue;
+      if (row.done || (metric && has(row[metric.logField]))) filled += 1;
+    }
+    if (filled >= total) setEndCard({ exercise, setsCompleted: total });
   };
 
-  const entryLogs = entry ? (setLogs[entry.exercise.id] || {}) : {};
+  const entryLogs = entry
+    ? (Number.isFinite(entry.drillIdx)
+        ? ((innerLogs[entry.exercise.id] || {})[entry.drillIdx] || {})
+        : (setLogs[entry.exercise.id] || {}))
+    : {};
   const entryMetric = entry?.metric;
   const entrySetCount = entry ? resolveSetCount(entry.exercise) : 0;
 
@@ -887,6 +1046,8 @@ export default function WorkoutSheet({
                     measurable={measurable}
                     readOnly={readOnly}
                     logs={setLogs[exercise.id] || {}}
+                    history={previousSetData[exercise.id] || null}
+                    innerLogs={innerLogs[exercise.id] || null}
                     markedComplete={!!execCompletion[exercise.id]}
                     isActive={exercise.id === activeExerciseId}
                     expanded={expandedIds.has(exercise.id)}
@@ -1003,18 +1164,53 @@ export default function WorkoutSheet({
       <TimeEntryPopup
         isOpen={entry?.mode === 'single' && !!entryMetric?.isTime}
         value={entryMetric ? entryLogs?.[entry.setIdx]?.[entryMetric.logField] ?? entryMetric.target : null}
-        title={entry ? `${entry.exercise.exercise_name || ''} · סט ${(entry.setIdx ?? 0) + 1}` : ''}
+        title={entry
+          ? `${entry.drillName || entry.exercise.exercise_name || ''} · ${Number.isFinite(entry.drillIdx) ? 'סבב' : 'סט'} ${(entry.setIdx ?? 0) + 1}`
+          : ''}
         onClose={() => setEntry(null)}
-        onSelect={(v) => entry && commit(entry.exercise, entry.setIdx, v, entryMetric)}
+        onSelect={(v) => entry && commit(entry.exercise, entry.setIdx, v, entryMetric, entry.drillIdx)}
       />
+
+      {/* Closing card. Tapping the backdrop skips it — everything on it
+          is optional, exactly as it was on the old card. */}
+      {endCard && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget && !endCardSaving) setEndCard(null); }}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+            zIndex: 6000, padding: 10,
+            paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 14px)',
+          }}
+        >
+          <div style={{ width: '100%', maxWidth: 520 }}>
+            <ExerciseEndCard
+              exerciseName={endCard.exercise?.exercise_name || 'התרגיל'}
+              setsCompleted={endCard.setsCompleted}
+              saving={endCardSaving}
+              onSubmit={async ({ difficulty, note }) => {
+                setEndCardSaving(true);
+                try {
+                  await onExerciseEnd({ exercise: endCard.exercise, difficulty, note });
+                } finally {
+                  setEndCardSaving(false);
+                  setEndCard(null);
+                }
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       <ScrollPickerPopup
         isOpen={entry?.mode === 'single' && !!entryMetric && !entryMetric.isTime}
         value={entryMetric ? entryLogs?.[entry.setIdx]?.[entryMetric.logField] ?? entryMetric.target : null}
         options={entryMetric?.key === 'weight' ? WEIGHT_OPTIONS : REPS_OPTIONS}
-        title={entry ? `${entry.exercise.exercise_name || ''} · סט ${(entry.setIdx ?? 0) + 1}` : ''}
+        title={entry
+          ? `${entry.drillName || entry.exercise.exercise_name || ''} · ${Number.isFinite(entry.drillIdx) ? 'סבב' : 'סט'} ${(entry.setIdx ?? 0) + 1}`
+          : ''}
         onClose={() => setEntry(null)}
-        onSelect={(v) => entry && commit(entry.exercise, entry.setIdx, v, entryMetric)}
+        onSelect={(v) => entry && commit(entry.exercise, entry.setIdx, v, entryMetric, entry.drillIdx)}
       />
     </div>
   );

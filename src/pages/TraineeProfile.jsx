@@ -3876,7 +3876,10 @@ export default function TraineeProfile() {
     { id: 'services',      label: 'חבילות',   emoji: '🎫', icon: Package,         perm: null },
     { id: 'plans',         label: 'תוכניות',  emoji: '📋', icon: Folder,          perm: 'view_plan' },
     { id: 'baselines',     label: 'בייסליין', emoji: '⚡', icon: Zap,             perm: 'view_baseline' },
-    { id: 'achievements',  label: 'שיאים',    emoji: '🏆', icon: Award,           perm: 'view_progress' },
+    // Renamed from "שיאים": the tab holds the execution trend graphs
+    // and the plan-progress charts. Personal records are one card
+    // inside it, not what it is.
+    { id: 'achievements',  label: 'התקדמות',  emoji: '📈', icon: Award,           perm: 'view_progress' },
     { id: 'metrics',       label: 'מדידות',   emoji: '📐', icon: Activity,        perm: 'edit_metrics' },
     { id: 'documents',     label: 'מסמכים',   emoji: '📄', icon: FileText,        perm: 'view_documents' },
     { id: 'gallery',       label: 'גלריה',    emoji: '🖼️', icon: ImageIcon,       perm: null },

@@ -159,3 +159,36 @@ export function clearOpenWorkout() {
   if (typeof localStorage === 'undefined') return;
   try { localStorage.removeItem(OPEN_KEY); } catch { /* ignore */ }
 }
+
+// ────────────────────────────────────────────────────────────────
+// One-shot "open on the graph" request.
+//
+// The finish dialog's "צפה בתוצאות" used to save and drop the trainee
+// at the top of the plan folder, with the graph collapsed several
+// scrolls below — four taps between finishing a workout and seeing
+// what it did to the trend. This flag carries the intent across the
+// unmount: set on the way out, consumed once on the way in.
+//
+// sessionStorage is right here, unlike the resume pointer: this is a
+// single navigation inside one session, not a state that has to
+// survive the app being killed.
+// ────────────────────────────────────────────────────────────────
+
+const GRAPH_FOCUS_KEY = 'athletigo_focus_graph';
+
+export function requestGraphFocus() {
+  if (typeof sessionStorage === 'undefined') return;
+  try { sessionStorage.setItem(GRAPH_FOCUS_KEY, '1'); } catch { /* ignore */ }
+}
+
+// Reads AND clears — a request is honoured exactly once.
+export function takeGraphFocus() {
+  if (typeof sessionStorage === 'undefined') return false;
+  try {
+    const v = sessionStorage.getItem(GRAPH_FOCUS_KEY);
+    if (v) sessionStorage.removeItem(GRAPH_FOCUS_KEY);
+    return !!v;
+  } catch {
+    return false;
+  }
+}
