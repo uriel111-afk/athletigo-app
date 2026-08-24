@@ -6,7 +6,7 @@
 
 ## סקירה כללית
 
-מסד הנתונים מבוסס על **Supabase (PostgreSQL)**. הליבה: ~19 טבלאות מקוריות (17 פעילות + 2 לא קיימות), בתוספת טבלאות שנוספו ב-07/2026: `intake_schema`, `lead_interactions`, `trainee_media`, `import_products` (ר' סעיף "טבלאות חדשות").
+מסד הנתונים מבוסס על **Supabase (PostgreSQL)**. הליבה: ~19 טבלאות מקוריות (17 פעילות + 2 לא קיימות), בתוספת ארבע טבלאות מנוע הביצוע (`workout_executions`, `exercise_set_logs`, `section_executions`, `exercise_executions` — ר' סעיף "טבלאות מנוע הביצוע") וטבלאות שנוספו ב-07/2026: `intake_schema`, `lead_interactions`, `trainee_media`, `import_products` (ר' סעיף "טבלאות חדשות").
 
 המערכת תומכת בשני סוגי משתמשים:
 - **מאמן (coach)** — מנהל את המערכת, רואה את כל הנתונים
@@ -37,6 +37,10 @@
 | 17 | `messages` | הודעות פנימיות | 0 | פעילה |
 | 18 | `program_series` | סדרות תוכניות | 0 | פעילה |
 | 19 | `training_plan_assignments` | שיוך תוכניות למתאמנים | 0 | פעילה |
+| 20 | `workout_executions` | ביצוע אימון בפועל — הרצה אחת של תוכנית | — | פעילה |
+| 21 | `exercise_set_logs` | יומן סטים — מה בוצע בפועל בכל סט | — | פעילה |
+| 22 | `section_executions` | ציון אתגר/שליטה לכל סקשן בביצוע | — | פעילה |
+| 23 | `exercise_executions` | סימון השלמה + הערת מתאמן לכל תרגיל | — | פעילה |
 | ❌ | `training_groups` | קבוצות אימון | — | **לא קיימת** |
 | ❌ | `training_group_members` | חברי קבוצה | — | **לא קיימת** |
 
@@ -306,6 +310,35 @@
 **עמודות שנוספו ל-`users` (07/2026, כולן jsonb עם גרסת מסמך + חותם):** `photo_consent`, `photo_consent_completed` (bool), `terms_accepted`, `privacy_accepted`.
 
 **RLS (07/2026):** פעיל על `leads` (user_id), `lead_interactions`, `trainee_media`. חוב ידוע: `users` עם מדיניות allow-all פתוחה.
+
+### טבלאות מנוע הביצוע (מסך "אימונים")
+
+נוצרו ב-`migrations/2026-04-30-plan-execution-engine.sql` ומורחבות
+ב-`2026-05-03-exercise-set-logs.sql`, `2026-05-04-set-logs-and-feedback.sql`,
+`2026-05-04-set-difficulty-rating.sql` ו-`2026-08-24-exercise-set-logs-drill-columns.sql`.
+כאן נשמר מה שהמתאמן **ביצע בפועל**, בנפרד מהתכנון שיושב על `exercises`.
+
+| טבלה | עמודות מרכזיות | הערות |
+|-------|----------------|--------|
+| `workout_executions` | id, **plan_id** (→training_plans, CASCADE), **trainee_id** (→users, CASCADE), series_id, status (in_progress/completed/abandoned), started_at, completed_at, abandoned_at, total_avg_score, total_exercises, completed_exercises, trainee_feedback, feedback_chips (text[]), created_at, updated_at | הרצה אחת של תוכנית. כל שאר טבלאות הביצוע תלויות בה |
+| `exercise_set_logs` | id, **execution_id** (→workout_executions, CASCADE), exercise_id, **drill_index** (0 = תרגיל יחיד), set_number, reps_completed, time_completed, weight_used, rpe_actual, rest_seconds_actual, tempo_actual, completed (bool), difficulty_rating (1-10), notes, created_at | שורה אחת לכל (ביצוע, תרגיל, דריל, סט). ייחודי על ארבעת המפתחות — זה יעד ה-onConflict של `saveSetActual` |
+| `section_executions` | id, **workout_execution_id** (CASCADE), section_id, challenge_score (1-10), control_score (1-10), avg_score, completed_at | UNIQUE(workout_execution_id, section_id) |
+| `exercise_executions` | id, **workout_execution_id** (CASCADE), section_id, exercise_id, is_completed, trainee_note, completed_at | UNIQUE(workout_execution_id, exercise_id) |
+
+**`drill_index`** — מזהה את התרגיל הפנימי בשיטות מרובות-אלמנטים
+(סופרסט / קומבו / מחזורי / טבטה). 0 לשיטות של תרגיל יחיד.
+`usePreviousSetData` מסנן ל-0 בלבד, ולכן "קודם / שיא" עדיין לא עובד
+לתרגילים פנימיים.
+
+**RLS על `exercise_set_logs`:**
+`trainee_own` (FOR ALL) — המתאמן שהביצוע שלו.
+`set_logs_read_scoped` (FOR SELECT, מ-`2026-08-24-set-logs-read-scoping.sql`) —
+המתאמן עצמו, המאמן שהוא משויך אליו דרך `users.coach_id`, או `role='admin'`.
+החליפה את `coach_read` הישנה שהתירה לכל בעל `role='coach'` לקרוא את
+היומנים של **כל** המתאמנים במערכת.
+
+**חוב ידוע:** אין הצהרות RLS ל-`workout_executions`,
+`section_executions` ו-`exercise_executions` באף קובץ מיגרציה בריפו.
 
 ---
 
