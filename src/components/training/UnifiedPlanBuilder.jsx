@@ -2601,25 +2601,36 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           style={{ padding: '20px 20px 14px', cursor: 'pointer' }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 12 }}>
-            <h2 style={{
-              margin: 0,
-              fontFamily: 'Bebas Neue, sans-serif',
-              fontSize: 32,
-              fontWeight: 700,
-              color: '#1a1a1a',
-              lineHeight: 1.15,
-              letterSpacing: '-0.5px',
-              flex: 1,
-              minWidth: 0,
-              wordBreak: 'break-word',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              flexWrap: 'wrap',
-            }}>
-              <span>{plan?.plan_name || 'תכנית אימון'}</span>
-              <CopyBadge plan={plan} style={{ fontFamily: 'Rubik, sans-serif' }} />
-            </h2>
+            {/* The trainee reads the plan name off the sheet's own
+                header, inside the page. Printing it again on the card
+                above the page said the same thing twice, in two
+                different typefaces. The coach keeps this heading — it
+                is the editable one. */}
+            {canEdit ? (
+              <h2 style={{
+                margin: 0,
+                fontFamily: 'Bebas Neue, sans-serif',
+                fontSize: 32,
+                fontWeight: 700,
+                color: '#1a1a1a',
+                lineHeight: 1.15,
+                letterSpacing: '-0.5px',
+                flex: 1,
+                minWidth: 0,
+                wordBreak: 'break-word',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                flexWrap: 'wrap',
+              }}>
+                <span>{plan?.plan_name || 'תכנית אימון'}</span>
+                <CopyBadge plan={plan} style={{ fontFamily: 'Rubik, sans-serif' }} />
+              </h2>
+            ) : (
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}>
+                <CopyBadge plan={plan} style={{ fontFamily: 'Rubik, sans-serif' }} />
+              </div>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
               {/* DOM order gear → chevron. Under RTL flex the last DOM
                   child sits at the visual leftmost edge of the row, so
@@ -3112,11 +3123,17 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           onInteractOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}>
 
+            {/* Close, and stay where you were. 44px of tap area — the
+                old one was a 20px icon with 4px of padding, which on a
+                phone is a coin toss. */}
             <button
+            type="button"
+            aria-label="סגור"
             onClick={() => setShowSummaryDialog(false)}
-            className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors p-1">
+            className="absolute top-2 right-2 text-gray-400 hover:text-white transition-colors flex items-center justify-center"
+            style={{ width: 44, height: 44 }}>
 
-                <X className="w-5 h-5" />
+                <X className="w-6 h-6" />
             </button>
 
             <div className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ backgroundColor: 'rgba(34,197,94,0.15)' }}>
@@ -3268,12 +3285,17 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                         className="w-full h-12 rounded-xl font-bold border-[#3a3a3a] text-gray-200 bg-transparent hover:bg-gray-800 hover:text-white">
                         📋 שכפל לשיפור
                       </Button>
+                      {/* Was "חזור לאימון", which read as a way back IN
+                          — the one thing this dialog had no button for
+                          was getting out of it and staying out. Same
+                          handler, honest label, and a real button
+                          instead of a thin text link. */}
                       <button
                         type="button"
                         onClick={() => setShowSummaryDialog(false)}
-                        className="w-full text-gray-500 text-xs font-bold hover:text-gray-300 transition-colors mt-1"
+                        className="w-full h-12 rounded-xl font-bold border border-[#3a3a3a] text-gray-200 bg-transparent hover:bg-gray-800 hover:text-white transition-colors mt-1"
                       >
-                        חזור לאימון
+                        סגור
                       </button>
                     </div>
                 </div>

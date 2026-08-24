@@ -762,11 +762,13 @@ export default function WorkoutSheet({
   const entrySetCount = entry ? resolveSetCount(entry.exercise) : 0;
 
   return (
-    <div dir="rtl" style={{
-      background: C.frame, padding: 6, minHeight: '100%',
-      // Room for the fixed bottom bar, outside the page.
-      paddingBottom: 'calc(74px + env(safe-area-inset-bottom, 0px))',
-    }}>
+    <div dir="rtl">
+      {/* The dark frame is exactly as tall as what it wraps. It used to
+          carry minHeight:100% plus the bottom-bar clearance, so it
+          stretched to the viewport and then some — a wide dark band
+          below the last section. The clearance is a transparent spacer
+          now, outside the frame. */}
+      <div style={{ background: C.frame, padding: 6 }}>
       <div style={{
         background: C.page, borderRadius: 10, overflow: 'hidden',
         position: 'relative',
@@ -900,15 +902,24 @@ export default function WorkoutSheet({
         </div>
 
         {/* Orange diagonal — in the flow, directly under the last
-            section, so the page ends where the content ends. */}
-        <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: 10 }}>
+            section, so the page ends where the content ends. Sized to
+            echo the dark wedge at the top rather than compete with it:
+            a 28px band across at most 44% of the width, in the bottom
+            RIGHT corner. */}
+        <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: 8 }}>
           <div style={{
-            width: 120, height: 64, background: C.orange, opacity: 0.9,
+            width: '44%', maxWidth: 190, height: 28,
+            background: C.orange, opacity: 0.9,
             clipPath: 'polygon(100% 0, 100% 100%, 0 100%)',
             pointerEvents: 'none',
           }} />
         </div>
       </div>
+      </div>
+
+      {/* Clearance for the fixed bar below — transparent, so the dark
+          frame does not grow to cover it. */}
+      <div style={{ height: 'calc(122px + env(safe-area-inset-bottom, 0px))' }} />
 
       {/* Fixed bottom bar — stays put while the sheet scrolls. The
           progress bar rides on top of it rather than floating on its
@@ -919,7 +930,9 @@ export default function WorkoutSheet({
           background: C.page, borderTop: `1px solid ${C.cardBorder}`,
           boxShadow: '0 -6px 12px rgba(0,0,0,0.06)',
           padding: '8px 10px',
-          paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
+          // Extra bottom breathing room so the bar is not welded to the
+          // device's own navigation strip underneath it.
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 14px)',
         }}>
         <div style={{ marginBottom: 8 }}>
           <div style={{
