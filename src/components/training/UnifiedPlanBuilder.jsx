@@ -645,11 +645,19 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             for (const row of setLogRows) {
               const idx = Math.max(0, (Number(row.set_number) || 1) - 1);
               if (!restored[row.exercise_id]) restored[row.exercise_id] = {};
+              // saveSetActual stamps completed=true on EVERY row it
+              // writes, so a set-log row alone is not evidence that the
+              // trainee did anything — and the pre-2026-08-24 write path
+              // left behind a pile of rows with completed=true and all
+              // three value columns NULL. Restoring those as done is
+              // what showed a fresh workout already ticked. A row counts
+              // as done only if it actually carries a measurement.
+              const rowHasValue = hasLogValue(row);
               restored[row.exercise_id][idx] = {
                 reps_completed: row.reps_completed,
                 time_completed: row.time_completed,
                 weight_used: row.weight_used,
-                done: !!row.completed,
+                done: !!row.completed && rowHasValue,
               };
             }
           }
@@ -753,6 +761,32 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       e ? { ...e, completed: !!execCompletion[e.id] } : e),
     [exercisesRaw, execCompletion],
   );
+
+  // ── What counts as done on THIS run ─────────────────────────────
+  //
+  // Two sources, and only two: a set the trainee ticked, and a set the
+  // trainee put a number in. Not exercises.completed (the coach's
+  // column — already neutralised by the overlay above, but never read
+  // here either), and not the bare existence of a set-log row, since
+  // every row is written with completed=true whether or not it holds a
+  // value.
+  const hasLogValue = (row) => !!row && (
+    (row.reps_completed != null && row.reps_completed !== '')
+    || (row.time_completed != null && row.time_completed !== '')
+    || (row.weight_used != null && row.weight_used !== '')
+  );
+
+  const countDoneSets = React.useCallback((exercise, logsSource) => {
+    const n = resolveSetCount(exercise);
+    const log = (logsSource || {})[exercise?.id] || {};
+    let done = 0;
+    for (let i = 0; i < n; i++) {
+      const row = log[i];
+      if (!row) continue;
+      if (row.done || hasLogValue(row)) done++;
+    }
+    return { done, total: n };
+  }, []);
 
   // Create the workout_executions row on demand, shared by every path
   // that needs one (first set fill, first exercise tick). Mutex via
@@ -1222,7 +1256,12 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     // previous session. Trainee must tap something this session for
     // the celebration to count.
     if (!hasInteractedRef.current) return;
-    const allDone = exercises.every(e => e.completed);
+    // Same measurement as the progress bar — a plan does not celebrate
+    // itself because completion rows exist.
+    const allDone = exercises.length > 0 && exercises.every((e) => {
+      const r = countDoneSets(e, setLogs);
+      return r.total > 0 && r.done >= r.total;
+    });
     if (allDone && !celebrationFiredRef.current) {
       celebrationFiredRef.current = true;
       setShowCelebration(true);
@@ -1230,10 +1269,33 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     if (!allDone) celebrationFiredRef.current = false;
   }, [exercises, canEdit]);
 
-  // Progress for the bottom bar (trainee view only)
+  // Progress for the bottom bar (trainee view only).
+  //
+  // Counted from the sets the trainee actually ticked or filled — the
+  // same measurement the sheet paints. It used to count exercises whose
+  // .completed flag was set, which is an overlay of the per-run
+  // completion table: an exercise carrying a completion row from an
+  // earlier pass read as done even though nothing had been entered, and
+  // a plan of two such exercises opened at 100%.
+  const setProgress = React.useMemo(() => {
+    let total = 0;
+    let done = 0;
+    for (const ex of (exercises || [])) {
+      if (!ex) continue;
+      const r = countDoneSets(ex, setLogs);
+      total += r.total;
+      done += r.done;
+    }
+    return { total, done };
+  }, [exercises, setLogs, countDoneSets]);
+
   const exercisesTotal = exercises?.length ?? 0;
-  const exercisesDone = exercises?.filter(e => e.completed).length ?? 0;
-  const progressPct = exercisesTotal > 0 ? Math.round((exercisesDone / exercisesTotal) * 100) : 0;
+  const exercisesDone = (exercises || []).filter(
+    (e) => e && countDoneSets(e, setLogs).done >= countDoneSets(e, setLogs).total,
+  ).length;
+  const progressPct = setProgress.total > 0
+    ? Math.round((setProgress.done / setProgress.total) * 100)
+    : 0;
 
   const handleToggleComplete = async (exercise) => {
     // 1. Optimistic / Immediate Logic

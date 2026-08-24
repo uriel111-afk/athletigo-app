@@ -4,7 +4,6 @@ import { ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { formatTime } from '@/lib/formatTime';
 import { resolveSetCount } from '@/lib/plannedSets';
 import { getMethodByMode } from '@/constants/trainingMethods';
-import { normalizeSectionType } from '@/lib/sectionTypes';
 import { useClock } from '@/contexts/ClockContext';
 import {
   resolveTabataClockSettings, resolveTabataRotation, parseTabataData,
@@ -53,34 +52,30 @@ const C = {
 
 const SANS = "'Rubik', system-ui, sans-serif";
 
-// A section's type is stored in training_sections.category (there is
-// no section_type column), and it can hold either a canonical id or one
-// of several legacy Hebrew strings — normalizeSectionType resolves both.
-// The name is checked as well, because a coach can call a warmup
-// section anything they like and the category may be left at "custom".
-const CHECK_ONLY_TYPES = new Set(['warmup', 'flexibility']);
-const CHECK_ONLY_WORDS = ['חימום', 'מתיח', 'גמיש', 'שחרור'];
+const has = (v) => v != null && v !== '';
 
-// normalizeSectionType only knows the canonical ids and a handful of
-// English legacy keys — but UnifiedPlanBuilder defaults new sections to
-// the HEBREW string "חימום", which it resolves to "custom". So the raw
-// category is matched against the Hebrew words too, here rather than in
-// the shared helper: widening normalizeSectionType would change what
-// the coach's screens render as well.
-function sectionTypeOf(section) {
-  const raw = (section?.category || '').trim();
-  const normalized = normalizeSectionType(raw);
-  if (normalized !== 'custom') return normalized;
-  if (raw.includes('כוח')) return 'strength';
-  if (CHECK_ONLY_WORDS.some((w) => raw.includes(w))) return 'warmup';
-  return normalized;
-}
+// Which rows get fill boxes is decided by the EXERCISE, never by the
+// section it sits in.
+//
+// The section rule this replaces was simply wrong: a warmup can hold a
+// 2-minute hold and a 15-rep squat, and those are numbers a trainee
+// fills in. Judging by the section name hid the target and the boxes on
+// exactly the rows that had something to record.
+//
+// Priority:
+//   1. track_for_measurement = true  → measurable, whatever else says.
+//   2. any measurable value present  → measurable.
+//   3. otherwise                     → a tick, nothing to measure.
+const MEASURABLE_FIELDS = ['reps', 'static_hold_time', 'work_time', 'weight', 'rounds'];
 
-// Warmup / stretching / flexibility: ticked, not measured.
-function isCheckOnlySection(section) {
-  if (CHECK_ONLY_TYPES.has(sectionTypeOf(section))) return true;
-  const name = section?.section_name || '';
-  return CHECK_ONLY_WORDS.some((w) => name.includes(w));
+function isMeasurable(exercise) {
+  if (exercise?.track_for_measurement === true) return true;
+  if (MEASURABLE_FIELDS.some((f) => has(exercise?.[f]))) return true;
+  // A superset / combo / circuit / tabata / rest-pause block is always
+  // counted — it owns one box for its rounds. A tabata in particular
+  // keeps its round count inside tabata_data, not in a column, so the
+  // field scan above would miss it.
+  return MULTI_VARIANTS.has(variantOf(exercise));
 }
 
 // Multi-exercise methods take ONE row in the running numbering and
@@ -109,20 +104,28 @@ function innerExercisesOf(exercise) {
   return [];
 }
 
-const has = (v) => v != null && v !== '';
-
-// The one number this exercise is measured by. reps first, then time,
-// then weight — the order a trainee would read them off a page.
+// The one number this exercise is measured by, in the order a trainee
+// would read them off a printed page:
+//   reps → static_hold_time → work_time → weight → rounds
+// The unit rides along so the target cell can print "2:00" for a hold
+// and "15" for reps without the caller knowing which is which.
 function primaryMetric(exercise) {
   if (has(exercise?.reps)) {
-    return { key: 'reps', mode: 'reps', target: Number(exercise.reps) || 0, logField: 'reps_completed', isTime: false };
+    return { key: 'reps', mode: 'reps', target: Number(exercise.reps) || 0, logField: 'reps_completed', isTime: false, unit: null };
   }
-  const secs = exercise?.static_hold_time ?? exercise?.work_time;
-  if (has(secs)) {
-    return { key: 'time', mode: 'seconds', target: Number(secs) || 0, logField: 'time_completed', isTime: true };
+  if (has(exercise?.static_hold_time)) {
+    return { key: 'hold', mode: 'seconds', target: Number(exercise.static_hold_time) || 0, logField: 'time_completed', isTime: true, unit: null };
+  }
+  if (has(exercise?.work_time)) {
+    return { key: 'work', mode: 'seconds', target: Number(exercise.work_time) || 0, logField: 'time_completed', isTime: true, unit: null };
   }
   if (has(exercise?.weight)) {
-    return { key: 'weight', mode: 'kg', target: Number(exercise.weight) || 0, logField: 'weight_used', isTime: false };
+    return { key: 'weight', mode: 'kg', target: Number(exercise.weight) || 0, logField: 'weight_used', isTime: false, unit: 'ק"ג' };
+  }
+  // Rounds are counted, so they ride the reps column — the same slot
+  // the existing round-completion marker already writes to.
+  if (has(exercise?.rounds)) {
+    return { key: 'rounds', mode: 'reps', target: Number(exercise.rounds) || 0, logField: 'reps_completed', isTime: false, unit: 'סבבים' };
   }
   return null;
 }
@@ -142,9 +145,31 @@ function paramBits(exercise) {
   return bits;
 }
 
+// Clock-style time for the target and fill cells: a 120-second hold
+// reads 2:00, not "2 דק׳". formatTime is right for prose ("2 דק׳"
+// inside a parameter run) but wrong for a column a trainee scans
+// mid-set, and it is shared with the coach's screens, so this stays
+// local rather than changing it there.
+//
+// Under a minute the cell is the bare second count — the "שנ׳" rides
+// underneath as a unit label, so the number itself stays big.
+function formatClock(total) {
+  const s = Math.max(0, Math.round(Number(total) || 0));
+  if (s < 60) return String(s);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
 function formatFor(metric, n) {
   if (n == null || n === '') return '';
-  return metric?.isTime ? (formatTime(n) || String(n)) : String(n);
+  return metric?.isTime ? formatClock(n) : String(n);
+}
+
+// The small label under the target number, when the number alone would
+// not say what it is.
+function unitLabelFor(metric) {
+  if (!metric) return null;
+  if (metric.isTime) return metric.target < 60 ? 'שנ׳' : null;
+  return metric.unit || null;
 }
 
 // ── One fill box ────────────────────────────────────────────────
@@ -376,27 +401,51 @@ function TabataPanel({ exercise, rotationCount }) {
 
 // ── One exercise row ────────────────────────────────────────────
 function ExerciseRow({
-  exercise, runningIndex, checkOnly, readOnly, markedComplete,
+  exercise, runningIndex, measurable, readOnly, markedComplete,
   logs, isActive, onOpenEntry, onToggleDone, expanded, onToggleExpanded,
 }) {
   const variant = variantOf(exercise);
   const isMulti = MULTI_VARIANTS.has(variant);
   const inner = isMulti ? innerExercisesOf(exercise) : [];
-  const metric = primaryMetric(exercise);
+  const columnMetric = primaryMetric(exercise);
+  // A multi block with no measurable column still needs something to
+  // count: its configured rounds.
+  const metric = (columnMetric || !isMulti) ? columnMetric : (() => {
+    const td = parseTabataData(exercise?.tabata_data) || {};
+    const rounds = td?.clock_settings?.rounds ?? td?.method_config?.rounds ?? td?.rounds;
+    const n = Array.isArray(rounds) ? rounds.length : Number(rounds);
+    return {
+      key: 'rounds', mode: 'reps', logField: 'reps_completed', isTime: false,
+      unit: 'סבבים', target: Number.isFinite(n) && n > 0 ? n : 0,
+    };
+  })();
   const setCount = resolveSetCount(exercise);
 
   // A multi-exercise block gets ONE box that counts its rounds/sets.
   const boxCount = isMulti ? 1 : setCount;
+  // A set counts as done when the trainee ticked it OR put a number in
+  // it. Nothing else — never the coach's exercises.completed column,
+  // and never a set-log row that carries completed=true with no value
+  // (the pre-2026-08 writes left plenty of those behind).
+  const setHasValue = (i) => !!metric && has(logs?.[i]?.[metric.logField]);
   const doneCount = (() => {
     let n = 0;
-    for (let i = 0; i < setCount; i++) if (logs?.[i]?.done) n++;
+    for (let i = 0; i < setCount; i++) if (logs?.[i]?.done || setHasValue(i)) n++;
     return n;
   })();
-  // markedComplete comes from exercise_executions for THIS run. It
-  // matters for the ticked-only sections: those write no set-log row
-  // (there is no measurement to store), so after a reload the tick can
-  // only be recovered from the completion table.
-  const completed = markedComplete || (setCount > 0 && doneCount >= setCount);
+  // A measurable row is done when its sets are done — the measurement
+  // is the record, and it is the only thing that can say so. A row with
+  // nothing to measure has only the tick, which persists in
+  // exercise_executions (markedComplete), because a tick-only row
+  // writes no set-log line.
+  //
+  // markedComplete is deliberately NOT an override on a measurable row:
+  // a completion left behind by an earlier pass would tick a row where
+  // nothing has been entered this time, which is the bug this whole
+  // change exists to kill.
+  const completed = measurable
+    ? (setCount > 0 && doneCount >= setCount)
+    : !!markedComplete;
 
   const valueAt = (i) => (metric ? logs?.[i]?.[metric.logField] : null);
 
@@ -417,9 +466,30 @@ function ExerciseRow({
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
 
-        {/* RIGHT column — number, name, params, notes */}
+        {/* RIGHT column — tick, number, name, params, notes */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 6 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+            {/* The tick for a row with nothing to measure. It belongs
+                here — first in the RTL line, right before the running
+                number, at text height — not as a slab on the far side
+                of the row. */}
+            {!measurable && (
+              <button
+                type="button"
+                disabled={readOnly}
+                onClick={() => onToggleDone(exercise, 0, !completed)}
+                aria-label={completed ? 'בוצע' : 'סמן כבוצע'}
+                style={{
+                  flexShrink: 0, width: 20, height: 20, borderRadius: 5,
+                  border: completed ? 'none' : `1.5px solid ${C.emptyBorder}`,
+                  background: completed ? C.aboveBg : C.emptyBg,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: readOnly ? 'default' : 'pointer', padding: 0,
+                }}
+              >
+                {completed && <Check size={13} color={C.aboveText} strokeWidth={3} />}
+              </button>
+            )}
             <span style={{
               fontFamily: SANS, fontSize: nameSize, fontWeight: 800, color: C.number,
             }}>{runningIndex}.</span>
@@ -455,32 +525,23 @@ function ExerciseRow({
           )}
         </div>
 
-        {checkOnly ? (
-          // Warmup / stretching / flexibility: ticked, not measured.
-          <button
-            type="button"
-            disabled={readOnly}
-            onClick={() => onToggleDone(exercise, 0, !completed)}
-            aria-label={completed ? 'בוצע' : 'סמן כבוצע'}
-            style={{
-              flexShrink: 0, width: 30, height: 30, borderRadius: 8,
-              border: completed ? 'none' : `1.5px solid ${C.emptyBorder}`,
-              background: completed ? C.aboveBg : C.emptyBg,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: readOnly ? 'default' : 'pointer', padding: 0,
-            }}
-          >
-            {completed && <Check size={17} color={C.aboveText} strokeWidth={3} />}
-          </button>
-        ) : (
+        {measurable && (
           <>
             {/* MIDDLE column — the numeric target */}
             <div style={{
               flex: '0 0 48px', width: 48, textAlign: 'center',
-              fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.note,
-              paddingTop: 6,
+              paddingTop: 4, lineHeight: 1.15,
             }}>
-              {metric && metric.target > 0 ? formatFor(metric, metric.target) : '—'}
+              <div style={{
+                fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.note,
+              }}>
+                {metric && metric.target > 0 ? formatFor(metric, metric.target) : '—'}
+              </div>
+              {metric && metric.target > 0 && unitLabelFor(metric) && (
+                <div style={{ fontFamily: SANS, fontSize: 9, color: C.note }}>
+                  {unitLabelFor(metric)}
+                </div>
+              )}
             </div>
 
             {/* LEFT column — the fill boxes */}
@@ -609,13 +670,18 @@ export default function WorkoutSheet({
       const rows = exercises
         .filter((e) => e && e.training_section_id === section.id)
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-        .map((exercise) => ({ exercise, runningIndex: ++running }));
+        .map((exercise) => ({
+          exercise,
+          runningIndex: ++running,
+          measurable: isMeasurable(exercise),
+        }));
       return {
         section,
         rows,
-        checkOnly: isCheckOnlySection(section),
-        // Column headers ride the band in strength sections only.
-        showColumnHeaders: sectionTypeOf(section) === 'strength',
+        // The band gets its column headers when there is at least one
+        // measurable row under it — nothing to do with the section's
+        // name or category.
+        showColumnHeaders: rows.some((r) => r.measurable),
       };
     });
   }, [sections, exercises]);
@@ -628,8 +694,15 @@ export default function WorkoutSheet({
         if (execCompletion[exercise.id]) continue;
         const total = resolveSetCount(exercise);
         const logs = setLogs[exercise.id] || {};
+        const metric = primaryMetric(exercise);
         let done = 0;
-        for (let i = 0; i < total; i++) if (logs[i]?.done) done++;
+        for (let i = 0; i < total; i++) {
+          const row = logs[i];
+          if (!row) continue;
+          // Ticked, or filled in — the same two things that count
+          // everywhere else on this screen.
+          if (row.done || (metric && has(row[metric.logField]))) done++;
+        }
         if (done < total) return exercise.id;
       }
     }
@@ -652,10 +725,14 @@ export default function WorkoutSheet({
   const entrySetCount = entry ? resolveSetCount(entry.exercise) : 0;
 
   return (
-    <div dir="rtl" style={{ background: C.frame, padding: 6, minHeight: '100%' }}>
+    <div dir="rtl" style={{
+      background: C.frame, padding: 6, minHeight: '100%',
+      // Room for the fixed bottom bar, outside the page.
+      paddingBottom: 'calc(74px + env(safe-area-inset-bottom, 0px))',
+    }}>
       <div style={{
         background: C.page, borderRadius: 10, overflow: 'hidden',
-        position: 'relative', paddingBottom: 96,
+        position: 'relative',
       }}>
 
         {/* Top strip — dark triangle on the LEFT, orange block with the
@@ -698,7 +775,7 @@ export default function WorkoutSheet({
 
         {/* Sections */}
         <div style={{ padding: '0 10px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {laidOut.map(({ section, rows, checkOnly, showColumnHeaders }) => (
+          {laidOut.map(({ section, rows, showColumnHeaders }) => (
             <div key={section.id} style={{
               background: C.card, border: `1px solid ${C.cardBorder}`,
               borderRadius: 12, overflow: 'hidden',
@@ -712,10 +789,9 @@ export default function WorkoutSheet({
                   fontWeight: 800, color: C.ink,
                 }}>{section.section_name || 'מקטע'}</span>
 
-                {/* Column headers live on the band, in the strength
-                    section only — that is the one a trainee reads as a
-                    target-vs-actual table. */}
-                {!checkOnly && showColumnHeaders && (
+                {/* Column headers live on the band wherever the
+                    section actually has a target/actual column pair. */}
+                {showColumnHeaders && (
                   <>
                     <span style={{
                       flex: '0 0 48px', width: 48, textAlign: 'center',
@@ -733,12 +809,12 @@ export default function WorkoutSheet({
                 <div style={{
                   padding: '12px 10px', fontFamily: SANS, fontSize: 12, color: C.note,
                 }}>אין תרגילים במקטע הזה</div>
-              ) : rows.map(({ exercise, runningIndex }) => (
+              ) : rows.map(({ exercise, runningIndex, measurable }) => (
                 <div key={exercise.id} data-sheet-exercise={exercise.id}>
                   <ExerciseRow
                     exercise={exercise}
                     runningIndex={runningIndex}
-                    checkOnly={checkOnly}
+                    measurable={measurable}
                     readOnly={readOnly}
                     logs={setLogs[exercise.id] || {}}
                     markedComplete={!!execCompletion[exercise.id]}
@@ -754,13 +830,15 @@ export default function WorkoutSheet({
           ))}
         </div>
 
-        {/* Orange diagonal, bottom right of the page */}
-        <div style={{
-          position: 'absolute', insetInlineEnd: 0, bottom: 0,
-          width: 120, height: 76, background: C.orange, opacity: 0.9,
-          clipPath: 'polygon(100% 0, 100% 100%, 0 100%)',
-          pointerEvents: 'none',
-        }} />
+        {/* Orange diagonal — in the flow, directly under the last
+            section, so the page ends where the content ends. */}
+        <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: 10 }}>
+          <div style={{
+            width: 120, height: 64, background: C.orange, opacity: 0.9,
+            clipPath: 'polygon(100% 0, 100% 100%, 0 100%)',
+            pointerEvents: 'none',
+          }} />
+        </div>
       </div>
 
       {/* Fixed bottom bar — stays put while the sheet scrolls */}
