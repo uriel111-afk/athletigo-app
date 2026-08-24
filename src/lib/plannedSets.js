@@ -30,6 +30,23 @@ export function parsePlannedSets(exercise) {
   });
 }
 
+// How many sets does this exercise actually prescribe?
+//
+// Single source of truth for every surface that has to render or count
+// one slot per set. The coach editor writes the real count into
+// tabata_data.planned_sets and does NOT back-fill the flat
+// exercise.sets shadow, so reading exercise.sets alone under-counts:
+// a 3-set exercise arrives as planned_sets.length === 3 with
+// exercise.sets still null, and the trainee gets ONE fill box — which
+// is why only set_number = 1 was ever written. Take the larger of the
+// two, floor of 1 when the exercise prescribes nothing at all.
+export function resolveSetCount(exercise) {
+  if (!exercise) return 1;
+  const planned = parsePlannedSets(exercise).length;
+  const flat = parseInt(exercise.sets, 10);
+  return Math.max(1, planned, Number.isFinite(flat) ? flat : 0);
+}
+
 // Given an array of planned sets, return a tabata_data fragment ready
 // to merge with any existing payload. Callers should not stringify
 // this — pass it to mergeIntoTabataData.
@@ -169,11 +186,6 @@ export async function saveSetActual(supabase, executionId, exerciseId, drillInde
   if (hasVal(payload?.rpe))          row.rpe_actual          = payload.rpe;
   if (hasVal(payload?.rest_seconds)) row.rest_seconds_actual = payload.rest_seconds;
   if (hasVal(payload?.tempo))        row.tempo_actual        = payload.tempo;
-
-  // TEMPORARY (2026-08-24) — prints the exact row handed to Supabase so
-  // the console shows what actually leaves the client. Remove once the
-  // per-set persistence has been observed working in production.
-  console.log('[saveSetActual] writing row →', JSON.stringify(row));
 
   const { error } = await supabase
     .from('exercise_set_logs')

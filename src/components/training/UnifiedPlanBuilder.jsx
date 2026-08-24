@@ -12,6 +12,7 @@ import WorkoutProgressBar from "./WorkoutProgressBar";
 import SectionForm from "../workout/SectionForm";
 import ModernExerciseForm from "../workout/ModernExerciseForm";
 import SectionCard from "./SectionCard";
+import WorkoutSheet from "./WorkoutSheet";
 import { usePreviousSetData } from "@/hooks/usePreviousSetData";
 import ExerciseExecutionModal from "./ExerciseExecutionModal";
 import ExerciseExecution from "@/components/ExerciseExecution";
@@ -23,7 +24,11 @@ import { createDuplicatedExecution, readSectionRating } from "@/lib/workoutExecu
 import { softDeletePlan, buildPlanDeleteMessage } from "@/lib/plansApi";
 import { setExerciseCompletion, loadExerciseCompletion } from "@/lib/planExecutionApi";
 import CopyBadge from "@/components/plans/CopyBadge";
-import { saveSetActual } from "@/lib/plannedSets";
+import { saveSetActual, resolveSetCount } from "@/lib/plannedSets";
+import {
+  readResume, writeResume, clearResume, mergeDraftUnder, draftHasValues,
+} from "@/lib/workoutResume";
+import { useExerciseBackGuard } from "@/hooks/useExerciseBackGuard";
 
 // End-of-workout multi-select chips. Stored verbatim into
 // workout_executions.feedback_chips (TEXT[]).
@@ -460,6 +465,14 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // viewport bottom (not inside the card), so the card stays compact
   // by default but progress is always visible.
   const [headerCollapsed, setHeaderCollapsed] = useState(true);
+  // Explicit "finish and save" in flight. The 3s autosave stays as the
+  // safety net; this is the trainee pressing the button on purpose and
+  // being told, in words, that it landed.
+  const [savingWorkout, setSavingWorkout] = useState(false);
+  // True once the resume point has been folded in. Guards the writer
+  // below so an empty first render can't overwrite a good draft before
+  // hydration has had a chance to load it.
+  const [resumeHydrated, setResumeHydrated] = useState(false);
   const celebrationFiredRef = useRef(false);
   // Per-set logs for the trainee execution flow.
   // Shape: { [exerciseId]: { [setIndex]: { reps_completed, done } } }
@@ -480,10 +493,15 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // updated in the same tick as the state, so the second call in a pair
   // sees the first call's result.
   const setLogsRef = useRef(setLogs);
+  // Has anything changed since the last successful save? Drives the
+  // exit guard, so it warns about work that is genuinely still only on
+  // the device and stays quiet once the save has landed.
+  const [dirtySinceSave, setDirtySinceSave] = useState(false);
   const commitSetLogs = React.useCallback((exId, nextExerciseLogs) => {
     const next = { ...setLogsRef.current, [exId]: nextExerciseLogs };
     setLogsRef.current = next;
     setSetLogs(next);
+    setDirtySinceSave(true);
     return next;
   }, []);
   // Per-execution exercise completion — { [exerciseId]: true }. The
@@ -492,6 +510,29 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // Replaces the global exercises.completed column, which was shared
   // across every trainee and every run of the plan.
   const [execCompletion, setExecCompletion] = useState({});
+  // ── Resume point ────────────────────────────────────────────────
+  // Where the trainee was and what they had typed, written on every
+  // change and read back on the next open. localStorage only; see
+  // src/lib/workoutResume.js. The DB save paths are untouched — this
+  // is a net under them, not a replacement.
+  const lastResumeRef = useRef('');
+  const persistResumePoint = React.useCallback((patchFields = {}) => {
+    if (canEdit || !plan?.id) return;                 // trainee flow only
+    const prev = readResume(plan.id) || {};
+    const point = {
+      exerciseId: patchFields.exerciseId ?? prev.exerciseId ?? null,
+      setIdx:     patchFields.setIdx     ?? prev.setIdx     ?? 0,
+      sectionId:  patchFields.sectionId  ?? prev.sectionId  ?? null,
+      scrollY:    patchFields.scrollY    ?? (typeof window !== 'undefined' ? Math.round(window.scrollY) : 0),
+      draft:      patchFields.draft      ?? setLogsRef.current ?? {},
+    };
+    // Cheap dedupe — this runs on every keystroke-sized change.
+    const sig = JSON.stringify(point);
+    if (sig === lastResumeRef.current) return;
+    lastResumeRef.current = sig;
+    writeResume(plan.id, point);
+  }, [canEdit, plan?.id]);
+
   // Per-drill-per-set marks for list-variant exercises (כל דריל בכל סט
   // נסמן בנפרד). Local state only — NOT persisted to DB in this phase
   // (exercise_set_logs has no drill_index column). The aggregate
@@ -599,8 +640,8 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
             .select('exercise_id, drill_index, set_number, reps_completed, time_completed, weight_used, completed')
             .eq('execution_id', exec.id)
             .eq('drill_index', 0);
-          if (!logsErr && Array.isArray(setLogRows) && setLogRows.length > 0) {
-            const restored = {};
+          const restored = {};
+          if (!logsErr && Array.isArray(setLogRows)) {
             for (const row of setLogRows) {
               const idx = Math.max(0, (Number(row.set_number) || 1) - 1);
               if (!restored[row.exercise_id]) restored[row.exercise_id] = {};
@@ -611,13 +652,28 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
                 done: !!row.completed,
               };
             }
-            setLogsRef.current = restored;
-            setSetLogs(restored);
+          }
+          // Fold the local draft in UNDER the DB rows: anything the DB
+          // holds wins, the draft only fills what never made it out of
+          // the device (offline, crash, tab killed mid-set).
+          const merged = mergeDraftUnder(restored, readResume(plan.id)?.draft);
+          if (Object.keys(merged).length > 0) {
+            setLogsRef.current = merged;
+            setSetLogs(merged);
           }
         } catch (e) {
           console.warn('[UPB] set-log resume failed:', e?.message);
         }
+      } else {
+        // No execution row yet today — the trainee may still have a
+        // local draft from before one was created.
+        const draft = readResume(plan.id)?.draft;
+        if (draft && Object.keys(draft).length > 0) {
+          setLogsRef.current = draft;
+          setSetLogs(draft);
+        }
       }
+      setResumeHydrated(true);
     };
 
     loadActiveExecution();
@@ -1088,7 +1144,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     let pctDoneSets = 0;
     for (const ex of currentExercisesList) {
       if (!ex) continue;
-      const n = Math.max(1, parseInt(ex.sets, 10) || 1);
+      const n = resolveSetCount(ex);
       pctTotalSets += n;
       const log = setLogs[ex.id] || {};
       for (let i = 0; i < n; i++) if (log[i]?.done) pctDoneSets++;
@@ -1243,7 +1299,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // flip would immediately undo it.
   const toggleSetDone = React.useCallback((exercise, setIdx, forceDone) => {
     const exId = exercise.id;
-    const totalSets = Math.max(1, parseInt(exercise.sets, 10) || 1);
+    const totalSets = resolveSetCount(exercise);
     // Read through the ref, never the render-time `setLogs` — this
     // callback runs immediately after onSetValueChange in the same
     // click and must build on top of the value that just landed.
@@ -1288,7 +1344,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // burst of taps can't fork into duplicate rows).
   const setSetValue = React.useCallback((exercise, setIdx, value, mode) => {
     const exId = exercise.id;
-    const totalSets = Math.max(1, parseInt(exercise.sets, 10) || 1);
+    const totalSets = resolveSetCount(exercise);
     const field = mode === 'seconds' || mode === 'time'
       ? 'time_completed'
       : mode === 'kg' || mode === 'weight'
@@ -1763,7 +1819,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       let doneSets = 0;
       for (const ex of exercises) {
         if (!ex) continue;
-        const n = Math.max(1, parseInt(ex.sets, 10) || 1);
+        const n = resolveSetCount(ex);
         totalSets += n;
         const log = logsNow[ex.id] || {};
         for (let i = 0; i < n; i++) {
@@ -1906,9 +1962,6 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         }
       }
       if (setLogRows.length > 0) {
-        // TEMPORARY (2026-08-24) — mirrors the per-cell log in
-        // saveSetActual so the console shows the finish-time batch too.
-        console.log('[saveWorkoutExecution] upserting set logs →', JSON.stringify(setLogRows));
         const { error: logErr } = await supabase
           .from('exercise_set_logs')
           .upsert(setLogRows, {
@@ -1936,6 +1989,10 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         queryClient.invalidateQueries({ queryKey: ['execution-count', plan.id] });
       } catch {}
 
+      // Everything in memory is now in the DB — the exit guard can
+      // stand down until the next edit.
+      setDirtySinceSave(false);
+
       if (avg != null) toast.success(`✅ הציון ${avg} נשמר`);
       return execRow;
     } catch (err) {
@@ -1943,6 +2000,41 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
       return null;
     }
   };
+
+  // Holds the latest saveWorkoutExecution closure. Declared here
+  // because both the explicit finish handler below and the autosave
+  // effect further down call through it.
+  const saveExecRef = React.useRef(null);
+
+  // Explicit "finish and save". Saves FIRST and unconditionally — the
+  // handler this replaced only opened the summary dialog and refused to
+  // do anything at all until an exercise was ticked, so a trainee who
+  // filled numbers without ticking had no way to commit them on
+  // purpose and was left to the 3s autosave. Shared by the workout
+  // sheet's bottom bar and the legacy footer button.
+  const handleFinishAndSave = React.useCallback(async () => {
+    if (savingWorkout) return;
+    setSavingWorkout(true);
+    try {
+      const saved = await saveExecRef.current?.();
+      if (saved) {
+        // The values are in the DB now, so the local draft has nothing
+        // left to protect. Dropping it releases the exit guard too.
+        clearResume(plan?.id);
+        toast.success('האימון נשמר ✓');
+        const completedExercises = exercises.filter(e => e.completed);
+        if (completedExercises.length > 0) showWorkoutSummary(exercises);
+      } else {
+        toast.error('השמירה נכשלה — נסה שוב');
+      }
+    } catch (e) {
+      console.warn('[UPB] explicit save failed:', e?.message || e);
+      toast.error('השמירה נכשלה — נסה שוב');
+    } finally {
+      setSavingWorkout(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savingWorkout, plan?.id, exercises]);
 
   // Silent autosave — every change to setLogs starts a 3s timer; if
   // another change lands the timer resets, so the save fires once
@@ -1953,7 +2045,6 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
   // anything. Using a ref to hold the latest saveWorkoutExecution
   // closure avoids re-firing the effect on every render just because
   // the function identity changed.
-  const saveExecRef = React.useRef(null);
   saveExecRef.current = saveWorkoutExecution;
   React.useEffect(() => {
     if (canEdit) return;
@@ -1969,6 +2060,81 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
     }, 3000);
     return () => clearTimeout(t);
   }, [setLogs, canEdit, plan?.id, plan?.assigned_to, plan?.created_by]);
+
+  // ── Resume point: write ─────────────────────────────────────────
+  // Every change to the values or to which exercise is open moves the
+  // "put me back here" marker. Cheap (one localStorage write, deduped
+  // by signature) and synchronous, so a hard kill loses nothing.
+  React.useEffect(() => {
+    if (canEdit || !resumeHydrated) return;
+    persistResumePoint({ exerciseId: expandedExerciseId ?? undefined });
+  }, [setLogs, expandedExerciseId, resumeHydrated, canEdit, persistResumePoint]);
+
+  // Scroll position is not React state — track it separately, throttled
+  // through rAF so a scroll never costs more than one write per frame.
+  React.useEffect(() => {
+    if (canEdit || !resumeHydrated || typeof window === 'undefined') return;
+    let queued = false;
+    const onScroll = () => {
+      if (queued) return;
+      queued = true;
+      window.requestAnimationFrame(() => {
+        queued = false;
+        persistResumePoint({ scrollY: Math.round(window.scrollY) });
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    // A backgrounded tab can be killed without warning — flush on the
+    // way out rather than waiting for the next scroll.
+    const onHide = () => { if (document.visibilityState === 'hidden') persistResumePoint(); };
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      document.removeEventListener('visibilitychange', onHide);
+    };
+  }, [canEdit, resumeHydrated, persistResumePoint]);
+
+  // ── Resume point: restore ───────────────────────────────────────
+  // Runs once, after hydration folded the draft in. Re-opens the
+  // exercise that was open and returns the page to the same offset.
+  const resumeAppliedRef = useRef(false);
+  React.useEffect(() => {
+    if (canEdit || !resumeHydrated || resumeAppliedRef.current) return;
+    const point = readResume(plan?.id);
+    if (!point) { resumeAppliedRef.current = true; return; }
+    resumeAppliedRef.current = true;
+
+    if (point.exerciseId) setExpandedExerciseId(point.exerciseId);
+
+    if (typeof window !== 'undefined' && Number.isFinite(Number(point.scrollY)) && Number(point.scrollY) > 0) {
+      // Two frames: one for the exercise card to expand, one for the
+      // taller layout to settle before we jump.
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          window.scrollTo({ top: Number(point.scrollY), behavior: 'auto' });
+        });
+      });
+    }
+  }, [canEdit, resumeHydrated, plan?.id]);
+
+  // ── Exit guard ──────────────────────────────────────────────────
+  // While there are values that have not been committed, a back press
+  // warns instead of leaving; a second press within 2s leaves anyway.
+  // Reuses the same stack the running-exercise guard uses, so a modal
+  // on top still closes first.
+  const hasUnsavedDraft = !canEdit && resumeHydrated
+    && dirtySinceSave && draftHasValues(setLogs);
+  useExerciseBackGuard(hasUnsavedDraft, () => {
+    if (typeof onBack === 'function') onBack();
+  });
+
+  // The browser-level equivalent for a tab close / refresh.
+  React.useEffect(() => {
+    if (!hasUnsavedDraft || typeof window === 'undefined') return;
+    const onBeforeUnload = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [hasUnsavedDraft]);
 
   // After a workout finishes, walk every set log on this execution,
   // pick the best reps_completed per exercise, and compare against the
@@ -2506,7 +2672,24 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
           </div>
         }
 
-        <div className={`w-full ${canEdit ? 'space-y-3 md:space-y-6 mb-20 md:mb-24' : 'space-y-2 mb-24'}`}>
+        {/* Trainee: the workout sheet — one open form, top to bottom.
+            Coach: the existing editable SectionCard stack, untouched. */}
+        {!canEdit && (
+          <WorkoutSheet
+            planName={plan?.plan_name}
+            sections={sections.filter(Boolean)}
+            exercises={exercises.filter(Boolean)}
+            setLogs={setLogs}
+            execCompletion={execCompletion}
+            saving={savingWorkout}
+            onSetValue={setSetValue}
+            onToggleDone={toggleSetDone}
+            onFinish={handleFinishAndSave}
+          />
+        )}
+
+        {canEdit && (
+        <div className="w-full space-y-3 md:space-y-6 mb-20 md:mb-24">
           {sections.filter(Boolean).map((section, index) => {
             const sectionExercises = getExercisesBySection(section.id);
             return (
@@ -2621,6 +2804,7 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
               />);
           })}
         </div>
+        )}
 
         {/* Save/Finish Button for Coach - Removed as requested */}
 
@@ -3221,54 +3405,11 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         </div>
       )}
 
-      {/* Finish Button — trainee-only. Standalone bottom-fixed button
-          on a transparent container; the duplicate progress bar that
-          used to live here was removed (the header progress bar at
-          line ~1873 is the single source of truth). bg-black wrapper
-          dropped per design feedback — orange-on-white reads cleanly
-          and matches the brand. */}
-      {!canEdit && (
-        <div style={{
-          position: 'fixed',
-          bottom: 0, left: 0, right: 0,
-          padding: '8px',
-          paddingBottom: 'max(env(safe-area-inset-bottom), 8px)',
-          // Soft cream — matches the app's primary surface so the
-          // fixed strip reads as page chrome rather than a separate
-          // dark dock. Top fade hint keeps content underneath from
-          // looking abruptly cut.
-          background: '#FFF9F0',
-          boxShadow: '0 -6px 12px rgba(0,0,0,0.04)',
-          zIndex: 50,
-        }}>
-          <button
-            type="button"
-            onClick={() => {
-              const completedExercises = exercises.filter(e => e.completed);
-              if (completedExercises.length > 0) {
-                showWorkoutSummary(exercises);
-              } else {
-                toast.error("יש להשלים לפחות תרגיל אחד לפני סיום האימון");
-              }
-            }}
-            style={{
-              width: '100%',
-              background: '#FF6F20',
-              color: '#FFFFFF',
-              border: 'none',
-              borderRadius: 12,
-              padding: 14,
-              fontSize: 15,
-              fontWeight: 700,
-              fontFamily: 'inherit',
-              cursor: 'pointer',
-              boxShadow: '0 6px 16px rgba(255,111,32,0.28)',
-            }}
-          >
-            סיים אימון
-          </button>
-        </div>
-      )}
+      {/* Finish Button — the trainee's now lives in WorkoutSheet's own
+          fixed bottom bar, beside the jump-to-next-exercise control.
+          The standalone footer that used to sit here rendered under the
+          same !canEdit condition and would have stacked a second save
+          button on top of it. */}
 
       {/* "כל הכבוד" — fires once when the trainee ticks the last exercise */}
       <Dialog open={showCelebration} onOpenChange={(o) => { if (!o) setShowCelebration(false); }}>

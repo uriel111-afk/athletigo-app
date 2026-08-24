@@ -16,6 +16,7 @@ import { ATHLETIGO_ADMIN_UUID } from "@/constants/admin";
 import VariationsManager from "@/components/admin/VariationsManager";
 import { TRAINING_METHODS } from '../../constants/trainingMethods';
 import { PARAM_CATALOG } from '../../constants/paramCatalog';
+import { MinutesSecondsInput } from '../TimeEntry';
 import { parsePlannedSets } from '../../lib/plannedSets';
 import { getParamOptions, addParamOption, hasOptions } from '../../lib/paramOptions';
 import TabataSubExerciseCard from '../training/TabataSubExerciseCard';
@@ -205,50 +206,13 @@ const fieldLabel = (fieldId) =>
   fieldId === 'hold_seconds' ? 'זמן' : (PARAM_CATALOG[fieldId]?.label ?? fieldId);
 
 // ── Minutes/seconds entry for the hold_seconds ("זמן") field ──────
-// The DB ALWAYS stores seconds. "דקות" mode multiplies the typed value
-// by 60 on write and divides on display; "שניות" stores as-is. Mode is
-// local UI state, seeded from the saved value: a whole number of
-// minutes (>= 60 and divisible by 60) opens in דקות, anything else in
-// שניות. Self-contained so each per-set / sub-exercise / station time
-// input keeps its own mode. RTL: the segmented toggle sits to the
-// right of the input. Lumen palette — active segment orange #FF6F20 on
-// a cream #FBF3EA track.
+// The DB ALWAYS stores seconds; this is purely how a human types the
+// number. Two fields — minutes and seconds — replace the old single
+// box with a דקות/שניות mode toggle, which forced the coach to pick a
+// unit and could not express "1:30" at all without typing 90.
+// MinutesSecondsInput owns the 0-59 clamp and the seconds→minutes
+// rollover; the card + label around it are unchanged.
 function TimeFieldInput({ value, color, readOnly, onChange }) {
-  const seconds = value === '' || value == null ? null : Number(value);
-  const seedMinutes = Number.isFinite(seconds) && seconds >= 60 && seconds % 60 === 0;
-  const [mode, setMode] = useState(seedMinutes ? 'minutes' : 'seconds');
-
-  const display = Number.isFinite(seconds)
-    ? (mode === 'minutes' ? seconds / 60 : seconds)
-    : '';
-
-  const commit = (raw) => {
-    if (raw === '' || raw == null) { onChange(null); return; }
-    const n = Number(raw);
-    if (!Number.isFinite(n)) { onChange(null); return; }
-    // Always hand back SECONDS, regardless of entry mode.
-    onChange(mode === 'minutes' ? Math.round(n * 60) : Math.round(n));
-  };
-
-  const seg = (id, label) => {
-    const active = mode === id;
-    return (
-      <button
-        type="button"
-        disabled={readOnly}
-        onClick={() => setMode(id)}
-        style={{
-          flex: 1, padding: '4px 0', fontSize: 10, fontWeight: 800,
-          fontFamily: 'inherit', border: 'none', borderRadius: 5,
-          cursor: readOnly ? 'default' : 'pointer',
-          background: active ? '#FF6F20' : 'transparent',
-          color: active ? '#FFFFFF' : '#9C7B53',
-          transition: 'background .12s',
-        }}
-      >{label}</button>
-    );
-  };
-
   return (
     <div style={{
       background: 'white', border: `1px solid ${color.tint}`, borderRadius: 8,
@@ -259,29 +223,13 @@ function TimeFieldInput({ value, color, readOnly, onChange }) {
         fontSize: 10, color: color.textPrimary, fontWeight: 800,
         background: color.tint, padding: '2px 6px', borderRadius: 3,
       }}>זמן</span>
-      {/* RTL row — toggle is the first child so it paints on the RIGHT */}
-      <div dir="rtl" style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}>
-        <div style={{
-          display: 'flex', flexShrink: 0, width: 92,
-          background: '#FBF3EA', borderRadius: 7, padding: 2, gap: 2,
-        }}>
-          {seg('minutes', 'דקות')}
-          {seg('seconds', 'שניות')}
-        </div>
-        <input
-          type="number"
-          min="0"
-          value={display}
-          disabled={readOnly}
-          placeholder={mode === 'minutes' ? "דק'" : "שנ'"}
-          onChange={(e) => commit(e.target.value)}
-          style={{
-            flex: 1, minWidth: 0, height: 34, border: 'none', textAlign: 'center',
-            fontFamily: "'Bebas Neue', sans-serif", fontSize: 24,
-            color: color.stripe, background: 'transparent', outline: 'none',
-          }}
-        />
-      </div>
+      <MinutesSecondsInput
+        value={value}
+        onChange={onChange}
+        readOnly={readOnly}
+        accent={color.stripe}
+        borderColor={color.tint}
+      />
     </div>
   );
 }

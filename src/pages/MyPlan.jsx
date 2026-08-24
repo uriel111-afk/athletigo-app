@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Target, Loader2, User, CheckCircle, Trash2, Plus, ChevronDown, Copy, FolderPlus, ChevronRight } from "lucide-react";
+import { Target, Loader2, User, Trash2, Plus, ChevronDown, Copy, FolderPlus, ChevronRight } from "lucide-react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import UnifiedPlanBuilder from "../components/training/UnifiedPlanBuilder";
@@ -10,6 +10,8 @@ import PlanFormDialog from "../components/training/PlanFormDialog";
 import { toast } from "sonner";
 import { FOCUS_LABELS } from "@/lib/sectionTypes";
 import PageLoader from "@/components/PageLoader";
+import { supabase } from "@/lib/supabaseClient";
+import PageSkeleton from "@/components/PageSkeleton";
 import PermGate from "@/components/PermGate";
 import CopyBadge from "@/components/plans/CopyBadge";
 import { buildPlanDeleteMessage } from "@/lib/plansApi";
@@ -44,7 +46,10 @@ const PlanCard = ({ plan, isMine, exercises, improvementData, scoreData, onSelec
             <div className="flex items-center gap-2 mb-1">
               <h3 className="text-xl font-black truncate text-black">{plan.plan_name}</h3>
               <CopyBadge plan={plan} />
-              {plan.status === 'פעילה' && <span className="px-2 py-0.5 rounded-full bg-[#E8F5E9] text-[#4CAF50] text-xs font-bold flex items-center gap-1"><CheckCircle className="w-3 h-3" /> פעילה</span>}
+              {/* The plan's workflow status (פעילה / טיוטה / ארכיון) is
+                  the coach's bookkeeping, not the trainee's business —
+                  the chip is gone from this screen. Nothing else reads
+                  it here; the status column itself is untouched. */}
             </div>
             <div className="flex flex-wrap gap-1 mb-1">
               {(Array.isArray(plan.goal_focus) ? plan.goal_focus : []).map(k => (
@@ -210,12 +215,34 @@ function MyPlanInner() {
 
   const isCoach = user?.is_coach === true || user?.role === 'coach' || user?.role === 'admin';
 
+  // Was: User.list('-created_at', 1000) — SELECT * over up to a
+  // thousand user rows (users is ~70 columns wide, several of them
+  // JSONB) to read ONE boolean. Now: the trainee's own coach by id,
+  // three columns. The "first coach in the system" fallback is kept
+  // for trainees whose coach_id was never set.
   const { data: coach } = useQuery({
-    queryKey: ['myplan-coach'],
+    queryKey: ['myplan-coach', user?.coach_id ?? null],
     queryFn: async () => {
+      const t0 = performance.now();
       try {
-        const users = await base44.entities.User.list('-created_at', 1000);
-        return users.find(u => u.is_coach === true || u.role === 'coach') || null;
+        if (user?.coach_id) {
+          const { data } = await supabase
+            .from('users')
+            .select('id, full_name, allow_trainee_plans')
+            .eq('id', user.coach_id)
+            .maybeSingle();
+          if (data) {
+            console.log('[MyPlan perf] coach lookup ' + Math.round(performance.now() - t0) + 'ms | 1 query');
+            return data;
+          }
+        }
+        const { data: anyCoach } = await supabase
+          .from('users')
+          .select('id, full_name, allow_trainee_plans')
+          .or('is_coach.eq.true,role.eq.coach')
+          .limit(1);
+        console.log('[MyPlan perf] coach lookup ' + Math.round(performance.now() - t0) + 'ms | fallback query');
+        return (anyCoach && anyCoach[0]) || null;
       } catch {
         return null;
       }
@@ -245,10 +272,17 @@ function MyPlanInner() {
     queryFn: async () => {
       if (!user || isCoach) return [];
       console.log('[MyPlan] loading plans for trainee:', user.id);
+      const t0 = performance.now();
+      let queryCount = 0;
       try {
+        // Three parallel reads, then AT MOST one more for the assigned
+        // plans. This used to fire one query per assignment row — a
+        // trainee with 20 assignments paid 20 more round trips, each a
+        // SELECT *, before the screen could paint.
         const directPlansPromise = base44.entities.TrainingPlan.filter({ assigned_to: user.id, status: { $ne: 'deleted' } }, '-start_date').catch(() => []);
         const assignmentsPromise = base44.entities.TrainingPlanAssignment.filter({ trainee_id: user.id }).catch(() => []);
         const createdPlansPromise = base44.entities.TrainingPlan.filter({ created_by: user.id, status: { $ne: 'deleted' } }, '-created_at').catch(() => []);
+        queryCount += 3;
 
         const [directPlans, assignments, createdByMe] = await Promise.all([directPlansPromise, assignmentsPromise, createdPlansPromise]);
         console.log('[MyPlan] plans result:', {
@@ -257,11 +291,17 @@ function MyPlanInner() {
 
         let sharedPlans = [];
         if (assignments && assignments.length > 0) {
-          const planIds = assignments.map(a => a.plan_id).filter(Boolean);
+          const planIds = [...new Set(assignments.map(a => a.plan_id).filter(Boolean))];
           if (planIds.length > 0) {
-            const sharedPlansPromises = planIds.map(id => base44.entities.TrainingPlan.filter({ id, status: { $ne: 'deleted' } }).catch(() => []));
-            const sharedPlansResults = await Promise.all(sharedPlansPromises);
-            sharedPlans = sharedPlansResults.flat().filter(Boolean);
+            // One IN() instead of planIds.length separate queries.
+            const { data: sharedRows, error: sharedErr } = await supabase
+              .from('training_plans')
+              .select('*')
+              .in('id', planIds)
+              .neq('status', 'deleted');
+            queryCount += 1;
+            if (sharedErr) console.warn('[MyPlan] shared plans failed:', sharedErr.message);
+            sharedPlans = sharedRows || [];
           }
         }
 
@@ -272,6 +312,7 @@ function MyPlanInner() {
         // disappears it from the trainee's view too.
         const visible = dedup.filter(p => p.status !== 'deleted' && !p.deleted_at);
         console.log('[MyPlan] plans visible:', visible.length, '/', dedup.length);
+        console.log('[MyPlan perf] plans ' + Math.round(performance.now() - t0) + 'ms | ' + queryCount + ' queries');
         return visible;
       } catch (error) {
         console.error("[MyPlan] Critical error loading plans:", error);
@@ -323,15 +364,26 @@ function MyPlanInner() {
     initialData: []
   });
 
+  // This list feeds ONE thing: the "x of y done" progress bar on each
+  // plan card. It used to run one SELECT * per plan — and exercises is
+  // the widest table in the app (tabata_data alone is a JSON blob per
+  // row). Now: one query, three columns.
   const { data: exercises = [] } = useQuery({
     queryKey: ['exercises', user?.id, allPlans.map(p => p.id).sort().join(',')],
     queryFn: async () => {
-      const planIds = allPlans.map(p => p.id).filter(Boolean);
+      const planIds = [...new Set(allPlans.map(p => p.id).filter(Boolean))];
       if (planIds.length === 0) return [];
-      const results = await Promise.all(
-        planIds.map(id => base44.entities.Exercise.filter({ training_plan_id: id }).catch(() => []))
-      );
-      return results.flat();
+      const t0 = performance.now();
+      const { data, error } = await supabase
+        .from('exercises')
+        .select('id, training_plan_id, completed')
+        .in('training_plan_id', planIds);
+      if (error) {
+        console.warn('[MyPlan] exercises load failed:', error.message);
+        return [];
+      }
+      console.log('[MyPlan perf] exercises ' + Math.round(performance.now() - t0) + 'ms | 1 query | ' + (data?.length ?? 0) + ' rows');
+      return data || [];
     },
     enabled: !isCoach && allPlans.length > 0,
     initialData: []
@@ -554,7 +606,15 @@ function MyPlanInner() {
 
   if (!selectedPlan) {
     if (plansLoading) {
-      return <PageLoader />;
+      // Skeleton, not a full-viewport spinner: it renders in the page's
+      // own flow where the plan cards will land, so the chrome stays
+      // put and the wait reads as "loading these" rather than "the app
+      // is stuck". Cached revisits skip it entirely.
+      return (
+        <div dir="rtl" className="min-h-screen pb-24" style={{ backgroundColor: 'var(--cream)' }}>
+          <PageSkeleton rows={4} />
+        </div>
+      );
     }
 
     // Filter Plans & Series

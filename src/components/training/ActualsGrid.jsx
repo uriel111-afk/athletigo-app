@@ -15,6 +15,10 @@ import React from 'react';
 //   readOnly   — coach view OR no active execution → cells not tappable
 //   footerNote — small green note on the LEFT of the footer
 //   onCellTap  — (setNumber) => void, opens the parent picker
+//   formatValue — (n) => string for every number the grid prints.
+//                 Time metrics pass formatTime so a 90-second hold
+//                 reads "1:30" instead of "90"; reps and weight leave
+//                 it at the default and keep printing the raw number.
 const ORANGE = '#FF6F20';
 
 export default function ActualsGrid({
@@ -25,6 +29,7 @@ export default function ActualsGrid({
   readOnly = false,
   footerNote = '↗ נשמר לגרף ההתקדמות',
   onCellTap,
+  formatValue = (n) => String(n),
 }) {
   const rows = Array.from({ length: Math.max(1, setCount) }, (_, i) => i + 1);
   const targetNum = Number(target) || 0;
@@ -83,7 +88,7 @@ export default function ActualsGrid({
             padding: '7px 2px', borderTop: '1px solid #f0e8d8',
           }}>
             <div style={{ textAlign: 'center', fontWeight: 700, color: '#1a1a1a' }}>{setN}</div>
-            <div style={{ textAlign: 'center', color: '#999' }}>{targetNum ? targetNum : '—'}</div>
+            <div style={{ textAlign: 'center', color: '#999' }}>{targetNum ? formatValue(targetNum) : '—'}</div>
             <div
               role={readOnly ? undefined : 'button'}
               tabIndex={readOnly ? -1 : 0}
@@ -100,7 +105,7 @@ export default function ActualsGrid({
                 ...cellStyle,
               }}
             >
-              {filled ? String(raw) : '—'}
+              {filled ? formatValue(Number(raw)) : '—'}
             </div>
           </div>
         );
@@ -112,7 +117,7 @@ export default function ActualsGrid({
         marginTop: 10, paddingTop: 8, borderTop: '1px solid #f0e8d8',
       }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>
-          {`סה"כ: ${sumActual} מתוך ${sumTarget}`}
+          {`סה"כ: ${formatValue(sumActual)} מתוך ${formatValue(sumTarget)}`}
         </div>
         {footerNote && (
           <div style={{ fontSize: 13, color: '#0F6E56' }}>{footerNote}</div>

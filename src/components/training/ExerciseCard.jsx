@@ -10,12 +10,16 @@ import { useClock } from "@/contexts/ClockContext";
 import { useSmartBackHandler } from "@/hooks/useSmartBack";
 import { getMethodByMode } from '../../constants/trainingMethods';
 import { PARAM_CATALOG } from '../../constants/paramCatalog';
-import { parsePlannedSets, loadActualsForExercise, loadActualsByDrillForExercise, saveSetActual } from '../../lib/plannedSets';
+import { parsePlannedSets, resolveSetCount, loadActualsForExercise, loadActualsByDrillForExercise, saveSetActual } from '../../lib/plannedSets';
 import { UNIT_COLORS } from '../../constants/unitColors';
 import { supabase } from '../../lib/supabaseClient';
 import ScrollPickerPopup, { REPS_OPTIONS, SECONDS_OPTIONS, WEIGHT_OPTIONS } from '../ScrollPickerPopup';
 import ActualsGrid from './ActualsGrid';
+import { TimeEntryPopup } from '../TimeEntry';
 import { formatTime } from '../../lib/formatTime';
+import {
+  resolveTabataClockSettings, resolveTabataRotation, hasNewTabataShape,
+} from '../../lib/tabataSettings';
 import { toast } from 'sonner';
 import { useLongPress } from '../../lib/useLongPress';
 import SetEntryWheels, { METRIC_DEFS } from './SetEntryWheels';
@@ -372,53 +376,12 @@ const STATION_TYPE_COLORS = {
 // card just configures it. Detection relies on the new shape
 // (exercises_in_rotation / clock_settings) so legacy tabata rows with
 // only sub_exercises continue routing to the existing legacy block.
-const TABATA_DEFAULT_CLOCK = {
-  work_seconds: 20,
-  rest_seconds: 10,
-  rounds: 8,
-  sets: 1,
-  rest_between_sets: 60,
-};
-// Resolves clock settings out of tabata_data.clock_settings, falling
-// back to the legacy direct columns on the exercise row, and finally
-// to the defaults above. Always returns a fully-populated object.
-function resolveTabataClockSettings(exercise) {
-  const td = parseTabataData(exercise?.tabata_data) || {};
-  const cs = (td.clock_settings && typeof td.clock_settings === 'object') ? td.clock_settings : null;
-  const pick = (snakeKey, legacyCol) => {
-    if (cs && Number.isFinite(cs[snakeKey])) return cs[snakeKey];
-    const legacy = exercise?.[legacyCol];
-    return Number.isFinite(Number(legacy)) ? Number(legacy) : TABATA_DEFAULT_CLOCK[snakeKey];
-  };
-  return {
-    work_seconds:      pick('work_seconds',      'work_seconds'),
-    rest_seconds:      pick('rest_seconds',      'rest_seconds'),
-    rounds:            pick('rounds',            'rounds'),
-    sets:              pick('sets',              'sets'),
-    rest_between_sets: pick('rest_between_sets', 'rest_between_sets'),
-  };
-}
-function resolveTabataRotation(exercise) {
-  const td = parseTabataData(exercise?.tabata_data) || {};
-  if (Array.isArray(td.exercises_in_rotation) && td.exercises_in_rotation.length > 0) {
-    return td.exercises_in_rotation;
-  }
-  // Legacy: older tabata rows stored the rotation as sub_exercises.
-  if (Array.isArray(td.sub_exercises) && td.sub_exercises.length > 0) {
-    return td.sub_exercises.map((s) => ({
-      name: s?.name || s?.exercise_name || s?.title || '',
-    }));
-  }
-  return [];
-}
-// True when an exercise has the new tabata shape that the new renderer
-// understands (any of: exercises_in_rotation array, clock_settings
-// object). Legacy rows without either fall through to the old render.
-function hasNewTabataShape(exercise) {
-  const td = parseTabataData(exercise?.tabata_data) || {};
-  return Array.isArray(td.exercises_in_rotation)
-      || (td.clock_settings && typeof td.clock_settings === 'object');
-}
+// TABATA_DEFAULT_CLOCK moved to '@/lib/tabataSettings' along with the
+// three resolvers below.
+// resolveTabataClockSettings / resolveTabataRotation /
+// hasNewTabataShape now live in '@/lib/tabataSettings' (imported at the
+// top of this file) so the workout sheet reads the same settings
+// through the same fallback chain. Behaviour is unchanged.
 
 // Per-field unit palette + Hebrew label. Drives both the closed-card
 // dominant-unit display and the column tinting inside open-card rows.
@@ -1630,15 +1593,17 @@ export default function ExerciseCard({
       const raw = sub[fieldId];
       if (!hasVal(raw)) continue;
 
-      const value = String(raw);
-      // Units mirror the parent buildParamItemsFor wording (full
-      // Hebrew word for seconds — never 'שנ' here, the catalog uses
-      // 'שניות' explicitly for hold_seconds).
+      // Time fields print through formatTime — seconds under a minute,
+      // m:ss above it — so a 90-second hold never reads as "90 שניות".
+      const isTimeField = fieldId === 'hold_seconds' || fieldId === 'rest_seconds';
+      const value = isTimeField ? (formatTime(raw) || String(raw)) : String(raw);
       let unit = null;
-      if (fieldId === 'weight_kg')   unit = 'ק"ג';
-      else if (fieldId === 'hold_seconds' || fieldId === 'rest_seconds') unit = 'שניות';
+      if (fieldId === 'weight_kg') unit = 'ק"ג';
 
-      const display = [meta.label, value, unit].filter(Boolean).join(' ');
+      // hold_seconds' catalog label is itself "שניות", which reads as
+      // noise next to a formatted m:ss value — drop it for that field.
+      const labelPart = fieldId === 'hold_seconds' ? null : meta.label;
+      const display = [labelPart, value, unit].filter(Boolean).join(' ');
       items.push({ key: fieldId, display });
     }
     return items;
@@ -2171,11 +2136,7 @@ export default function ExerciseCard({
   // (4 sets added → planned_sets.length 4, exercise.sets still 1 → only
   // 1 row rendered). Take the max so the open card matches the closed
   // card. Tabata carries no planned_sets, so this leaves it unchanged.
-  const totalSets = Math.max(
-    1,
-    parsePlannedSets(exercise).length,
-    parseInt(exercise.sets, 10) || 0,
-  );
+  const totalSets = resolveSetCount(exercise);
   const isSetDone = (idx) => !!(setLog?.[idx]?.done);
 
   // ── Wheel entry state ─────────────────────────────────────────────
@@ -2233,9 +2194,13 @@ export default function ExerciseCard({
       out.push({ metric: 'reps', label: 'חזרות', target: Number(exercise.reps) || 0, saveKey: 'reps', options: REPS_OPTIONS });
     }
     if (hasValue(exercise.static_hold_time)) {
-      out.push({ metric: 'hold', label: 'החזקה (שניות)', target: Number(exercise.static_hold_time) || 0, saveKey: 'hold_seconds', options: SECONDS_OPTIONS });
+      // isTime drives BOTH the mm:ss display in the grid and the
+      // minutes+seconds entry popup. The "(שניות)" suffix is gone from
+      // the labels because the value is no longer printed as a raw
+      // second count.
+      out.push({ metric: 'hold', label: 'החזקה', target: Number(exercise.static_hold_time) || 0, saveKey: 'hold_seconds', options: SECONDS_OPTIONS, isTime: true });
     } else if (hasValue(exercise.work_time)) {
-      out.push({ metric: 'work', label: 'זמן עבודה (שניות)', target: Number(exercise.work_time) || 0, saveKey: 'hold_seconds', options: SECONDS_OPTIONS });
+      out.push({ metric: 'work', label: 'זמן עבודה', target: Number(exercise.work_time) || 0, saveKey: 'hold_seconds', options: SECONDS_OPTIONS, isTime: true });
     }
     if (hasValue(exercise.weight)) {
       out.push({ metric: 'weight', label: 'משקל (ק"ג)', target: Number(exercise.weight) || 0, saveKey: 'weight_kg', options: WEIGHT_OPTIONS });
@@ -2243,7 +2208,11 @@ export default function ExerciseCard({
     return out;
   }, [exercise.reps, exercise.static_hold_time, exercise.work_time, exercise.weight]);
 
-  const gridSetCount = hasValue(exercise.sets) ? Math.max(1, Number(exercise.sets) || 1) : 1;
+  // One fill box per prescribed set. This used to read exercise.sets
+  // alone, which is null on every exercise whose sets were defined
+  // through the coach's per-set table — so a 3-set exercise rendered a
+  // single box and only set_number = 1 could ever be written.
+  const gridSetCount = resolveSetCount(exercise);
 
   // Persist one actual cell to exercise_set_logs. Because saveSetActual
   // always re-emits reps/hold_seconds/weight_kg (defaulting null), we
@@ -5309,9 +5278,11 @@ export default function ExerciseCard({
                     actuals={actualsForMetric}
                     readOnly={readOnly}
                     footerNote={footerNote}
+                    formatValue={m.isTime ? ((n) => formatTime(n) || '—') : undefined}
                     onCellTap={(setNumber) => setGridPicker({
                       saveKey: m.saveKey,
                       options: m.options,
+                      isTime: !!m.isTime,
                       setNumber,
                       target: m.target,
                       label: m.label,
@@ -5324,8 +5295,20 @@ export default function ExerciseCard({
               {/* Shared picker for whichever metric+set cell was tapped.
                   ScrollPickerPopup calls onSelect then onClose, so a tap
                   writes the value and closes in one shot. */}
+              {/* Time metrics get the minutes+seconds pad; reps and
+                  weight keep the scroll picker. Both write through the
+                  same saveActualsCell, in seconds. */}
+              <TimeEntryPopup
+                isOpen={gridPicker != null && gridPicker.isTime}
+                value={gridPicker?.value}
+                onClose={() => setGridPicker(null)}
+                onSelect={(v) => {
+                  if (gridPicker) saveActualsCell(gridPicker.saveKey, gridPicker.setNumber, v);
+                }}
+                title={gridPicker ? `${gridPicker.label} · סט ${gridPicker.setNumber} — בפועל` : ''}
+              />
               <ScrollPickerPopup
-                isOpen={gridPicker != null}
+                isOpen={gridPicker != null && !gridPicker.isTime}
                 value={gridPicker?.value}
                 options={gridPicker?.options || REPS_OPTIONS}
                 onClose={() => setGridPicker(null)}

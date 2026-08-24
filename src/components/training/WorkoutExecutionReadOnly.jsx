@@ -135,8 +135,10 @@ function ExerciseRow({ exercise, completed, savedLogs }) {
         const valueLabel = (log) => {
           const v = valueFromLog(log, mode);
           if (v == null || v === '' || v === 0 || v === '0') return null;
-          const unit = modeLabel(mode);
-          return `${v} ${unit}`;
+          // Time is stored in seconds but never shown as one: formatTime
+          // gives "45 שנ׳" under a minute and "1:30" above it.
+          if (mode === 'seconds' || mode === 'time') return formatTime(v);
+          return `${v} ${modeLabel(mode)}`;
         };
         const totalReps = setLogs.reduce((a, b) => a + (Number(b.reps_completed) || 0), 0);
         const ratedSets = setLogs.filter((l) => l.difficulty_rating != null);

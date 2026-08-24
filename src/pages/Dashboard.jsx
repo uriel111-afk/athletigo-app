@@ -15,6 +15,7 @@ import { AuthContext } from "@/lib/AuthContext";
 import PageSkeleton from "@/components/PageSkeleton";
 import RemindersPanel from "@/components/RemindersPanel";
 import NotificationPopup from "@/components/NotificationPopup";
+import { wasShown, markShown } from "@/lib/shownNotifications";
 import ChallengeBank from "@/components/ChallengeBank";
 
 import { useDashboardStats } from "../components/hooks/useDashboardStats";
@@ -149,7 +150,10 @@ export default function Dashboard() {
   const [showChallengeBank, setShowChallengeBank] = useState(false);
   const [reminders, setReminders] = useState([]);
   const [duePopup, setDuePopup] = useState(null);
-  const [shownReminderIds, setShownReminderIds] = useState(() => new Set());
+  // NOTE: the "already popped" set used to be component state, so it
+  // was rebuilt empty every time this screen remounted — navigating
+  // away and back re-popped the same reminder. It now lives in a
+  // session-scoped register outside the tree (src/lib/shownNotifications).
 
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
 
@@ -200,13 +204,26 @@ export default function Dashboard() {
       !r.is_read &&
       r.data?.remind_at &&
       new Date(r.data.remind_at) <= now &&
-      !shownReminderIds.has(r.id)
+      !wasShown(r.id)
     );
-    if (due) {
-      setDuePopup(due);
-      setShownReminderIds(prev => { const n = new Set(prev); n.add(due.id); return n; });
-    }
-  }, [reminders, duePopup, shownReminderIds]);
+    if (!due) return;
+
+    setDuePopup(due);
+    markShown(due.id);
+
+    // Mark it read the moment it is shown. Without this the row stays
+    // is_read=false forever and every fresh browser session pops a
+    // reminder the coach acknowledged days ago. Optimistic locally so
+    // the list updates even if the write is slow.
+    setReminders((prev) => prev.map((r) => (r.id === due.id ? { ...r, is_read: true } : r)));
+    (async () => {
+      try {
+        await supabase.from('notifications').update({ is_read: true }).eq('id', due.id);
+      } catch (e) {
+        console.warn('[Dashboard] reminder mark-read failed:', e?.message);
+      }
+    })();
+  }, [reminders, duePopup]);
 
   // Direct trainees query — shared key with useDashboardStats, no initialData
   const { data: allTrainees = [] } = useQuery({

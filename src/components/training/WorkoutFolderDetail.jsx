@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { base44 } from '@/api/base44Client';
 import { readExerciseSummary, readSectionRating } from '@/lib/workoutExecutionApi';
 import { duplicatePlan, softDeletePlan, buildPlanDeleteMessage } from '@/lib/plansApi';
+import { useHiddenStatusBar } from '@/hooks/useHiddenStatusBar';
 import CopyBadge from '@/components/plans/CopyBadge';
 import UnifiedPlanBuilder from './UnifiedPlanBuilder';
 import WorkoutExecutionReadOnly from './WorkoutExecutionReadOnly';
@@ -1510,6 +1511,13 @@ export default function WorkoutFolderDetail({
   // null = render the folder body. 'active' = full-screen workout via the
   // master button (canEdit/isCoach mirror the user's role).
   const [activeMode, setActiveMode] = useState(null);
+
+  // Trainee side only: hide the device status bar for the whole time
+  // this screen is open. The WebView already draws behind the system
+  // bars (main.jsx sets overlaysWebView), so on the workout sheet the
+  // clock and battery icons share the strip the exit button sits in.
+  // The coach keeps the bar — they are working, not training.
+  useHiddenStatusBar(!isCoach);
   // Collapsible state for the bottom progress graph. Closed by
   // default — the graph block is tall and noisy on first scroll;
   // the trainee/coach opens it when they want to inspect trends.
@@ -1590,7 +1598,12 @@ export default function WorkoutFolderDetail({
       // safe-area insets here directly — otherwise the sticky header
       // collides with the status bar and content with the gesture bar
       // inside the APK.
-      paddingTop: 'env(safe-area-inset-top)',
+      //
+      // The 10px floor matters now that the trainee's status bar is
+      // hidden: with no cutout the inset collapses to 0 and the exit
+      // button would sit flush against the top edge, where a system
+      // edge-swipe can eat the tap. It has to stay reachable.
+      paddingTop: 'max(env(safe-area-inset-top), 10px)',
       paddingBottom: 'env(safe-area-inset-bottom)',
     }}>
       <div style={{

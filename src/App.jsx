@@ -75,6 +75,7 @@ import LastSessionAlert from './components/LastSessionAlert';
 import BirthdayBlessingPopup from './components/BirthdayBlessingPopup';
 import InstallPrompt from './components/InstallPrompt';
 import NotificationPopup from './components/NotificationPopup';
+import { wasShown, markShown } from './lib/shownNotifications';
 import { supabase } from '@/lib/supabaseClient';
 import { SmartBackProvider } from '@/hooks/useSmartBack';
 import AndroidBackButton from './components/AndroidBackButton';
@@ -229,6 +230,13 @@ const AuthenticatedApp = () => {
   const isCoachUser = user?.role === 'coach' || user?.is_coach === true || user?.role === 'admin';
 
   const showNotificationPopup = useCallback((n) => {
+    // Unread only, and once per browser session per row. The realtime
+    // channel re-subscribes whenever the socket drops and reconnects —
+    // on mobile that happens every time the app comes back to the
+    // foreground — so without this register the same INSERT could be
+    // replayed into a second popup.
+    if (!n || n.is_read || wasShown(n.id)) return;
+    markShown(n.id);
     setPopupNotif(n);
 
     // Browser notification — fires even when tab is backgrounded
@@ -326,6 +334,8 @@ const AuthenticatedApp = () => {
       if (cancelled || error) return;
       if (data?.length > 0) {
         const due = data[0];
+        if (wasShown(due.id)) return;
+        markShown(due.id);
         setActiveReminder(due);
         try {
           await supabase
