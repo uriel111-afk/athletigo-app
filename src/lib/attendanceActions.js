@@ -194,6 +194,119 @@ export async function markGroupSessionAllPresent({ session, coachId, queryClient
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Personal sessions
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * createPersonalSession — schedule an 'אישי' session for one trainee.
+ *
+ * The single-trainee twin of createGroupSession above; both exist so the
+ * /pro work screens never call base44.entities.Session.create directly.
+ *
+ * `serviceId` matters: setSessionStatus only runs deductSessionFromService
+ * when the row carries a service_id, so the package the coach picked has
+ * to be stamped on the session at creation time.
+ */
+export async function createPersonalSession({ trainee, form = {}, coachId, serviceId = null }) {
+  return base44.entities.Session.create({
+    date: form.date,
+    time: form.time,
+    session_type: 'אישי',
+    location: form.location || 'סטודיו',
+    coach_id: coachId,
+    status: 'מתוכנן',
+    coach_notes: form.notes || '',
+    // Both shapes are written: participants is what every trainee-facing
+    // surface reads, trainee_id is what the legacy .eq('trainee_id') lists
+    // still filter on.
+    participants: [{
+      trainee_id: trainee.id,
+      trainee_name: trainee.full_name || '',
+      attendance_status: 'ממתין',
+    }],
+    trainee_id: trainee.id,
+    trainee_name: trainee.full_name || '',
+    service_id: serviceId,
+  });
+}
+
+/**
+ * findTodaySession — today's session for a subject, out of an already
+ * fetched list. Shared by both work screens so "does one exist yet"
+ * is answered the same way in both.
+ *
+ * @param {Array}  sessions  candidate rows (already coach-scoped)
+ * @param {string} dateISO   YYYY-MM-DD
+ * @param {object} match     { groupId } or { traineeId }
+ */
+export function findTodaySession(sessions, dateISO, { groupId = null, traineeId = null } = {}) {
+  return (sessions || []).find((s) => {
+    if (!s || s.date !== dateISO || s.status === 'deleted') return false;
+    if (groupId) return s.group_id === groupId;
+    if (traineeId) {
+      if (s.trainee_id === traineeId) return true;
+      const list = Array.isArray(s.participants) ? s.participants : [];
+      return list.some((p) => p?.trainee_id === traineeId);
+    }
+    return false;
+  }) || null;
+}
+
+/** base44 create returns either the row or a one-element array. */
+export function firstRow(created) {
+  return (Array.isArray(created) ? created[0] : created) || null;
+}
+
+/**
+ * setPersonalAttendance — mark one trainee present (or un-mark them) on
+ * their personal session, in one action.
+ *
+ * Deduction is NOT reimplemented here. The session status change is
+ * delegated to setSessionStatus, which runs the existing
+ * deductSessionFromService / restoreSessionToService pair keyed on
+ * session.service_id and guarded by was_deducted, so a double tap can
+ * never double-deduct and un-marking restores exactly one credit.
+ *
+ * Ordering is deliberate: setSessionStatus runs FIRST, while the
+ * participant is still 'ממתין', so its own attendance-log loop (which
+ * skips anyone already present) still fires. The participants array is
+ * written afterwards.
+ */
+export async function setPersonalAttendance({
+  session, traineeId, present, coach, queryClient, trainees = [],
+}) {
+  const result = await setSessionStatus({
+    session,
+    newStatus: present ? SESSION_ATTENDED : 'מתוכנן',
+    coach,
+    trainees,
+    queryClient,
+  });
+
+  const existing = Array.isArray(session.participants) ? session.participants : [];
+  const known = existing.some((p) => p?.trainee_id === traineeId);
+  const participants = known
+    ? existing.map((p) => (p?.trainee_id === traineeId
+        ? { ...p, attendance_status: present ? 'הגיע' : 'ממתין', updated_at: new Date().toISOString() }
+        : p))
+    : [...existing, {
+        trainee_id: traineeId,
+        trainee_name: '',
+        attendance_status: present ? 'הגיע' : 'ממתין',
+      }];
+
+  await base44.entities.Session.update(session.id, { participants });
+
+  if (queryClient) {
+    queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
+    queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
+    queryClient.invalidateQueries({ queryKey: ['trainee-home'] });
+  }
+  return result;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Single sessions
 // ─────────────────────────────────────────────────────────────────────────
 

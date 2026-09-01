@@ -8,6 +8,7 @@ import { createPageUrl } from '@/utils';
 import ProtectedCoachPage from '@/components/ProtectedCoachPage';
 import PageSkeleton from '@/components/PageSkeleton';
 import GroupTrackBoard from '@/components/groups/GroupTrackBoard';
+import PersonalTrackBoard from '@/components/personal/PersonalTrackBoard';
 import {
   TRACKS,
   TRACK_LABELS,
@@ -278,11 +279,18 @@ export default function Pro() {
           </div>
 
           {/* ── Row two onward ───────────────────────────────────
-              קבוצתי is a WORK SCREEN: the coach acts inside it and
-              never navigates away. אישי and אונליין keep the six
-              navigation rows untouched until their own pass. */}
+              קבוצתי is a full WORK SCREEN. אישי is a work screen for
+              its two daily rows (הרשמה, נוכחות) and keeps the other
+              four as navigation. אונליין keeps all six as navigation. */}
           {track === 'group' ? (
             <GroupTrackBoard coach={coach} trainees={trainees} />
+          ) : track === 'personal' ? (
+            <PersonalTrackBoard
+              coach={coach}
+              trainees={trainees}
+              sources={sources}
+              rows={rows}
+            />
           ) : (
             <div style={{
               marginTop: 16,

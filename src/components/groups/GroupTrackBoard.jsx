@@ -12,6 +12,8 @@ import {
   saveGroupAttendance,
   markGroupSessionAllPresent,
   createGroupSession,
+  findTodaySession,
+  firstRow,
   isPresentStatus,
   PARTICIPANT_STATUSES,
 } from '@/lib/attendanceActions';
@@ -204,15 +206,18 @@ export default function GroupTrackBoard({ coach, trainees = [] }) {
     return out;
   }, [memberRows, groupSessions, traineeById]);
 
-  /** Today's session per group, if one already exists. */
+  /** Today's session per group, if one already exists. Uses the shared
+   *  matcher in attendanceActions so both work screens agree on what
+   *  "today's session" means. */
   const todaySessionByGroup = useMemo(() => {
     const t = todayISO();
     const m = new Map();
-    for (const s of groupSessions || []) {
-      if (s.group_id && s.date === t) m.set(s.group_id, s);
+    for (const g of groups || []) {
+      const found = findTodaySession(groupSessions, t, { groupId: g.id });
+      if (found) m.set(g.id, found);
     }
     return m;
-  }, [groupSessions]);
+  }, [groups, groupSessions]);
 
   /** Trainees whose active group package is still unpaid. */
   const unpaidIds = useMemo(() => {
@@ -252,9 +257,7 @@ export default function GroupTrackBoard({ coach, trainees = [] }) {
       },
       coachId,
     });
-    // base44 create returns either the row or an array of rows.
-    const row = Array.isArray(created) ? created[0] : created;
-    return row || null;
+    return firstRow(created);
   }, [todaySessionByGroup, membersByGroup, coachId]);
 
   // ── Toggle one member's attendance for today ───────────────────────

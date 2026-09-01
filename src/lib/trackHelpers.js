@@ -167,7 +167,11 @@ export async function fetchTrackSources(client, coachId, traineeIds) {
   const [packages, sessions] = await Promise.all([
     inChunks(
       client, 'client_services', 'trainee_id', ids,
-      'id, trainee_id, trainee_name, service_type, package_type, status, payment_status, price, paid_amount, end_date',
+      // package_name + the three size columns feed getRemainingSessions()
+      // on the /pro work screens. NOTE: there is no
+      // client_services.remaining_sessions column — that alias is read off
+      // the object only, never selected, or the query 400s.
+      'id, trainee_id, trainee_name, service_type, package_type, status, payment_status, price, paid_amount, end_date, package_name, total_sessions, used_sessions, sessions_remaining',
       (q) => q.eq('coach_id', coachId),
     ),
     (async () => {

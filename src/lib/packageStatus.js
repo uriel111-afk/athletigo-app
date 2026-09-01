@@ -70,6 +70,24 @@ export async function syncTraineeUserStatus(traineeId) {
     .eq('id', traineeId);
 }
 
+/**
+ * Sessions left on a package.
+ *
+ * The column name has drifted: useServiceDeduction writes
+ * `sessions_remaining`, some older rows carry `remaining_sessions`, and
+ * a few carry neither. This is the same three-step rule already
+ * duplicated inline in AllUsers.jsx (getRemaining) and Reports.jsx
+ * (remainingOf) — both are local consts inside page components and
+ * neither is importable, so it lives here now for anything new that
+ * needs it. Those two copies are deliberately left untouched.
+ */
+export function getRemainingSessions(pkg) {
+  if (!pkg) return 0;
+  if (pkg.remaining_sessions != null) return Number(pkg.remaining_sessions);
+  if (pkg.sessions_remaining != null) return Number(pkg.sessions_remaining);
+  return Math.max(0, (Number(pkg.total_sessions) || 0) - (Number(pkg.used_sessions) || 0));
+}
+
 export function isActive(status) {
   return status === 'פעיל' || status === 'active';
 }
