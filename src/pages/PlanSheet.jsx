@@ -300,30 +300,41 @@ export default function PlanSheet() {
   const { plan } = data;
   // The two halves of every row. infoBlock is a FIXED width, which is
   // the whole fix for boxes drifting to the outer edge.
+  const rowStyle = {
+    display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
+    minHeight: ROW_H,
+  };
+  // Measured in a browser at 390px before shipping. On that width the
+  // card is 264px, so the 52% line lands at x=207 in every row.
   const infoBlock = {
     width: INFO_W, flexShrink: 0, minWidth: 0,
-    display: 'flex', alignItems: 'center', gap: 8,
+    display: 'flex', alignItems: 'center', gap: 6,
     overflow: 'hidden', whiteSpace: 'nowrap',
   };
+  // SHRINK-TO-FIT, never flex:1. flex:1 is what stretched the boxes to
+  // the card edge. maxWidth caps it at the complement of INFO_W so a
+  // 5-set row scrolls inside its own half instead of overflowing.
   const entryBlock = {
-    flex: 1, minWidth: 0, display: 'flex', gap: 6,
-    // A block with many sets scrolls inside its own half rather than
-    // overflowing the card.
+    flexShrink: 0, maxWidth: '48%',
+    display: 'flex', gap: 5,
     overflowX: 'auto', overflowY: 'hidden',
   };
   const ordinalStyle = {
     flexShrink: 0, minWidth: 18, color: ORANGE, fontSize: 15, fontWeight: 800,
   };
+  // flex:1 so the name takes every pixel the params and pill leave,
+  // and truncates only when it genuinely exceeds that.
   const nameStyle = {
-    flexShrink: 1, minWidth: 0, fontSize: 16, fontWeight: 500,
+    flex: 1, minWidth: 0, fontSize: 16, fontWeight: 500,
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   };
+  // flexShrink:0 on both so they never steal the name’s width.
   const paramStyle = {
-    flexShrink: 0, fontSize: 13, fontWeight: 600, color: CHARCOAL,
+    flexShrink: 0, fontSize: 12, fontWeight: 700, color: CHARCOAL,
   };
   const pillStyle = (bg) => ({
-    flexShrink: 0, fontSize: 10, fontWeight: 700,
-    padding: '2px 8px', borderRadius: 999, background: bg, color: WHITE,
+    flexShrink: 0, fontSize: 9, fontWeight: 700,
+    padding: '2px 6px', borderRadius: 999, background: bg, color: WHITE,
   });
   const checkStyle = (on) => ({
     flexShrink: 0, width: 26, height: 26, borderRadius: 5,
@@ -335,7 +346,11 @@ export default function PlanSheet() {
     opacity: locked && !on ? 0.75 : 1,
   });
   const box = (filled) => ({
-    width: 46, height: TOUCH, flexShrink: 0,
+    // border-box matters: without it the border and the number-input
+    // padding pushed each box ~7px wider and three of them overflowed
+    // the card.
+    boxSizing: 'border-box',
+    width: 38, height: TOUCH, flexShrink: 0,
     // Locked → visibly muted, so a viewed sheet never looks fillable.
     border: `1.5px solid ${locked ? '#E2DAD0' : (filled ? ORANGE : '#D9D0C4')}`,
     background: locked ? '#F4EEE6' : (filled ? WHITE : CREAM),
@@ -467,7 +482,7 @@ export default function PlanSheet() {
                       {/* Two flex children, never a spacer: a fixed 52%
                           info block, then the entry block. That is what
                           puts every row’s boxes on one vertical line. */}
-                      <div style={{ display: "flex", alignItems: "center", minHeight: ROW_H }}>
+                      <div style={rowStyle}>
                         <div style={infoBlock}>
                           {rowKind === "check" ? (
                             <button
@@ -530,7 +545,7 @@ export default function PlanSheet() {
                         return (
                           <div
                             key={subKey}
-                            style={{ display: "flex", alignItems: "center", minHeight: ROW_H }}
+                            style={rowStyle}
                           >
                             <div style={{ ...infoBlock, paddingInlineStart: 26 }}>
                               <span style={{ flexShrink: 0, color: MUTED, fontSize: 13 }}>•</span>
