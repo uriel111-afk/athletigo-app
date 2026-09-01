@@ -265,12 +265,13 @@ export default function HealthDeclarationForm({
         declaration_confirmed: true,
         signature_data: signatureDataUrl,
         signed_at: new Date().toISOString(),
+        // All three guardian fields live together on the declaration
+        // record. signer_phone was added by ALTER TABLE 2026-09-01,
+        // replacing the users.health_declaration_metadata workaround.
         is_minor: guardianSigning,
         signer_name: guardianSigning ? signerName.trim() : null,
         signer_relation: guardianSigning ? signerRelation : null,
-        // NOTE: health_declarations has NO phone column. The guardian
-        // phone is written to users.health_declaration_metadata (jsonb)
-        // in the flag write below — see the comment there.
+        signer_phone: guardianSigning ? signerPhone.trim() : null,
       };
       // Truncate signature_data in the log so the data URL doesn't drown
       // the console; the rest of the payload is logged in full.
@@ -320,20 +321,9 @@ export default function HealthDeclarationForm({
             health_declaration_accepted: true,
             health_declaration_signed_at: new Date().toISOString(),
           };
-          // Guardian phone has no column on health_declarations. It goes
-          // into users.health_declaration_metadata — an existing JSONB
-          // column (MIGRATION_DOCUMENTS_V2.sql) that no code reads or
-          // writes today, so nothing is overwritten. Deliberately NOT
-          // users.emergency_contact_phone: the signer and the emergency
-          // contact are not necessarily the same person.
-          if (guardianSigning) {
-            update.health_declaration_metadata = {
-              signer_name: signerName.trim(),
-              signer_relation: signerRelation,
-              signer_phone: signerPhone.trim(),
-              signed_at: new Date().toISOString(),
-            };
-          }
+          // Guardian details are NOT mirrored here. All three
+          // (signer_name, signer_relation, signer_phone) live on the
+          // health_declarations row written above — one row, one place.
           if (promote) update.client_status = 'casual';
           await supabase
             .from('users')
