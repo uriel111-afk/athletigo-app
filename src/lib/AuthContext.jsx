@@ -158,13 +158,12 @@ export const AuthProvider = ({ children }) => {
 
     if (path === '/login') {
       routingDoneRef.current = true;
-      // Coach landing is now the action home (/prohome). Dashboard.jsx
-      // stays on disk and stays routed at /dashboard — it is simply no
-      // longer the default destination.
+      // ONE coach home: /dashboard, the full-function screen. Same for
+      // every coach — no per-account exception, and no id compared here.
       const dest = isCoordinator
         ? '/lifeos/leads'
         : isCoach
-          ? '/prohome'
+          ? '/dashboard'
           : (isOnboardingComplete ? '/trainee-home' : '/onboarding');
       navigate(dest, { replace: true });
       return;
@@ -190,13 +189,13 @@ export const AuthProvider = ({ children }) => {
       return;
     }
 
-    // Every coach lands on the action home, with no per-account
-    // exception. '/' renders Onboarding (it is the configured mainPage),
-    // which is never what a coach wants to see.
-    // /hub and /dashboard both stay routed and stay in the coach menu.
+    // Every coach lands on /dashboard, with no per-account exception.
+    // '/' renders Onboarding (it is the configured mainPage), which is
+    // never what a coach wants to see.
+    // /hub stays routed and stays in the hamburger.
     if (isCoach && (path === '/' || path === '')) {
       routingDoneRef.current = true;
-      navigate('/prohome', { replace: true });
+      navigate('/dashboard', { replace: true });
       return;
     }
   }, [user, isAuthenticated, isLoadingAuth, isOnboardingComplete, navigate]);

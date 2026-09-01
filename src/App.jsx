@@ -15,7 +15,6 @@ import PageLoader from '@/components/PageLoader';
 import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
 import CoachHub from './pages/CoachHub';
-import ProHome from './pages/ProHome';
 import Pro from './pages/Pro';
 import BusinessCalculator from './pages/BusinessCalculator';
 import Profitability from './pages/Profitability';
@@ -217,9 +216,9 @@ const AuthenticatedApp = () => {
   // It was gated on a single hardcoded coach id and, because this
   // component is a DESCENDANT of AuthProvider, its effect ran first and
   // beat AuthContext's routing effect to the punch — which is exactly
-  // why that one account could never land on /prohome. Coach landing is
-  // now decided in one place, AuthContext's routing effect, for every
-  // coach alike. /hub stays routed and stays in the coach menu.
+  // why that one account could never land anywhere else. Coach landing
+  // is now decided in one place, AuthContext's routing effect, for
+  // every coach alike. /hub stays routed and stays in the hamburger.
 
   // ── Back into an open workout ─────────────────────────────────────
   //
@@ -638,20 +637,14 @@ const AuthenticatedApp = () => {
       {/* their own LifeOSLayout (CoachHub has a custom shell). */}
       <Route path="/hub"                 element={<PageRouteGuard pageKey="CoachHub"><CoachHub /></PageRouteGuard>} />
 
-      {/* ── Coach hierarchy ───────────────────────────────────────
-          Layer 1 /prohome  — the action home the coach now lands on.
-          Layer 2 /pro/:track — the three service worlds as tabs.
-          Layer 3 is the existing /traineeprofile.
-          Explicit routes: the PAGES loop above only generates flat
+      {/* ── Coach service worlds ──────────────────────────────────
+          /pro/:track — the three service worlds as tabs. The coach
+          home is /dashboard; the trainee layer is /traineeprofile.
+          Explicit route: the PAGES loop above only generates flat
           /<pagename> paths and cannot express a :track segment.
-          Both wrap in LayoutWrapper so the coach nav still renders,
-          and PageRouteGuard keeps them coach-only (neither key is in
-          traineeOnlyPages or sharedPages, so trainees bounce home). */}
-      <Route path="/prohome" element={
-        <PageRouteGuard pageKey="ProHome">
-          <LayoutWrapper currentPageName="ProHome"><ProHome /></LayoutWrapper>
-        </PageRouteGuard>
-      } />
+          LayoutWrapper keeps the coach nav rendering, and
+          PageRouteGuard keeps it coach-only ("Pro" is in neither
+          traineeOnlyPages nor sharedPages, so trainees bounce home). */}
       <Route path="/pro" element={<Navigate to="/pro/personal" replace />} />
       <Route path="/pro/:track" element={
         <PageRouteGuard pageKey="Pro">

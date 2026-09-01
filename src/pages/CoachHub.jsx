@@ -293,7 +293,7 @@ export default function CoachHub() {
             route's app (matched via pathname prefix so nested pages
             still highlight their parent app). Compact so the hub
             stays no-scroll on mobile. */}
-        {/* App-tab chips — RTL visual order: מקצועי → פיננסי → צמיחה → אישי
+        {/* App-tab chips — RTL visual order: דשבורד → פיננסי → צמיחה → אישי
             (פיננסי + צמיחה swapped vs. earlier order, per May 2026 spec).
             Positioned directly under the title block and above the
             Daily Focus banner so the navigation is the first thing the
@@ -316,7 +316,7 @@ export default function CoachHub() {
         }}>
           {[
             { label: 'מיקוד', path: '/lifeos/focus',  Icon: Target,        iconColor: '#FF6F20' },
-            { label: 'מקצועי', path: '/dashboard',    Icon: Briefcase,     iconColor: '#7F47B5' },
+            { label: 'דשבורד', path: '/dashboard',    Icon: Briefcase,     iconColor: '#7F47B5' },
             { label: 'פיננסי', path: '/lifeos/finance-dashboard', Icon: Coins,     iconColor: '#16a34a' },
             { label: 'לידים', path: '/lifeos/leads',  Icon: Sprout,    iconColor: '#FF6F20' },
             { label: 'אישי',  path: '/lifeos/personal-board', Icon: HeartHandshake, iconColor: '#3B82F6' },

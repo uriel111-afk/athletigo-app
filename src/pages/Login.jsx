@@ -20,26 +20,20 @@ export default function Login() {
   const [error, setError] = useState(null);
   const isPWA = useIsPWA();
 
-  // If already logged in, redirect based on role. The Life OS coach
-  // (uriel111@gmail.com) lands on /hub — the two-card entry screen —
-  // rather than going straight to /dashboard, which is now reachable
-  // only via the "מקצועי" card on the hub.
+  // If already logged in, redirect based on role. ONE coach home:
+  // /dashboard, the full-function screen — the same for every coach,
+  // with no per-account exception and no id compared here. Must stay in
+  // step with the routing effect in AuthContext.jsx, which decides the
+  // same thing for anyone arriving with a session already in hand.
+  // /hub stays routed and stays in the hamburger.
   const redirectAfterLogin = (profile) => {
-    const isCoach = profile?.role === 'coach' || profile?.isCoach === true || profile?.role === 'admin';
     const isTrainee = profile?.role === 'trainee' || profile?.role === 'user';
     const isCoordinator = profile?.role === 'coordinator';
-    // Every coach lands on the action home — no per-account exception,
-    // and no id compared here at all. This must stay in step with the
-    // routing effect in AuthContext.jsx, which decides the same thing
-    // for anyone who arrives with a session already in hand.
-    // /hub and /dashboard both stay routed and stay in the coach menu.
     const destination = isCoordinator
       ? '/lifeos/leads'
       : isTrainee
         ? '/trainee-home'
-        : isCoach
-          ? '/prohome'
-          : createPageUrl('Dashboard');
+        : createPageUrl('Dashboard');
     navigate(destination, { replace: true });
   };
 

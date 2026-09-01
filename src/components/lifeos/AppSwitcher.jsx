@@ -32,7 +32,9 @@ export default function AppSwitcher({ wide = false }) {
 
   const tabs = [
     { key: "focus",    label: "מיקוד",  href: "/lifeos/focus", active: isFocus,    Icon: Target,        iconColor: "#FF6F20" },
-    { key: "pro",      label: "מקצועי", href: "/dashboard",    active: isPro,      Icon: Briefcase,     iconColor: "#7F47B5" },
+    // Renamed from מקצועי to דשבורד: that word now belongs to /pro
+    // alone (the bottom-nav item). The destination is unchanged.
+    { key: "pro",      label: "דשבורד", href: "/dashboard",    active: isPro,      Icon: Briefcase,     iconColor: "#7F47B5" },
     { key: "fin",      label: "פיננסי", href: "/lifeos/finance-dashboard", active: isFin,      Icon: Coins,     iconColor: "#16a34a" },
     { key: "growth",   label: "לידים",  href: "/lifeos/leads", active: isGrowth,   Icon: Sprout,    iconColor: "#FF6F20" },
     { key: "personal", label: "אישי",   href: "/lifeos/personal-board", active: isPersonal, Icon: HeartHandshake, iconColor: "#3B82F6" },

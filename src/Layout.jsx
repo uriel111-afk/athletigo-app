@@ -17,8 +17,6 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard,
-  Users,
-  Calendar,
   ClipboardList,
   User,
   Home,
@@ -220,15 +218,14 @@ export default function Layout({ children, currentPageName }) {
     // /hub no longer has an automatic redirect pointing at it, so it
     // needs a way in from the menu like every other screen.
     { title: "מרכז מאמן", url: "/hub", icon: LayoutDashboard, section: "daily" },
-    { title: "עולמות מקצועיים", url: "/pro", icon: LayoutDashboard, section: "daily" },
-    { title: "מתאמנים", url: createPageUrl("AllUsers"), icon: Users, section: "daily" },
     { title: "תוכן", url: createPageUrl("Content"), icon: Clapperboard, section: "daily" },
+    // The one row for /trainingplans. "כל התוכניות" was the duplicate:
+    // both pointed here, and this name matches what the screen opens on
+    // (its viewMode defaults to "active").
     { title: "תוכניות פעילות", url: createPageUrl("TrainingPlans"), icon: Dumbbell, section: "daily" },
-    { title: "מפגשים", url: createPageUrl("Sessions"), icon: Calendar, section: "daily" },
     { title: "לידים", url: createPageUrl("Leads"), icon: UserPlus, section: "daily" },
     { title: "התראות", url: createPageUrl("Notifications"), icon: Bell, section: "daily", showBadge: true },
     // ── ניהול תוכן ──
-    { title: "כל התוכניות", url: createPageUrl("TrainingPlans"), icon: ClipboardList, section: "content" },
     { title: "מחברת אימונים", url: createPageUrl("Journal"), icon: BookOpen, section: "content" },
     { title: "אתגרי אימון", url: createPageUrl("Challenges"), icon: Flame, section: "content" },
     { title: "מסלולים", url: createPageUrl("SkillTracks"), icon: Route, section: "content" },
@@ -705,13 +702,11 @@ export default function Layout({ children, currentPageName }) {
                 // ~344px usable width on a 360px screen — and this
                 // container is overflow:visible, so it would spill
                 // rather than scroll.
-                // תוכניות was dropped to make room for מקצועי: it is the
-                // only tab duplicated TWICE in the hamburger ("תוכניות
-                // פעילות" and "כל התוכניות", both → TrainingPlans), and
-                // /pro now carries a תוכניות row per track. Nothing
-                // became less reachable.
+                // These five are also the ONLY entry point to their
+                // destinations: the matching hamburger rows were removed
+                // so no route is reachable under two different labels.
                 const navItems = isCoach ? [
-                  { to: "/prohome",                   emoji: '🏠', label: 'בית' },
+                  { to: createPageUrl("Dashboard"),    emoji: '🏠', label: 'בית' },
                   { to: "/pro",                        emoji: '🎯', label: 'מקצועי' },
                   { to: createPageUrl("AllUsers"),     emoji: '👥', label: 'מתאמנים' },
                   { to: createPageUrl("Sessions"),     emoji: '📅', label: 'מפגשים' },
