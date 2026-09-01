@@ -51,10 +51,6 @@ const WHITE    = '#FFFFFF';
 const RAIL_W   = 68;
 const TOUCH    = 44;
 const ROW_H    = 46;
-// How far the entry boxes are indented from the row start. On one line
-// it is the gap after the parameters; once the boxes wrap it is the
-// indent that lines them up under the name.
-const INDENT   = 8;
 // No alignment line and no percentage width anywhere. The entry boxes
 // sit immediately after the parameters in the same flex flow, and the
 // leftover space stays empty at the card edge. A fixed 52% column could
@@ -370,44 +366,67 @@ export default function PlanSheet() {
   if (isLoading || !data) return <PageLoader />;
 
   const { plan } = data;
-  // ── One flex line WHILE IT FITS. Clarity beats a fixed row height:
-  //    the name never truncates, so a long one wraps to a second line
-  //    and the row grows. When the boxes can no longer share the line
-  //    they wrap to their own full-width line beneath, indented to sit
-  //    under the name. flexWrap is what allows both. ──
+  // ── TWO flex children, and the ROW never wraps. ────────────────
+  //    child 1: the text group — ordinal + name + params. Only THIS
+  //             wraps, so the three stay glued together and wrap as a
+  //             unit. The ordinal keeps the name's first line.
+  //    child 2: the boxes. flexShrink 0, so they never move.
+  //    Putting flexWrap on the ROW was the bug: it let the ordinal
+  //    separate from the name and the params drift to the far edge.
   const plainRow = {
-    display: 'flex', flexWrap: 'wrap', alignItems: 'center',
-    gap: 8,
+    display: 'flex', alignItems: 'flex-start', gap: 8,
     padding: '10px 9px', borderBottom: '1px solid #E0D4C2',
-    minWidth: 0,
+  };
+  // NOT a flex container — plain INLINE flow. As flex items the name
+  // took its own flex line the moment it was long, orphaning the
+  // ordinal above it and pushing the params below. In inline flow the
+  // three are one run of text: the ordinal opens the first line, the
+  // name wraps under itself, and the params follow the last word.
+  const textGroup = {
+    flex: 1, minWidth: 0,
+    lineHeight: 1.3,
   };
   const ordinalStyle = {
-    fontSize: 12, color: ORANGE, fontWeight: 500, flexShrink: 0,
-    // Stays on the first visual line with the start of the name.
-    alignSelf: 'flex-start', paddingTop: 3,
+    fontSize: 12, color: ORANGE, fontWeight: 500,
+    marginInlineEnd: 6,
   };
-  // NEVER truncates. No ellipsis, no nowrap — it wraps and the row grows.
+  // NEVER truncates. Wraps under itself, never under the ordinal.
   const nameStyle = {
-    flex: "1 1 auto", minWidth: 0,
     fontSize: 16, color: CHARCOAL, fontWeight: 500,
-    lineHeight: 1.3,
-    overflowWrap: 'anywhere',
+    whiteSpace: 'normal', overflowWrap: 'anywhere',
   };
   const paramStyle = {
-    fontSize: 13, color: CHARCOAL, flexShrink: 0,
-    alignSelf: 'flex-start', paddingTop: 3,
+    fontSize: 13, color: CHARCOAL,
+    marginInlineStart: 8, whiteSpace: "nowrap",
   };
-  // While the boxes fit beside the name they ride the same line
-  // (flexBasis auto). The moment the line is too tight, flex-wrap
-  // moves them down and marginInlineStart indents them under the name,
-  // where flexGrow 1 lets them own the whole second line.
-  // Nothing scrolls: no overflowX anywhere.
-  const entryBlock = (n) => ({
-    display: 'flex', gap: n >= 4 ? 3 : 4,
-    flex: "0 1 auto", flexShrink: 0,
-    marginInlineStart: INDENT,
+
+  // ── Box sizing. Work out what the group costs BEFORE rendering it,
+  //    and shrink it so the text group keeps at least TEXT_FLOOR px.
+  //    Only if 22px boxes at a 2px gap still will not fit does the
+  //    group drop to its own line, right-aligned.
+  const TEXT_FLOOR = 120;
+  // The row box a group has to live in at the narrowest supported
+  // width. 360 device − page padding − rail − card borders − row
+  // padding, measured live at 262.5.
+  const ROW_INNER = 244;
+  const boxPlan = (n) => {
+    if (n <= 0) return { w: 0, gap: 0, total: 0, ownLine: false };
+    for (const [w, gap] of [[32, 4], [28, 4], [28, 3], [24, 3], [22, 2]]) {
+      const total = n * w + (n - 1) * gap;
+      if (ROW_INNER - total - 8 >= TEXT_FLOOR) return { w, gap, total, ownLine: false };
+    }
+    // Floor reached: 22px boxes at a 2px gap. A 5-box group is 118px,
+    // leaving 118px of text — under the 120 target by two pixels, but
+    // perfectly readable, and the name wraps rather than clipping. The
+    // group only drops to its own line if even the floor would leave
+    // the text unusably narrow.
+    const w = 22, gap = 2;
+    const total = n * w + (n - 1) * gap;
+    return { w, gap, total, ownLine: ROW_INNER - total - 8 < 40 };
+  };
+  const entryBlock = (bp) => ({
+    display: 'flex', gap: bp.gap, flexShrink: 0,
   });
-  const boxW = (n) => (n >= 5 ? 24 : (n >= 3 ? 28 : 32));
 
   // ── Container: one wrapper, tinted, orange rail on its RIGHT. ───
   const containerWrap = {
@@ -431,24 +450,18 @@ export default function PlanSheet() {
   // ── Sub row: the same single line, asterisk instead of an ordinal.
   //    No borderBottom — the wrapper carries it.
   const subRow = {
-    display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
+    display: 'flex', alignItems: 'flex-start', gap: 8,
     paddingInlineStart: 12,
-    minWidth: 0,
   };
-  const subStar  = {
-    fontSize: 14, color: ORANGE, flexShrink: 0,
-    alignSelf: 'flex-start', paddingTop: 2,
-  };
+  const subStar  = { fontSize: 14, color: ORANGE, marginInlineEnd: 6 };
   // Never truncates either.
   const subName  = {
-    flex: "1 1 auto", minWidth: 0,
     fontSize: 15, color: CHARCOAL, fontWeight: 500,
-    lineHeight: 1.3,
-    overflowWrap: 'anywhere',
+    whiteSpace: 'normal', overflowWrap: 'anywhere',
   };
   const subParam = {
-    fontSize: 13, color: CHARCOAL, flexShrink: 0,
-    alignSelf: 'flex-start', paddingTop: 2,
+    fontSize: 13, color: CHARCOAL,
+    marginInlineStart: 8, whiteSpace: "nowrap",
   };
   const checkStyle = (on) => ({
     flexShrink: 0, width: 32, height: 32, borderRadius: 5,
@@ -460,9 +473,9 @@ export default function PlanSheet() {
     opacity: locked && !on ? 0.75 : 1,
   });
 
-  const box = (filled, n = 1) => ({
+  const box = (filled, bp) => ({
     flexShrink: 0,
-    width: boxW(n), textAlign: "center", fontSize: 13, padding: "6px 0",
+    width: bp.w, textAlign: "center", fontSize: 13, padding: "6px 0",
     border: filled ? `1.5px solid ${ORANGE}` : "1.5px solid #C9BCAB",
     borderRadius: 5,
     background: filled ? "#FFF" : CREAM,
@@ -625,15 +638,22 @@ export default function PlanSheet() {
                           const subEditable = subHasTarget && !isClock;
                           const subParams = paramText({ ...sm, kind: subHasTarget ? sm.kind : "check" });
                           const last = sidx === subs.length - 1;
+                          const sbp = boxPlan(subEditable ? boxesPerSub : 0);
                           return (
                             <div
                               key={`${ex.id}:sub${sidx}`}
-                              style={{ ...subRow, padding: last ? "7px 9px 10px" : "7px 9px" }}
+                              style={{
+                                ...subRow,
+                                padding: last ? "7px 9px 10px" : "7px 9px",
+                                ...(sbp.ownLine ? { flexWrap: "wrap", justifyContent: "flex-end" } : null),
+                              }}
                             >
-                              <span style={subStar}>✳</span>
-                              <span style={subName}>{subLabel(sub, subKindOf, sidx)}</span>
-                              {subParams && <span style={subParam}>{subParams}</span>}
-                              <div style={entryBlock(subEditable ? boxesPerSub : 0)}>
+                              <div style={textGroup}>
+                                <span style={subStar}>✳</span>
+                                <span style={subName}>{subLabel(sub, subKindOf, sidx)}</span>
+                                {subParams && <span style={subParam}>{subParams}</span>}
+                              </div>
+                              <div style={entryBlock(sbp)}>
                                 {subEditable && Array.from({ length: boxesPerSub }).map((_, ri) => {
                                   const key = `${ex.id}:sub${sidx}:${ri + 1}`;
                                   const v = values[key] ?? "";
@@ -646,7 +666,7 @@ export default function PlanSheet() {
                                       value={v}
                                       onChange={(e) => setValues((pv) => ({ ...pv, [key]: e.target.value }))}
                                       onBlur={(e) => commitInner(ex.id, sidx, e.target.value, sm.payloadField, ri + 1)}
-                                      style={box(has(v), boxesPerSub)}
+                                      style={box(has(v), sbp)}
                                     />
                                   );
                                 })}
@@ -659,12 +679,19 @@ export default function PlanSheet() {
                   }
 
                   // ── A PLAIN EXERCISE ROW ───────────────────────────
+                  const bp = boxPlan(rowKind === "check" ? 1 : boxCount);
                   return (
-                    <div key={ex.id} style={plainRow}>
-                      <span style={ordinalStyle}>{myOrdinal}.</span>
-                      <span style={nameStyle}>{ex.exercise_name || ex.name}</span>
-                      {params && <span style={paramStyle}>{params}</span>}
-                      <div style={entryBlock(rowKind === "check" ? 1 : boxCount)}>
+                    <div
+                      key={ex.id}
+                      style={bp.ownLine ? { ...plainRow, flexWrap: "wrap", justifyContent: "flex-end" } : plainRow}
+                    >
+                      {/* ordinal + name + params wrap as ONE unit */}
+                      <div style={textGroup}>
+                        <span style={ordinalStyle}>{myOrdinal}.</span>
+                        <span style={nameStyle}>{ex.exercise_name || ex.name}</span>
+                        {params && <span style={paramStyle}>{params}</span>}
+                      </div>
+                      <div style={entryBlock(bp)}>
                         {rowKind === "check" ? (
                           <button
                             type="button"
@@ -687,7 +714,7 @@ export default function PlanSheet() {
                               value={v}
                               onChange={(e) => setValues((pv) => ({ ...pv, [key]: e.target.value }))}
                               onBlur={(e) => commit(ex.id, si + 1, e.target.value, m.payloadField)}
-                              style={box(has(v), boxCount)}
+                              style={box(has(v), bp)}
                             />
                           );
                         })}
