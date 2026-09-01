@@ -697,17 +697,12 @@ export default function Layout({ children, currentPageName }) {
                   if (traineePerms?.view_progress      !== false) middle.push(RECORDS_TAB);
                   traineeNav = [HOME_TAB, ...middle, PROFILE_TAB];
                 }
-                // Coach bar stays at FIVE items. Each carries
-                // minWidth:60, so six would need 360px of track inside a
-                // ~344px usable width on a 360px screen — and this
-                // container is overflow:visible, so it would spill
-                // rather than scroll.
-                // These five are also the ONLY entry point to their
-                // destinations: the matching hamburger rows were removed
-                // so no route is reachable under two different labels.
+                // FOUR daily screens. The three service worlds (/pro)
+                // are NOT here — מקצועי lives in the top AppSwitcher
+                // strip, which is the single entry to them. בית is the
+                // full-function /dashboard with all its action tiles.
                 const navItems = isCoach ? [
                   { to: createPageUrl("Dashboard"),    emoji: '🏠', label: 'בית' },
-                  { to: "/pro",                        emoji: '🎯', label: 'מקצועי' },
                   { to: createPageUrl("AllUsers"),     emoji: '👥', label: 'מתאמנים' },
                   { to: createPageUrl("Sessions"),     emoji: '📅', label: 'מפגשים' },
                   { to: createPageUrl("CoachProfile"), emoji: '👤', label: 'פרופיל' },
@@ -715,9 +710,7 @@ export default function Layout({ children, currentPageName }) {
                 return navItems.map(item => {
                   // The content tab nests sub-routes (/content/drop, /clip…)
                   // so highlight it on any /content path, not just the root.
-                  // /pro does the same: it always redirects to /pro/:track,
-                  // so an exact match would never light up.
-                  const active = (item.to === '/content' || item.to === '/pro')
+                  const active = item.to === '/content'
                     ? location.pathname.startsWith(item.to)
                     : location.pathname === item.to;
                   return (

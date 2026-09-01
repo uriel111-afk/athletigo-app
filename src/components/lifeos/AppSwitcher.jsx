@@ -22,7 +22,10 @@ export default function AppSwitcher({ wide = false }) {
   const path = location.pathname || "";
   // The personal board lives under /lifeos but belongs to the אישי world.
   const isPersonal = path.startsWith("/personal") || path.startsWith("/lifeos/personal-board");
-  const isPro      = path === "/" || path === "/dashboard";
+  // מקצועי is the single entry to the three service worlds, so it
+  // highlights on /pro and its /pro/:track children — NOT on /dashboard,
+  // which the bottom-nav בית item owns.
+  const isPro      = path === "/pro" || path.startsWith("/pro/");
   const isFocus    = path === "/lifeos" || path.startsWith("/lifeos/focus");
   const isGrowth   = path.startsWith("/lifeos/leads")
                   || path.startsWith("/lifeos/content")
@@ -32,9 +35,10 @@ export default function AppSwitcher({ wide = false }) {
 
   const tabs = [
     { key: "focus",    label: "מיקוד",  href: "/lifeos/focus", active: isFocus,    Icon: Target,        iconColor: "#FF6F20" },
-    // Renamed from מקצועי to דשבורד: that word now belongs to /pro
-    // alone (the bottom-nav item). The destination is unchanged.
-    { key: "pro",      label: "דשבורד", href: "/dashboard",    active: isPro,      Icon: Briefcase,     iconColor: "#7F47B5" },
+    // מקצועי lives in THIS strip and points at /pro. The word appears in
+    // no other navigation surface, and /dashboard is reached from the
+    // bottom-nav בית item and the hamburger instead.
+    { key: "pro",      label: "מקצועי", href: "/pro",          active: isPro,      Icon: Briefcase,     iconColor: "#7F47B5" },
     { key: "fin",      label: "פיננסי", href: "/lifeos/finance-dashboard", active: isFin,      Icon: Coins,     iconColor: "#16a34a" },
     { key: "growth",   label: "לידים",  href: "/lifeos/leads", active: isGrowth,   Icon: Sprout,    iconColor: "#FF6F20" },
     { key: "personal", label: "אישי",   href: "/lifeos/personal-board", active: isPersonal, Icon: HeartHandshake, iconColor: "#3B82F6" },

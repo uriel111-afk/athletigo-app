@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { base44 } from "@/api/base44Client";
 import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import PageLoader from "@/components/PageLoader";
+import AppSwitcher from "@/components/lifeos/AppSwitcher";
 import VersionStamp from "@/components/lifeos/VersionStamp";
 import { toast } from "sonner";
 import { NOTIFICATION_TYPES, isEnabled } from "@/lib/notify";
@@ -254,6 +255,10 @@ export default function CoachProfile() {
   return (
     <ProtectedCoachPage>
       <div style={{ minHeight: "100vh", background: "#FFF9F0", paddingBottom: 100, direction: "rtl" }}>
+
+        {/* Top section strip — present here like everywhere else it
+            mounts. Renders only for the Life OS coach. */}
+        <AppSwitcher />
 
         {/* Hero card — orange bg, white text, 3 stats */}
         <div style={{
