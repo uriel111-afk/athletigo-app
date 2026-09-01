@@ -66,7 +66,7 @@ import { createPageUrl } from "@/utils";
 import { openPlanEditor } from "@/utils/openPlanEditor";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
-import { syncPackageStatus, remainingFor, sessionOrdinalLabel } from "@/lib/packageStatus";
+import { syncPackageStatus, remainingFor, sessionOrdinalLabel, isActive, PACKAGE_STATUS } from "@/lib/packageStatus";
 import { notifyServiceCompletedOnce } from "@/lib/notify";
 import PhysicalMetricsManager from "../components/PhysicalMetricsManager";
 import MessageCenter from "../components/MessageCenter";
@@ -4941,24 +4941,11 @@ export default function TraineeProfile() {
                   <h2 className="text-lg font-bold flex items-center gap-2">
                     <Calendar className="w-5 h-5 text-[var(--ag-accent)]" />
                     מפגשים
-                    {/* Total / completed counter — shows the full
-                        history including cancelled rows. "Completed"
-                        accepts every variant we've ever written for
-                        a successful session. */}
-                    {sessions.length > 0 && (() => {
-                      const completedCount = sessions.filter((s) => {
-                        const direct = s.status;
-                        const part = s.participants?.find?.((p) => p.trainee_id === user.id);
-                        const att = part?.attendance_status;
-                        const ok = (v) => v === 'completed' || v === 'הושלם' || v === 'הגיע' || v === 'התקיים';
-                        return ok(direct) || ok(att);
-                      }).length;
-                      return (
-                        <span className="text-xs font-semibold text-gray-500 mr-1">
-                          {sessions.length} מפגשים ({completedCount} הושלמו)
-                        </span>
-                      );
-                    })()}
+                    {/* The single all-time / all-package headline count
+                        was removed here: it answered a question nobody
+                        asked and read like an error beside a 12-session
+                        package. The per-package breakdown below replaces
+                        it. The history list itself is untouched. */}
                   </h2>
                   {isCoach && (
                     <Button onClick={() => setShowAddSession(true)} size="sm" className="rounded-lg px-3 py-2 font-medium text-xs min-h-[44px] text-white" style={{ background: 'var(--ag-accent)' }}>
@@ -4966,6 +4953,53 @@ export default function TraineeProfile() {
                     </Button>
                   )}
                 </div>
+
+                {/* Per-package breakdown — one row per package, each on
+                    ONE line: name, then inline "used מתוך total" and the
+                    package status. Completed packages render muted.
+                    used/total come straight from client_services; nothing
+                    computes remaining here. */}
+                {services.length > 0 && (
+                  <div dir="rtl" style={{
+                    background: '#FFFFFF', border: '1px solid #EFE2CE',
+                    borderRadius: 12, overflow: 'hidden',
+                  }}>
+                    {services.map((svc, i) => {
+                      const total = Number(svc.total_sessions) || 0;
+                      const used = Number(svc.used_sessions) || 0;
+                      const finished = !isActive(svc.status);
+                      const statusLabel = PACKAGE_STATUS[svc.status] || svc.status || '';
+                      const detail = total > 0
+                        ? `${used} מתוך ${total}${statusLabel ? ` · ${statusLabel}` : ''}`
+                        : statusLabel;
+                      return (
+                        <div
+                          key={svc.id}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            height: 48, padding: '0 14px', boxSizing: 'border-box',
+                            borderTop: i === 0 ? 'none' : '1px solid #EFE2CE',
+                            textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden',
+                            opacity: finished ? 0.55 : 1,
+                          }}
+                        >
+                          <span style={{
+                            flexShrink: 0, fontSize: 14, fontWeight: 700,
+                            color: finished ? '#8A7B6C' : '#3A2E24',
+                          }}>
+                            {svc.package_name || svc.service_type || 'חבילה'}
+                          </span>
+                          <span style={{
+                            flexShrink: 1, minWidth: 0, fontSize: 12, color: '#8A7B6C',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>
+                            {detail}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Stats */}
                 {(() => {

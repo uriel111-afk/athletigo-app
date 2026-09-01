@@ -1,14 +1,17 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
 import { createPageUrl } from '@/utils';
 import AddTraineeDialog from '@/components/forms/AddTraineeDialog';
+import SessionFormDialog from '@/components/forms/SessionFormDialog';
+import { base44 } from '@/api/base44Client';
 import { requiresPayment } from '@/lib/sessionHelpers';
 import { getRemainingSessions, sessionOrdinalLabel } from '@/lib/packageStatus';
 import {
   getTrainedTracks,
+  hasFinishedTrack,
   isActivePackageStatus,
   normalizeTrackValue,
 } from '@/lib/trackHelpers';
@@ -86,6 +89,15 @@ export default function PersonalTrackBoard({ coach, trainees = [], sources, rows
   const [showAddTrainee, setShowAddTrainee] = useState(false);
   // { trainee, packages } while the multi-package picker is open.
   const [pickerFor, setPickerFor] = useState(null);
+  // Task 3 — opt-in only. Default OFF; the default roster is unchanged.
+  const [showFinished, setShowFinished] = useState(false);
+  // Long-press → the EXISTING session edit dialog.
+  const [editingSession, setEditingSession] = useState(null);
+  const pressTimer = useRef(null);
+  // writeAttendance is declared before toggleTrainee, and the undo
+  // action needs the latter. A ref keeps the single reversal path
+  // without reordering the callbacks or duplicating logic.
+  const toggleTraineeRef = useRef(null);
 
   const packages = sources?.packages || [];
   const groupSessions = sources?.groupSessions || [];
@@ -110,9 +122,20 @@ export default function PersonalTrackBoard({ coach, trainees = [], sources, rows
   });
 
   // ── The personal roster, derived with getTrainedTracks ─────────────
+  const byName = (a, b) =>
+    String(a.full_name || '').localeCompare(String(b.full_name || ''), 'he');
+
   const roster = useMemo(() => (trainees || [])
     .filter((t) => getTrainedTracks(t.id, packages, groupSessions, sources?.subs).includes('personal'))
-    .sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || ''), 'he')),
+    .sort(byName),
+  [trainees, packages, groupSessions, sources]);
+
+  // Trainees whose personal packages are ALL completed. Never overlaps
+  // `roster` — hasFinishedTrack returns false for anyone still active.
+  const finishedRoster = useMemo(() => (trainees || [])
+    .filter((t) => !getTrainedTracks(t.id, packages, groupSessions, sources?.subs).includes('personal'))
+    .filter((t) => hasFinishedTrack(t.id, 'personal', packages))
+    .sort(byName),
   [trainees, packages, groupSessions, sources]);
 
   /** Active packages per trainee, newest-looking first. */
@@ -169,7 +192,8 @@ export default function PersonalTrackBoard({ coach, trainees = [], sources, rows
       const present = isPresentStatus(participant?.attendance_status) || isSessionDone(session.status);
 
       // Toggle. Deduction (or restoration) is automatic inside
-      // setSessionStatus — the coach is never asked to confirm it.
+      // setSessionStatus — the coach is never asked to confirm it, and
+      // there is no prompt BEFORE the tap. The tap stays one action.
       await setPersonalAttendance({
         session,
         traineeId: trainee.id,
@@ -179,6 +203,18 @@ export default function PersonalTrackBoard({ coach, trainees = [], sources, rows
         queryClient,
       });
       await refresh();
+
+      // Confirmation AFTER the write, with undo. The undo action calls
+      // toggleTrainee — literally the same path a second tap takes — so
+      // there is no separate reversal path to keep in step.
+      if (!present) {
+        toast.success('נוכחות נרשמה', {
+          action: {
+            label: 'ביטול',
+            onClick: () => toggleTraineeRef.current?.(trainee),
+          },
+        });
+      }
     } catch (e) {
       console.error('[PersonalTrackBoard] attendance write failed:', e);
       toast.error('❌ שמירת הנוכחות נכשלה: ' + (e?.message || 'נסה שוב'));
@@ -204,44 +240,100 @@ export default function PersonalTrackBoard({ coach, trainees = [], sources, rows
     writeAttendance(trainee, active[0]?.id || null);
   }, [busyId, sessionFor, activePackagesFor, writeAttendance]);
 
+  toggleTraineeRef.current = toggleTrainee;
+
+  // ── Task 2: long-press opens the EXISTING session edit dialog ──────
+  // Nothing happens when the trainee has no session yet — never guess.
+  const startPress = useCallback((trainee) => {
+    clearTimeout(pressTimer.current);
+    pressTimer.current = setTimeout(() => {
+      const existing = sessionFor(trainee.id);
+      if (existing) setEditingSession(existing);
+    }, 550);
+  }, [sessionFor]);
+
+  const cancelPress = useCallback(() => clearTimeout(pressTimer.current), []);
+
+  /** One roster line. `finished` renders muted with its own note. */
+  const rosterRow = (t, i, finished) => {
+    const active = activePackagesFor(t.id);
+    const pkg = active[0] || null;
+    const detail = finished
+      ? 'כרטיסייה הסתיימה'
+      : (pkg
+          ? `${pkg.package_name || pkg.service_type || 'חבילה'} · ${getRemainingSessions(pkg)} נותרו`
+          : 'אין חבילה פעילה');
+    return (
+      <button
+        key={t.id}
+        type="button"
+        onClick={() => navigate(`${createPageUrl('TraineeProfile')}?userId=${encodeURIComponent(t.id)}`)}
+        style={{
+          ...rowBase,
+          height: 52,
+          padding: '0 14px',
+          borderTop: i === 0 ? 'none' : `1px solid ${LINE}`,
+          cursor: 'pointer',
+          opacity: finished ? 0.55 : 1,
+        }}
+      >
+        <span style={{ flexShrink: 0, fontSize: 15, fontWeight: 600, color: finished ? SOFT : INK }}>
+          {t.full_name || 'מתאמן'}
+        </span>
+        <span style={{
+          flexShrink: 1, minWidth: 0, fontSize: 13, color: SOFT,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {detail}
+        </span>
+      </button>
+    );
+  };
+
   const renderRoster = () => (
     <div style={{ background: '#FCFAF6', borderTop: `1px solid ${LINE}` }}>
+      {/* Opt-in: default OFF, and it only ADDS rows below the roster. */}
+      <button
+        type="button"
+        onClick={() => setShowFinished((v) => !v)}
+        aria-pressed={showFinished}
+        style={{
+          ...rowBase,
+          height: TOUCH,
+          padding: '0 14px',
+          borderBottom: `1px solid ${LINE}`,
+          cursor: 'pointer',
+        }}
+      >
+        <span style={{
+          flexShrink: 0, width: 34, height: 20, borderRadius: 999,
+          background: showFinished ? ORANGE : LINE,
+          position: 'relative', transition: 'background 120ms',
+        }}>
+          <span style={{
+            position: 'absolute', top: 2, insetInlineStart: showFinished ? 16 : 2,
+            width: 16, height: 16, borderRadius: '50%', background: CARD,
+            transition: 'inset-inline-start 120ms',
+          }} />
+        </span>
+        <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 600, color: INK }}>
+          הצג גם מי שסיים
+        </span>
+        <span style={{
+          flexShrink: 1, minWidth: 0, fontSize: 13, color: SOFT,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {finishedRoster.length > 0 ? `${finishedRoster.length} סיימו` : ''}
+        </span>
+      </button>
+
       {roster.length === 0 ? (
         <div style={{ ...rowBase, height: 52, padding: '0 14px', fontSize: 13, color: SOFT }}>
           אין מתאמנים במסלול האישי
         </div>
-      ) : roster.map((t, i) => {
-        const active = activePackagesFor(t.id);
-        const pkg = active[0] || null;
-        const detail = pkg
-          ? `${pkg.package_name || pkg.service_type || 'חבילה'} · ${getRemainingSessions(pkg)} נותרו`
-          : 'אין חבילה פעילה';
-        return (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => navigate(`${createPageUrl('TraineeProfile')}?userId=${encodeURIComponent(t.id)}`)}
-            style={{
-              ...rowBase,
-              height: 52,
-              padding: '0 14px',
-              borderTop: i === 0 ? 'none' : `1px solid ${LINE}`,
-              cursor: 'pointer',
-            }}
-          >
-            <span style={{ flexShrink: 0, fontSize: 15, fontWeight: 600, color: INK }}>
-              {t.full_name || 'מתאמן'}
-            </span>
-            {/* Inline, same line, ellipsis before the row ever grows. */}
-            <span style={{
-              flexShrink: 1, minWidth: 0, fontSize: 13, color: SOFT,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {detail}
-            </span>
-          </button>
-        );
-      })}
+      ) : roster.map((t, i) => rosterRow(t, i, false))}
+
+      {showFinished && finishedRoster.map((t, i) => rosterRow(t, roster.length + i, true))}
 
       <button
         type="button"
@@ -292,11 +384,22 @@ export default function PersonalTrackBoard({ coach, trainees = [], sources, rows
         return (
           <div
             key={t.id}
+            // Long-press → open the existing session edit dialog for
+            // this trainee, for the "it actually happened on another
+            // day" case. No-op when there is no session yet.
+            onPointerDown={() => startPress(t)}
+            onPointerUp={cancelPress}
+            onPointerLeave={cancelPress}
+            onPointerCancel={cancelPress}
+            onContextMenu={(e) => e.preventDefault()}
             style={{
               ...rowBase,
               height: 52,
               padding: '0 14px',
               borderTop: i === 0 ? 'none' : `1px solid ${LINE}`,
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+              WebkitTouchCallout: 'none',
             }}
           >
             {/* Round toggle at the row's RIGHT edge — the side that
@@ -409,6 +512,26 @@ export default function PersonalTrackBoard({ coach, trainees = [], sources, rows
           );
         })}
       </div>
+
+      {/* The EXISTING session edit dialog — SessionFormDialog in edit
+          mode, the same component Sessions.jsx mounts. Chosen over
+          SessionEditModal because that one has no location field and
+          this flow has to correct date, time AND location. */}
+      <SessionFormDialog
+        isOpen={!!editingSession}
+        editingSession={editingSession}
+        coachId={coachId}
+        trainees={trainees}
+        sessions={personalSessions}
+        onClose={() => setEditingSession(null)}
+        onSubmit={async (data) => {
+          const { additional_participants, ...clean } = data;
+          await base44.entities.Session.update(editingSession.id, clean);
+          toast.success('המפגש עודכן');
+          setEditingSession(null);
+          await refresh();
+        }}
+      />
 
       {/* The existing add-trainee dialog — no new dialog was built. */}
       <AddTraineeDialog

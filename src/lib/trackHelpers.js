@@ -135,6 +135,27 @@ export function filterByTrack(trainees, trackIndex, track) {
   return (trainees || []).filter((t) => (trackIndex.get(t?.id) || []).includes(track));
 }
 
+/**
+ * hasFinishedTrack — the trainee HAD this track, but has no active
+ * package in it any more. Every one of their packages for the track is
+ * completed / ended.
+ *
+ * Deliberately separate from getTrainedTracks rather than folded into
+ * it: the default roster must keep meaning "who trains here now". This
+ * is the opt-in "also show who finished" case, and it returns false for
+ * anyone getTrainedTracks already claims, so the two never overlap.
+ */
+export function hasFinishedTrack(traineeId, track, packages) {
+  if (!traineeId || !track) return false;
+  const mine = (packages || []).filter((p) => {
+    if (p?.trainee_id !== traineeId) return false;
+    const t = normalizeTrackValue(p.service_type) || normalizeTrackValue(p.package_type) || 'personal';
+    return t === track;
+  });
+  if (mine.length === 0) return false;
+  return mine.every((p) => !isActivePackageStatus(p.status));
+}
+
 async function inChunks(client, table, column, ids, select, extra) {
   const out = [];
   for (let i = 0; i < ids.length; i += ID_CHUNK) {
