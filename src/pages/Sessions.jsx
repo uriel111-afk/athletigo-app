@@ -8,14 +8,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useSessionStats } from "../components/hooks/useSessionStats";
 import {
   deductSessionFromService,
-  restoreSessionToService,
-  deductSessionFromAllParticipants,
-  restoreSessionFromAllParticipants,
   syncSessionParticipants,
 } from "../components/hooks/useServiceDeduction";
 import { syncPackageStatus } from "@/lib/packageStatus";
 import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
 import { createCoachSession } from "@/lib/sessions/createCoachSession";
+// Single canonical attendance writer for single sessions. The group
+// counterpart (saveGroupAttendance) is imported by FastAttendanceDialog.
+import { setSessionStatus, logAttendanceForParticipant as logAttendance } from "@/lib/attendanceActions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +30,7 @@ import ProtectedCoachPage from "../components/ProtectedCoachPage";
 import PageSkeleton from "@/components/PageSkeleton";
 import SessionFormDialog from "../components/forms/SessionFormDialog";
 import SessionEditModal from "../components/SessionEditModal";
-import { notifySessionScheduled, notifySessionCompleted } from "@/functions/notificationTriggers";
+import { notifySessionScheduled } from "@/functions/notificationTriggers";
 import { AuthContext } from "@/lib/AuthContext";
 import useMultiSelect from "../hooks/useMultiSelect";
 import { MultiSelectBar, SelectCheckbox } from "../components/MultiSelectBar";
@@ -408,138 +408,32 @@ export default function Sessions() {
 
   const handleSessionStatusChange = async (session, newStatus) => {
     // Completion guard — the coach can't quietly mark a paid-but-
-    // unpaid row 'הושלם'. Intercept and route through the override
+    // unpaid row הושלם. Intercept and route through the override
     // dialog; that path writes status + payment_status='override_no_
-    // payment' + the typed reason in one shot.
+    // payment' + the typed reason in one shot. This stays HERE and not
+    // in attendanceActions because it opens a dialog — it is UI.
     if (newStatus === 'הושלם' && requiresPayment(session)) {
       setOverrideTarget(session);
       return;
     }
 
-    // 1. Update session status
-    await updateSessionMutation.mutateAsync({
-      id: session.id,
-      data: {
-        status: newStatus
-      }
+    // Every write below now runs through the single canonical writer in
+    // src/lib/attendanceActions.js. The mutation is injected so this page
+    // keeps its own toasts and dialog resets exactly as before.
+    const { deducted, restored } = await setSessionStatus({
+      session,
+      newStatus,
+      // Same person, two sources: the deduction filters have always keyed
+      // off the AuthContext id and the attendance log off base44.auth.me().
+      // Passing both fields keeps that byte-identical.
+      coach: { id: user?.id, full_name: coach?.full_name || user?.full_name },
+      trainees,
+      queryClient,
+      updateSession: (id, data) => updateSessionMutation.mutateAsync({ id, data }),
     });
 
-    // Best-effort trainee notification so changes surface on the
-    // trainee's notification feed without polling. Failure here
-    // doesn't undo the status change above.
-    if (session.trainee_id) {
-      try {
-        const dateLabel = session.date
-          ? new Date(session.date).toLocaleDateString('he-IL')
-          : '';
-        await createNotification({
-          userId: session.trainee_id,
-          type: 'session_status_changed',
-          message: `הסטטוס של המפגש ב-${dateLabel} שונה ל-${newStatus}`,
-        });
-      } catch (e) {
-        console.warn('[Sessions] status-change trainee notif failed:', e?.message);
-      }
-    }
-
-    // 2. Handle Automatic Logic (Deduction / Restoration)
-    // If new status implies the session HAPPENED (Attended)
-    if (newStatus === 'התקיים') {
-      for (const participant of session.participants || []) {
-        // Skip if already marked as attended to avoid double deduction
-        if (participant.attendance_status === 'הגיע' || participant.attendance_status === 'attended') continue;
-
-        await logAttendanceForParticipant(participant.trainee_id, session, 'attended');
-
-        // Deduct credit ONLY if Personal Training
-        // Mapping: Session Type "אישי" -> Service Type "אימונים אישיים"
-        if (session.session_type === 'אישי') {
-          try {
-            const activeServices = await base44.entities.ClientService.filter({ trainee_id: participant.trainee_id, status: 'פעיל', coach_id: user?.id });
-            // Robust matching for service type
-            const personalService = activeServices.find((s) => 
-                s.service_type === 'אימונים אישיים' || 
-                s.service_type.includes('אישי')
-            );
-
-            if (personalService) {
-              await base44.entities.ClientService.update(personalService.id, {
-                used_sessions: (personalService.used_sessions || 0) + 1
-              });
-              await syncPackageStatus(personalService.id);
-            }
-          } catch (error) {
-            console.error("Error deducting session for mass update", error);
-          }
-        }
-      }
-      // Service-based deduction (if session linked to a package)
-      if (session.service_id) {
-        await deductSessionFromService(session, user?.id);
-      }
-      // Additional participants — deduct each one against their own
-      // package independently (rows in `session_participants` with
-      // deducted=false get bumped, marked, and audit-logged).
-      await deductSessionFromAllParticipants(session, user?.id);
-
-      // Notify each participant that the session was completed
-      for (const participant of session.participants || []) {
-        if (participant.trainee_id) {
-          try {
-            await notifySessionCompleted({
-              traineeId: participant.trainee_id,
-              sessionDate: session.date,
-              sessionType: session.session_type || 'אימון',
-              coachName: coach?.full_name || 'המאמן',
-            });
-          } catch {}
-        }
-      }
-      toast.success("✅ נוכחות נרשמה ויתרות עודכנו");
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
-      // Trainee profile package tab reads its own key.
-      queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
-      invalidateDashboard(queryClient);
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-    }
-    // If status changed FROM 'התקיים' TO something else (Cancelled/No Show), we might need to RESTORE
-    else if (session.status === 'התקיים' && newStatus !== 'התקיים') {
-      for (const participant of session.participants || []) {
-        // Only restore if they were marked as Attended
-        if (participant.attendance_status === 'הגיע' || participant.attendance_status === 'attended') {
-          if (session.session_type === 'אישי') {
-            try {
-              const activeServices = await base44.entities.ClientService.filter({ trainee_id: participant.trainee_id, status: 'פעיל', coach_id: user?.id });
-              const personalService = activeServices.find((s) => 
-                  s.service_type === 'אימונים אישיים' || 
-                  s.service_type.includes('אישי')
-              );
-
-              if (personalService) {
-                await base44.entities.ClientService.update(personalService.id, {
-                  used_sessions: Math.max(0, (personalService.used_sessions || 0) - 1)
-                });
-                await syncPackageStatus(personalService.id);
-              }
-            } catch (error) {
-              console.error("Error restoring session for mass update", error);
-            }
-          }
-        }
-      }
-      // Service-based restore (if session linked to a package)
-      if (session.service_id) {
-        await restoreSessionToService(session, user?.id);
-      }
-      // Reverse the multi-participant rows in the same shape.
-      await restoreSessionFromAllParticipants(session, user?.id);
-
-      toast.success("סטטוס עודכן וזיכויים הוחזרו");
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.SERVICES });
-      // Trainee profile package tab reads its own key.
-      queryClient.invalidateQueries({ queryKey: ['trainee-services'] });
-      invalidateDashboard(queryClient);
-    }
+    if (deducted) toast.success("✅ נוכחות נרשמה ויתרות עודכנו");
+    if (restored) toast.success("סטטוס עודכן וזיכויים הוחזרו");
   };
 
   const handleEditSession = (session) => {
@@ -555,47 +449,18 @@ export default function Sessions() {
 
 
 
-  // Helper to fetch user details and log attendance
-  const logAttendanceForParticipant = async (participantId, session, status, notes = "") => {
-    try {
-      let userDetails = null;
-      // Try to find in trainees list first (cache)
-      userDetails = trainees.find((t) => t.id === participantId);
-
-      // If not found, fetch from User or Lead
-      if (!userDetails) {
-        try {
-          const users = await base44.entities.User.filter({ id: participantId });
-          if (users.length > 0) userDetails = users[0];else
-          {
-            const leads = await base44.entities.Lead.filter({ id: participantId });
-            if (leads.length > 0) userDetails = leads[0];
-          }
-        } catch (e) {console.error("Error fetching user for log", e);}
-      }
-
-      if (userDetails) {
-        await base44.entities.AttendanceLog.create({
-          userId: participantId,
-          fullName: userDetails.full_name,
-          dob: userDetails.birth_date ? new Date(userDetails.birth_date).toISOString().split('T')[0] : null,
-          age: userDetails.age || 0,
-          parentName: userDetails.parent_name || null,
-          serviceType: session.session_type,
-          sessionId: session.id,
-          location: session.location,
-          time: session.time,
-          date: session.date,
-          trainerId: coach?.id,
-          status: status,
-          notes: notes,
-          isTemp: !!userDetails.parent_name // Heuristic or we can check source
-        });
-      }
-    } catch (err) {
-      console.error("Error creating attendance log", err);
-    }
-  };
+  // Thin adapter over the shared writer in src/lib/attendanceActions.js.
+  // Kept at this call signature so updateParticipantAttendance below is
+  // untouched. Same behaviour, one implementation.
+  const logAttendanceForParticipant = (participantId, session, status, notes = "") =>
+    logAttendance({
+      participantId,
+      session,
+      status,
+      notes,
+      coach,
+      trainees,
+    });
 
   const updateParticipantAttendance = async (session, traineeId, newStatus) => {
     const participant = session.participants.find((p) => p.trainee_id === traineeId);

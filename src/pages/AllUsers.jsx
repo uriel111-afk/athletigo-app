@@ -98,7 +98,18 @@ export default function AllUsers() {
   // experiments — see 9585fd0). Persistence across reloads is out of
   // scope for this layer; the coach lands back on the trainee list
   // after a refresh and re-enters the hub if they want.
-  const [view, setView] = useState('list');
+  // ?service=personal|group|online — read ONCE, on mount, purely to seed
+  // the two states below. Added for the /pro track worlds so a track row
+  // lands on this screen already filtered. Nothing else in this file
+  // reads it and no existing behaviour changes: without the param both
+  // states initialise exactly as before.
+  const initialServiceParam = (() => {
+    const raw = new URLSearchParams(window.location.search).get('service');
+    const v = (raw == null ? '' : String(raw)).trim().toLowerCase();
+    return v === 'personal' || v === 'group' || v === 'online' ? v : null;
+  })();
+
+  const [view, setView] = useState(initialServiceParam === 'group' ? 'groups' : 'list');
   const [selectedGroup, setSelectedGroup] = useState(null);
   // Whole-group action dialogs (layer 2). Both flows reuse existing
   // components/mutations — FastAttendanceDialog wraps the same
@@ -154,7 +165,12 @@ export default function AllUsers() {
   // trainee passes. Otherwise a trainee passes iff at least one of
   // their derived tags overlaps with the active set (OR within the
   // service axis; ANDed against the existing status + search filters).
-  const [serviceFilter, setServiceFilter] = useState(() => new Set());
+  // Seeded from ?service= when present (see initialServiceParam above).
+  // The 'group' value drives the groups hub via `view` instead, matching
+  // exactly what tapping the קבוצות chip already does.
+  const [serviceFilter, setServiceFilter] = useState(
+    () => new Set(initialServiceParam && initialServiceParam !== 'group' ? [initialServiceParam] : []),
+  );
   // Category chip selection for the "לשעבר" tab — 'all' | 'personal' |
   // 'online' | 'group' | 'other'. Resets to 'all' when the coach
   // leaves the former tab so a stale chip doesn't bite next time.

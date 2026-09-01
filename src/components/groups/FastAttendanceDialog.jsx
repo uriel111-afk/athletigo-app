@@ -8,6 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { base44 } from '@/api/base44Client';
 import { supabase } from '@/lib/supabaseClient';
+// The canonical GROUP attendance writer. This dialog owns the UI; the
+// write itself lives in one place so the coach home screen can reuse it.
+import { saveGroupAttendance, invalidateGroupAttendance } from '@/lib/attendanceActions';
 
 // JS `Date#getDay` returns 0..6 (Sunday..Saturday). The membership
 // `allowed_days` jsonb stores keys in the same order so the lookup is
@@ -237,42 +240,21 @@ export default function FastAttendanceDialog({
   };
 
   const createMutation = useMutation({
-    mutationFn: async ({ participants }) => {
-      // Any present marks the row 'התקיים' so it counts as a completed
-      // workout in the trainee's surface.
-      const anyPresent = participants.some(p => p.attendance_status === 'הגיע');
-      if (isEdit) {
-        // Edit mode — UPDATE the existing scheduled session in place;
-        // never create a new sessions row.
-        return base44.entities.Session.update(session.id, {
-          date,
-          time,
-          location,
-          coach_notes: notes,
-          participants,
-          status: anyPresent ? 'התקיים' : (session.status || 'מתוכנן'),
-        });
-      }
-      return base44.entities.Session.create({
-        date,
-        time,
-        session_type: 'קבוצתי',
-        location,
-        coach_id: coachId,
-        status: anyPresent ? 'התקיים' : 'מתוכנן',
-        coach_notes: notes,
-        participants,
-        group_id: group.id,
-        group_name: group.name,
-      });
-    },
+    mutationFn: ({ participants }) => saveGroupAttendance({
+      session: isEdit ? session : null,
+      group: isEdit ? null : group,
+      coachId,
+      participants,
+      date,
+      time,
+      location,
+      notes,
+      // Invalidation is driven from onSuccess below so the toast and the
+      // cache refresh stay in the order this dialog has always used.
+      queryClient: null,
+    }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['trainee-home'] });
-      // This dialog's own weekly-quota / eligibility history query.
-      queryClient.invalidateQueries({ queryKey: ['group-session-history', activeGroupId] });
+      invalidateGroupAttendance(queryClient, activeGroupId);
       toast.success(isEdit ? '✅ הנוכחות עודכנה' : '✅ הנוכחות נשמרה והאימון נוצר');
       if (typeof onCreated === 'function') onCreated();
       onClose && onClose();

@@ -160,10 +160,13 @@ export const AuthProvider = ({ children }) => {
 
     if (path === '/login') {
       routingDoneRef.current = true;
+      // Coach landing is now the action home (/prohome). Dashboard.jsx
+      // stays on disk and stays routed at /dashboard — it is simply no
+      // longer the default destination.
       const dest = isCoordinator
         ? '/lifeos/leads'
         : isCoach
-          ? (isLifeOSCoach ? '/hub' : '/dashboard')
+          ? (isLifeOSCoach ? '/hub' : '/prohome')
           : (isOnboardingComplete ? '/trainee-home' : '/onboarding');
       navigate(dest, { replace: true });
       return;

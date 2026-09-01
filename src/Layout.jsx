@@ -217,6 +217,7 @@ export default function Layout({ children, currentPageName }) {
   const coachNavItems = [
     // ── ניהול יומיומי ──
     { title: "דשבורד", url: createPageUrl("Dashboard"), icon: LayoutDashboard, section: "daily" },
+    { title: "עולמות מקצועיים", url: "/pro", icon: LayoutDashboard, section: "daily" },
     { title: "מתאמנים", url: createPageUrl("AllUsers"), icon: Users, section: "daily" },
     { title: "תוכן", url: createPageUrl("Content"), icon: Clapperboard, section: "daily" },
     { title: "תוכניות פעילות", url: createPageUrl("TrainingPlans"), icon: Dumbbell, section: "daily" },
@@ -697,7 +698,7 @@ export default function Layout({ children, currentPageName }) {
                   traineeNav = [HOME_TAB, ...middle, PROFILE_TAB];
                 }
                 const navItems = isCoach ? [
-                  { to: createPageUrl("Dashboard"),    emoji: '🏠', label: 'בית' },
+                  { to: "/prohome",                   emoji: '🏠', label: 'בית' },
                   { to: createPageUrl("AllUsers"),     emoji: '👥', label: 'מתאמנים' },
                   { to: createPageUrl("TrainingPlans"),emoji: '📋', label: 'תוכניות' },
                   { to: createPageUrl("Sessions"),     emoji: '📅', label: 'מפגשים' },

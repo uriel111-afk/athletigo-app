@@ -15,6 +15,8 @@ import PageLoader from '@/components/PageLoader';
 import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
 import CoachHub from './pages/CoachHub';
+import ProHome from './pages/ProHome';
+import Pro from './pages/Pro';
 import BusinessCalculator from './pages/BusinessCalculator';
 import Profitability from './pages/Profitability';
 import ContentCommander from './pages/ContentCommander';
@@ -638,6 +640,27 @@ const AuthenticatedApp = () => {
       {/* These screens render without the app-wide Layout — they use */}
       {/* their own LifeOSLayout (CoachHub has a custom shell). */}
       <Route path="/hub"                 element={<PageRouteGuard pageKey="CoachHub"><CoachHub /></PageRouteGuard>} />
+
+      {/* ── Coach hierarchy ───────────────────────────────────────
+          Layer 1 /prohome  — the action home the coach now lands on.
+          Layer 2 /pro/:track — the three service worlds as tabs.
+          Layer 3 is the existing /traineeprofile.
+          Explicit routes: the PAGES loop above only generates flat
+          /<pagename> paths and cannot express a :track segment.
+          Both wrap in LayoutWrapper so the coach nav still renders,
+          and PageRouteGuard keeps them coach-only (neither key is in
+          traineeOnlyPages or sharedPages, so trainees bounce home). */}
+      <Route path="/prohome" element={
+        <PageRouteGuard pageKey="ProHome">
+          <LayoutWrapper currentPageName="ProHome"><ProHome /></LayoutWrapper>
+        </PageRouteGuard>
+      } />
+      <Route path="/pro" element={<Navigate to="/pro/personal" replace />} />
+      <Route path="/pro/:track" element={
+        <PageRouteGuard pageKey="Pro">
+          <LayoutWrapper currentPageName="Pro"><Pro /></LayoutWrapper>
+        </PageRouteGuard>
+      } />
       {/* Two worlds: /lifeos/focus = business focus (lands on the Map);
           /lifeos/personal-board = the personal אישי board (one tracker). */}
       {/* /lifeos redirects to the business focus map. */}
