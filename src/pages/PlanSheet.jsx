@@ -374,7 +374,7 @@ export default function PlanSheet() {
   //    Putting flexWrap on the ROW was the bug: it let the ordinal
   //    separate from the name and the params drift to the far edge.
   const plainRow = {
-    display: 'flex', alignItems: 'flex-start', gap: 8,
+    display: 'flex', alignItems: 'flex-start', gap: 12,
     padding: '10px 9px', borderBottom: '1px solid #E0D4C2',
   };
   // NOT a flex container — plain INLINE flow. As flex items the name
@@ -382,8 +382,11 @@ export default function PlanSheet() {
   // ordinal above it and pushing the params below. In inline flow the
   // three are one run of text: the ordinal opens the first line, the
   // name wraps under itself, and the params follow the last word.
+  // flexShrink only, NO flex-grow: the group takes just the width it
+  // needs, so the boxes sit immediately after the parameters instead of
+  // being pushed to the card edge by an expanding text block.
   const textGroup = {
-    flex: 1, minWidth: 0,
+    flexGrow: 0, flexShrink: 1, minWidth: 0,
     lineHeight: 1.3,
   };
   const ordinalStyle = {
@@ -395,9 +398,18 @@ export default function PlanSheet() {
     fontSize: 16, color: CHARCOAL, fontWeight: 500,
     whiteSpace: 'normal', overflowWrap: 'anywhere',
   };
+  // A Hebrew label ending in a digit sat flush against the target and
+  // read as one number — "סט 1" + "15" rendered as "סט 115". The isolate
+  // stops the bidi algorithm from joining the two digit runs, and the
+  // separator makes the boundary visible as well as logical.
   const paramStyle = {
-    fontSize: 13, color: CHARCOAL,
+    fontSize: 13, color: CHARCOAL, fontWeight: 600,
     marginInlineStart: 8, whiteSpace: "nowrap",
+    unicodeBidi: "isolate", direction: "rtl",
+  };
+  const sepStyle = {
+    color: MUTED, marginInlineStart: 8, fontSize: 13,
+    unicodeBidi: "isolate",
   };
 
   // ── Box sizing. Work out what the group costs BEFORE rendering it,
@@ -430,8 +442,11 @@ export default function PlanSheet() {
 
   // ── Container: one wrapper, tinted, orange rail on its RIGHT. ───
   const containerWrap = {
-    background: '#FDF6EE', borderRight: `3px solid ${ORANGE}`,
-    marginRight: 1,
+    // marginRight 3, not 1: the beige label block carries its own
+    // 1.5px charcoal border, so 2px orange + 1px gap + 1.5px border read
+    // as a single ~4.5px column. The wider gap separates them.
+    background: '#FDF6EE', borderRight: `2px solid ${ORANGE}`,
+    marginRight: 3,
     borderBottom: '1px solid #E0D4C2',
   };
   // Wraps too — nothing on a row is allowed to be cut off.
@@ -450,7 +465,7 @@ export default function PlanSheet() {
   // ── Sub row: the same single line, asterisk instead of an ordinal.
   //    No borderBottom — the wrapper carries it.
   const subRow = {
-    display: 'flex', alignItems: 'flex-start', gap: 8,
+    display: 'flex', alignItems: 'flex-start', gap: 12,
     paddingInlineStart: 12,
   };
   const subStar  = { fontSize: 14, color: ORANGE, marginInlineEnd: 6 };
@@ -460,8 +475,9 @@ export default function PlanSheet() {
     whiteSpace: 'normal', overflowWrap: 'anywhere',
   };
   const subParam = {
-    fontSize: 13, color: CHARCOAL,
+    fontSize: 13, color: CHARCOAL, fontWeight: 600,
     marginInlineStart: 8, whiteSpace: "nowrap",
+    unicodeBidi: "isolate", direction: "rtl",
   };
   const checkStyle = (on) => ({
     flexShrink: 0, width: 32, height: 32, borderRadius: 5,
@@ -651,6 +667,7 @@ export default function PlanSheet() {
                               <div style={textGroup}>
                                 <span style={subStar}>✳</span>
                                 <span style={subName}>{subLabel(sub, subKindOf, sidx)}</span>
+                                {subParams && <span style={sepStyle}>·</span>}
                                 {subParams && <span style={subParam}>{subParams}</span>}
                               </div>
                               <div style={entryBlock(sbp)}>
@@ -689,6 +706,7 @@ export default function PlanSheet() {
                       <div style={textGroup}>
                         <span style={ordinalStyle}>{myOrdinal}.</span>
                         <span style={nameStyle}>{ex.exercise_name || ex.name}</span>
+                        {params && <span style={sepStyle}>·</span>}
                         {params && <span style={paramStyle}>{params}</span>}
                       </div>
                       <div style={entryBlock(bp)}>
