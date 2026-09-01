@@ -14,6 +14,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import PageLoader from '@/components/PageLoader';
 import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
+import PlanSheet from './pages/PlanSheet';
 import CasualHealth from './pages/CasualHealth';
 import CoachHub from './pages/CoachHub';
 import Pro from './pages/Pro';
@@ -437,7 +438,7 @@ const AuthenticatedApp = () => {
   const isTrainee = user?.role === 'trainee' || user?.role === 'user';
   const isCoordinator = user?.role === 'coordinator';
   const traineeOnlyPages = new Set(['TraineeHome', 'TraineeSessions', 'MyPlan', 'MyWorkoutLog', 'Workouts', 'Progress', 'MyAttendance', 'Forms']);
-  const sharedPages = new Set(['Notifications', 'Onboarding', 'Home', 'TraineeProfile', 'Clocks', 'Journal', 'Course', 'CasualHealth']);
+  const sharedPages = new Set(['Notifications', 'Onboarding', 'Home', 'TraineeProfile', 'Clocks', 'Journal', 'Course', 'CasualHealth', 'PlanSheet']);
 
   const PageRouteGuard = ({ pageKey, children }) => {
     if (isLoadingAuth) {
@@ -640,6 +641,12 @@ const AuthenticatedApp = () => {
           Deliberately OUTSIDE LayoutWrapper: no header, no bottom nav,
           nothing to navigate away with. AuthContext parks them here. */}
       <Route path="/health" element={<PageRouteGuard pageKey="CasualHealth"><CasualHealth /></PageRouteGuard>} />
+
+      {/* Workout execution sheet — the trainee performs a plan and
+          enters results here. Outside LayoutWrapper so the sheet fills
+          the screen like the printed page it mirrors. Shared page key:
+          the trainee runs it, the coach can open the same URL. */}
+      <Route path="/plan-sheet" element={<PageRouteGuard pageKey="PlanSheet"><PlanSheet /></PageRouteGuard>} />
 
       <Route path="/hub"                 element={<PageRouteGuard pageKey="CoachHub"><CoachHub /></PageRouteGuard>} />
 
