@@ -51,6 +51,10 @@ const WHITE    = '#FFFFFF';
 const RAIL_W   = 68;
 const TOUCH    = 44;
 const ROW_H    = 46;
+// How far the entry boxes are indented from the row start. On one line
+// it is the gap after the parameters; once the boxes wrap it is the
+// indent that lines them up under the name.
+const INDENT   = 8;
 // No alignment line and no percentage width anywhere. The entry boxes
 // sit immediately after the parameters in the same flex flow, and the
 // leftover space stays empty at the card edge. A fixed 52% column could
@@ -366,29 +370,42 @@ export default function PlanSheet() {
   if (isLoading || !data) return <PageLoader />;
 
   const { plan } = data;
-  // ── ONE flex line per row. The name is the only element allowed to
-  //    shrink; everything else is flexShrink 0 and keeps its size. ──
+  // ── One flex line WHILE IT FITS. Clarity beats a fixed row height:
+  //    the name never truncates, so a long one wraps to a second line
+  //    and the row grows. When the boxes can no longer share the line
+  //    they wrap to their own full-width line beneath, indented to sit
+  //    under the name. flexWrap is what allows both. ──
   const plainRow = {
-    display: 'flex', alignItems: 'center', gap: 8,
+    display: 'flex', flexWrap: 'wrap', alignItems: 'center',
+    gap: 8,
     padding: '10px 9px', borderBottom: '1px solid #E0D4C2',
     minWidth: 0,
   };
   const ordinalStyle = {
     fontSize: 12, color: ORANGE, fontWeight: 500, flexShrink: 0,
+    // Stays on the first visual line with the start of the name.
+    alignSelf: 'flex-start', paddingTop: 3,
   };
+  // NEVER truncates. No ellipsis, no nowrap — it wraps and the row grows.
   const nameStyle = {
-    flexShrink: 1, minWidth: 0,
+    flex: "1 1 auto", minWidth: 0,
     fontSize: 16, color: CHARCOAL, fontWeight: 500,
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+    lineHeight: 1.3,
+    overflowWrap: 'anywhere',
   };
   const paramStyle = {
     fontSize: 13, color: CHARCOAL, flexShrink: 0,
+    alignSelf: 'flex-start', paddingTop: 3,
   };
-  // Sized by box count so the group can never outgrow the row.
+  // While the boxes fit beside the name they ride the same line
+  // (flexBasis auto). The moment the line is too tight, flex-wrap
+  // moves them down and marginInlineStart indents them under the name,
+  // where flexGrow 1 lets them own the whole second line.
   // Nothing scrolls: no overflowX anywhere.
   const entryBlock = (n) => ({
-    display: 'flex', gap: n >= 4 ? 3 : 4, flexShrink: 0,
-    marginInlineStart: 8,
+    display: 'flex', gap: n >= 4 ? 3 : 4,
+    flex: "0 1 auto", flexShrink: 0,
+    marginInlineStart: INDENT,
   });
   const boxW = (n) => (n >= 5 ? 24 : (n >= 3 ? 28 : 32));
 
@@ -398,31 +415,41 @@ export default function PlanSheet() {
     marginRight: 1,
     borderBottom: '1px solid #E0D4C2',
   };
+  // Wraps too — nothing on a row is allowed to be cut off.
   const containerHead = {
-    padding: '8px 9px 4px', display: 'flex', alignItems: 'baseline', gap: 8,
-    overflow: 'hidden', whiteSpace: 'nowrap',
+    padding: '8px 9px 4px', display: 'flex', flexWrap: 'wrap',
+    alignItems: 'baseline', gap: 8, minWidth: 0,
   };
   const containerNum  = { fontSize: 12, color: ORANGE, fontWeight: 500, flexShrink: 0 };
   const containerName = { fontSize: 13, color: CHARCOAL, fontWeight: 500, flexShrink: 0 };
   const containerMeta = {
     fontSize: 11, color: MUTED,
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+    flex: "1 1 auto", minWidth: 0,
+    overflowWrap: 'anywhere',
   };
 
   // ── Sub row: the same single line, asterisk instead of an ordinal.
   //    No borderBottom — the wrapper carries it.
   const subRow = {
-    display: 'flex', alignItems: 'center', gap: 8,
+    display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
     paddingInlineStart: 12,
     minWidth: 0,
   };
-  const subStar  = { fontSize: 14, color: ORANGE, flexShrink: 0 };
-  const subName  = {
-    flexShrink: 1, minWidth: 0,
-    fontSize: 15, color: CHARCOAL, fontWeight: 500,
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  const subStar  = {
+    fontSize: 14, color: ORANGE, flexShrink: 0,
+    alignSelf: 'flex-start', paddingTop: 2,
   };
-  const subParam = { fontSize: 13, color: CHARCOAL, flexShrink: 0 };
+  // Never truncates either.
+  const subName  = {
+    flex: "1 1 auto", minWidth: 0,
+    fontSize: 15, color: CHARCOAL, fontWeight: 500,
+    lineHeight: 1.3,
+    overflowWrap: 'anywhere',
+  };
+  const subParam = {
+    fontSize: 13, color: CHARCOAL, flexShrink: 0,
+    alignSelf: 'flex-start', paddingTop: 2,
+  };
   const checkStyle = (on) => ({
     flexShrink: 0, width: 32, height: 32, borderRadius: 5,
     border: `1.5px solid ${on ? ORANGE : (locked ? '#E2DAD0' : '#C9BCAB')}`,
