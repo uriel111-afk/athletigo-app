@@ -48,7 +48,12 @@ const MUTED    = '#A89A88';
 const WHITE    = '#FFFFFF';
 // 68px so the longest Hebrew section name (תנועתיות) fits on one line
 // at 11px. Tested against תנועתיות / מתיחות / גמישות / הערות / חימום / כוח.
-const RAIL_W   = 68;
+// Section label column, from the approved mockup.
+const RAIL_W   = 60;
+// The FIXED entry column. Always this wide whatever the box count, so
+// every row's first box lands on the same vertical line — the printed
+// sheet's ruled column.
+const ENTRY_W  = 112;
 const TOUCH    = 44;
 const ROW_H    = 46;
 // No alignment line and no percentage width anywhere. The entry boxes
@@ -367,117 +372,86 @@ export default function PlanSheet() {
 
   const { plan } = data;
   // ── TWO flex children, and the ROW never wraps. ────────────────
-  //    child 1: the text group — ordinal + name + params. Only THIS
-  //             wraps, so the three stay glued together and wrap as a
-  //             unit. The ordinal keeps the name's first line.
-  //    child 2: the boxes. flexShrink 0, so they never move.
-  //    Putting flexWrap on the ROW was the bug: it let the ordinal
-  //    separate from the name and the params drift to the far edge.
+  //    child 1: the text side, taking all remaining width.
+  //    child 2: the FIXED 112px entry column.
   const plainRow = {
-    display: 'flex', alignItems: 'flex-start', gap: 12,
+    display: 'flex', alignItems: 'center',
     padding: '10px 9px', borderBottom: '1px solid #E0D4C2',
   };
-  // NOT a flex container — plain INLINE flow. As flex items the name
-  // took its own flex line the moment it was long, orphaning the
-  // ordinal above it and pushing the params below. In inline flow the
-  // three are one run of text: the ordinal opens the first line, the
-  // name wraps under itself, and the params follow the last word.
-  // flexShrink only, NO flex-grow: the group takes just the width it
-  // needs, so the boxes sit immediately after the parameters instead of
-  // being pushed to the card edge by an expanding text block.
   const textGroup = {
-    flexGrow: 0, flexShrink: 1, minWidth: 0,
-    lineHeight: 1.3,
+    flex: 1, minWidth: 0, display: 'flex', alignItems: 'baseline',
+    gap: 9, overflow: 'hidden',
   };
   const ordinalStyle = {
-    fontSize: 12, color: ORANGE, fontWeight: 500,
-    marginInlineEnd: 6,
+    fontSize: 12, color: ORANGE, fontWeight: 500, flexShrink: 0,
   };
-  // NEVER truncates. Wraps under itself, never under the ordinal.
-  const nameStyle = {
-    fontSize: 16, color: CHARCOAL, fontWeight: 500,
-    whiteSpace: 'normal', overflowWrap: 'anywhere',
-  };
-  // A Hebrew label ending in a digit sat flush against the target and
-  // read as one number — "סט 1" + "15" rendered as "סט 115". The isolate
-  // stops the bidi algorithm from joining the two digit runs, and the
-  // separator makes the boundary visible as well as logical.
+  // Wrapping breaks the ruled column, so the name never wraps — it
+  // steps its font size down by length instead. Ellipsis is the last
+  // resort, only if it still will not fit.
+  const nameFont = (len) => (len <= 14 ? 16 : (len <= 22 ? 14 : (len <= 30 ? 12 : 11)));
+  const nameStyle = (len) => ({
+    fontSize: nameFont(len), color: CHARCOAL, fontWeight: 500,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0,
+  });
+  // No separator dot — the 9px gap is the separation. The bidi isolate
+  // stays: without it a label ending in a digit merges with the target
+  // ("סט 1" + "15" read as "סט 115").
   const paramStyle = {
-    fontSize: 13, color: CHARCOAL, fontWeight: 600,
-    marginInlineStart: 8, whiteSpace: "nowrap",
-    unicodeBidi: "isolate", direction: "rtl",
-  };
-  const sepStyle = {
-    color: MUTED, marginInlineStart: 8, fontSize: 13,
-    unicodeBidi: "isolate",
+    fontSize: 13, color: CHARCOAL, flexShrink: 0,
+    unicodeBidi: "isolate", direction: "rtl", whiteSpace: "nowrap",
   };
 
-  // ── Box sizing. Work out what the group costs BEFORE rendering it,
-  //    and shrink it so the text group keeps at least TEXT_FLOOR px.
-  //    Only if 22px boxes at a 2px gap still will not fit does the
-  //    group drop to its own line, right-aligned.
-  const TEXT_FLOOR = 120;
-  // The row box a group has to live in at the narrowest supported
-  // width. 360 device − page padding − rail − card borders − row
-  // padding, measured live at 262.5.
-  const ROW_INNER = 244;
-  const boxPlan = (n) => {
-    if (n <= 0) return { w: 0, gap: 0, total: 0, ownLine: false };
-    for (const [w, gap] of [[32, 4], [28, 4], [28, 3], [24, 3], [22, 2]]) {
-      const total = n * w + (n - 1) * gap;
-      if (ROW_INNER - total - 8 >= TEXT_FLOOR) return { w, gap, total, ownLine: false };
-    }
-    // Floor reached: 22px boxes at a 2px gap. A 5-box group is 118px,
-    // leaving 118px of text — under the 120 target by two pixels, but
-    // perfectly readable, and the name wraps rather than clipping. The
-    // group only drops to its own line if even the floor would leave
-    // the text unusably narrow.
-    const w = 22, gap = 2;
-    const total = n * w + (n - 1) * gap;
-    return { w, gap, total, ownLine: ROW_INNER - total - 8 < 40 };
-  };
-  const entryBlock = (bp) => ({
-    display: 'flex', gap: bp.gap, flexShrink: 0,
+  // ── The fixed entry column. Boxes align to its START, which in RTL
+  //    is its right edge, so the leftover space falls to the left and
+  //    every first box shares one vertical line.
+  const entryColumn = (gap) => ({
+    width: ENTRY_W, flexShrink: 0, display: 'flex',
+    justifyContent: 'flex-start', gap,
   });
+  // Sized so the group always fits 112px. Nothing overflows, nothing
+  // scrolls.
+  const boxPlan = (n) => {
+    if (n <= 0) return { w: 0, gap: 0 };
+    if (n <= 2) return { w: 34, gap: 4 };
+    if (n === 3) return { w: 32, gap: 4 };
+    if (n === 4) return { w: 25, gap: 3 };
+    if (n === 5) return { w: 20, gap: 3 };
+    return { w: 18, gap: 2 };
+  };
 
   // ── Container: one wrapper, tinted, orange rail on its RIGHT. ───
   const containerWrap = {
-    // marginRight 3, not 1: the beige label block carries its own
-    // 1.5px charcoal border, so 2px orange + 1px gap + 1.5px border read
-    // as a single ~4.5px column. The wider gap separates them.
     background: '#FDF6EE', borderRight: `2px solid ${ORANGE}`,
     marginRight: 3,
     borderBottom: '1px solid #E0D4C2',
   };
-  // Wraps too — nothing on a row is allowed to be cut off.
   const containerHead = {
-    padding: '8px 9px 4px', display: 'flex', flexWrap: 'wrap',
-    alignItems: 'baseline', gap: 8, minWidth: 0,
+    padding: '8px 9px 4px', display: 'flex', alignItems: 'baseline',
+    gap: 9, minWidth: 0, overflow: 'hidden',
   };
   const containerNum  = { fontSize: 12, color: ORANGE, fontWeight: 500, flexShrink: 0 };
   const containerName = { fontSize: 13, color: CHARCOAL, fontWeight: 500, flexShrink: 0 };
   const containerMeta = {
-    fontSize: 11, color: MUTED,
-    flex: "1 1 auto", minWidth: 0,
-    overflowWrap: 'anywhere',
+    fontSize: 11, color: MUTED, minWidth: 0,
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   };
 
-  // ── Sub row: the same single line, asterisk instead of an ordinal.
+  // ── Sub row: same shape, asterisk instead of an ordinal. ────────
   //    No borderBottom — the wrapper carries it.
   const subRow = {
-    display: 'flex', alignItems: 'flex-start', gap: 12,
+    display: 'flex', alignItems: 'center',
     paddingInlineStart: 12,
   };
-  const subStar  = { fontSize: 14, color: ORANGE, marginInlineEnd: 6 };
-  // Never truncates either.
-  const subName  = {
-    fontSize: 15, color: CHARCOAL, fontWeight: 500,
-    whiteSpace: 'normal', overflowWrap: 'anywhere',
-  };
+  const subStar  = { fontSize: 14, color: ORANGE, flexShrink: 0 };
+  const subName  = (len) => ({
+    fontSize: nameFont(len), color: CHARCOAL, fontWeight: 500,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0,
+  });
   const subParam = {
-    fontSize: 13, color: CHARCOAL, fontWeight: 600,
-    marginInlineStart: 8, whiteSpace: "nowrap",
-    unicodeBidi: "isolate", direction: "rtl",
+    fontSize: 13, color: CHARCOAL, flexShrink: 0,
+    unicodeBidi: "isolate", direction: "rtl", whiteSpace: "nowrap",
   };
   const checkStyle = (on) => ({
     flexShrink: 0, width: 32, height: 32, borderRadius: 5,
@@ -512,7 +486,12 @@ export default function PlanSheet() {
         padding: 'calc(12px + env(safe-area-inset-top)) 12px calc(24px + env(safe-area-inset-bottom))',
       }}
     >
-      <div style={{ maxWidth: 720, margin: '0 auto' }}>
+      {/* Outer sheet — mockup values. */}
+      <div style={{
+        maxWidth: 720, margin: '0 auto',
+        background: CREAM, border: `2px solid ${CHARCOAL}`,
+        borderRadius: 12, padding: 11, boxSizing: 'border-box',
+      }}>
 
         {/* ── Header ─────────────────────────────────────────────── */}
         <div style={{
@@ -565,7 +544,7 @@ export default function PlanSheet() {
           const isShut = !!collapsed[section.id];
           const toggle = () => setCollapsed((c) => ({ ...c, [section.id]: !c[section.id] }));
           return (
-            <div key={section.id} style={{ display: 'flex', marginBottom: 12 }}>
+            <div key={section.id} style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
               {/* RIGHT rail — first child is rightmost in RTL. Tapping it
                   collapses or expands the section. */}
               <button
@@ -575,12 +554,13 @@ export default function PlanSheet() {
                 style={{
                   width: RAIL_W, flexShrink: 0,
                   background: BEIGE, border: `1.5px solid ${CHARCOAL}`,
+                  borderRadius: 8,
                   padding: '10px 4px', textAlign: 'center',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                   cursor: 'pointer', fontFamily: 'inherit', color: CHARCOAL,
                 }}
               >
-                <span style={{ fontSize: 11, fontWeight: 800, lineHeight: 1.2, whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 12, fontWeight: 500, lineHeight: 1.2, whiteSpace: 'nowrap' }}>
                   {section.section_name || cat}
                 </span>
                 {/* Chevron shows the state: ▾ open, ◂ shut. */}
@@ -589,11 +569,11 @@ export default function PlanSheet() {
                 </span>
                 {isShut ? (
                   /* Collapsed: the count replaces everything else. */
-                  <span style={{ fontSize: 10, color: ORANGE, fontWeight: 700, lineHeight: 1.3, whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: 10, color: ORANGE, fontWeight: 500, lineHeight: 1.3, whiteSpace: 'nowrap' }}>
                     {rows.length} תרגילים
                   </span>
                 ) : rail ? (
-                  <span style={{ fontSize: 10, color: ORANGE, fontWeight: 600, lineHeight: 1.3 }}>
+                  <span style={{ fontSize: 10, color: ORANGE, fontWeight: 500, lineHeight: 1.3 }}>
                     {rail.length > 40 ? rail.slice(0, 38) + '…' : rail}
                   </span>
                 ) : null}
@@ -604,7 +584,8 @@ export default function PlanSheet() {
               {isShut ? null : (
               <div style={{
                 flex: 1, width: '100%', minWidth: 0, background: WHITE,
-                border: `1.5px solid ${CHARCOAL}`, borderInlineStart: 'none',
+                border: `1.5px solid ${CHARCOAL}`, borderRadius: 8,
+                overflow: 'hidden',
               }}>
                 {rows.map((ex, i) => {
                   const container = isContainer(ex, parseTabataData);
@@ -655,22 +636,18 @@ export default function PlanSheet() {
                           const subParams = paramText({ ...sm, kind: subHasTarget ? sm.kind : "check" });
                           const last = sidx === subs.length - 1;
                           const sbp = boxPlan(subEditable ? boxesPerSub : 0);
+                          const subText = subLabel(sub, subKindOf, sidx);
                           return (
                             <div
                               key={`${ex.id}:sub${sidx}`}
-                              style={{
-                                ...subRow,
-                                padding: last ? "7px 9px 10px" : "7px 9px",
-                                ...(sbp.ownLine ? { flexWrap: "wrap", justifyContent: "flex-end" } : null),
-                              }}
+                              style={{ ...subRow, padding: last ? "7px 9px 10px" : "7px 9px" }}
                             >
                               <div style={textGroup}>
                                 <span style={subStar}>✳</span>
-                                <span style={subName}>{subLabel(sub, subKindOf, sidx)}</span>
-                                {subParams && <span style={sepStyle}>·</span>}
+                                <span style={subName(subText.length)}>{subText}</span>
                                 {subParams && <span style={subParam}>{subParams}</span>}
                               </div>
-                              <div style={entryBlock(sbp)}>
+                              <div style={entryColumn(sbp.gap)}>
                                 {subEditable && Array.from({ length: boxesPerSub }).map((_, ri) => {
                                   const key = `${ex.id}:sub${sidx}:${ri + 1}`;
                                   const v = values[key] ?? "";
@@ -697,19 +674,15 @@ export default function PlanSheet() {
 
                   // ── A PLAIN EXERCISE ROW ───────────────────────────
                   const bp = boxPlan(rowKind === "check" ? 1 : boxCount);
+                  const exName = ex.exercise_name || ex.name || "";
                   return (
-                    <div
-                      key={ex.id}
-                      style={bp.ownLine ? { ...plainRow, flexWrap: "wrap", justifyContent: "flex-end" } : plainRow}
-                    >
-                      {/* ordinal + name + params wrap as ONE unit */}
+                    <div key={ex.id} style={plainRow}>
                       <div style={textGroup}>
                         <span style={ordinalStyle}>{myOrdinal}.</span>
-                        <span style={nameStyle}>{ex.exercise_name || ex.name}</span>
-                        {params && <span style={sepStyle}>·</span>}
+                        <span style={nameStyle(exName.length)}>{exName}</span>
                         {params && <span style={paramStyle}>{params}</span>}
                       </div>
-                      <div style={entryBlock(bp)}>
+                      <div style={entryColumn(bp.gap)}>
                         {rowKind === "check" ? (
                           <button
                             type="button"
