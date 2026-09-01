@@ -2212,9 +2212,11 @@ export default function TraineeProfile() {
     return {
       has_limitations: hasLimits,
       health_issues: eu?.health_issues || "",
-      approved: eu?.health_declaration_accepted || false,
+      // READ health_declaration_signed only — the single source of
+      // truth. The two columns disagreed on live data.
+      approved: eu?.health_declaration_signed === true,
     };
-  }, [effectiveUser?.id, effectiveUser?.health_issues, effectiveUser?.health_declaration_accepted]);
+  }, [effectiveUser?.id, effectiveUser?.health_issues, effectiveUser?.health_declaration_signed]);
 
   const {
     data: healthForm, setData: setHealthForm,
@@ -3205,9 +3207,11 @@ export default function TraineeProfile() {
         return;
     }
 
+    // WRITE both in the same call so they can never diverge again.
     const dataToUpdate = {
         health_issues: healthForm.health_issues,
-        health_declaration_accepted: true
+        health_declaration_signed: true,
+        health_declaration_accepted: true,
     };
 
     try {

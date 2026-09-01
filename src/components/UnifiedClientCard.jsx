@@ -957,7 +957,7 @@ export default function UnifiedClientCard({
                     מידע רפואי
                   </h3>
                   <div className="space-y-2 md:space-y-3">
-                    {currentClient.health_declaration_accepted && (
+                    {currentClient.health_declaration_signed === true && (
                       <div className="p-2 md:p-3 rounded-lg flex items-center gap-2" style={{ backgroundColor: '#E8F5E9', border: '1px solid #4CAF50' }}>
                         <CheckCircle className="w-3 h-3 md:w-4 md:h-4" style={{ color: '#4CAF50' }} />
                         <p className="text-[10px] md:text-xs font-medium" style={{ color: '#2E7D32' }}>הצהרת בריאות אושרה</p>

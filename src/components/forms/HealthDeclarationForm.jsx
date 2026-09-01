@@ -72,9 +72,16 @@ export default function HealthDeclarationForm({
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [saving, setSaving] = useState(false);
-  // Guardian fields — only used / required when isMinor is true.
+  // WHO IS SIGNING. Previously implied by the isMinor prop alone; the
+  // form now asks explicitly, because a coach opening this for an adult
+  // trainee has no way to know the trainee is a minor. The isMinor prop
+  // still seeds the default so every existing caller keeps its behaviour.
+  const [signerMode, setSignerMode] = useState(isMinor ? 'guardian' : 'self');
+  const guardianSigning = signerMode === 'guardian';
+  // Guardian fields — required only when a guardian is signing.
   const [signerName, setSignerName] = useState('');
   const [signerRelation, setSignerRelation] = useState('');
+  const [signerPhone, setSignerPhone] = useState('');
 
   // Reset form when reopened so a stale answer set doesn't carry over.
   useEffect(() => {
@@ -203,7 +210,8 @@ export default function HealthDeclarationForm({
   const feelsHealthy = answers.feels_healthy === true;
   // When isMinor, both guardian name AND relation must be filled in
   // before submission is allowed — gating the canSubmit flag.
-  const guardianFieldsOk = !isMinor || (signerName.trim().length > 0 && !!signerRelation);
+  const guardianFieldsOk = !guardianSigning
+    || (signerName.trim().length > 0 && !!signerRelation && signerPhone.trim().length > 0);
   const canSubmit = confirmed && hasSignature && feelsHealthy && guardianFieldsOk && !saving;
 
   const focusFirstError = () => {
@@ -220,8 +228,9 @@ export default function HealthDeclarationForm({
     if (!canSubmit) {
       // feelsHealthy gate runs first — without it the trainee can't
       // submit at all, so it deserves the most explicit toast.
-      if (isMinor && !signerName.trim())      toast.error('יש למלא את שם ההורה / האפוטרופוס');
-      else if (isMinor && !signerRelation)    toast.error('יש לבחור קרבה של ההורה / האפוטרופוס');
+      if (guardianSigning && !signerName.trim())      toast.error('יש למלא את שם ההורה / האפוטרופוס');
+      else if (guardianSigning && !signerPhone.trim()) toast.error('יש למלא טלפון של ההורה / האפוטרופוס');
+      else if (guardianSigning && !signerRelation)    toast.error('יש לבחור קרבה של ההורה / האפוטרופוס');
       else if (!feelsHealthy)                 toast.error('יש לאשר שאתה מרגיש בריא ומסוגל לפעילות');
       else if (!confirmed)                    toast.error('נא לאשר את הצהרת הבריאות');
       else if (!hasSignature)                 toast.error('נא לחתום בתיבת החתימה');
@@ -256,9 +265,12 @@ export default function HealthDeclarationForm({
         declaration_confirmed: true,
         signature_data: signatureDataUrl,
         signed_at: new Date().toISOString(),
-        is_minor: isMinor,
-        signer_name: isMinor ? signerName.trim() : null,
-        signer_relation: isMinor ? signerRelation : null,
+        is_minor: guardianSigning,
+        signer_name: guardianSigning ? signerName.trim() : null,
+        signer_relation: guardianSigning ? signerRelation : null,
+        // NOTE: health_declarations has NO phone column. The guardian
+        // phone is written to users.health_declaration_metadata (jsonb)
+        // in the flag write below — see the comment there.
       };
       // Truncate signature_data in the log so the data URL doesn't drown
       // the console; the rest of the payload is logged in full.
@@ -299,10 +311,29 @@ export default function HealthDeclarationForm({
           // auto-open re-prompt on TraineeHome:
           //   • _at TIMESTAMPTZ (canonical, set by 2026-04-30 migration)
           //   • _signed BOOLEAN (added by 2026-05-04 migration)
+          // health_declaration_signed is the SINGLE SOURCE OF TRUTH for
+          // reads. health_declaration_accepted is written in the same
+          // call so the two can never diverge again — the same rule we
+          // applied to used_sessions / sessions_remaining.
           const update = {
             health_declaration_signed: true,
+            health_declaration_accepted: true,
             health_declaration_signed_at: new Date().toISOString(),
           };
+          // Guardian phone has no column on health_declarations. It goes
+          // into users.health_declaration_metadata — an existing JSONB
+          // column (MIGRATION_DOCUMENTS_V2.sql) that no code reads or
+          // writes today, so nothing is overwritten. Deliberately NOT
+          // users.emergency_contact_phone: the signer and the emergency
+          // contact are not necessarily the same person.
+          if (guardianSigning) {
+            update.health_declaration_metadata = {
+              signer_name: signerName.trim(),
+              signer_relation: signerRelation,
+              signer_phone: signerPhone.trim(),
+              signed_at: new Date().toISOString(),
+            };
+          }
           if (promote) update.client_status = 'casual';
           await supabase
             .from('users')
@@ -701,19 +732,80 @@ export default function HealthDeclarationForm({
                 signature is legally attributable to the parent/guardian
                 rather than the child. The signature card below relabels
                 its heading to make the same point visually. */}
-            {isMinor && (
+            {/* WHO IS SIGNING — always shown, top of the form. One row
+                per option, description inline on the same line. */}
+            <div style={{ background: '#FFFFFF', border: '1px solid var(--ag-border)', borderRadius: 12, overflow: 'hidden' }}>
+              <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', padding: '12px 12px 8px' }}>
+                מי חותם על ההצהרה?
+              </div>
+              {[
+                { key: 'self',     label: 'המתאמן עצמו',        desc: 'החותם הוא המתאמן' },
+                { key: 'guardian', label: 'הורה או אפוטרופוס',  desc: 'עבור קטין' },
+              ].map((opt, i) => {
+                const active = signerMode === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setSignerMode(opt.key)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      width: '100%', boxSizing: 'border-box',
+                      minHeight: 48, padding: '0 12px',
+                      borderTop: i === 0 ? 'none' : '1px solid var(--ag-border)',
+                      border: 'none', background: active ? '#FFF3E0' : '#FFFFFF',
+                      cursor: 'pointer', textAlign: 'right', direction: 'rtl',
+                      whiteSpace: 'nowrap', overflow: 'hidden',
+                      fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                    }}
+                  >
+                    <span style={{
+                      flexShrink: 0, width: 18, height: 18, borderRadius: '50%',
+                      border: active ? '6px solid var(--ag-accent)' : '2px solid #D6C9B4',
+                      background: '#FFFFFF', boxSizing: 'border-box',
+                    }} />
+                    <span style={{ flexShrink: 0, fontSize: 15, fontWeight: 700, color: 'var(--ag-text)' }}>
+                      {opt.label}
+                    </span>
+                    <span style={{
+                      flexShrink: 1, minWidth: 0, fontSize: 12, color: 'var(--ag-text-soft)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {opt.desc}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {guardianSigning && (
               <div style={{ background: '#FFFFFF', border: '1px solid var(--ag-border)', borderRadius: 12, padding: 12 }}>
                 <div style={{
                   background: '#FFF3E0', borderRadius: 10, padding: 10, marginBottom: 12,
                   fontSize: 12, color: '#E65100', lineHeight: 1.5,
                 }}>
-                  ⚠️ מאחר שהמתאמן{childName ? ` (${childName})` : ''} קטין, ההצהרה נחתמת על ידי ההורה או האפוטרופוס.
+                  ⚠️ ההצהרה עבור{childName ? ` ${childName}` : ' המתאמן'} נחתמת על ידי ההורה או האפוטרופוס.
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginBottom: 4 }}>שם ההורה / האפוטרופוס החותם *</div>
                 <input
                   value={signerName}
                   onChange={(e) => setSignerName(e.target.value)}
                   placeholder="שם מלא"
+                  style={{
+                    width: '100%', padding: '10px 12px', borderRadius: 10,
+                    border: '1px solid #E5E7EB', background: '#FFFFFF',
+                    fontSize: 14, color: 'var(--ag-text)', outline: 'none',
+                    boxSizing: 'border-box', textAlign: 'right', direction: 'rtl',
+                    fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
+                  }}
+                />
+                <div style={{ fontSize: 13, color: 'var(--ag-text-soft)', marginTop: 12, marginBottom: 4 }}>טלפון ההורה / האפוטרופוס *</div>
+                <input
+                  value={signerPhone}
+                  onChange={(e) => setSignerPhone(e.target.value)}
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="050-0000000"
                   style={{
                     width: '100%', padding: '10px 12px', borderRadius: 10,
                     border: '1px solid #E5E7EB', background: '#FFFFFF',
@@ -759,7 +851,7 @@ export default function HealthDeclarationForm({
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ag-text)' }}>
-                  {isMinor ? 'חתימת ההורה / האפוטרופוס' : 'חתימה'}
+                  {guardianSigning ? 'חתימת ההורה / האפוטרופוס' : 'חתימה'}
                 </div>
                 <button
                   type="button"

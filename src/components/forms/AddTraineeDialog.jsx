@@ -16,6 +16,7 @@ import { syncTraineeToLead } from "@/lib/lifeos/lifeos-api";
 // false, which AuthContext.jsx routes to /onboarding on first login.
 const INITIAL_DATA = {
   full_name: "",
+  phone: "",
   email: "",
   password: "",
   role: 'trainee',
@@ -42,7 +43,14 @@ const TRACK_OPTIONS = [
   { key: 'group',    label: 'אימון קבוצתי' },
   { key: 'workshop', label: 'סדנה' },
   { key: 'course',   label: 'קורס דיגיטלי' },
+  // Quick registration. Not a service track: it marks a drop-in, and
+  // writes client_status='casual' instead of 'onboarding' so the guard
+  // in AuthContext parks them on /health — the declaration and nothing
+  // else. onboarding_track is left null, because מזדמן is not a track.
+  { key: 'casual',   label: 'מזדמן' },
 ];
+
+const CASUAL_KEY = 'casual';
 
 export default function AddTraineeDialog({ open, onClose, initialData = null }) {
   const queryClient = useQueryClient();
@@ -67,6 +75,7 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
     if (!open) return;
     setFormData({
       full_name: initialData?.fullName || initialData?.full_name || "",
+      phone: initialData?.phone || "",
       email: initialData?.email || "",
       password: "",
       role: 'trainee',
@@ -154,10 +163,13 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
         email: formData.email.trim(),
         full_name: formData.full_name.trim(),
         role: 'trainee',
-        client_status: 'onboarding',
+        // מזדמן → casual + no track. Everything else keeps the
+        // existing 'onboarding' path and its wizard, untouched.
+        client_status: track === CASUAL_KEY ? 'casual' : 'onboarding',
         coach_id: coach?.id || null,
         onboarding_completed: false,
-        onboarding_track: track,
+        onboarding_track: track === CASUAL_KEY ? null : track,
+        phone: formData.phone.trim() || null,
         // Origin marker: 'system' when spun out of a converted lead,
         // otherwise a coach-added personal client.
         client_origin: initialData?.clientOrigin || 'personal',
@@ -181,7 +193,7 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
         try {
           await syncTraineeToLead(coach.id, {
             full_name: formData.full_name.trim(),
-            phone: null,
+            phone: formData.phone.trim() || null,
             email: formData.email.trim(),
           });
         } catch (e) {
@@ -317,6 +329,22 @@ export default function AddTraineeDialog({ open, onClose, initialData = null }) 
               value={formData.full_name}
               onChange={(e) => handleChange('full_name', e.target.value)}
               placeholder="ישראל ישראלי"
+              style={{ ...inputStyle, direction: 'rtl' }}
+            />
+          </div>
+
+          {/* Phone → users.phone. Optional: a drop-in may not have one,
+              and email + password already identify the account. */}
+          <div>
+            <label style={{ fontSize: 13, color: 'var(--ag-text-soft)', display: 'block', marginBottom: 4, textAlign: 'right' }}>
+              טלפון
+            </label>
+            <input
+              type="tel"
+              inputMode="tel"
+              value={formData.phone}
+              onChange={(e) => handleChange('phone', e.target.value)}
+              placeholder="050-0000000"
               style={{ ...inputStyle, direction: 'rtl' }}
             />
           </div>

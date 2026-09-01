@@ -177,6 +177,28 @@ export const AuthProvider = ({ children }) => {
       return;
     }
 
+    // ── Restricted (מזדמן) trainee ───────────────────────────────
+    // A drop-in attendee sees ONE screen: the health declaration.
+    //
+    // The test is client_status==="casual" AND onboarding NOT done,
+    // never "casual" alone. Onboarding.jsx:1532 sets client_status to
+    // 'casual' for EVERY trainee who finishes the wizard's health
+    // step, so "casual" alone is the normal post-onboarding state —
+    // on live data it matches 4 trainees, 3 of them fully onboarded
+    // graduates who must NOT be locked out. Adding the onboarding
+    // test narrows it to the 1 genuine drop-in.
+    //
+    // Quick registration (AddTraineeDialog "מזדמן") writes exactly
+    // this pair: client_status='casual' + onboarding_completed=false.
+    // The moment the coach moves them off casual, this stops matching
+    // and the full experience opens with no further action.
+    const isRestricted = !isCoach && user.client_status === 'casual' && !isOnboardingComplete;
+    if (isRestricted) {
+      routingDoneRef.current = true;
+      if (path !== '/health') navigate('/health', { replace: true });
+      return;
+    }
+
     if (!isCoach && !isOnboardingComplete && path !== '/onboarding') {
       routingDoneRef.current = true;
       navigate('/onboarding', { replace: true });

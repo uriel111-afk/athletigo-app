@@ -14,6 +14,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import PageLoader from '@/components/PageLoader';
 import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
+import CasualHealth from './pages/CasualHealth';
 import CoachHub from './pages/CoachHub';
 import Pro from './pages/Pro';
 import BusinessCalculator from './pages/BusinessCalculator';
@@ -436,7 +437,7 @@ const AuthenticatedApp = () => {
   const isTrainee = user?.role === 'trainee' || user?.role === 'user';
   const isCoordinator = user?.role === 'coordinator';
   const traineeOnlyPages = new Set(['TraineeHome', 'TraineeSessions', 'MyPlan', 'MyWorkoutLog', 'Workouts', 'Progress', 'MyAttendance', 'Forms']);
-  const sharedPages = new Set(['Notifications', 'Onboarding', 'Home', 'TraineeProfile', 'Clocks', 'Journal', 'Course']);
+  const sharedPages = new Set(['Notifications', 'Onboarding', 'Home', 'TraineeProfile', 'Clocks', 'Journal', 'Course', 'CasualHealth']);
 
   const PageRouteGuard = ({ pageKey, children }) => {
     if (isLoadingAuth) {
@@ -635,6 +636,11 @@ const AuthenticatedApp = () => {
       {/* ── Life OS (coach hub + financial OS) ─────────────────── */}
       {/* These screens render without the app-wide Layout — they use */}
       {/* their own LifeOSLayout (CoachHub has a custom shell). */}
+      {/* Restricted (מזדמן) trainee — the ONLY screen they can reach.
+          Deliberately OUTSIDE LayoutWrapper: no header, no bottom nav,
+          nothing to navigate away with. AuthContext parks them here. */}
+      <Route path="/health" element={<PageRouteGuard pageKey="CasualHealth"><CasualHealth /></PageRouteGuard>} />
+
       <Route path="/hub"                 element={<PageRouteGuard pageKey="CoachHub"><CoachHub /></PageRouteGuard>} />
 
       {/* ── Coach service worlds ──────────────────────────────────
