@@ -51,10 +51,10 @@ const WHITE    = '#FFFFFF';
 const RAIL_W   = 68;
 const TOUCH    = 44;
 const ROW_H    = 46;
-// Every row's entry area begins on the SAME vertical line: the info
-// block is exactly this wide, the entry block takes the rest. No
-// spacer, no margin-right:auto, no space-between.
-const INFO_W   = '52%';
+// No alignment line and no percentage width anywhere. The entry boxes
+// sit immediately after the parameters in the same flex flow, and the
+// leftover space stays empty at the card edge. A fixed 52% column could
+// not hold four elements plus five boxes at 360px without clipping.
 
 // Measurability is decided by the EXERCISE, never by the section it
 // sits in. The section-name rule that used to live here hid the boxes
@@ -170,6 +170,9 @@ export default function PlanSheet() {
   const [locked, setLocked] = useState(false);
   const [family, setFamily] = useState(null);   // { position, total }
   const [duplicating, setDuplicating] = useState(false);
+  // Collapsed sections, by id. Empty at mount → every section starts
+  // EXPANDED. Deliberately not persisted anywhere.
+  const [collapsed, setCollapsed] = useState({});
 
   // ── Plan + sections + exercises. Three reads, no embeds: this DB has
   //    no foreign keys, so PostgREST embeds are not available. ────────
@@ -363,45 +366,33 @@ export default function PlanSheet() {
   if (isLoading || !data) return <PageLoader />;
 
   const { plan } = data;
-  // The two halves of every row. infoBlock is a FIXED width, which is
-  // the whole fix for boxes drifting to the outer edge.
-  // ── Row styles, matching the approved markup exactly. ──────────
-  // The info block is width 52% flexShrink 0. The entry block is
-  // flexShrink 0 with NO flex:1. No justifyContent, no spacer.
+  // ── ONE flex line per row. The name is the only element allowed to
+  //    shrink; everything else is flexShrink 0 and keeps its size. ──
   const plainRow = {
-    display: 'flex', alignItems: 'center', padding: '10px 9px',
-    borderBottom: '1px solid #E0D4C2',
-  };
-  const infoBlock = {
-    width: '52%', flexShrink: 0, minWidth: 0,
-    display: 'flex', alignItems: 'baseline', gap: 9,
-    overflow: 'hidden', whiteSpace: 'nowrap',
+    display: 'flex', alignItems: 'center', gap: 8,
+    padding: '10px 9px', borderBottom: '1px solid #E0D4C2',
+    minWidth: 0,
   };
   const ordinalStyle = {
     fontSize: 12, color: ORANGE, fontWeight: 500, flexShrink: 0,
   };
   const nameStyle = {
+    flexShrink: 1, minWidth: 0,
     fontSize: 16, color: CHARCOAL, fontWeight: 500,
-    overflow: 'hidden', textOverflow: 'ellipsis',
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   };
   const paramStyle = {
     fontSize: 13, color: CHARCOAL, flexShrink: 0,
   };
-  // At 360px the card is far narrower than the 514px this was first
-  // measured at. Without a cap a 7-box group is wider than the space
-  // left of the 52% line, so it pushed past and drifted to the card
-  // edge. maxWidth pins the group; the boxes then shrink to a 26px
-  // floor; only past that does the group scroll inside itself.
-  const entryBlock = {
-    display: 'flex', gap: 4, flexShrink: 0,
-    maxWidth: '48%',
-    overflowX: 'auto', overflowY: 'hidden',
-  };
+  // Sized by box count so the group can never outgrow the row.
+  // Nothing scrolls: no overflowX anywhere.
+  const entryBlock = (n) => ({
+    display: 'flex', gap: n >= 4 ? 3 : 4, flexShrink: 0,
+    marginInlineStart: 8,
+  });
+  const boxW = (n) => (n >= 5 ? 24 : (n >= 3 ? 28 : 32));
 
   // ── Container: one wrapper, tinted, orange rail on its RIGHT. ───
-  // 3px, not 4 — at 4 it read as a filled column rather than a rail.
-  // marginRight 1 keeps it off the beige section label so the two do
-  // not merge into one solid mass.
   const containerWrap = {
     background: '#FDF6EE', borderRight: `3px solid ${ORANGE}`,
     marginRight: 1,
@@ -418,23 +409,20 @@ export default function PlanSheet() {
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   };
 
-  // ── Sub row: same two blocks, plus an asterisk and an indent. ───
-  // No borderBottom — the wrapper carries it.
+  // ── Sub row: the same single line, asterisk instead of an ordinal.
+  //    No borderBottom — the wrapper carries it.
   const subRow = {
-    display: 'flex', alignItems: 'center',
+    display: 'flex', alignItems: 'center', gap: 8,
+    paddingInlineStart: 12,
+    minWidth: 0,
   };
-  const subInfo = {
-    width: '52%', flexShrink: 0, minWidth: 0,
-    display: 'flex', alignItems: 'baseline', paddingRight: 12,
-    overflow: 'hidden', whiteSpace: 'nowrap',
-  };
-  const subStar  = { fontSize: 14, color: ORANGE, marginLeft: 6, flexShrink: 0 };
+  const subStar  = { fontSize: 14, color: ORANGE, flexShrink: 0 };
   const subName  = {
-    fontSize: 15, color: CHARCOAL, fontWeight: 500, marginLeft: 8,
-    overflow: 'hidden', textOverflow: 'ellipsis',
+    flexShrink: 1, minWidth: 0,
+    fontSize: 15, color: CHARCOAL, fontWeight: 500,
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   };
   const subParam = { fontSize: 13, color: CHARCOAL, flexShrink: 0 };
-
   const checkStyle = (on) => ({
     flexShrink: 0, width: 32, height: 32, borderRadius: 5,
     border: `1.5px solid ${on ? ORANGE : (locked ? '#E2DAD0' : '#C9BCAB')}`,
@@ -445,10 +433,9 @@ export default function PlanSheet() {
     opacity: locked && !on ? 0.75 : 1,
   });
 
-  const box = (filled) => ({
-    // 32 preferred, shrinking to 26 before the group scrolls.
-    flex: '0 1 32px', minWidth: 26,
-    width: 32, textAlign: "center", fontSize: 13, padding: "6px 0",
+  const box = (filled, n = 1) => ({
+    flexShrink: 0,
+    width: boxW(n), textAlign: "center", fontSize: 13, padding: "6px 0",
     border: filled ? `1.5px solid ${ORANGE}` : "1.5px solid #C9BCAB",
     borderRadius: 5,
     background: filled ? "#FFF" : CREAM,
@@ -519,29 +506,46 @@ export default function PlanSheet() {
         {grouped.map(({ section, rows }) => {
           const cat = (section.category || section.section_name || '').trim();
           const rail = section.coach_notes || '';
+          const isShut = !!collapsed[section.id];
+          const toggle = () => setCollapsed((c) => ({ ...c, [section.id]: !c[section.id] }));
           return (
             <div key={section.id} style={{ display: 'flex', marginBottom: 12 }}>
-              {/* RIGHT rail — first child is rightmost in RTL. */}
-              <div style={{
-                width: RAIL_W, flexShrink: 0,
-                background: BEIGE, border: `1.5px solid ${CHARCOAL}`,
-                padding: '10px 4px', textAlign: 'center',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-              }}>
+              {/* RIGHT rail — first child is rightmost in RTL. Tapping it
+                  collapses or expands the section. */}
+              <button
+                type="button"
+                onClick={toggle}
+                aria-expanded={!isShut}
+                style={{
+                  width: RAIL_W, flexShrink: 0,
+                  background: BEIGE, border: `1.5px solid ${CHARCOAL}`,
+                  padding: '10px 4px', textAlign: 'center',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                  cursor: 'pointer', fontFamily: 'inherit', color: CHARCOAL,
+                }}
+              >
                 <span style={{ fontSize: 11, fontWeight: 800, lineHeight: 1.2, whiteSpace: 'nowrap' }}>
                   {section.section_name || cat}
                 </span>
-                {rail && (
+                {/* Chevron shows the state: ▾ open, ◂ shut. */}
+                <span style={{ fontSize: 10, color: CHARCOAL, lineHeight: 1 }}>
+                  {isShut ? '◂' : '▾'}
+                </span>
+                {isShut ? (
+                  /* Collapsed: the count replaces everything else. */
+                  <span style={{ fontSize: 10, color: ORANGE, fontWeight: 700, lineHeight: 1.3, whiteSpace: 'nowrap' }}>
+                    {rows.length} תרגילים
+                  </span>
+                ) : rail ? (
                   <span style={{ fontSize: 10, color: ORANGE, fontWeight: 600, lineHeight: 1.3 }}>
                     {rail.length > 40 ? rail.slice(0, 38) + '…' : rail}
                   </span>
-                )}
-              </div>
+                ) : null}
+              </button>
 
-              {/* LEFT column — the rows. width:100% + minWidth:0 so the
-                  52% on every info block has a DEFINITE containing block
-                  to resolve against. A percentage against an auto-sized
-                  flex item is what silently fell back to content width. */}
+              {/* Collapsed → the label block is the whole section. */}
+              {/* LEFT column — the rows. */}
+              {isShut ? null : (
               <div style={{
                 flex: 1, width: '100%', minWidth: 0, background: WHITE,
                 border: `1.5px solid ${CHARCOAL}`, borderInlineStart: 'none',
@@ -599,12 +603,10 @@ export default function PlanSheet() {
                               key={`${ex.id}:sub${sidx}`}
                               style={{ ...subRow, padding: last ? "7px 9px 10px" : "7px 9px" }}
                             >
-                              <div style={subInfo}>
-                                <span style={subStar}>✳</span>
-                                <span style={subName}>{subLabel(sub, subKindOf, sidx)}</span>
-                                {subParams && <span style={subParam}>{subParams}</span>}
-                              </div>
-                              <div style={entryBlock}>
+                              <span style={subStar}>✳</span>
+                              <span style={subName}>{subLabel(sub, subKindOf, sidx)}</span>
+                              {subParams && <span style={subParam}>{subParams}</span>}
+                              <div style={entryBlock(subEditable ? boxesPerSub : 0)}>
                                 {subEditable && Array.from({ length: boxesPerSub }).map((_, ri) => {
                                   const key = `${ex.id}:sub${sidx}:${ri + 1}`;
                                   const v = values[key] ?? "";
@@ -617,7 +619,7 @@ export default function PlanSheet() {
                                       value={v}
                                       onChange={(e) => setValues((pv) => ({ ...pv, [key]: e.target.value }))}
                                       onBlur={(e) => commitInner(ex.id, sidx, e.target.value, sm.payloadField, ri + 1)}
-                                      style={box(has(v))}
+                                      style={box(has(v), boxesPerSub)}
                                     />
                                   );
                                 })}
@@ -632,12 +634,10 @@ export default function PlanSheet() {
                   // ── A PLAIN EXERCISE ROW ───────────────────────────
                   return (
                     <div key={ex.id} style={plainRow}>
-                      <div style={infoBlock}>
-                        <span style={ordinalStyle}>{myOrdinal}.</span>
-                        <span style={nameStyle}>{ex.exercise_name || ex.name}</span>
-                        {params && <span style={paramStyle}>{params}</span>}
-                      </div>
-                      <div style={entryBlock}>
+                      <span style={ordinalStyle}>{myOrdinal}.</span>
+                      <span style={nameStyle}>{ex.exercise_name || ex.name}</span>
+                      {params && <span style={paramStyle}>{params}</span>}
+                      <div style={entryBlock(rowKind === "check" ? 1 : boxCount)}>
                         {rowKind === "check" ? (
                           <button
                             type="button"
@@ -660,7 +660,7 @@ export default function PlanSheet() {
                               value={v}
                               onChange={(e) => setValues((pv) => ({ ...pv, [key]: e.target.value }))}
                               onBlur={(e) => commit(ex.id, si + 1, e.target.value, m.payloadField)}
-                              style={box(has(v))}
+                              style={box(has(v), boxCount)}
                             />
                           );
                         })}
@@ -669,6 +669,7 @@ export default function PlanSheet() {
                   );
                 })}
               </div>
+              )}
             </div>
           );
         })}
