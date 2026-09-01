@@ -85,6 +85,71 @@ function noteOf(exercise) {
   return t;
 }
 
+/**
+ * roundsOf — the SINGLE source for both the header count and the number
+ * of entry boxes. They used to come from different expressions, so a
+ * header saying 5 סבבים could sit above rows with a different box count.
+ *
+ * Priority on live data:
+ *   exercises.rounds          superset "סופרסט" → 5
+ *   exercises.sets            drop set "עליות מתח" → 7
+ *   tabata_data.rounds[]      the per-round ladder, when columns are null
+ *   tabata_data.planned_sets  the set ladder
+ */
+function roundsOf(exercise, td) {
+  const n = Number(exercise?.rounds) || Number(exercise?.sets) || 0;
+  if (n > 0) return n;
+  if (Array.isArray(td?.rounds) && td.rounds.length) return td.rounds.length;
+  if (Array.isArray(td?.planned_sets) && td.planned_sets.length) return td.planned_sets.length;
+  return 1;
+}
+
+/**
+ * subsOf — what a container actually holds.
+ *
+ *   kind "exercises" → real movements (sub_exercises / rounds[].exercises).
+ *                      Each gets one box PER ROUND.
+ *   kind "sets"      → a planned_sets ladder: the SAME movement at
+ *                      descending loads. Those rows are sets, not
+ *                      exercises, so each gets exactly ONE box and is
+ *                      labelled by its variation or its set number.
+ *
+ * The drop set on live data has sub_exercises: 0 and a 7-entry
+ * planned_sets whose items carry only { set_index, reps } — no name at
+ * all. That is why every row read "תרגיל".
+ */
+function subsOf(exercise, td) {
+  const named = (arr) => Array.isArray(arr) && arr.length ? arr : null;
+  const list = named(td?.sub_exercises) || named(td?.exercises_in_rotation) || named(td?.stations);
+  if (list) return { list, kind: "exercises" };
+  if (Array.isArray(td?.rounds) && td.rounds.length) {
+    const flat = [];
+    for (const r of td.rounds) for (const e of (r?.exercises || [])) flat.push(e);
+    if (flat.length) {
+      // rounds[] repeats the same movements once per round — de-duplicate
+      // by name so a 5-round superset lists 2 exercises, not 10.
+      const seen = new Set(); const uniq = [];
+      for (const e of flat) {
+        const k = e?.name || e?.exercise_name || "";
+        if (seen.has(k)) continue; seen.add(k); uniq.push(e);
+      }
+      return { list: uniq, kind: "exercises" };
+    }
+  }
+  if (Array.isArray(td?.planned_sets) && td.planned_sets.length) {
+    return { list: td.planned_sets, kind: "sets" };
+  }
+  return { list: [], kind: "exercises" };
+}
+
+/** A sub row label. Real name, else the set variation, else the set number. */
+function subLabel(sub, kind, idx) {
+  const n = sub?.exercise_name || sub?.name || sub?.variation_name;
+  if (n && String(n).trim()) return String(n).trim();
+  if (kind === "sets") return `סט ${sub?.set_index ?? idx + 1}`;
+  return "תרגיל";
+}
+
 const todayLabel = () => new Date().toLocaleDateString('he-IL');
 
 export default function PlanSheet() {
@@ -322,13 +387,24 @@ export default function PlanSheet() {
   const paramStyle = {
     fontSize: 13, color: CHARCOAL, flexShrink: 0,
   };
+  // At 360px the card is far narrower than the 514px this was first
+  // measured at. Without a cap a 7-box group is wider than the space
+  // left of the 52% line, so it pushed past and drifted to the card
+  // edge. maxWidth pins the group; the boxes then shrink to a 26px
+  // floor; only past that does the group scroll inside itself.
   const entryBlock = {
     display: 'flex', gap: 4, flexShrink: 0,
+    maxWidth: '48%',
+    overflowX: 'auto', overflowY: 'hidden',
   };
 
   // ── Container: one wrapper, tinted, orange rail on its RIGHT. ───
+  // 3px, not 4 — at 4 it read as a filled column rather than a rail.
+  // marginRight 1 keeps it off the beige section label so the two do
+  // not merge into one solid mass.
   const containerWrap = {
-    background: '#FDF6EE', borderRight: `4px solid ${ORANGE}`,
+    background: '#FDF6EE', borderRight: `3px solid ${ORANGE}`,
+    marginRight: 1,
     borderBottom: '1px solid #E0D4C2',
   };
   const containerHead = {
@@ -370,6 +446,8 @@ export default function PlanSheet() {
   });
 
   const box = (filled) => ({
+    // 32 preferred, shrinking to 26 before the group scrolls.
+    flex: '0 1 32px', minWidth: 26,
     width: 32, textAlign: "center", fontSize: 13, padding: "6px 0",
     border: filled ? `1.5px solid ${ORANGE}` : "1.5px solid #C9BCAB",
     borderRadius: 5,
@@ -470,7 +548,9 @@ export default function PlanSheet() {
               }}>
                 {rows.map((ex, i) => {
                   const container = isContainer(ex, parseTabataData);
-                  const subs = container ? innerExercisesOf(ex, parseTabataData) : [];
+                  const td = container ? parseTabataData(ex.tabata_data) : null;
+                  const { list: subs, kind: subKindOf } = container
+                    ? subsOf(ex, td) : { list: [], kind: "exercises" };
                   const m = measurementKind(ex);
                   const note = noteOf(ex);
                   const method = getMethodByMode(ex.mode);
@@ -487,7 +567,10 @@ export default function PlanSheet() {
                   const params = container ? "" : paramText({ ...m, kind: rowKind });
                   // Rounds for the container header, and one box per round
                   // for each sub-exercise.
-                  const rounds = Math.max(1, Number(ex.rounds) || Number(ex.sets) || 1);
+                  // ONE source for the header count AND the box count.
+                  const rounds = roundsOf(ex, td);
+                  // A planned_sets ladder IS the sets — one box per row.
+                  const boxesPerSub = subKindOf === "sets" ? 1 : rounds;
                   const headerBits = [
                     rounds > 1 ? `${rounds} סבבים` : null,
                     note || null,
@@ -518,11 +601,11 @@ export default function PlanSheet() {
                             >
                               <div style={subInfo}>
                                 <span style={subStar}>✳</span>
-                                <span style={subName}>{sub?.exercise_name || sub?.name || "תרגיל"}</span>
+                                <span style={subName}>{subLabel(sub, subKindOf, sidx)}</span>
                                 {subParams && <span style={subParam}>{subParams}</span>}
                               </div>
                               <div style={entryBlock}>
-                                {subEditable && Array.from({ length: rounds }).map((_, ri) => {
+                                {subEditable && Array.from({ length: boxesPerSub }).map((_, ri) => {
                                   const key = `${ex.id}:sub${sidx}:${ri + 1}`;
                                   const v = values[key] ?? "";
                                   return (
