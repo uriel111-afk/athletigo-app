@@ -112,3 +112,49 @@ export function measurementKind(exercise, setCount = null) {
     payloadField: metric.payloadField,
   };
 }
+
+/**
+ * The inner exercises of a multi-exercise block, whichever shape the
+ * editor happened to write them in.
+ *
+ * WorkoutSheet.jsx keeps its own identical copy. Wiring it to this one
+ * would mean editing that file, which the current task forbids — fold
+ * it in next time WorkoutSheet is legitimately open.
+ */
+export function innerExercisesOf(exercise, parseTabataData) {
+  const td = parseTabataData(exercise?.tabata_data) || {};
+  if (Array.isArray(td.exercises_in_rotation) && td.exercises_in_rotation.length) return td.exercises_in_rotation;
+  if (Array.isArray(td.sub_exercises) && td.sub_exercises.length) return td.sub_exercises;
+  if (Array.isArray(td.stations) && td.stations.length) return td.stations;
+  if (Array.isArray(td.rounds) && td.rounds.length) {
+    const flat = [];
+    for (const r of td.rounds) for (const e of (r?.exercises || [])) flat.push(e);
+    if (flat.length) return flat;
+  }
+  if (Array.isArray(td.planned_sets) && td.planned_sets.length) return td.planned_sets;
+  return [];
+}
+
+/**
+ * A sub-exercise inside a container carries its own numbers, as STRINGS
+ * in the tabata_data JSON. Same four kinds as measurementKind.
+ */
+export function subMeasurementKind(sub) {
+  if (has(sub?.reps)) {
+    return { kind: 'reps', target: Number(sub.reps) || 0, sets: 1, payloadField: 'reps' };
+  }
+  if (has(sub?.hold_seconds)) {
+    return { kind: 'time', target: Number(sub.hold_seconds) || 0, sets: 1, payloadField: 'hold_seconds' };
+  }
+  if (has(sub?.work_time)) {
+    return { kind: 'time', target: Number(sub.work_time) || 0, sets: 1, payloadField: 'hold_seconds' };
+  }
+  return { kind: 'check' };
+}
+
+/** True when this exercise renders as a container of sub-exercises. */
+export function isContainer(exercise, parseTabataData) {
+  const v = variantOf(exercise);
+  if (v === 'single') return false;
+  return innerExercisesOf(exercise, parseTabataData).length > 0;
+}

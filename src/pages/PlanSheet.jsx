@@ -6,7 +6,15 @@ import { supabase } from '@/lib/supabaseClient';
 import { AuthContext } from '@/lib/AuthContext';
 import PageLoader from '@/components/PageLoader';
 import { getMethodByMode } from '@/constants/trainingMethods';
-import { measurementKind, has } from '@/lib/exerciseMeasurement';
+import {
+  measurementKind,
+  subMeasurementKind,
+  innerExercisesOf,
+  isContainer,
+  isTabataContainer,
+  has,
+} from '@/lib/exerciseMeasurement';
+import { parseTabataData } from '@/lib/tabataSettings';
 import { saveSetActual } from '@/lib/plannedSets';
 import { duplicatePlan } from '@/lib/plansApi';
 
@@ -38,10 +46,15 @@ const BEIGE    = '#FDE3D2';
 const ORANGE   = '#FF6F20';
 const MUTED    = '#A89A88';
 const WHITE    = '#FFFFFF';
-const RAIL_W   = 54;
+// 68px so the longest Hebrew section name (תנועתיות) fits on one line
+// at 11px. Tested against תנועתיות / מתיחות / גמישות / הערות / חימום / כוח.
+const RAIL_W   = 68;
 const TOUCH    = 44;
-// Every row's entry area starts on the same vertical line.
-const ENTRY_AT = '52%';
+const ROW_H    = 46;
+// Every row's entry area begins on the SAME vertical line: the info
+// block is exactly this wide, the entry block takes the rest. No
+// spacer, no margin-right:auto, no space-between.
+const INFO_W   = '52%';
 
 // Measurability is decided by the EXERCISE, never by the section it
 // sits in. The section-name rule that used to live here hid the boxes
@@ -207,6 +220,23 @@ export default function PlanSheet() {
     if (error) { console.error('[PlanSheet] save failed:', error); toast.error('השמירה נכשלה'); }
   }, [ensureExecution, locked]);
 
+  // A sub-exercise writes against the SAME exercise row, distinguished
+  // by drill_index — the column exercise_set_logs already uses for
+  // exactly this. saveSetActual upserts on
+  // (execution_id, exercise_id, drill_index, set_number).
+  const commitInner = useCallback(async (exerciseId, drillIdx, raw, payloadField) => {
+    if (locked) return;
+    const id = await ensureExecution();
+    if (!id) { toast.error('לא ניתן לשמור כרגע'); return; }
+    const n = raw === '' ? null : Number(raw);
+    const { error } = await saveSetActual(
+      supabase, id, exerciseId, drillIdx, 1,
+      { [payloadField]: n },
+      { allowEmpty: raw === '' },
+    );
+    if (error) { console.error('[PlanSheet] inner save failed:', error); toast.error('השמירה נכשלה'); }
+  }, [ensureExecution, locked]);
+
   const toggleCheck = useCallback(async (exerciseId) => {
     if (locked) return;
     const nextVal = !checks[exerciseId];
@@ -268,6 +298,42 @@ export default function PlanSheet() {
   if (isLoading || !data) return <PageLoader />;
 
   const { plan } = data;
+  // The two halves of every row. infoBlock is a FIXED width, which is
+  // the whole fix for boxes drifting to the outer edge.
+  const infoBlock = {
+    width: INFO_W, flexShrink: 0, minWidth: 0,
+    display: 'flex', alignItems: 'center', gap: 8,
+    overflow: 'hidden', whiteSpace: 'nowrap',
+  };
+  const entryBlock = {
+    flex: 1, minWidth: 0, display: 'flex', gap: 6,
+    // A block with many sets scrolls inside its own half rather than
+    // overflowing the card.
+    overflowX: 'auto', overflowY: 'hidden',
+  };
+  const ordinalStyle = {
+    flexShrink: 0, minWidth: 18, color: ORANGE, fontSize: 15, fontWeight: 800,
+  };
+  const nameStyle = {
+    flexShrink: 1, minWidth: 0, fontSize: 16, fontWeight: 500,
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  };
+  const paramStyle = {
+    flexShrink: 0, fontSize: 13, fontWeight: 600, color: CHARCOAL,
+  };
+  const pillStyle = (bg) => ({
+    flexShrink: 0, fontSize: 10, fontWeight: 700,
+    padding: '2px 8px', borderRadius: 999, background: bg, color: WHITE,
+  });
+  const checkStyle = (on) => ({
+    flexShrink: 0, width: 26, height: 26, borderRadius: 5,
+    border: `1.5px solid ${on ? ORANGE : (locked ? '#E2DAD0' : '#D9D0C4')}`,
+    background: on ? ORANGE : (locked ? '#F4EEE6' : CREAM),
+    color: WHITE, fontSize: 15, fontWeight: 900,
+    lineHeight: 1, fontFamily: 'inherit', padding: 0,
+    cursor: locked ? 'default' : 'pointer',
+    opacity: locked && !on ? 0.75 : 1,
+  });
   const box = (filled) => ({
     width: 46, height: TOUCH, flexShrink: 0,
     // Locked → visibly muted, so a viewed sheet never looks fillable.
@@ -351,7 +417,7 @@ export default function PlanSheet() {
                 padding: '10px 4px', textAlign: 'center',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
               }}>
-                <span style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.25, wordBreak: 'break-word' }}>
+                <span style={{ fontSize: 11, fontWeight: 800, lineHeight: 1.2, whiteSpace: 'nowrap' }}>
                   {section.section_name || cat}
                 </span>
                 {rail && (
@@ -367,114 +433,139 @@ export default function PlanSheet() {
                 border: `1.5px solid ${CHARCOAL}`, borderInlineStart: 'none',
               }}>
                 {rows.map((ex, i) => {
+                  const container = isContainer(ex, parseTabataData);
+                  const subs = container ? innerExercisesOf(ex, parseTabataData) : [];
                   const m = measurementKind(ex);
                   const note = noteOf(ex);
                   const method = getMethodByMode(ex.mode);
                   const showPill = !!ex.mode && method?.mode === ex.mode;
                   const pillColor = section.color_theme || CHARCOAL;
-                  if (m.kind !== 'check') ordinal += 1;
+                  // A measured row with no visible target would be a lone
+                  // empty box the trainee cannot interpret. It becomes a tick.
+                  // A TABATA is a clock, not a measurement: its container
+                  // row takes the tick and its sub-exercises are listed for
+                  // reading only, with their work times shown but no boxes.
+                  const isClock = isTabataContainer(ex);
+                  const hasTarget = m.kind !== "check" && m.target > 0;
+                  const rowKind = container
+                    ? (isClock ? "check" : "container")
+                    : (hasTarget ? m.kind : "check");
+                  const boxCount = (rowKind === "check" || rowKind === "container")
+                    ? 0
+                    : (rowKind === "tally" ? 1 : m.sets);
+                  if (rowKind !== "check") ordinal += 1;
                   const myOrdinal = ordinal;
-                  const boxCount = m.kind === 'tally' ? 1 : (m.kind === 'check' ? 0 : m.sets);
 
                   return (
                     <div
                       key={ex.id}
                       style={{
-                        borderTop: i === 0 ? 'none' : `1px solid #E8E0D5`,
-                        padding: '6px 8px',
+                        borderTop: i === 0 ? "none" : "1px solid #E8E0D5",
+                        padding: "4px 8px",
                       }}
                     >
-                      {/* The single line. */}
-                      <div style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        minHeight: TOUCH, whiteSpace: 'nowrap', overflow: 'hidden',
-                      }}>
-                        {m.kind === 'check' ? (
-                          <button
-                            type="button"
-                            onClick={() => toggleCheck(ex.id)}
-                            disabled={locked}
-                            aria-pressed={!!checks[ex.id]}
-                            style={{
-                              flexShrink: 0, width: 26, height: 26, borderRadius: 5,
-                              border: `1.5px solid ${checks[ex.id] ? ORANGE : (locked ? '#E2DAD0' : '#D9D0C4')}`,
-                              background: checks[ex.id] ? ORANGE : (locked ? '#F4EEE6' : CREAM),
-                              color: WHITE, fontSize: 15, fontWeight: 900,
-                              lineHeight: 1, fontFamily: 'inherit', padding: 0,
-                              cursor: locked ? 'default' : 'pointer',
-                              opacity: locked && !checks[ex.id] ? 0.75 : 1,
-                            }}
-                          >
-                            {checks[ex.id] ? '✓' : ''}
-                          </button>
-                        ) : (
-                          <span style={{
-                            flexShrink: 0, minWidth: 18, color: ORANGE,
-                            fontSize: 15, fontWeight: 800,
-                          }}>
-                            {myOrdinal}
-                          </span>
-                        )}
+                      {/* Two flex children, never a spacer: a fixed 52%
+                          info block, then the entry block. That is what
+                          puts every row’s boxes on one vertical line. */}
+                      <div style={{ display: "flex", alignItems: "center", minHeight: ROW_H }}>
+                        <div style={infoBlock}>
+                          {rowKind === "check" ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleCheck(ex.id)}
+                              disabled={locked}
+                              aria-pressed={!!checks[ex.id]}
+                              style={checkStyle(!!checks[ex.id])}
+                            >
+                              {checks[ex.id] ? "✓" : ""}
+                            </button>
+                          ) : (
+                            <span style={ordinalStyle}>{myOrdinal}</span>
+                          )}
 
-                        {/* The most prominent thing. Truncates, never wraps. */}
-                        <span style={{
-                          flexShrink: 1, minWidth: 0, fontSize: 16, fontWeight: 500,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>
-                          {ex.exercise_name || ex.name}
-                        </span>
+                          {/* name → parameters → pill, right to left. */}
+                          <span style={nameStyle}>{ex.exercise_name || ex.name}</span>
+                          {!container && paramText({ ...m, kind: rowKind }) && (
+                            <span style={paramStyle}>{paramText({ ...m, kind: rowKind })}</span>
+                          )}
+                          {showPill && (
+                            <span style={pillStyle(pillColor)}>{method.label}</span>
+                          )}
+                        </div>
 
-                        {/* Parameters, plain text, no box. */}
-                        {paramText(m) && (
-                          <span style={{ flexShrink: 0, fontSize: 13, fontWeight: 600, color: CHARCOAL }}>
-                            {paramText(m)}
-                          </span>
-                        )}
-
-                        {/* Method pill, coloured from the plan data. */}
-                        {showPill && (
-                          <span style={{
-                            flexShrink: 0, fontSize: 10, fontWeight: 700,
-                            padding: '2px 8px', borderRadius: 999,
-                            background: pillColor, color: WHITE,
-                          }}>
-                            {method.label}
-                          </span>
-                        )}
-
-                        {/* Entry area — always begins at the same line. */}
-                        <span style={{ flex: 1, minWidth: 0 }} />
-                        {boxCount > 0 && (
-                          <span style={{
-                            flexShrink: 0, display: 'flex', gap: 6,
-                            marginInlineStart: `calc(${ENTRY_AT} - 100%)`,
-                          }}>
-                            {Array.from({ length: boxCount }).map((_, si) => {
-                              const key = `${ex.id}:${si + 1}`;
-                              const v = values[key] ?? '';
-                              return (
-                                <input
-                                  key={key}
-                                  type="number"
-                                  inputMode="numeric"
-                                  placeholder="–"
-                                  disabled={locked}
-                                  value={v}
-                                  onChange={(e) => setValues((p) => ({ ...p, [key]: e.target.value }))}
-                                  onBlur={(e) => commit(ex.id, si + 1, e.target.value, m.payloadField)}
-                                  style={box(has(v))}
-                                />
-                              );
-                            })}
-                          </span>
-                        )}
+                        <div style={entryBlock}>
+                          {Array.from({ length: boxCount }).map((_, si) => {
+                            const key = `${ex.id}:${si + 1}`;
+                            const v = values[key] ?? "";
+                            return (
+                              <input
+                                key={key}
+                                type="number"
+                                inputMode="numeric"
+                                placeholder="–"
+                                disabled={locked}
+                                value={v}
+                                onChange={(e) => setValues((pv) => ({ ...pv, [key]: e.target.value }))}
+                                onBlur={(e) => commit(ex.id, si + 1, e.target.value, m.payloadField)}
+                                style={box(has(v))}
+                              />
+                            );
+                          })}
+                        </div>
                       </div>
+
+                      {/* Container: one row per sub-exercise beneath,
+                          indented, each with its own params and its own
+                          boxes on the same 52% line. Nothing sits beside
+                          the container name, so nothing can overlap it. */}
+                      {container && subs.map((sub, sidx) => {
+                        const sm = subMeasurementKind(sub);
+                        const subHasTarget = sm.kind !== "check" && sm.target > 0;
+                        // Inside a clock the numbers are the programme, not
+                        // something to enter — shown, never editable.
+                        const subKind = (subHasTarget && !isClock) ? sm.kind : "check";
+                        const subParams = paramText({ ...sm, kind: subHasTarget ? sm.kind : "check" });
+                        const subName = sub?.exercise_name || sub?.name || "תרגיל";
+                        const subKey = `${ex.id}:sub${sidx}`;
+                        return (
+                          <div
+                            key={subKey}
+                            style={{ display: "flex", alignItems: "center", minHeight: ROW_H }}
+                          >
+                            <div style={{ ...infoBlock, paddingInlineStart: 26 }}>
+                              <span style={{ flexShrink: 0, color: MUTED, fontSize: 13 }}>•</span>
+                              <span style={{ ...nameStyle, fontSize: 14 }}>{subName}</span>
+                              {subParams && (
+                                <span style={paramStyle}>{subParams}</span>
+                              )}
+                            </div>
+                            <div style={entryBlock}>
+                              {subKind !== "check" && (() => {
+                                const key = `${ex.id}:sub${sidx}:1`;
+                                const v = values[key] ?? "";
+                                return (
+                                  <input
+                                    type="number"
+                                    inputMode="numeric"
+                                    placeholder="–"
+                                    disabled={locked}
+                                    value={v}
+                                    onChange={(e) => setValues((pv) => ({ ...pv, [key]: e.target.value }))}
+                                    onBlur={(e) => commitInner(ex.id, sidx, e.target.value, sm.payloadField)}
+                                    style={box(has(v))}
+                                  />
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        );
+                      })}
 
                       {/* Second line, only for a technical cue. */}
                       {note && (
                         <div style={{
                           fontSize: 11, color: MUTED, paddingInlineStart: 34,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                         }}>
                           {note}
                         </div>
