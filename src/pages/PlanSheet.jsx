@@ -8,6 +8,7 @@ import PageLoader from '@/components/PageLoader';
 import { getMethodByMode } from '@/constants/trainingMethods';
 import { measurementKind, has } from '@/lib/exerciseMeasurement';
 import { saveSetActual } from '@/lib/plannedSets';
+import { duplicatePlan } from '@/lib/plansApi';
 
 /**
  * PlanSheet — the workout execution screen, laid out like the printed
@@ -87,6 +88,10 @@ export default function PlanSheet() {
   const [checks, setChecks] = useState({});   // exId → bool
   const [feeling, setFeeling] = useState(null);
   const [execId, setExecId] = useState(null);
+  // A plan whose performance is finished opens for VIEWING.
+  const [locked, setLocked] = useState(false);
+  const [family, setFamily] = useState(null);   // { position, total }
+  const [duplicating, setDuplicating] = useState(false);
 
   // ── Plan + sections + exercises. Three reads, no embeds: this DB has
   //    no foreign keys, so PostgREST embeds are not available. ────────
@@ -121,6 +126,13 @@ export default function PlanSheet() {
       if (!ex) return;
       setExecId(ex.id);
       if (ex.self_rating != null) setFeeling(Number(ex.self_rating));
+      // Read-only once the performance is FINISHED — self_rating set.
+      // NOT merely "an execution row exists": PlanSheet creates that row
+      // on the FIRST keystroke, so that rule would lock a workout the
+      // moment it was started and make an interrupted one unfinishable —
+      // the opposite of the intent. self_rating is the only "the trainee
+      // closed this out" signal on the live table.
+      setLocked(ex.self_rating != null);
       const { data: logs } = await supabase
         .from('exercise_set_logs')
         .select('exercise_id, set_number, reps_completed, time_completed, weight_used')
@@ -134,6 +146,29 @@ export default function PlanSheet() {
       setValues(next); setChecks(nextChecks);
     })();
   }, [planId, user?.id]);
+
+  // ── The chain of performances ───────────────────────────────────
+  // duplicatePlan sets parent_plan_id to the FAMILY ROOT, so the whole
+  // family is the root itself plus everything pointing at it. Ordered
+  // by created_at; nothing renders for a plan with no copies.
+  useEffect(() => {
+    const plan = data?.plan;
+    if (!plan?.id) return;
+    const root = plan.parent_plan_id || plan.id;
+    (async () => {
+      const { data: rows, error } = await supabase
+        .from('training_plans')
+        .select('id, created_at, status')
+        .or(`id.eq.${root},parent_plan_id.eq.${root}`)
+        .order('created_at', { ascending: true });
+      if (error) { console.warn('[PlanSheet] family lookup failed:', error.message); return; }
+      const live = (rows || []).filter((r) => r.status !== 'deleted');
+      if (live.length < 2) { setFamily(null); return; }
+      const idx = live.findIndex((r) => r.id === plan.id);
+      if (idx < 0) { setFamily(null); return; }
+      setFamily({ position: idx + 1, total: live.length });
+    })();
+  }, [data?.plan?.id, data?.plan?.parent_plan_id]);
 
   /** One execution row per workout, created on first entry. */
   const ensureExecution = useCallback(async () => {
@@ -160,6 +195,7 @@ export default function PlanSheet() {
   }, [execId, user?.id, data?.plan?.assigned_to, planId]);
 
   const commit = useCallback(async (exerciseId, setIdx, raw, logField) => {
+    if (locked) return;
     const id = await ensureExecution();
     if (!id) { toast.error('לא ניתן לשמור כרגע'); return; }
     const n = raw === '' ? null : Number(raw);
@@ -169,9 +205,10 @@ export default function PlanSheet() {
       { allowEmpty: raw === '' },
     );
     if (error) { console.error('[PlanSheet] save failed:', error); toast.error('השמירה נכשלה'); }
-  }, [ensureExecution]);
+  }, [ensureExecution, locked]);
 
   const toggleCheck = useCallback(async (exerciseId) => {
+    if (locked) return;
     const nextVal = !checks[exerciseId];
     setChecks((p) => ({ ...p, [exerciseId]: nextVal }));
     const id = await ensureExecution();
@@ -179,16 +216,45 @@ export default function PlanSheet() {
     // A check carries no measurement, so allowEmpty is required or the
     // empty-write guard in saveSetActual drops it.
     await saveSetActual(supabase, id, exerciseId, 0, 1, {}, { allowEmpty: true });
-  }, [checks, ensureExecution]);
+  }, [checks, ensureExecution, locked]);
 
   const saveFeeling = useCallback(async (n) => {
+    if (locked) return;
     setFeeling(n);
     const id = await ensureExecution();
     if (!id) return;
     const { error } = await supabase
       .from('workout_executions').update({ self_rating: n }).eq('id', id);
     if (error) { console.error('[PlanSheet] feeling save failed:', error); toast.error('השמירה נכשלה'); }
-  }, [ensureExecution]);
+  }, [ensureExecution, locked]);
+
+  // ── אימון חדש — duplicate this plan and train the copy ──────────
+  // Uses the EXISTING duplicatePlan; no second copy function. The
+  // date rides in via its nameSuffix option so performances are
+  // tellable apart in a list without inventing a naming scheme.
+  const startNewWorkout = useCallback(async () => {
+    if (duplicating) return;
+    const plan = data?.plan;
+    if (!plan?.id) return;
+    setDuplicating(true);
+    try {
+      const stamp = new Date().toLocaleDateString('he-IL');
+      const created = await duplicatePlan(plan.id, {
+        traineeId: user?.id || plan.assigned_to || undefined,
+        traineeName: user?.full_name || plan.assigned_to_name || undefined,
+        nameSuffix: ` — ${stamp}`,
+      });
+      if (!created?.id) throw new Error('לא התקבלה תוכנית חדשה');
+      toast.success('אימון חדש נוצר');
+      // Straight into the copy's sheet so training starts immediately.
+      navigate(`/plan-sheet?planId=${encodeURIComponent(created.id)}${from ? `&from=${from}` : ''}`, { replace: true });
+    } catch (e) {
+      console.error('[PlanSheet] duplicate failed:', e);
+      toast.error('יצירת האימון נכשלה: ' + (e?.message || 'נסה שוב'));
+    } finally {
+      setDuplicating(false);
+    }
+  }, [duplicating, data?.plan, user?.id, user?.full_name, navigate, from]);
 
   const grouped = useMemo(() => {
     if (!data) return [];
@@ -204,8 +270,10 @@ export default function PlanSheet() {
   const { plan } = data;
   const box = (filled) => ({
     width: 46, height: TOUCH, flexShrink: 0,
-    border: `1.5px solid ${filled ? ORANGE : '#D9D0C4'}`,
-    background: filled ? WHITE : CREAM,
+    // Locked → visibly muted, so a viewed sheet never looks fillable.
+    border: `1.5px solid ${locked ? '#E2DAD0' : (filled ? ORANGE : '#D9D0C4')}`,
+    background: locked ? '#F4EEE6' : (filled ? WHITE : CREAM),
+    opacity: locked ? 0.75 : 1,
     borderRadius: 6, textAlign: 'center',
     fontSize: 15, fontWeight: 700, color: CHARCOAL,
     fontFamily: 'inherit', outline: 'none', padding: 0,
@@ -257,6 +325,18 @@ export default function PlanSheet() {
           <span>{plan?.assigned_to_name || user?.full_name || 'מתאמן'}</span>
           <span style={{ color: MUTED, fontWeight: 500 }}>{todayLabel()}</span>
         </div>
+
+        {/* Where this performance sits in its family. Nothing renders
+            for a plan with no copies. */}
+        {family && (
+          <div style={{
+            background: WHITE, border: `1.5px solid ${CHARCOAL}`, borderTop: 'none',
+            padding: '7px 14px', marginTop: -14, marginBottom: 14,
+            fontSize: 13, fontWeight: 700, color: ORANGE,
+          }}>
+            אימון {family.position} מתוך {family.total}
+          </div>
+        )}
 
         {/* ── Sections ───────────────────────────────────────────── */}
         {grouped.map(({ section, rows }) => {
@@ -313,13 +393,16 @@ export default function PlanSheet() {
                           <button
                             type="button"
                             onClick={() => toggleCheck(ex.id)}
+                            disabled={locked}
                             aria-pressed={!!checks[ex.id]}
                             style={{
                               flexShrink: 0, width: 26, height: 26, borderRadius: 5,
-                              border: `1.5px solid ${checks[ex.id] ? ORANGE : '#D9D0C4'}`,
-                              background: checks[ex.id] ? ORANGE : CREAM,
+                              border: `1.5px solid ${checks[ex.id] ? ORANGE : (locked ? '#E2DAD0' : '#D9D0C4')}`,
+                              background: checks[ex.id] ? ORANGE : (locked ? '#F4EEE6' : CREAM),
                               color: WHITE, fontSize: 15, fontWeight: 900,
-                              lineHeight: 1, cursor: 'pointer', fontFamily: 'inherit', padding: 0,
+                              lineHeight: 1, fontFamily: 'inherit', padding: 0,
+                              cursor: locked ? 'default' : 'pointer',
+                              opacity: locked && !checks[ex.id] ? 0.75 : 1,
                             }}
                           >
                             {checks[ex.id] ? '✓' : ''}
@@ -375,6 +458,7 @@ export default function PlanSheet() {
                                   type="number"
                                   inputMode="numeric"
                                   placeholder="–"
+                                  disabled={locked}
                                   value={v}
                                   onChange={(e) => setValues((p) => ({ ...p, [key]: e.target.value }))}
                                   onBlur={(e) => commit(ex.id, si + 1, e.target.value, m.payloadField)}
@@ -418,13 +502,15 @@ export default function PlanSheet() {
                   key={n}
                   type="button"
                   onClick={() => saveFeeling(n)}
+                  disabled={locked}
                   style={{
                     flex: 1, minWidth: 0, height: TOUCH,
-                    border: `1.5px solid ${on ? ORANGE : '#D9D0C4'}`,
-                    background: on ? ORANGE : CREAM,
+                    border: `1.5px solid ${on ? ORANGE : (locked ? '#E2DAD0' : '#D9D0C4')}`,
+                    background: on ? ORANGE : (locked ? '#F4EEE6' : CREAM),
                     color: on ? WHITE : CHARCOAL,
                     fontSize: 15, fontWeight: 800, borderRadius: 6,
-                    cursor: 'pointer', fontFamily: 'inherit', padding: 0,
+                    cursor: locked ? 'default' : 'pointer', fontFamily: 'inherit', padding: 0,
+                    opacity: locked && !on ? 0.75 : 1,
                   }}
                 >
                   {n}
@@ -433,6 +519,33 @@ export default function PlanSheet() {
             })}
           </div>
         </div>
+
+        {/* אימון חדש — the only action on a locked sheet, and always
+            available on an open one. Duplicates through the existing
+            duplicatePlan and drops straight into the copy. */}
+        <button
+          type="button"
+          onClick={startNewWorkout}
+          disabled={duplicating}
+          style={{
+            width: '100%', minHeight: TOUCH + 6, marginTop: 12,
+            border: `1.5px solid ${CHARCOAL}`,
+            background: ORANGE, color: WHITE,
+            fontSize: 17, fontWeight: 800, fontFamily: 'inherit',
+            cursor: duplicating ? 'default' : 'pointer',
+            opacity: duplicating ? 0.6 : 1,
+          }}
+        >
+          {duplicating ? 'יוצר…' : 'אימון חדש'}
+        </button>
+
+        {locked && (
+          <div style={{
+            marginTop: 8, fontSize: 12, color: MUTED, textAlign: 'center',
+          }}>
+            האימון הזה כבר בוצע — לצפייה בלבד
+          </div>
+        )}
 
       </div>
     </div>
