@@ -336,6 +336,18 @@ export default function PlanSheet() {
     flexShrink: 0, fontSize: 9, fontWeight: 700,
     padding: '2px 6px', borderRadius: 999, background: bg, color: WHITE,
   });
+  // The meta line under a row: pill, then cue. paddingInlineStart 34
+  // keeps it under the name, past the ordinal, exactly where the note
+  // text sat before.
+  const metaLine = {
+    display: 'flex', alignItems: 'center', gap: 6,
+    paddingInlineStart: 34,
+    overflow: 'hidden', whiteSpace: 'nowrap',
+  };
+  const noteText = {
+    flexShrink: 1, minWidth: 0, fontSize: 11, color: MUTED,
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  };
   const checkStyle = (on) => ({
     flexShrink: 0, width: 26, height: 26, borderRadius: 5,
     border: `1.5px solid ${on ? ORANGE : (locked ? '#E2DAD0' : '#D9D0C4')}`,
@@ -503,9 +515,10 @@ export default function PlanSheet() {
                           {!container && paramText({ ...m, kind: rowKind }) && (
                             <span style={paramStyle}>{paramText({ ...m, kind: rowKind })}</span>
                           )}
-                          {showPill && (
-                            <span style={pillStyle(pillColor)}>{method.label}</span>
-                          )}
+                          {/* The method pill used to live here. Measured at
+                              390px it left the name 41px of a 137px info
+                              block — four elements do not fit. It now
+                              renders on the note line below. */}
                         </div>
 
                         <div style={entryBlock}>
@@ -576,13 +589,15 @@ export default function PlanSheet() {
                         );
                       })}
 
-                      {/* Second line, only for a technical cue. */}
-                      {note && (
-                        <div style={{
-                          fontSize: 11, color: MUTED, paddingInlineStart: 34,
-                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                        }}>
-                          {note}
+                      {/* Meta line: the method pill, then the technical cue.
+                          Same indent as the note text always had. Renders
+                          only when there is something to show. */}
+                      {(showPill || note) && (
+                        <div style={metaLine}>
+                          {showPill && (
+                            <span style={pillStyle(pillColor)}>{method.label}</span>
+                          )}
+                          {note && <span style={noteText}>{note}</span>}
                         </div>
                       )}
                     </div>
