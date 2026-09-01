@@ -1,11 +1,12 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
 import { AuthContext } from '@/lib/AuthContext';
 import PageLoader from '@/components/PageLoader';
 import { getMethodByMode } from '@/constants/trainingMethods';
+import { measurementKind, has } from '@/lib/exerciseMeasurement';
 import { saveSetActual } from '@/lib/plannedSets';
 
 /**
@@ -25,7 +26,8 @@ import { saveSetActual } from '@/lib/plannedSets';
  *   feeling   → workout_executions.self_rating (one value per workout)
  *
  * There is NO measurement-type column. The type is derived at read time
- * by measurementOf() below, from the same fields WorkoutSheet reads.
+ * by measurementKind() in src/lib/exerciseMeasurement.js — the same
+ * helper WorkoutSheet imports, so the two screens cannot disagree.
  */
 
 // ── Palette ──────────────────────────────────────────────────────────
@@ -40,60 +42,13 @@ const TOUCH    = 44;
 // Every row's entry area starts on the same vertical line.
 const ENTRY_AT = '52%';
 
-const has = (v) => v !== null && v !== undefined && v !== '';
-
-/**
- * Sections whose rows are check-only regardless of what they carry.
- *
- * NOTE: WorkoutSheet.jsx deliberately went the other way — its comment
- * argues a warmup can hold a 2-minute hold worth recording. This screen
- * follows the sheet spec instead, so the two can disagree for a warmup
- * that has a rep target. Deliberate, not an oversight.
- */
-const CHECK_ONLY_CATEGORIES = new Set([
-  'חימום', 'warmup',
-  'מתיחות', 'stretching',
-  'גמישות', 'flexibility',
-  'תנועתיות', 'mobility',
-]);
-
-/**
- * measurementOf — one of exactly four kinds.
- *
- *   check → no boxes, a tick at the right of the row
- *   reps  → one box per set, target printed as repsXsets
- *   time  → one box per set, seconds, same format
- *   tally → ONE box, a single target, no sets
- *
- * Derived, because no column stores it. Priority mirrors how a trainee
- * reads a printed page: reps → hold → work time → rounds.
- */
-function measurementOf(exercise, sectionCategory) {
-  const isTabata = exercise?.mode === 'טבטה';
-  if (isTabata || CHECK_ONLY_CATEGORIES.has((sectionCategory || '').trim())) {
-    return { kind: 'check' };
-  }
-  const sets = Number(exercise?.sets) || 1;
-  if (has(exercise?.reps)) {
-    return { kind: 'reps', target: Number(exercise.reps) || 0, sets, logField: 'reps' };
-  }
-  if (has(exercise?.static_hold_time)) {
-    return { kind: 'time', target: Number(exercise.static_hold_time) || 0, sets, logField: 'hold_seconds' };
-  }
-  if (has(exercise?.work_time)) {
-    return { kind: 'time', target: Number(exercise.work_time) || 0, sets, logField: 'hold_seconds' };
-  }
-  // Rounds accumulate across the whole workout → one box, no sets.
-  if (has(exercise?.rounds)) {
-    return { kind: 'tally', target: Number(exercise.rounds) || 0, sets: 1, logField: 'reps' };
-  }
-  // weight is 100% null in live data; if it ever appears it reads as
-  // a per-set number, same shape as reps.
-  if (has(exercise?.weight)) {
-    return { kind: 'reps', target: Number(exercise.weight) || 0, sets, logField: 'weight_kg' };
-  }
-  return { kind: 'check' };
-}
+// Measurability is decided by the EXERCISE, never by the section it
+// sits in. The section-name rule that used to live here hid the boxes
+// on rows carrying a real target — a 60-second hold inside גמישות is
+// a number the trainee fills in.
+//
+// The derivation itself lives in src/lib/exerciseMeasurement.js and is
+// shared with WorkoutSheet, so the two screens cannot disagree.
 
 /** "25X2" — reps X sets, capital X, plain text. */
 function paramText(m) {
@@ -120,7 +75,12 @@ const todayLabel = () => new Date().toLocaleDateString('he-IL');
 
 export default function PlanSheet() {
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const planId = params.get('planId');
+  // This route renders OUTSIDE LayoutWrapper, so there is no header
+  // and no bottom nav — the sheet needs its own way back.
+  const from = params.get('from');
+  const backTo = from === 'myplan' ? '/myplan' : '/workouts';
   const { user } = useContext(AuthContext);
 
   const [values, setValues] = useState({});   // `${exId}:${setIdx}` → string
@@ -270,9 +230,23 @@ export default function PlanSheet() {
         <div style={{
           background: ORANGE, color: WHITE,
           border: `1.5px solid ${CHARCOAL}`, borderBottom: 'none',
-          padding: '10px 14px', fontSize: 18, fontWeight: 800,
+          padding: '6px 14px', minHeight: TOUCH, boxSizing: 'border-box',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
-          תוכנית אימונים
+          <span style={{ fontSize: 18, fontWeight: 800 }}>תוכנית אימונים</span>
+          <button
+            type="button"
+            onClick={() => navigate(backTo)}
+            aria-label="חזרה"
+            style={{
+              flexShrink: 0, minWidth: TOUCH, height: TOUCH,
+              background: 'transparent', border: 'none', color: WHITE,
+              fontSize: 20, fontWeight: 800, cursor: 'pointer',
+              fontFamily: 'inherit', padding: 0, lineHeight: 1,
+            }}
+          >
+            ←
+          </button>
         </div>
         <div style={{
           background: WHITE, border: `1.5px solid ${CHARCOAL}`,
@@ -313,7 +287,7 @@ export default function PlanSheet() {
                 border: `1.5px solid ${CHARCOAL}`, borderInlineStart: 'none',
               }}>
                 {rows.map((ex, i) => {
-                  const m = measurementOf(ex, cat);
+                  const m = measurementKind(ex);
                   const note = noteOf(ex);
                   const method = getMethodByMode(ex.mode);
                   const showPill = !!ex.mode && method?.mode === ex.mode;
@@ -403,7 +377,7 @@ export default function PlanSheet() {
                                   placeholder="–"
                                   value={v}
                                   onChange={(e) => setValues((p) => ({ ...p, [key]: e.target.value }))}
-                                  onBlur={(e) => commit(ex.id, si + 1, e.target.value, m.logField)}
+                                  onBlur={(e) => commit(ex.id, si + 1, e.target.value, m.payloadField)}
                                   style={box(has(v))}
                                 />
                               );

@@ -13,6 +13,7 @@ import { duplicatePlan, softDeletePlan, buildPlanDeleteMessage } from '@/lib/pla
 import { useHiddenStatusBar } from '@/hooks/useHiddenStatusBar';
 import { readOpenWorkout, writeOpenWorkout, takeGraphFocus } from '@/lib/workoutResume';
 import CopyBadge from '@/components/plans/CopyBadge';
+import { Navigate } from 'react-router-dom';
 import UnifiedPlanBuilder from './UnifiedPlanBuilder';
 import WorkoutExecutionReadOnly from './WorkoutExecutionReadOnly';
 import FullscreenChart from '@/components/FullscreenChart';
@@ -1615,6 +1616,14 @@ export default function WorkoutFolderDetail({
   // Master button activation → full-screen UnifiedPlanBuilder (replaces
   // the folder body but stays within the same Workouts page level).
   if (activeMode === 'active') {
+    // Trainee → the plan sheet at /plan-sheet. The coach keeps the
+    // editable UnifiedPlanBuilder below, untouched. WorkoutSheet is
+    // still on disk and still mounted by UnifiedPlanBuilder when
+    // canEdit is false, so the fallback is one line: delete this
+    // Navigate branch.
+    if (!isCoach && plan?.id) {
+      return <Navigate to={`/plan-sheet?planId=${encodeURIComponent(plan.id)}&from=workouts`} replace />;
+    }
     return (
       <UnifiedPlanBuilder
         plan={plan}

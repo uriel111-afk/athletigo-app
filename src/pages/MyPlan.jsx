@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Target, Loader2, User, Trash2, Plus, ChevronDown, Copy, FolderPlus, ChevronRight } from "lucide-react";
-import { Link, useSearchParams, useNavigate } from "react-router-dom";
+import { Link, useSearchParams, useNavigate, Navigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import UnifiedPlanBuilder from "../components/training/UnifiedPlanBuilder";
 import PlanFormDialog from "../components/training/PlanFormDialog";
@@ -749,6 +749,13 @@ function MyPlanInner() {
 
       </div>
     );
+  }
+
+  // Trainee execution now lives on /plan-sheet. UnifiedPlanBuilder +
+  // WorkoutSheet stay on disk; restoring them is deleting this
+  // Navigate and putting the old return back.
+  if (selectedPlan?.id) {
+    return <Navigate to={`/plan-sheet?planId=${encodeURIComponent(selectedPlan.id)}&from=myplan`} replace />;
   }
 
   return (

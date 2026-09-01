@@ -3,6 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { formatTime } from '@/lib/formatTime';
 import { resolveSetCount } from '@/lib/plannedSets';
+import {
+  isMeasurable,
+  primaryMetric,
+  variantOf,
+  MULTI_VARIANTS as MEASURED_MULTI_VARIANTS,
+} from '@/lib/exerciseMeasurement';
+
+// Rendering-only: which blocks draw as a multi-exercise container.
+// Tabata IS a container here (it renders its sub-exercises) even
+// though it is not measured — that is why this set is separate from
+// the measurement one imported above.
+const MULTI_VARIANTS = new Set([...MEASURED_MULTI_VARIANTS, 'tabata']);
 import { getMethodByMode } from '@/constants/trainingMethods';
 import { useClock } from '@/contexts/ClockContext';
 import {
@@ -60,39 +72,14 @@ const SANS = "'Rubik', system-ui, sans-serif";
 
 const has = (v) => v != null && v !== '';
 
-// Which rows get fill boxes is decided by the EXERCISE, never by the
-// section it sits in.
+// Measurability + the primary metric now live in ONE place:
+// src/lib/exerciseMeasurement.js, imported above. This file used to
+// carry its own copy; PlanSheet needed the same rules and two copies
+// would drift, so the logic moved out and both screens import it.
 //
-// The section rule this replaces was simply wrong: a warmup can hold a
-// 2-minute hold and a 15-rep squat, and those are numbers a trainee
-// fills in. Judging by the section name hid the target and the boxes on
-// exactly the rows that had something to record.
-//
-// Priority:
-//   1. track_for_measurement = true  → measurable, whatever else says.
-//   2. any measurable value present  → measurable.
-//   3. otherwise                     → a tick, nothing to measure.
-const MEASURABLE_FIELDS = ['reps', 'static_hold_time', 'work_time', 'weight', 'rounds'];
-
-function isMeasurable(exercise) {
-  if (exercise?.track_for_measurement === true) return true;
-  if (MEASURABLE_FIELDS.some((f) => has(exercise?.[f]))) return true;
-  // A superset / combo / circuit / tabata / rest-pause block is always
-  // counted — it owns one box for its rounds. A tabata in particular
-  // keeps its round count inside tabata_data, not in a column, so the
-  // field scan above would miss it.
-  return MULTI_VARIANTS.has(variantOf(exercise));
-}
-
-// Multi-exercise methods take ONE row in the running numbering and
-// carry a single fill box that counts rounds (or sets).
-const MULTI_VARIANTS = new Set(['super_set', 'combo', 'circuit', 'tabata', 'rest_pause']);
-
-function variantOf(exercise) {
-  const method = getMethodByMode(exercise?.mode);
-  if (!method || method.mode !== exercise?.mode) return 'single';
-  return method.english_id;
-}
+// One behaviour change came with the move: a TABATA container is now
+// check-only (it is a clock, not a measurement). Here that only
+// affects showColumnHeaders on a band whose rows are all tabata.
 
 // The inner exercises of a multi-exercise block, whichever shape the
 // editor happened to write them in.
@@ -108,32 +95,6 @@ function innerExercisesOf(exercise) {
   }
   if (Array.isArray(td.planned_sets) && td.planned_sets.length) return td.planned_sets;
   return [];
-}
-
-// The one number this exercise is measured by, in the order a trainee
-// would read them off a printed page:
-//   reps → static_hold_time → work_time → weight → rounds
-// The unit rides along so the target cell can print "2:00" for a hold
-// and "15" for reps without the caller knowing which is which.
-function primaryMetric(exercise) {
-  if (has(exercise?.reps)) {
-    return { key: 'reps', mode: 'reps', target: Number(exercise.reps) || 0, logField: 'reps_completed', isTime: false, unit: null };
-  }
-  if (has(exercise?.static_hold_time)) {
-    return { key: 'hold', mode: 'seconds', target: Number(exercise.static_hold_time) || 0, logField: 'time_completed', isTime: true, unit: null };
-  }
-  if (has(exercise?.work_time)) {
-    return { key: 'work', mode: 'seconds', target: Number(exercise.work_time) || 0, logField: 'time_completed', isTime: true, unit: null };
-  }
-  if (has(exercise?.weight)) {
-    return { key: 'weight', mode: 'kg', target: Number(exercise.weight) || 0, logField: 'weight_used', isTime: false, unit: 'ק"ג' };
-  }
-  // Rounds are counted, so they ride the reps column — the same slot
-  // the existing round-completion marker already writes to.
-  if (has(exercise?.rounds)) {
-    return { key: 'rounds', mode: 'reps', target: Number(exercise.rounds) || 0, logField: 'reps_completed', isTime: false, unit: 'סבבים' };
-  }
-  return null;
 }
 
 // The bold parameter run that follows the exercise name.
