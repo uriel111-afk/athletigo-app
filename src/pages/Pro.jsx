@@ -7,6 +7,7 @@ import { AuthContext } from '@/lib/AuthContext';
 import { createPageUrl } from '@/utils';
 import ProtectedCoachPage from '@/components/ProtectedCoachPage';
 import PageSkeleton from '@/components/PageSkeleton';
+import GroupTrackBoard from '@/components/groups/GroupTrackBoard';
 import {
   TRACKS,
   TRACK_LABELS,
@@ -276,77 +277,84 @@ export default function Pro() {
             })}
           </div>
 
-          {/* ── Row two onward: the same six rows for every tab. ───── */}
-          <div style={{
-            marginTop: 16,
-            background: CARD,
-            border: `1px solid ${LINE}`,
-            borderRadius: 12,
-            overflow: 'hidden',
-          }}>
-            {rows.map((r, i) => {
-              const disabled = !!r.soon;
-              return (
-                <button
-                  key={r.key}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => { if (!disabled && r.to) navigate(r.to); }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    width: '100%',
-                    boxSizing: 'border-box',
-                    // Equal row heights, one line, always.
-                    height: 60,
-                    padding: '0 14px',
-                    background: disabled ? '#FBF6EE' : CARD,
-                    border: 'none',
-                    borderTop: i === 0 ? 'none' : `1px solid ${LINE}`,
-                    cursor: disabled ? 'default' : 'pointer',
-                    fontFamily: 'inherit',
-                    textAlign: 'right',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {/* icon → title → inline description, right to left. */}
-                  <span style={{
-                    flexShrink: 0,
-                    width: 26,
-                    fontSize: 18,
-                    lineHeight: 1,
-                    color: disabled ? SOFT : ORANGE,
-                    opacity: disabled ? 0.45 : 1,
-                  }}>
-                    {r.icon}
-                  </span>
-                  <span style={{
-                    flexShrink: 0,
-                    fontSize: 16,
-                    fontWeight: 700,
-                    color: disabled ? SOFT : INK,
-                  }}>
-                    {r.title}
-                  </span>
-                  {/* Same line as the title, never at the far edge, and it
-                      shrinks to an ellipsis before the row ever grows. */}
-                  <span style={{
-                    flexShrink: 1,
-                    minWidth: 0,
-                    fontSize: 13,
-                    color: SOFT,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}>
-                    {disabled ? 'בקרוב' : r.desc}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          {/* ── Row two onward ───────────────────────────────────
+              קבוצתי is a WORK SCREEN: the coach acts inside it and
+              never navigates away. אישי and אונליין keep the six
+              navigation rows untouched until their own pass. */}
+          {track === 'group' ? (
+            <GroupTrackBoard coach={coach} trainees={trainees} />
+          ) : (
+            <div style={{
+              marginTop: 16,
+              background: CARD,
+              border: `1px solid ${LINE}`,
+              borderRadius: 12,
+              overflow: 'hidden',
+            }}>
+              {rows.map((r, i) => {
+                const disabled = !!r.soon;
+                return (
+                  <button
+                    key={r.key}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => { if (!disabled && r.to) navigate(r.to); }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      // Equal row heights, one line, always.
+                      height: 60,
+                      padding: '0 14px',
+                      background: disabled ? '#FBF6EE' : CARD,
+                      border: 'none',
+                      borderTop: i === 0 ? 'none' : `1px solid ${LINE}`,
+                      cursor: disabled ? 'default' : 'pointer',
+                      fontFamily: 'inherit',
+                      textAlign: 'right',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {/* icon → title → inline description, right to left. */}
+                    <span style={{
+                      flexShrink: 0,
+                      width: 26,
+                      fontSize: 18,
+                      lineHeight: 1,
+                      color: disabled ? SOFT : ORANGE,
+                      opacity: disabled ? 0.45 : 1,
+                    }}>
+                      {r.icon}
+                    </span>
+                    <span style={{
+                      flexShrink: 0,
+                      fontSize: 16,
+                      fontWeight: 700,
+                      color: disabled ? SOFT : INK,
+                    }}>
+                      {r.title}
+                    </span>
+                    {/* Same line as the title, never at the far edge, and it
+                        shrinks to an ellipsis before the row ever grows. */}
+                    <span style={{
+                      flexShrink: 1,
+                      minWidth: 0,
+                      fontSize: 13,
+                      color: SOFT,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {disabled ? 'בקרוב' : r.desc}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
         </div>
       </div>

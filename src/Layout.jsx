@@ -700,18 +700,30 @@ export default function Layout({ children, currentPageName }) {
                   if (traineePerms?.view_progress      !== false) middle.push(RECORDS_TAB);
                   traineeNav = [HOME_TAB, ...middle, PROFILE_TAB];
                 }
+                // Coach bar stays at FIVE items. Each carries
+                // minWidth:60, so six would need 360px of track inside a
+                // ~344px usable width on a 360px screen — and this
+                // container is overflow:visible, so it would spill
+                // rather than scroll.
+                // תוכניות was dropped to make room for מקצועי: it is the
+                // only tab duplicated TWICE in the hamburger ("תוכניות
+                // פעילות" and "כל התוכניות", both → TrainingPlans), and
+                // /pro now carries a תוכניות row per track. Nothing
+                // became less reachable.
                 const navItems = isCoach ? [
                   { to: "/prohome",                   emoji: '🏠', label: 'בית' },
+                  { to: "/pro",                        emoji: '🎯', label: 'מקצועי' },
                   { to: createPageUrl("AllUsers"),     emoji: '👥', label: 'מתאמנים' },
-                  { to: createPageUrl("TrainingPlans"),emoji: '📋', label: 'תוכניות' },
                   { to: createPageUrl("Sessions"),     emoji: '📅', label: 'מפגשים' },
                   { to: createPageUrl("CoachProfile"), emoji: '👤', label: 'פרופיל' },
                 ] : traineeNav;
                 return navItems.map(item => {
                   // The content tab nests sub-routes (/content/drop, /clip…)
                   // so highlight it on any /content path, not just the root.
-                  const active = item.to === '/content'
-                    ? location.pathname.startsWith('/content')
+                  // /pro does the same: it always redirects to /pro/:track,
+                  // so an exact match would never light up.
+                  const active = (item.to === '/content' || item.to === '/pro')
+                    ? location.pathname.startsWith(item.to)
                     : location.pathname === item.to;
                   return (
                     <Link

@@ -8,7 +8,6 @@ import { AuthContext } from '@/lib/AuthContext';
 import { createPageUrl } from '@/utils';
 import ProtectedCoachPage from '@/components/ProtectedCoachPage';
 import PageSkeleton from '@/components/PageSkeleton';
-import AddTraineeDialog from '@/components/forms/AddTraineeDialog';
 import { requiresPayment } from '@/lib/sessionHelpers';
 import { normalizeTrackValue, TRACK_LABELS } from '@/lib/trackHelpers';
 import {
@@ -22,9 +21,9 @@ import {
 /**
  * ProHome — layer 1 of the coach hierarchy. The coach's landing screen.
  *
- * Three things, top to bottom: search the roster, add a trainee, work
- * today's list. No tile grid. Dashboard.jsx stays on disk and stays
- * routed at /dashboard; this is what the coach now lands on.
+ * Two things, top to bottom: search the roster, and work today's list.
+ * Nothing else — no primary button, no tile grid. Dashboard.jsx stays on
+ * disk and stays routed at /dashboard; this is what the coach lands on.
  *
  * Layout law: main topics run horizontally RTL, their detail runs
  * vertically. Selection lists are one item per row, description inline
@@ -86,7 +85,6 @@ export default function ProHome() {
   const coachId = coach?.id || null;
 
   const [term, setTerm] = useState('');
-  const [isAddTraineeOpen, setIsAddTraineeOpen] = useState(false);
   const [savingId, setSavingId] = useState(null);
 
   // ── Roster — one query. Coaches, admins and archived/former clients
@@ -279,27 +277,6 @@ export default function ProHome() {
             </div>
           )}
 
-          {/* ── B. The one primary action ─────────────────────────── */}
-          <button
-            type="button"
-            onClick={() => setIsAddTraineeOpen(true)}
-            style={{
-              width: '100%',
-              minHeight: TOUCH + 6,
-              marginTop: 12,
-              borderRadius: 14,
-              border: 'none',
-              background: ORANGE,
-              color: CREAM,
-              fontSize: 17,
-              fontWeight: 700,
-              fontFamily: 'inherit',
-              cursor: 'pointer',
-            }}
-          >
-            הוספת מתאמן
-          </button>
-
           {/* ── C. Today ──────────────────────────────────────────── */}
           <div style={{ marginTop: 22, marginBottom: 8, display: 'flex', alignItems: 'baseline', gap: 8 }}>
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: INK }}>
@@ -404,13 +381,6 @@ export default function ProHome() {
         </div>
       </div>
 
-      <AddTraineeDialog
-        open={isAddTraineeOpen}
-        onClose={() => {
-          setIsAddTraineeOpen(false);
-          queryClient.invalidateQueries({ queryKey: ['prohome-roster', coachId] });
-        }}
-      />
     </ProtectedCoachPage>
   );
 }

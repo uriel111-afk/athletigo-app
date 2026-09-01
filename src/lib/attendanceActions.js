@@ -122,6 +122,43 @@ export async function saveGroupAttendance({
   return result;
 }
 
+/**
+ * createGroupSession — schedule a group session for a whole roster,
+ * with every member seeded as 'ממתין'.
+ *
+ * Extracted from Sessions.jsx createGroupSessionMutation.mutationFn.
+ * Sessions.jsx now calls this, and so does the /pro group work screen
+ * when it needs today's session before attendance can be written.
+ *
+ * group_id + group_name are written here because the existing display
+ * depends on them (the sessions list filters on s.group_id; the
+ * attendance dialog header shows session.group_name).
+ *
+ * @param {object} group    training_groups row
+ * @param {Array}  members  training_group_members rows for that group
+ * @param {object} form     { date, time, location, notes }
+ * @param {string} coachId  the logged-in coach, from AuthContext
+ */
+export async function createGroupSession({ group, members = [], form = {}, coachId }) {
+  const participants = members.map((m) => ({
+    trainee_id: m.trainee_id,
+    trainee_name: m.trainee_name,
+    attendance_status: 'ממתין',
+  }));
+  return base44.entities.Session.create({
+    date: form.date,
+    time: form.time,
+    session_type: 'קבוצתי',
+    location: form.location,
+    coach_id: coachId,
+    status: 'מתוכנן',
+    coach_notes: form.notes,
+    participants,
+    group_id: group.id,
+    group_name: group.name,
+  });
+}
+
 export function invalidateGroupAttendance(queryClient, activeGroupId) {
   if (!queryClient) return;
   queryClient.invalidateQueries({ queryKey: ['all-sessions'] });

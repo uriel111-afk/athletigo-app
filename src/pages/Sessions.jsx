@@ -15,7 +15,7 @@ import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
 import { createCoachSession } from "@/lib/sessions/createCoachSession";
 // Single canonical attendance writer for single sessions. The group
 // counterpart (saveGroupAttendance) is imported by FastAttendanceDialog.
-import { setSessionStatus, logAttendanceForParticipant as logAttendance } from "@/lib/attendanceActions";
+import { setSessionStatus, logAttendanceForParticipant as logAttendance, createGroupSession } from "@/lib/attendanceActions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -240,27 +240,14 @@ export default function Sessions() {
   });
 
   const createGroupSessionMutation = useMutation({
-    mutationFn: async ({ group, form }) => {
-      const members = groupMembers.filter(m => m.group_id === group.id);
-      const participants = members.map(m => ({ trainee_id: m.trainee_id, trainee_name: m.trainee_name, attendance_status: 'ממתין' }));
-      // group_id + group_name written here so the existing display
-      // (sessions list filters on s.group_id; the attendance dialog
-      // header shows session.group_name) finally has the data it
-      // always expected. Backfill for older rows happens lazily — UI
-      // already handles missing values.
-      return base44.entities.Session.create({
-        date: form.date,
-        time: form.time,
-        session_type: 'קבוצתי',
-        location: form.location,
-        coach_id: user?.id,
-        status: 'מתוכנן',
-        coach_notes: form.notes,
-        participants,
-        group_id: group.id,
-        group_name: group.name,
-      });
-    },
+    // Body extracted to src/lib/attendanceActions.js so the /pro group
+    // work screen creates today's session through the identical path.
+    mutationFn: ({ group, form }) => createGroupSession({
+      group,
+      members: groupMembers.filter((m) => m.group_id === group.id),
+      form,
+      coachId: user?.id,
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['all-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
