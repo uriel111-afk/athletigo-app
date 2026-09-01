@@ -10,6 +10,7 @@ import TeamManagementSection from "../components/TeamManagementSection";
 import AddCoachDialog from "../components/forms/AddCoachDialog";
 import { useAuth } from "@/lib/AuthContext";
 import { toast } from "sonner";
+import { getRemainingSessions } from "@/lib/packageStatus";
 import { useClientStats } from "../components/hooks/useClientStats";
 import { useSessionStats } from "../components/hooks/useSessionStats";
 import PageSkeleton from "../components/PageSkeleton";
@@ -709,12 +710,11 @@ export default function AllUsers() {
       isActivePackage(normalizeStatus(p.status))
     );
   };
-  const getRemaining = (pkg) => {
-    if (!pkg) return 0;
-    if (pkg.remaining_sessions != null) return Number(pkg.remaining_sessions);
-    if (pkg.sessions_remaining != null) return Number(pkg.sessions_remaining);
-    return Math.max(0, (Number(pkg.total_sessions) || 0) - (Number(pkg.used_sessions) || 0));
-  };
+  // Single source of truth — see getRemainingSessions in
+  // src/lib/packageStatus.js. The stored sessions_remaining column is
+  // no longer consulted; it disagreed with the session ledger on 10 of
+  // 12 live rows and always under-counted what was consumed.
+  const getRemaining = (pkg) => getRemainingSessions(pkg);
   const getCompletedSessions = (traineeId) => {
     return allSessions.filter(s => {
       const matches = s.trainee_id === traineeId

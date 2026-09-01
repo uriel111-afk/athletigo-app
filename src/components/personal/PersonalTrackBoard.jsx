@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { createPageUrl } from '@/utils';
 import AddTraineeDialog from '@/components/forms/AddTraineeDialog';
 import { requiresPayment } from '@/lib/sessionHelpers';
-import { getRemainingSessions } from '@/lib/packageStatus';
+import { getRemainingSessions, sessionOrdinalLabel } from '@/lib/packageStatus';
 import {
   getTrainedTracks,
   isActivePackageStatus,
@@ -90,16 +90,17 @@ export default function PersonalTrackBoard({ coach, trainees = [], sources, rows
   const packages = sources?.packages || [];
   const groupSessions = sources?.groupSessions || [];
 
-  // ── Today's personal sessions, one round trip ──────────────────────
-  const { data: todaySessions = [] } = useQuery({
-    queryKey: ['personal-track-today', coachId, todayISO()],
+  // ── Personal sessions. Not just today: the ordinal label needs the
+  //    package's whole completed history to count a position. One round
+  //    trip either way. ────────────────────────────────────────────────
+  const { data: personalSessions = [] } = useQuery({
+    queryKey: ['personal-track-sessions', coachId],
     enabled: !!coachId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('sessions')
         .select('id, date, time, session_type, status, location, coach_notes, participants, trainee_id, trainee_name, service_id, was_deducted, price, is_paid, payment_status')
-        .eq('coach_id', coachId)
-        .eq('date', todayISO());
+        .eq('coach_id', coachId);
       if (error) throw error;
       return (data || []).filter(
         (s) => normalizeTrackValue(s.session_type) === 'personal' && s.status !== 'deleted',
@@ -122,12 +123,12 @@ export default function PersonalTrackBoard({ coach, trainees = [], sources, rows
   ), [packages]);
 
   const sessionFor = useCallback(
-    (traineeId) => findTodaySession(todaySessions, todayISO(), { traineeId }),
-    [todaySessions],
+    (traineeId) => findTodaySession(personalSessions, todayISO(), { traineeId }),
+    [personalSessions],
   );
 
   const refresh = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: ['personal-track-today', coachId, todayISO()] }),
+    () => queryClient.invalidateQueries({ queryKey: ['personal-track-sessions', coachId] }),
     [queryClient, coachId],
   );
 
@@ -276,10 +277,17 @@ export default function PersonalTrackBoard({ coach, trainees = [], sources, rows
         const busy = busyId === t.id;
         const active = activePackagesFor(t.id);
         const unpaid = active.some((p) => !isPaidStatus(p.payment_status));
-        const note = active.length === 0
-          ? 'אין חבילה'
-          : (unpaid ? 'תשלום פתוח'
-            : (active.length > 1 ? `${active.length} חבילות` : ''));
+        // Ordinal within the package, computed at read time. Renders
+        // nothing when the session has no service_id — never a guess.
+        const pkgOfSession = session?.service_id
+          ? (packages || []).find((x) => x.id === session.service_id)
+          : null;
+        const ordinal = sessionOrdinalLabel(session, personalSessions, pkgOfSession);
+        const note = ordinal
+          || (active.length === 0
+            ? 'אין חבילה'
+            : (unpaid ? 'תשלום פתוח'
+              : (active.length > 1 ? `${active.length} חבילות` : '')));
 
         return (
           <div

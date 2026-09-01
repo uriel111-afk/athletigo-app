@@ -66,7 +66,7 @@ import { createPageUrl } from "@/utils";
 import { openPlanEditor } from "@/utils/openPlanEditor";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { QUERY_KEYS, invalidateDashboard } from "@/components/utils/queryKeys";
-import { syncPackageStatus } from "@/lib/packageStatus";
+import { syncPackageStatus, remainingFor, sessionOrdinalLabel } from "@/lib/packageStatus";
 import { notifyServiceCompletedOnce } from "@/lib/notify";
 import PhysicalMetricsManager from "../components/PhysicalMetricsManager";
 import MessageCenter from "../components/MessageCenter";
@@ -2724,8 +2724,11 @@ export default function TraineeProfile() {
   const updateServiceUsageMutation = useMutation({
       mutationFn: async () => {
           if (!editingUsage) return;
+          const svcRow = (services || []).find((x) => x.id === editingUsage);
+          const nextUsed = parseInt(usageValue);
           await base44.entities.ClientService.update(editingUsage, {
-              used_sessions: parseInt(usageValue)
+              used_sessions: nextUsed,
+              sessions_remaining: remainingFor(svcRow?.total_sessions, nextUsed),
           });
           await syncPackageStatus(editingUsage);
       },
@@ -2772,6 +2775,7 @@ export default function TraineeProfile() {
               const newUsed = Math.max(0, svc.used_sessions - 1);
               await base44.entities.ClientService.update(svc.id, {
                 used_sessions: newUsed,
+                sessions_remaining: remainingFor(svc.total_sessions, newUsed),
                 status: svc.status === 'completed' ? 'active' : svc.status,
               });
               await syncPackageStatus(svc.id);
@@ -2831,7 +2835,10 @@ export default function TraineeProfile() {
                     const newUsedCount = Math.max(0, (activePackage.used_sessions || 0) + change);
                     const remaining = total - newUsedCount;
 
-                    const updatePayload = { used_sessions: newUsedCount };
+                    const updatePayload = {
+                      used_sessions: newUsedCount,
+                      sessions_remaining: remainingFor(total, newUsedCount),
+                    };
                     if (remaining <= 0 && isNowAttended) {
                       updatePayload.status = 'completed';
                     }
@@ -3336,10 +3343,15 @@ export default function TraineeProfile() {
       const newUsed = sorted.length;
       const total = Number(pkg.total_sessions) || 0;
       const newRemaining = Math.max(0, total - newUsed);
-      await supabase
+      // The real column is sessions_remaining. This said
+      // remaining_sessions, which does not exist — PostgREST rejects the
+      // WHOLE payload on an unknown column, so the used_sessions half
+      // never landed either and this reconciliation has never once run.
+      const { error: syncErr } = await supabase
         .from('client_services')
-        .update({ used_sessions: newUsed, remaining_sessions: newRemaining })
+        .update({ used_sessions: newUsed, sessions_remaining: newRemaining })
         .eq('id', pkg.id);
+      if (syncErr) throw syncErr;
       queryClient.invalidateQueries({ queryKey: ['all-services-list'] });
       queryClient.invalidateQueries({ queryKey: ['all-trainees'] });
       // This profile's own package + sessions tabs read these keys —
@@ -3348,6 +3360,7 @@ export default function TraineeProfile() {
       queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
     } catch (err) {
       console.error('[TraineeProfile] refreshLinkedAfterChange error:', err);
+      toast.error('סנכרון יתרת המפגשים נכשל: ' + (err?.message || 'נסה שוב'));
     }
   };
 
@@ -5113,7 +5126,7 @@ export default function TraineeProfile() {
                                         try {
                                           const svc = services.find(s => s.id === session.service_id);
                                           if (svc && svc.used_sessions > 0) {
-                                            await base44.entities.ClientService.update(svc.id, { used_sessions: svc.used_sessions - 1 });
+                                            await base44.entities.ClientService.update(svc.id, { used_sessions: svc.used_sessions - 1, sessions_remaining: remainingFor(svc.total_sessions, svc.used_sessions - 1) });
                                             await syncPackageStatus(svc.id);
                                           }
                                         } catch {}
@@ -5233,7 +5246,7 @@ export default function TraineeProfile() {
                                               if (!window.confirm(`למחוק את המפגש מתאריך ${format(new Date(session.date), 'dd/MM/yy')} לצמיתות?\n\nהמפגש לא יופיע יותר באף רשימה. לביטול בלבד — השתמש/י בסטטוס "בוטל" בתפריט.`)) return;
                                               try {
                                                 if (participant?.attendance_status === 'הגיע' && session.service_id) {
-                                                  try { const svc = services.find(s => s.id === session.service_id); if (svc?.used_sessions > 0) { await base44.entities.ClientService.update(svc.id, { used_sessions: svc.used_sessions - 1 }); await syncPackageStatus(svc.id); } } catch {}
+                                                  try { const svc = services.find(s => s.id === session.service_id); if (svc?.used_sessions > 0) { await base44.entities.ClientService.update(svc.id, { used_sessions: svc.used_sessions - 1, sessions_remaining: remainingFor(svc.total_sessions, svc.used_sessions - 1) }); await syncPackageStatus(svc.id); } } catch {}
                                                 }
                                                 // True soft-delete (see other delete sites).
                                                 await base44.entities.Session.update(session.id, {
@@ -6019,22 +6032,24 @@ export default function TraineeProfile() {
                   );
                   if (activePkg && created?.id) {
                     const total = Number(activePkg.total_sessions) || 0;
-                    const usedNow = (typeof activePkg.remaining_sessions === 'number')
-                      ? Math.max(0, total - Number(activePkg.remaining_sessions))
-                      : (Number(activePkg.used_sessions) || 0);
+                    const usedNow = Number(activePkg.used_sessions) || 0;
                     if (usedNow < total) {
                       console.log('[TraineeProfile] auto-link new session', created.id, '→ pkg', activePkg.id);
                       await supabase.from('sessions').update({ service_id: activePkg.id }).eq('id', created.id);
                       const newUsed = usedNow + 1;
                       const newRemaining = Math.max(0, total - newUsed);
-                      await supabase
+                      // sessions_remaining is the real column name; the
+                      // old remaining_sessions 400d the whole payload.
+                      const { error: linkSyncErr } = await supabase
                         .from('client_services')
-                        .update({ used_sessions: newUsed, remaining_sessions: newRemaining })
+                        .update({ used_sessions: newUsed, sessions_remaining: newRemaining })
                         .eq('id', activePkg.id);
+                      if (linkSyncErr) throw linkSyncErr;
                     }
                   }
                 } catch (linkErr) {
                   console.warn('[TraineeProfile] auto-link failed:', linkErr);
+                  toast.error('שיוך המפגש לחבילה נכשל: ' + (linkErr?.message || 'נסה שוב'));
                 }
                 queryClient.invalidateQueries({ queryKey: ['trainee-sessions'] });
                 queryClient.invalidateQueries({ queryKey: ['all-sessions-list'] });
@@ -6655,17 +6670,15 @@ export default function TraineeProfile() {
                 s.status === 'התקיים' || s.status === 'completed' || s.status === 'מאושר'
               );
 
-              // Chronological numbering — earliest linked session = #1.
-              // The displayed list order in packageSessions stays as-is;
-              // only the badge number changes, so the highest number on
-              // screen equals the total count of sessions performed.
-              const orderedSessions = [...packageSessions].sort((a, b) => {
-                const da = `${a.date || ''} ${a.time || ''}`;
-                const db = `${b.date || ''} ${b.time || ''}`;
-                return da.localeCompare(db);
-              });
-              const sessionNumberById = {};
-              orderedSessions.forEach((s, i) => { sessionNumberById[s.id] = i + 1; });
+              // Ordinal per session, from the shared read-time helper in
+              // packageStatus.js — COMPLETED sessions only, date ascending.
+              // The old local badge counted every linked row regardless of
+              // status, so it disagreed with the same number shown on the
+              // coach board and in the trainee list. One rule now.
+              const ordinalById = {};
+              for (const s of packageSessions) {
+                ordinalById[s.id] = sessionOrdinalLabel(s, packageSessions, pkg);
+              }
 
               return (
                 <div className="space-y-4">
@@ -6712,9 +6725,15 @@ export default function TraineeProfile() {
                             <div key={s.id} className="bg-gray-50 rounded-xl p-3 flex items-center justify-between border border-gray-100">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <span style={{ fontWeight: 700, color: '#FF6F20', marginInlineEnd: 8, minWidth: 28, display: 'inline-block' }}>
-                                    #{sessionNumberById[s.id]}
-                                  </span>
+                                  {ordinalById[s.id] && (
+                                    <span style={{
+                                      fontWeight: 700, color: '#FF6F20', marginInlineEnd: 8,
+                                      whiteSpace: 'nowrap', overflow: 'hidden',
+                                      textOverflow: 'ellipsis', fontSize: 12,
+                                    }}>
+                                      {ordinalById[s.id]}
+                                    </span>
+                                  )}
                                   <span className="text-sm font-bold text-gray-800">
                                     {s.date ? new Date(s.date).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
                                   </span>
@@ -6835,6 +6854,7 @@ export default function TraineeProfile() {
                     try {
                       await base44.entities.ClientService.update(svc.id, {
                         used_sessions: newUsed,
+                        sessions_remaining: remainingFor(svc.total_sessions, newUsed),
                         status: (total - newUsed) <= 0 ? 'completed' : svc.status,
                       });
                       await syncPackageStatus(svc.id);

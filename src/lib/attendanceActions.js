@@ -21,7 +21,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { createNotification } from '@/lib/notify';
-import { syncPackageStatus } from '@/lib/packageStatus';
+import { syncPackageStatus, remainingFor } from '@/lib/packageStatus';
 import { invalidateDashboard, QUERY_KEYS } from '@/components/utils/queryKeys';
 import { notifySessionCompleted } from '@/functions/notificationTriggers';
 import {
@@ -386,8 +386,12 @@ export async function setSessionStatus({
             (s) => s.service_type === 'אימונים אישיים' || s.service_type.includes('אישי'),
           );
           if (personalService) {
+            // sessions_remaining is written in the SAME call so the two
+            // columns can no longer diverge (audit 2026-09-01).
+            const nextUsed = (personalService.used_sessions || 0) + 1;
             await base44.entities.ClientService.update(personalService.id, {
-              used_sessions: (personalService.used_sessions || 0) + 1,
+              used_sessions: nextUsed,
+              sessions_remaining: remainingFor(personalService.total_sessions, nextUsed),
             });
             await syncPackageStatus(personalService.id);
           }
@@ -432,8 +436,10 @@ export async function setSessionStatus({
           (s) => s.service_type === 'אימונים אישיים' || s.service_type.includes('אישי'),
         );
         if (personalService) {
+          const prevUsed = Math.max(0, (personalService.used_sessions || 0) - 1);
           await base44.entities.ClientService.update(personalService.id, {
-            used_sessions: Math.max(0, (personalService.used_sessions || 0) - 1),
+            used_sessions: prevUsed,
+            sessions_remaining: remainingFor(personalService.total_sessions, prevUsed),
           });
           await syncPackageStatus(personalService.id);
         }

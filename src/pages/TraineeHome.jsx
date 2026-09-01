@@ -13,7 +13,7 @@ import TraineeNotificationCard from "../components/TraineeNotificationCard";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { syncPackageStatus } from "@/lib/packageStatus";
+import { syncPackageStatus, remainingFor } from "@/lib/packageStatus";
 import HealthDeclarationForm from "../components/forms/HealthDeclarationForm";
 import ConsentDialog from "../components/forms/ConsentDialog";
 import { isMinorFromBirthDate } from "@/lib/photoConsent";
@@ -719,8 +719,12 @@ export default function TraineeHome() {
             const svcs = await base44.entities.ClientService.filter({ id: session.service_id });
             const svc = svcs?.[0];
             if (svc && svc.used_sessions > 0) {
+              // sessions_remaining written in the SAME call so the two columns
+              // cannot diverge (audit 2026-09-01). Display is unchanged.
+              const refundedUsed = Math.max(0, svc.used_sessions - 1);
               await base44.entities.ClientService.update(svc.id, {
-                used_sessions: Math.max(0, svc.used_sessions - 1),
+                used_sessions: refundedUsed,
+                sessions_remaining: remainingFor(svc.total_sessions, refundedUsed),
                 status: svc.status === 'completed' ? 'active' : svc.status,
               });
               await syncPackageStatus(svc.id);

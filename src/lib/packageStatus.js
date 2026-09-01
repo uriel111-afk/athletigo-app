@@ -71,21 +71,90 @@ export async function syncTraineeUserStatus(traineeId) {
 }
 
 /**
- * Sessions left on a package.
+ * Sessions left on a package — THE single source of truth.
  *
- * The column name has drifted: useServiceDeduction writes
- * `sessions_remaining`, some older rows carry `remaining_sessions`, and
- * a few carry neither. This is the same three-step rule already
- * duplicated inline in AllUsers.jsx (getRemaining) and Reports.jsx
- * (remainingOf) — both are local consts inside page components and
- * neither is importable, so it lives here now for anything new that
- * needs it. Those two copies are deliberately left untouched.
+ * Always computed as total_sessions - used_sessions. The stored
+ * `sessions_remaining` column is deliberately NOT read here.
+ *
+ * Why (audit, 2026-09-01, 13 live rows): the two disagreed on 10 of the
+ * 12 comparable rows. Scored against the session ledger — sessions
+ * linked by service_id with a completed status — used_sessions matched
+ * exactly 5 times and sessions_remaining once, and that once was a
+ * package with zero linked sessions where both read 0. Total absolute
+ * error was 12 for used_sessions against 42 for the stored column. Two
+ * *completed* packages still claimed 12 and 8 remaining. The stored
+ * column also errs in the unsafe direction: it under-counts what has
+ * been consumed, so it shows credit that was already spent.
+ *
+ * The root cause is write asymmetry — 24 code paths write
+ * used_sessions, only 11 also write sessions_remaining. Task 3 brought
+ * those into sync, but this function no longer depends on that holding.
+ *
+ * A packageless / group row (total_sessions null) correctly yields 0;
+ * group packages are time-based and deduct nothing.
  */
 export function getRemainingSessions(pkg) {
   if (!pkg) return 0;
-  if (pkg.remaining_sessions != null) return Number(pkg.remaining_sessions);
-  if (pkg.sessions_remaining != null) return Number(pkg.sessions_remaining);
   return Math.max(0, (Number(pkg.total_sessions) || 0) - (Number(pkg.used_sessions) || 0));
+}
+
+/**
+ * The value to write into the stored `sessions_remaining` column
+ * alongside any used_sessions write, so the two can never diverge again.
+ * Same arithmetic as getRemainingSessions, expressed over raw numbers.
+ *
+ * Returns null when there is no session count at all (group packages),
+ * matching what PackageFormDialog already writes for that case.
+ */
+export function remainingFor(totalSessions, usedSessions) {
+  const total = Number(totalSessions);
+  if (!Number.isFinite(total) || total <= 0) return null;
+  return Math.max(0, total - (Number(usedSessions) || 0));
+}
+
+/** Session statuses that mean the session actually happened. Both languages. */
+const DONE_SESSION_STATUSES = ['הושלם', 'התקיים', 'completed', 'present', 'הגיע'];
+
+export function isDoneSessionStatus(value) {
+  return DONE_SESSION_STATUSES.includes(String(value ?? '').trim().toLowerCase())
+    || DONE_SESSION_STATUSES.includes(String(value ?? '').trim());
+}
+
+/**
+ * sessionOrdinalLabel — "מפגש 7 מתוך 12".
+ *
+ * Computed at read time; nothing is stored and no column is added. The
+ * ordinal is this session's 1-based position among the COMPLETED sessions
+ * sharing its service_id, ordered by date ascending (time breaks ties).
+ * The denominator is total_sessions on the package.
+ *
+ * Returns null — render nothing, never guess — when the session has no
+ * service_id, when the package is unknown or has no total_sessions
+ * (group packages are time-based), or when this session is not itself
+ * completed and so has no position in that order.
+ *
+ * @param {object} session   the session being rendered
+ * @param {Array}  sessions  candidate sessions (any superset; filtered here)
+ * @param {object} pkg       the client_services row for session.service_id
+ */
+export function sessionOrdinalLabel(session, sessions, pkg) {
+  if (!session?.service_id || !pkg) return null;
+  const total = Number(pkg.total_sessions) || 0;
+  if (total <= 0) return null;
+  if (!isDoneSessionStatus(session.status)) return null;
+
+  const siblings = (sessions || [])
+    .filter((s) => s?.service_id === session.service_id
+      && s.status !== 'deleted'
+      && isDoneSessionStatus(s.status))
+    .sort((a, b) => {
+      const d = String(a.date || '').localeCompare(String(b.date || ''));
+      return d !== 0 ? d : String(a.time || '').localeCompare(String(b.time || ''));
+    });
+
+  const idx = siblings.findIndex((s) => s.id === session.id);
+  if (idx < 0) return null;
+  return `מפגש ${idx + 1} מתוך ${total}`;
 }
 
 export function isActive(status) {

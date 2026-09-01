@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useTraineeSessions } from "@/components/hooks/useTraineeSessions";
 import { Loader2, Calendar, Clock as ClockIcon } from "lucide-react";
 import { toast } from "sonner";
-import { syncPackageStatus } from "@/lib/packageStatus";
+import { syncPackageStatus, remainingFor, sessionOrdinalLabel } from "@/lib/packageStatus";
 import BookingModal from "../components/BookingModal";
 import PageSkeleton from "@/components/PageSkeleton";
 import PermGate from "@/components/PermGate";
@@ -178,8 +178,12 @@ function TraineeSessionsInner() {
           const svcs = await base44.entities.ClientService.filter({ id: session.service_id });
           const svc = svcs?.[0];
           if (svc && svc.used_sessions > 0) {
+            // sessions_remaining written in the SAME call so the two columns
+            // cannot diverge (audit 2026-09-01). Display is unchanged.
+            const refundedUsed = Math.max(0, svc.used_sessions - 1);
             await base44.entities.ClientService.update(svc.id, {
-              used_sessions: Math.max(0, svc.used_sessions - 1),
+              used_sessions: refundedUsed,
+              sessions_remaining: remainingFor(svc.total_sessions, refundedUsed),
               status: svc.status === 'completed' ? 'active' : svc.status,
             });
             await syncPackageStatus(svc.id);
@@ -410,6 +414,11 @@ function TraineeSessionsInner() {
 
         {filtered.map(s => {
           const st = STATUS_MAP[s.status] || { text: s.status, bg: '#f5f5f5', color: '#666' };
+          // Position inside the package, computed at read time. Renders
+          // nothing when the session carries no service_id.
+          const ordinal = sessionOrdinalLabel(
+            s, sessions, activePackages.find((pk) => pk.id === s.service_id),
+          );
           return (
             <div key={s.id} style={{
               background: 'white', borderRadius: '14px',
@@ -426,6 +435,15 @@ function TraineeSessionsInner() {
                     {s.time || '—'}
                     {s.session_type && <span> • {s.session_type}</span>}
                   </div>
+                  {ordinal && (
+                    <div style={{
+                      fontSize: '12px', fontWeight: 700, color: '#FF6F20',
+                      marginBottom: '4px', whiteSpace: 'nowrap',
+                      overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>
+                      {ordinal}
+                    </div>
+                  )}
                   {s.location && (
                     <div style={{ fontSize: '12px', color: 'var(--ag-text-soft)', marginBottom: '4px' }}>
                       📍 {s.location}

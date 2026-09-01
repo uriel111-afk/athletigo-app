@@ -14,6 +14,7 @@ import {
   estimateIncomeTaxAnnual,
   estimateBituachLeumiMonthly,
 } from '@/config/taxConfig';
+import { getRemainingSessions } from '@/lib/packageStatus';
 import { EXPENSE_CATEGORY_BY_KEY } from '@/lib/lifeos/lifeos-constants';
 
 // Single unified data page for the coach. Accordion of 5 sections —
@@ -816,16 +817,11 @@ export default function Reports() {
   // trainees section (counting active trainees), so the two views
   // can never disagree. "Expiring" still counts as active for the
   // trainee tally; coach is still actively training that person.
-  // Verified field name: useServiceDeduction.jsx writes to
-  // `sessions_remaining` (line 47, 126). Defensively checks the
-  // alternate `remaining_sessions` name in case any older rows
-  // carry it; falls back to total - used as the final source.
-  const remainingOf = (p) => {
-    if (p == null) return 0;
-    if (typeof p.sessions_remaining === 'number') return p.sessions_remaining;
-    if (typeof p.remaining_sessions === 'number') return p.remaining_sessions;
-    return Math.max(0, (Number(p.total_sessions) || 0) - (Number(p.used_sessions) || 0));
-  };
+  // Single source of truth — see getRemainingSessions in
+  // src/lib/packageStatus.js. The stored sessions_remaining column is
+  // no longer consulted; it disagreed with the session ledger on 10 of
+  // 12 live rows and always under-counted what was consumed.
+  const remainingOf = (p) => getRemainingSessions(p);
   const now = new Date();
   const in14 = new Date(now.getTime() + 14 * 86400000);
   const bucketOf = (p) => {

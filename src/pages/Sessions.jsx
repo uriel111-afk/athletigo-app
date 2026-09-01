@@ -494,7 +494,11 @@ export default function Sessions() {
             const remaining = totalSessions - newUsedCount;
 
             await base44.entities.ClientService.update(personalService.id, {
-              used_sessions: newUsedCount
+              used_sessions: newUsedCount,
+              // `remaining` was already computed just above and thrown
+              // away; writing it in the same call keeps the two columns
+              // from diverging (audit 2026-09-01).
+              sessions_remaining: totalSessions > 0 ? Math.max(0, remaining) : null,
             });
             await syncPackageStatus(personalService.id);
 
