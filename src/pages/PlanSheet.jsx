@@ -224,13 +224,13 @@ export default function PlanSheet() {
   // by drill_index — the column exercise_set_logs already uses for
   // exactly this. saveSetActual upserts on
   // (execution_id, exercise_id, drill_index, set_number).
-  const commitInner = useCallback(async (exerciseId, drillIdx, raw, payloadField) => {
+  const commitInner = useCallback(async (exerciseId, drillIdx, raw, payloadField, setNo = 1) => {
     if (locked) return;
     const id = await ensureExecution();
     if (!id) { toast.error('לא ניתן לשמור כרגע'); return; }
     const n = raw === '' ? null : Number(raw);
     const { error } = await saveSetActual(
-      supabase, id, exerciseId, drillIdx, 1,
+      supabase, id, exerciseId, drillIdx, setNo,
       { [payloadField]: n },
       { allowEmpty: raw === '' },
     );
@@ -300,78 +300,84 @@ export default function PlanSheet() {
   const { plan } = data;
   // The two halves of every row. infoBlock is a FIXED width, which is
   // the whole fix for boxes drifting to the outer edge.
-  const rowStyle = {
-    display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
-    minHeight: ROW_H,
+  // ── Row styles, matching the approved markup exactly. ──────────
+  // The info block is width 52% flexShrink 0. The entry block is
+  // flexShrink 0 with NO flex:1. No justifyContent, no spacer.
+  const plainRow = {
+    display: 'flex', alignItems: 'center', padding: '10px 9px',
+    borderBottom: '1px solid #E0D4C2',
   };
-  // Measured in a browser at 390px before shipping. On that width the
-  // card is 264px, so the 52% line lands at x=207 in every row.
   const infoBlock = {
-    width: INFO_W, flexShrink: 0, minWidth: 0,
-    display: 'flex', alignItems: 'center', gap: 6,
+    width: '52%', flexShrink: 0, minWidth: 0,
+    display: 'flex', alignItems: 'baseline', gap: 9,
     overflow: 'hidden', whiteSpace: 'nowrap',
-  };
-  // SHRINK-TO-FIT, never flex:1. flex:1 is what stretched the boxes to
-  // the card edge. maxWidth caps it at the complement of INFO_W so a
-  // 5-set row scrolls inside its own half instead of overflowing.
-  const entryBlock = {
-    flexShrink: 0, maxWidth: '48%',
-    display: 'flex', gap: 5,
-    overflowX: 'auto', overflowY: 'hidden',
   };
   const ordinalStyle = {
-    flexShrink: 0, minWidth: 18, color: ORANGE, fontSize: 15, fontWeight: 800,
+    fontSize: 12, color: ORANGE, fontWeight: 500, flexShrink: 0,
   };
-  // flex:1 so the name takes every pixel the params and pill leave,
-  // and truncates only when it genuinely exceeds that.
   const nameStyle = {
-    flex: 1, minWidth: 0, fontSize: 16, fontWeight: 500,
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+    fontSize: 16, color: CHARCOAL, fontWeight: 500,
+    overflow: 'hidden', textOverflow: 'ellipsis',
   };
-  // flexShrink:0 on both so they never steal the name’s width.
   const paramStyle = {
-    flexShrink: 0, fontSize: 12, fontWeight: 700, color: CHARCOAL,
+    fontSize: 13, color: CHARCOAL, flexShrink: 0,
   };
-  const pillStyle = (bg) => ({
-    flexShrink: 0, fontSize: 9, fontWeight: 700,
-    padding: '2px 6px', borderRadius: 999, background: bg, color: WHITE,
-  });
-  // The meta line under a row: pill, then cue. paddingInlineStart 34
-  // keeps it under the name, past the ordinal, exactly where the note
-  // text sat before.
-  const metaLine = {
-    display: 'flex', alignItems: 'center', gap: 6,
-    paddingInlineStart: 34,
+  const entryBlock = {
+    display: 'flex', gap: 4, flexShrink: 0,
+  };
+
+  // ── Container: one wrapper, tinted, orange rail on its RIGHT. ───
+  const containerWrap = {
+    background: '#FDF6EE', borderRight: `4px solid ${ORANGE}`,
+    borderBottom: '1px solid #E0D4C2',
+  };
+  const containerHead = {
+    padding: '8px 9px 4px', display: 'flex', alignItems: 'baseline', gap: 8,
     overflow: 'hidden', whiteSpace: 'nowrap',
   };
-  const noteText = {
-    flexShrink: 1, minWidth: 0, fontSize: 11, color: MUTED,
+  const containerNum  = { fontSize: 12, color: ORANGE, fontWeight: 500, flexShrink: 0 };
+  const containerName = { fontSize: 13, color: CHARCOAL, fontWeight: 500, flexShrink: 0 };
+  const containerMeta = {
+    fontSize: 11, color: MUTED,
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   };
+
+  // ── Sub row: same two blocks, plus an asterisk and an indent. ───
+  // No borderBottom — the wrapper carries it.
+  const subRow = {
+    display: 'flex', alignItems: 'center',
+  };
+  const subInfo = {
+    width: '52%', flexShrink: 0, minWidth: 0,
+    display: 'flex', alignItems: 'baseline', paddingRight: 12,
+    overflow: 'hidden', whiteSpace: 'nowrap',
+  };
+  const subStar  = { fontSize: 14, color: ORANGE, marginLeft: 6, flexShrink: 0 };
+  const subName  = {
+    fontSize: 15, color: CHARCOAL, fontWeight: 500, marginLeft: 8,
+    overflow: 'hidden', textOverflow: 'ellipsis',
+  };
+  const subParam = { fontSize: 13, color: CHARCOAL, flexShrink: 0 };
+
   const checkStyle = (on) => ({
-    flexShrink: 0, width: 26, height: 26, borderRadius: 5,
-    border: `1.5px solid ${on ? ORANGE : (locked ? '#E2DAD0' : '#D9D0C4')}`,
+    flexShrink: 0, width: 32, height: 32, borderRadius: 5,
+    border: `1.5px solid ${on ? ORANGE : (locked ? '#E2DAD0' : '#C9BCAB')}`,
     background: on ? ORANGE : (locked ? '#F4EEE6' : CREAM),
-    color: WHITE, fontSize: 15, fontWeight: 900,
-    lineHeight: 1, fontFamily: 'inherit', padding: 0,
+    color: WHITE, fontSize: 15, fontWeight: 900, lineHeight: 1,
+    fontFamily: 'inherit', padding: 0, boxSizing: 'border-box',
     cursor: locked ? 'default' : 'pointer',
     opacity: locked && !on ? 0.75 : 1,
   });
-  const box = (filled) => ({
-    // border-box matters: without it the border and the number-input
-    // padding pushed each box ~7px wider and three of them overflowed
-    // the card.
-    boxSizing: 'border-box',
-    width: 38, height: TOUCH, flexShrink: 0,
-    // Locked → visibly muted, so a viewed sheet never looks fillable.
-    border: `1.5px solid ${locked ? '#E2DAD0' : (filled ? ORANGE : '#D9D0C4')}`,
-    background: locked ? '#F4EEE6' : (filled ? WHITE : CREAM),
-    opacity: locked ? 0.75 : 1,
-    borderRadius: 6, textAlign: 'center',
-    fontSize: 15, fontWeight: 700, color: CHARCOAL,
-    fontFamily: 'inherit', outline: 'none', padding: 0,
-  });
 
+  const box = (filled) => ({
+    width: 32, textAlign: "center", fontSize: 13, padding: "6px 0",
+    border: filled ? `1.5px solid ${ORANGE}` : "1.5px solid #C9BCAB",
+    borderRadius: 5,
+    background: filled ? "#FFF" : CREAM,
+    boxSizing: "border-box",
+    fontFamily: 'inherit', color: CHARCOAL,
+    opacity: locked ? 0.75 : 1,
+  });
   // Ordinals run across the whole sheet, not per section.
   let ordinal = 0;
 
@@ -454,9 +460,12 @@ export default function PlanSheet() {
                 )}
               </div>
 
-              {/* LEFT column — the rows. */}
+              {/* LEFT column — the rows. width:100% + minWidth:0 so the
+                  52% on every info block has a DEFINITE containing block
+                  to resolve against. A percentage against an auto-sized
+                  flex item is what silently fell back to content width. */}
               <div style={{
-                flex: 1, minWidth: 0, background: WHITE,
+                flex: 1, width: '100%', minWidth: 0, background: WHITE,
                 border: `1.5px solid ${CHARCOAL}`, borderInlineStart: 'none',
               }}>
                 {rows.map((ex, i) => {
@@ -465,141 +474,114 @@ export default function PlanSheet() {
                   const m = measurementKind(ex);
                   const note = noteOf(ex);
                   const method = getMethodByMode(ex.mode);
-                  const showPill = !!ex.mode && method?.mode === ex.mode;
-                  const pillColor = section.color_theme || CHARCOAL;
-                  // A measured row with no visible target would be a lone
-                  // empty box the trainee cannot interpret. It becomes a tick.
-                  // A TABATA is a clock, not a measurement: its container
-                  // row takes the tick and its sub-exercises are listed for
-                  // reading only, with their work times shown but no boxes.
                   const isClock = isTabataContainer(ex);
                   const hasTarget = m.kind !== "check" && m.target > 0;
-                  const rowKind = container
-                    ? (isClock ? "check" : "container")
-                    : (hasTarget ? m.kind : "check");
+                  const rowKind = container ? "container" : (hasTarget ? m.kind : "check");
                   const boxCount = (rowKind === "check" || rowKind === "container")
                     ? 0
                     : (rowKind === "tally" ? 1 : m.sets);
-                  if (rowKind !== "check") ordinal += 1;
+                  // Containers and plain exercises share one running count.
+                  // Sub rows get an asterisk, never a number.
+                  ordinal += 1;
                   const myOrdinal = ordinal;
+                  const params = container ? "" : paramText({ ...m, kind: rowKind });
+                  // Rounds for the container header, and one box per round
+                  // for each sub-exercise.
+                  const rounds = Math.max(1, Number(ex.rounds) || Number(ex.sets) || 1);
+                  const headerBits = [
+                    rounds > 1 ? `${rounds} סבבים` : null,
+                    note || null,
+                  ].filter(Boolean).join(" · ");
 
-                  return (
-                    <div
-                      key={ex.id}
-                      style={{
-                        borderTop: i === 0 ? "none" : "1px solid #E8E0D5",
-                        padding: "4px 8px",
-                      }}
-                    >
-                      {/* Two flex children, never a spacer: a fixed 52%
-                          info block, then the entry block. That is what
-                          puts every row’s boxes on one vertical line. */}
-                      <div style={rowStyle}>
-                        <div style={infoBlock}>
-                          {rowKind === "check" ? (
-                            <button
-                              type="button"
-                              onClick={() => toggleCheck(ex.id)}
-                              disabled={locked}
-                              aria-pressed={!!checks[ex.id]}
-                              style={checkStyle(!!checks[ex.id])}
+                  // ── A CONTAINER ────────────────────────────────────
+                  if (container) {
+                    return (
+                      <div key={ex.id} style={containerWrap}>
+                        <div style={containerHead}>
+                          <span style={containerNum}>{myOrdinal}.</span>
+                          <span style={containerName}>{method?.label || ex.exercise_name || ex.name}</span>
+                          {headerBits && <span style={containerMeta}>{headerBits}</span>}
+                        </div>
+
+                        {subs.map((sub, sidx) => {
+                          const sm = subMeasurementKind(sub);
+                          const subHasTarget = sm.kind !== "check" && sm.target > 0;
+                          // Inside a clock the numbers are the programme,
+                          // shown but never editable.
+                          const subEditable = subHasTarget && !isClock;
+                          const subParams = paramText({ ...sm, kind: subHasTarget ? sm.kind : "check" });
+                          const last = sidx === subs.length - 1;
+                          return (
+                            <div
+                              key={`${ex.id}:sub${sidx}`}
+                              style={{ ...subRow, padding: last ? "7px 9px 10px" : "7px 9px" }}
                             >
-                              {checks[ex.id] ? "✓" : ""}
-                            </button>
-                          ) : (
-                            <span style={ordinalStyle}>{myOrdinal}</span>
-                          )}
-
-                          {/* name → parameters → pill, right to left. */}
-                          <span style={nameStyle}>{ex.exercise_name || ex.name}</span>
-                          {!container && paramText({ ...m, kind: rowKind }) && (
-                            <span style={paramStyle}>{paramText({ ...m, kind: rowKind })}</span>
-                          )}
-                          {/* The method pill used to live here. Measured at
-                              390px it left the name 41px of a 137px info
-                              block — four elements do not fit. It now
-                              renders on the note line below. */}
-                        </div>
-
-                        <div style={entryBlock}>
-                          {Array.from({ length: boxCount }).map((_, si) => {
-                            const key = `${ex.id}:${si + 1}`;
-                            const v = values[key] ?? "";
-                            return (
-                              <input
-                                key={key}
-                                type="number"
-                                inputMode="numeric"
-                                placeholder="–"
-                                disabled={locked}
-                                value={v}
-                                onChange={(e) => setValues((pv) => ({ ...pv, [key]: e.target.value }))}
-                                onBlur={(e) => commit(ex.id, si + 1, e.target.value, m.payloadField)}
-                                style={box(has(v))}
-                              />
-                            );
-                          })}
-                        </div>
+                              <div style={subInfo}>
+                                <span style={subStar}>✳</span>
+                                <span style={subName}>{sub?.exercise_name || sub?.name || "תרגיל"}</span>
+                                {subParams && <span style={subParam}>{subParams}</span>}
+                              </div>
+                              <div style={entryBlock}>
+                                {subEditable && Array.from({ length: rounds }).map((_, ri) => {
+                                  const key = `${ex.id}:sub${sidx}:${ri + 1}`;
+                                  const v = values[key] ?? "";
+                                  return (
+                                    <input
+                                      key={key}
+                                      type="number"
+                                      inputMode="numeric"
+                                      disabled={locked}
+                                      value={v}
+                                      onChange={(e) => setValues((pv) => ({ ...pv, [key]: e.target.value }))}
+                                      onBlur={(e) => commitInner(ex.id, sidx, e.target.value, sm.payloadField, ri + 1)}
+                                      style={box(has(v))}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
+                    );
+                  }
 
-                      {/* Container: one row per sub-exercise beneath,
-                          indented, each with its own params and its own
-                          boxes on the same 52% line. Nothing sits beside
-                          the container name, so nothing can overlap it. */}
-                      {container && subs.map((sub, sidx) => {
-                        const sm = subMeasurementKind(sub);
-                        const subHasTarget = sm.kind !== "check" && sm.target > 0;
-                        // Inside a clock the numbers are the programme, not
-                        // something to enter — shown, never editable.
-                        const subKind = (subHasTarget && !isClock) ? sm.kind : "check";
-                        const subParams = paramText({ ...sm, kind: subHasTarget ? sm.kind : "check" });
-                        const subName = sub?.exercise_name || sub?.name || "תרגיל";
-                        const subKey = `${ex.id}:sub${sidx}`;
-                        return (
-                          <div
-                            key={subKey}
-                            style={rowStyle}
+                  // ── A PLAIN EXERCISE ROW ───────────────────────────
+                  return (
+                    <div key={ex.id} style={plainRow}>
+                      <div style={infoBlock}>
+                        <span style={ordinalStyle}>{myOrdinal}.</span>
+                        <span style={nameStyle}>{ex.exercise_name || ex.name}</span>
+                        {params && <span style={paramStyle}>{params}</span>}
+                      </div>
+                      <div style={entryBlock}>
+                        {rowKind === "check" ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleCheck(ex.id)}
+                            disabled={locked}
+                            aria-pressed={!!checks[ex.id]}
+                            style={checkStyle(!!checks[ex.id])}
                           >
-                            <div style={{ ...infoBlock, paddingInlineStart: 26 }}>
-                              <span style={{ flexShrink: 0, color: MUTED, fontSize: 13 }}>•</span>
-                              <span style={{ ...nameStyle, fontSize: 14 }}>{subName}</span>
-                              {subParams && (
-                                <span style={paramStyle}>{subParams}</span>
-                              )}
-                            </div>
-                            <div style={entryBlock}>
-                              {subKind !== "check" && (() => {
-                                const key = `${ex.id}:sub${sidx}:1`;
-                                const v = values[key] ?? "";
-                                return (
-                                  <input
-                                    type="number"
-                                    inputMode="numeric"
-                                    placeholder="–"
-                                    disabled={locked}
-                                    value={v}
-                                    onChange={(e) => setValues((pv) => ({ ...pv, [key]: e.target.value }))}
-                                    onBlur={(e) => commitInner(ex.id, sidx, e.target.value, sm.payloadField)}
-                                    style={box(has(v))}
-                                  />
-                                );
-                              })()}
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {/* Meta line: the method pill, then the technical cue.
-                          Same indent as the note text always had. Renders
-                          only when there is something to show. */}
-                      {(showPill || note) && (
-                        <div style={metaLine}>
-                          {showPill && (
-                            <span style={pillStyle(pillColor)}>{method.label}</span>
-                          )}
-                          {note && <span style={noteText}>{note}</span>}
-                        </div>
-                      )}
+                            {checks[ex.id] ? "✓" : ""}
+                          </button>
+                        ) : Array.from({ length: boxCount }).map((_, si) => {
+                          const key = `${ex.id}:${si + 1}`;
+                          const v = values[key] ?? "";
+                          return (
+                            <input
+                              key={key}
+                              type="number"
+                              inputMode="numeric"
+                              disabled={locked}
+                              value={v}
+                              onChange={(e) => setValues((pv) => ({ ...pv, [key]: e.target.value }))}
+                              onBlur={(e) => commit(ex.id, si + 1, e.target.value, m.payloadField)}
+                              style={box(has(v))}
+                            />
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })}
