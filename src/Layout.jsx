@@ -217,6 +217,9 @@ export default function Layout({ children, currentPageName }) {
   const coachNavItems = [
     // ── ניהול יומיומי ──
     { title: "דשבורד", url: createPageUrl("Dashboard"), icon: LayoutDashboard, section: "daily" },
+    // /hub no longer has an automatic redirect pointing at it, so it
+    // needs a way in from the menu like every other screen.
+    { title: "מרכז מאמן", url: "/hub", icon: LayoutDashboard, section: "daily" },
     { title: "עולמות מקצועיים", url: "/pro", icon: LayoutDashboard, section: "daily" },
     { title: "מתאמנים", url: createPageUrl("AllUsers"), icon: Users, section: "daily" },
     { title: "תוכן", url: createPageUrl("Content"), icon: Clapperboard, section: "daily" },

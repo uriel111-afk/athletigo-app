@@ -66,7 +66,6 @@ import WeeklyBoard from './components/personal/WeeklyBoard';
 import MentorChat from './components/lifeos/MentorChat';
 import BaselineManager from './components/forms/BaselineManager';
 import LoadingProgress from './components/LoadingProgress';
-import { COACH_USER_ID } from '@/lib/lifeos/lifeos-constants';
 import { ClockProvider } from './contexts/ClockContext';
 import { ActiveTimerProvider, useActiveTimer } from './contexts/ActiveTimerContext';
 import { useRealtimeSync } from './hooks/useRealtimeSync';
@@ -214,15 +213,13 @@ const AuthenticatedApp = () => {
   // Real-time sync — listen to Supabase changes and auto-refresh
   useRealtimeSync(user?.id);
 
-  // Life OS coach lands on /hub instead of the root. Every other user
-  // keeps the existing behavior untouched.
-  useEffect(() => {
-    if (!user?.id) return;
-    if (user.id !== COACH_USER_ID) return;
-    if (location.pathname === '/' || location.pathname === '') {
-      navigate('/hub', { replace: true });
-    }
-  }, [user?.id, location.pathname, navigate]);
+  // The per-account "/ → /hub" redirect that used to live here is gone.
+  // It was gated on a single hardcoded coach id and, because this
+  // component is a DESCENDANT of AuthProvider, its effect ran first and
+  // beat AuthContext's routing effect to the punch — which is exactly
+  // why that one account could never land on /prohome. Coach landing is
+  // now decided in one place, AuthContext's routing effect, for every
+  // coach alike. /hub stays routed and stays in the coach menu.
 
   // ── Back into an open workout ─────────────────────────────────────
   //

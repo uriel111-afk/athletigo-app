@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { COACH_USER_ID } from "@/lib/lifeos/lifeos-constants";
 import InstallPrompt from "@/components/InstallPrompt";
 import { useIsPWA } from "@/hooks/useIsPWA";
 
@@ -29,16 +28,18 @@ export default function Login() {
     const isCoach = profile?.role === 'coach' || profile?.isCoach === true || profile?.role === 'admin';
     const isTrainee = profile?.role === 'trainee' || profile?.role === 'user';
     const isCoordinator = profile?.role === 'coordinator';
-    const isLifeOSCoach = profile?.id === COACH_USER_ID;
+    // Every coach lands on the action home — no per-account exception,
+    // and no id compared here at all. This must stay in step with the
+    // routing effect in AuthContext.jsx, which decides the same thing
+    // for anyone who arrives with a session already in hand.
+    // /hub and /dashboard both stay routed and stay in the coach menu.
     const destination = isCoordinator
       ? '/lifeos/leads'
       : isTrainee
         ? '/trainee-home'
-        : isLifeOSCoach
-          ? '/hub'
-          : isCoach
-            ? createPageUrl('Dashboard')
-            : createPageUrl('Dashboard');
+        : isCoach
+          ? '/prohome'
+          : createPageUrl('Dashboard');
     navigate(destination, { replace: true });
   };
 

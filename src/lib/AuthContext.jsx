@@ -148,11 +148,9 @@ export const AuthProvider = ({ children }) => {
     const path = window.location.pathname;
     const isCoach = user.role === 'coach' || user.is_coach === true || user.role === 'admin';
     const isCoordinator = user.role === 'coordinator';
-    const LIFE_OS_COACH_ID = '67b0093d-d4ca-4059-8572-26f020bef1eb';
-    const isLifeOSCoach = user.id === LIFE_OS_COACH_ID;
 
     console.log('[AuthContext] ONE-TIME route:', {
-      path, isCoach, isLifeOSCoach,
+      path, isCoach,
       onboardingDone: isOnboardingComplete,
       clientStatus: user.client_status,
       onboardingCompletedAt: user.onboarding_completed_at,
@@ -166,7 +164,7 @@ export const AuthProvider = ({ children }) => {
       const dest = isCoordinator
         ? '/lifeos/leads'
         : isCoach
-          ? (isLifeOSCoach ? '/hub' : '/prohome')
+          ? '/prohome'
           : (isOnboardingComplete ? '/trainee-home' : '/onboarding');
       navigate(dest, { replace: true });
       return;
@@ -192,9 +190,13 @@ export const AuthProvider = ({ children }) => {
       return;
     }
 
-    if (isLifeOSCoach && (path === '/' || path === '')) {
+    // Every coach lands on the action home, with no per-account
+    // exception. '/' renders Onboarding (it is the configured mainPage),
+    // which is never what a coach wants to see.
+    // /hub and /dashboard both stay routed and stay in the coach menu.
+    if (isCoach && (path === '/' || path === '')) {
       routingDoneRef.current = true;
-      navigate('/hub', { replace: true });
+      navigate('/prohome', { replace: true });
       return;
     }
   }, [user, isAuthenticated, isLoadingAuth, isOnboardingComplete, navigate]);
