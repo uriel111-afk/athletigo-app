@@ -448,13 +448,19 @@ export default function PlanSheet() {
       setLocked(ex.self_rating != null);
       const { data: logs } = await supabase
         .from('exercise_set_logs')
-        .select('exercise_id, set_number, reps_completed, time_completed, weight_used')
+        .select('exercise_id, drill_index, set_number, reps_completed, time_completed, weight_used')
         .eq('execution_id', ex.id);
       const next = {}; const nextChecks = {};
       for (const l of logs || []) {
         const v = l.reps_completed ?? l.time_completed ?? l.weight_used;
-        if (v != null) next[`${l.exercise_id}:${l.set_number}`] = String(v);
-        else nextChecks[l.exercise_id] = true;
+        if (v != null) { next[`${l.exercise_id}:${l.set_number}`] = String(v); continue; }
+        // A tick row carries no measurement. drill_index alone cannot
+        // say whether it came from a top-level row or from sub 0, so
+        // BOTH keys are set — which is safe, because only one of them
+        // is ever read: a container never renders a top-level tick,
+        // and a plain exercise has no sub rows.
+        nextChecks[l.exercise_id] = true;
+        nextChecks[`${l.exercise_id}:sub${l.drill_index ?? 0}`] = true;
       }
       setValues(next); setChecks(nextChecks);
     })();
@@ -547,6 +553,20 @@ export default function PlanSheet() {
     // empty-write guard in saveSetActual drops it.
     await saveSetActual(supabase, id, exerciseId, 0, 1, {}, { allowEmpty: true });
   }, [checks, ensureExecution, locked]);
+
+  // A sub row's tick writes exactly where commitInner writes that sub's
+  // numbers — same exercise_id, drill_index = the sub's index — only
+  // with every measurement column null. No collision with the parent's
+  // own drill_index 0 row: a container never renders a top-level tick,
+  // so it never writes one.
+  const toggleSubCheck = useCallback(async (exerciseId, drillIdx) => {
+    if (locked) return;
+    const key = `${exerciseId}:sub${drillIdx}`;
+    setChecks((p) => ({ ...p, [key]: !p[key] }));
+    const id = await ensureExecution();
+    if (!id) return;
+    await saveSetActual(supabase, id, exerciseId, drillIdx, 1, {}, { allowEmpty: true });
+  }, [ensureExecution, locked]);
 
   const saveFeeling = useCallback(async (n) => {
     if (locked) return;
@@ -952,6 +972,21 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                 {subTail && <div style={metaLine}>{subTail}</div>}
                               </PressableText>
                               <EntryColumn gap={sbp.gap} fadeTo="#FDF6EE">
+                                {/* Nothing to measure, and not a clock →
+                                    the same tick the top-level rows get.
+                                    A tabata's sub rows stay blank: the
+                                    clock's own row carries that tick. */}
+                                {!subEditable && !isClock && (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleSubCheck(ex.id, sidx)}
+                                    disabled={locked}
+                                    aria-pressed={!!checks[`${ex.id}:sub${sidx}`]}
+                                    style={checkStyle(!!checks[`${ex.id}:sub${sidx}`])}
+                                  >
+                                    {checks[`${ex.id}:sub${sidx}`] ? "✓" : ""}
+                                  </button>
+                                )}
                                 {subEditable && Array.from({ length: boxesPerSub }).map((_, ri) => {
                                   const key = `${ex.id}:sub${sidx}:${ri + 1}`;
                                   const v = values[key] ?? "";
