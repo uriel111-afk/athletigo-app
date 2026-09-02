@@ -800,14 +800,16 @@ export default function WorkoutSheet({
         .map((exercise) => ({
           exercise,
           runningIndex: ++running,
-          measurable: isMeasurable(exercise),
+          // The section decides first: a warmup, stretching, mobility
+          // or flexibility band is tick-only however many numbers its
+          // rows carry. Same helper PlanSheet calls, same answer.
+          measurable: isMeasurable(exercise, section),
         }));
       return {
         section,
         rows,
         // The band gets its column headers when there is at least one
-        // measurable row under it — nothing to do with the section's
-        // name or category.
+        // measurable row under it.
         showColumnHeaders: rows.some((r) => r.measurable),
       };
     });

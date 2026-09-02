@@ -7,16 +7,59 @@ import { getMethodByMode } from '@/constants/trainingMethods';
  * Extracted from WorkoutSheet.jsx:60-135 so PlanSheet and WorkoutSheet
  * cannot drift apart. Both import from here; neither keeps a copy.
  *
- * Measurability is decided by the EXERCISE, never by the section it
- * sits in. A 60-second hold inside גמישות is a number the trainee
- * fills in, and the section-name rule that used to gate this hid the
- * boxes on exactly the rows that had something to record.
+ * The SECTION decides first, then the exercise.
+ *
+ * Carrying a number is not the same as being worth recording. A
+ * 300-rep rope warmup carries one and does not want a box, and every
+ * stray box becomes noise in the progress graph later. So the warmup,
+ * stretching, mobility and flexibility sections are tick-only however
+ * many numbers their exercises hold, and measurement belongs to the
+ * strength work.
+ *
+ * This reverses an earlier rule that let a one-minute hold inside
+ * גמישות keep its box. That trade is accepted deliberately: those
+ * holds are ticks now.
  */
 
 export const has = (v) => v != null && v !== '';
 
 /** The fields whose presence makes a row worth entering a number into. */
 export const MEASURABLE_FIELDS = ['reps', 'static_hold_time', 'work_time', 'weight', 'rounds'];
+
+/**
+ * Sections that never measure, whatever their exercises carry.
+ *
+ * The Hebrew names are what `section_name` holds. The English ones are
+ * legacy values that live in `category` on older rows — section_name
+ * is Hebrew throughout, so both fields have to be read to catch them.
+ * Checked against live data: every pairing agrees (חימום||warmup,
+ * תנועתיות||mobility, גמישות||flexibility, כוח||strength), so reading
+ * either field can never disagree with the other.
+ */
+export const UNMEASURED_SECTIONS = new Set([
+  'חימום', 'מתיחות', 'גמישות', 'תנועתיות', 'הערות',
+  'warmup', 'mobility', 'flexibility',
+]);
+
+/** Both names a section answers to, trimmed and case-folded. */
+function sectionKeys(section) {
+  if (!section) return [];
+  if (typeof section === 'string') return [section.trim().toLowerCase()];
+  return [section.section_name, section.category]
+    .map((v) => String(v ?? '').trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/**
+ * Does this section measure at all? An unknown or missing section
+ * falls through to the exercise, so a caller that has no section in
+ * hand behaves exactly as before.
+ */
+export function isMeasuredSection(section) {
+  const keys = sectionKeys(section);
+  if (!keys.length) return true;
+  return !keys.some((k) => UNMEASURED_SECTIONS.has(k));
+}
 
 /**
  * Multi-exercise methods take ONE row in the running numbering and
@@ -41,14 +84,19 @@ export function isTabataContainer(exercise) {
 
 /**
  * Priority:
- *   0. a tabata container            → never measured (it is a clock)
- *   1. track_for_measurement = true  → measured, whatever else says
- *   2. any measurable value present  → measured
- *   3. a superset / combo / circuit / rest-pause block → measured,
+ *   0. a section that never measures → tick, whatever the row carries
+ *   1. a tabata container            → never measured (it is a clock)
+ *   2. track_for_measurement = true  → measured, whatever else says
+ *   3. any measurable value present  → measured
+ *   4. a superset / combo / circuit / rest-pause block → measured,
  *      it owns one box for its rounds
- *   4. otherwise                     → a tick, nothing to measure
+ *   5. otherwise                     → a tick, nothing to measure
+ *
+ * The section outranks track_for_measurement on purpose: the point of
+ * the rule is that nothing in a warmup reaches the progress graph.
  */
-export function isMeasurable(exercise) {
+export function isMeasurable(exercise, section = null) {
+  if (!isMeasuredSection(section)) return false;
   if (isTabataContainer(exercise)) return false;
   if (exercise?.track_for_measurement === true) return true;
   if (MEASURABLE_FIELDS.some((f) => has(exercise?.[f]))) return true;
@@ -97,8 +145,8 @@ export function primaryMetric(exercise) {
  * Built on isMeasurable + primaryMetric so it can never disagree with
  * WorkoutSheet.
  */
-export function measurementKind(exercise, setCount = null) {
-  if (!isMeasurable(exercise)) return { kind: 'check' };
+export function measurementKind(exercise, setCount = null, section = null) {
+  if (!isMeasurable(exercise, section)) return { kind: 'check' };
   const metric = primaryMetric(exercise);
   if (!metric) return { kind: 'check' };
   const sets = setCount ?? (Number(exercise?.sets) || 1);
@@ -139,7 +187,10 @@ export function innerExercisesOf(exercise, parseTabataData) {
  * A sub-exercise inside a container carries its own numbers, as STRINGS
  * in the tabata_data JSON. Same four kinds as measurementKind.
  */
-export function subMeasurementKind(sub) {
+export function subMeasurementKind(sub, section = null) {
+  // A superset sitting in חימום is still a warmup, so its inner rows
+  // are ticks like everything else there.
+  if (!isMeasuredSection(section)) return { kind: 'check' };
   if (has(sub?.reps)) {
     return { kind: 'reps', target: Number(sub.reps) || 0, sets: 1, payloadField: 'reps' };
   }

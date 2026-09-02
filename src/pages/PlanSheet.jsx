@@ -71,13 +71,15 @@ const ROW_H    = 46;
 // leftover space stays empty at the card edge. A fixed 52% column could
 // not hold four elements plus five boxes at 360px without clipping.
 
-// Measurability is decided by the EXERCISE, never by the section it
-// sits in. The section-name rule that used to live here hid the boxes
-// on rows carrying a real target — a 60-second hold inside גמישות is
-// a number the trainee fills in.
+// Measurability is decided by the SECTION first, then the exercise.
+// חימום / מתיחות / גמישות / תנועתיות / הערות are tick-only however
+// many numbers their rows carry, because a 300-rep rope warmup does
+// not belong in the progress graph. Everywhere else a row is measured
+// only if it actually carries a number.
 //
 // The derivation itself lives in src/lib/exerciseMeasurement.js and is
-// shared with WorkoutSheet, so the two screens cannot disagree.
+// shared with WorkoutSheet, so the two screens cannot disagree — which
+// is why the section is passed in rather than re-decided here.
 
 /** "25X2" — reps X sets, capital X, plain text. */
 function paramText(m) {
@@ -882,7 +884,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                   const td = container ? parseTabataData(ex.tabata_data) : null;
                   const { list: subs, kind: subKindOf } = container
                     ? subsOf(ex, td) : { list: [], kind: "exercises" };
-                  const m = measurementKind(ex);
+                  const m = measurementKind(ex, null, section);
                   const note = noteOf(ex);
                   const method = getMethodByMode(ex.mode);
                   const isClock = isTabataContainer(ex);
@@ -918,7 +920,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         </div>
 
                         {subs.map((sub, sidx) => {
-                          const sm = subMeasurementKind(sub);
+                          const sm = subMeasurementKind(sub, section);
                           const subHasTarget = sm.kind !== "check" && sm.target > 0;
                           // Inside a clock the numbers are the programme,
                           // shown but never editable.
