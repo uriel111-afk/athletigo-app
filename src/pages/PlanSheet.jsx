@@ -57,9 +57,13 @@ const RAIL_W   = 52;
 // The FIXED entry column. Always this wide whatever the box count, so
 // every row's first box lands on the same vertical line — the printed
 // sheet's ruled column.
-const ENTRY_W  = 64;
-// A box stays tappable however narrow it gets.
-const BOX_MIN_H = 34;
+// Sized for exactly THREE boxes: 30*3 + 4*2. Up to three fit with no
+// scrolling; four or more scroll horizontally inside the column, which
+// keeps this width — and so keeps every row's first box on one line.
+const BOX_W    = 30;
+const BOX_H    = 38;
+const BOX_GAP  = 4;
+const ENTRY_W  = BOX_W * 3 + BOX_GAP * 2;   // 98
 const TOUCH    = 44;
 const ROW_H    = 46;
 // No alignment line and no percentage width anywhere. The entry boxes
@@ -238,6 +242,63 @@ function PressableText({ onLongPress, style, children }) {
       onContextMenu={(e) => e.preventDefault()}
     >
       {children}
+    </div>
+  );
+}
+
+/**
+ * EntryColumn — the ruled column, fixed at three boxes wide.
+ *
+ * A fourth box does not shrink the set; it scrolls. The column keeps
+ * ENTRY_W whatever it holds, which is what keeps every row's first box
+ * on the same vertical line. Only this block scrolls sideways —
+ * nothing else on the page does.
+ *
+ * The fade on the LEFT edge is the cue that more boxes are out there.
+ * Left, because the boxes start at the column's right in RTL and run
+ * off the far side. It appears only while there is something still to
+ * reach, so a fully scrolled row shows no fade.
+ */
+function EntryColumn({ gap, fadeTo = '#FFFFFF', children }) {
+  const ref = useRef(null);
+  const [fade, setFade] = useState(false);
+  const check = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const more = el.scrollWidth > el.clientWidth + 1;
+    // RTL reports scrollLeft as 0 at the start and negative as it
+    // scrolls away, so compare on the magnitude.
+    const atEnd = Math.abs(el.scrollLeft) + el.clientWidth >= el.scrollWidth - 1;
+    setFade(more && !atEnd);
+  }, []);
+  // No dependency array: re-check after every render, since the box
+  // count changes with the data. setFade to the same boolean is a
+  // no-op in React, so this settles immediately.
+  useLayoutEffect(check);
+  return (
+    <div style={{ position: 'relative', width: ENTRY_W, flexShrink: 0 }}>
+      <div
+        ref={ref}
+        className="ps-entry"
+        onScroll={check}
+        style={{
+          display: 'flex', justifyContent: 'flex-start', gap,
+          overflowX: 'auto', overflowY: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        {children}
+      </div>
+      {fade && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute', insetInlineEnd: 'auto', left: 0,
+            top: 0, bottom: 0, width: 20, pointerEvents: 'none',
+            background: `linear-gradient(to left, ${fadeTo}00, ${fadeTo})`,
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -575,40 +636,11 @@ export default function PlanSheet() {
     unicodeBidi: "isolate", direction: "rtl", whiteSpace: "nowrap",
   };
 
-  // ── The fixed entry column. Boxes align to its START, which in RTL
-  //    is its right edge, so the leftover space falls to the left and
-  //    every first box shares one vertical line.
-  const entryColumn = (gap) => ({
-    width: ENTRY_W, flexShrink: 0, display: 'flex',
-    justifyContent: 'flex-start', gap,
-  });
-  // Sized so the group always fits the 80px column. Nothing overflows,
-  // nothing scrolls.
-  // The target sizes. Four of them do not actually fit a 64px column
-  // as written — 3 boxes want 66px, 4 want 69, 5 want 68, 6 want 70 —
-  // so the plan below is CLAMPED to the column. The gap is given up
-  // first, because it is only separation; the width goes last, because
-  // it is the tap target. Nothing may spill out of the ruled column.
-  const BOX_SPEC = [
-    null,
-    { w: 26, gap: 4 },
-    { w: 26, gap: 4 },
-    { w: 20, gap: 3 },
-    { w: 15, gap: 3 },
-    { w: 12, gap: 2 },
-  ];
-  const boxPlan = (n) => {
-    if (n <= 0) return { w: 0, gap: 0 };
-    const spec = BOX_SPEC[n] || { w: 10, gap: 2 };
-    let { w, gap } = spec;
-    const fits = () => n * w + (n - 1) * gap <= ENTRY_W;
-    while (!fits() && gap > 1) gap -= 1;
-    if (!fits()) w = Math.floor((ENTRY_W - (n - 1) * gap) / n);
-    // Past about a dozen boxes even a 1px gap costs more than it is
-    // worth, so the last thing to go is the separation.
-    if (w < 6) { gap = 0; w = Math.floor(ENTRY_W / n); }
-    return { w: Math.max(w, 1), gap };
-  };
+  // ONE box size, whatever the count. Shrinking by count reached 12px,
+  // where the number inside stopped being readable — which defeats the
+  // point of writing it down. A row with more boxes than the column
+  // holds scrolls instead of shrinking.
+  const boxPlan = () => ({ w: BOX_W, gap: BOX_GAP });
 
   // ── Container: one wrapper, tinted, orange rail on its RIGHT. ───
   const containerWrap = {
@@ -653,11 +685,18 @@ export default function PlanSheet() {
     fontSize: 13, color: CHARCOAL, flexShrink: 0,
     unicodeBidi: "isolate", direction: "rtl", whiteSpace: "nowrap",
   };
+  // A checkbox, not an entry box. A row with nothing to measure used
+  // to render something that looked exactly like a number field and
+  // took no number. It still sits at the column's start, so it lines
+  // up with the first box of every measured row.
   const checkStyle = (on) => ({
-    flexShrink: 0, width: 32, height: 32, borderRadius: 5,
+    // minHeight for the same reason as the box: index.css gives every
+    // button min-height:44px.
+    flexShrink: 0, width: 22, height: 22, minHeight: 22, borderRadius: 4,
     border: `1.5px solid ${on ? ORANGE : (locked ? '#E2DAD0' : '#C9BCAB')}`,
     background: on ? ORANGE : (locked ? '#F4EEE6' : CREAM),
-    color: WHITE, fontSize: 15, fontWeight: 900, lineHeight: 1,
+    color: WHITE, fontSize: 13, fontWeight: 900, lineHeight: 1,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontFamily: 'inherit', padding: 0, boxSizing: 'border-box',
     cursor: locked ? 'default' : 'pointer',
     opacity: locked && !on ? 0.75 : 1,
@@ -665,7 +704,9 @@ export default function PlanSheet() {
 
   const box = (filled, bp) => ({
     flexShrink: 0,
-    width: bp.w, minHeight: BOX_MIN_H,
+    // minHeight as well as height: index.css puts min-height:44px on
+    // every input, and a min-height beats a smaller height.
+    width: bp.w, height: BOX_H, minHeight: BOX_H,
     textAlign: "center", fontSize: 13, padding: "6px 0",
     border: filled ? `1.5px solid ${ORANGE}` : "1.5px solid #C9BCAB",
     borderRadius: 5,
@@ -680,6 +721,7 @@ export default function PlanSheet() {
   return (
     <div
       dir="rtl"
+      className="ps-page"
       style={{
         minHeight: '100dvh', background: CREAM, color: CHARCOAL,
         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
@@ -687,11 +729,24 @@ export default function PlanSheet() {
         padding: 'calc(12px + env(safe-area-inset-top)) 0 calc(24px + env(safe-area-inset-bottom))',
       }}
     >
+      {/* Two rules that inline styles cannot express.
+          1. The fade is the scroll cue, so the native scrollbar is not
+             wanted on top of it, and ::-webkit-scrollbar has no inline
+             equivalent.
+          2. App.css carries a blanket `* { overflow-x: hidden }`. That
+             makes EVERY element its own scrollport, which is why the
+             sticky header did not stick — it had no scrollport that
+             actually scrolls. `clip` clips exactly the same way but
+             creates no scrollport. Scoped to this page's own chain,
+             and it leaves with the page when it unmounts. */}
+      <style>{`.ps-entry{scrollbar-width:none;-ms-overflow-style:none}
+.ps-entry::-webkit-scrollbar{display:none}
+html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
       {/* Outer sheet — full bleed. No page padding and no max width:
           at 360px the old 12px page padding either side plus a
           centred frame cost 24px of content, which is 24px the
           exercise names now keep. Border and inner padding stay. */}
-      <div style={{
+      <div className="ps-frame" style={{
         background: CREAM, border: `2px solid ${CHARCOAL}`,
         borderRadius: 12, padding: 11, boxSizing: 'border-box',
       }}>
@@ -718,7 +773,13 @@ export default function PlanSheet() {
             ←
           </button>
         </div>
+        {/* Sticky. The orange title scrolls away, this does not, so
+            mid-sheet it is still clear whose plan this is. It sits
+            below the safe-area inset rather than at a hard 0, so it
+            does not end up under a notch or the browser chrome, and
+            it is opaque so rows pass behind it rather than through. */}
         <div style={{
+          position: 'sticky', top: 'env(safe-area-inset-top, 0px)', zIndex: 5,
           background: WHITE, border: `1.5px solid ${CHARCOAL}`,
           padding: '9px 14px', marginBottom: 14,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -888,7 +949,7 @@ export default function PlanSheet() {
                                 </div>
                                 {subTail && <div style={metaLine}>{subTail}</div>}
                               </PressableText>
-                              <div style={entryColumn(sbp.gap)}>
+                              <EntryColumn gap={sbp.gap} fadeTo="#FDF6EE">
                                 {subEditable && Array.from({ length: boxesPerSub }).map((_, ri) => {
                                   const key = `${ex.id}:sub${sidx}:${ri + 1}`;
                                   const v = values[key] ?? "";
@@ -905,7 +966,7 @@ export default function PlanSheet() {
                                     />
                                   );
                                 })}
-                              </div>
+                              </EntryColumn>
                             </div>
                           );
                         })}
@@ -937,7 +998,7 @@ export default function PlanSheet() {
                         </div>
                         {rowMeta && <div style={metaLine}>{rowMeta}</div>}
                       </PressableText>
-                      <div style={entryColumn(bp.gap)}>
+                      <EntryColumn gap={bp.gap}>
                         {rowKind === "check" ? (
                           <button
                             type="button"
@@ -964,7 +1025,7 @@ export default function PlanSheet() {
                             />
                           );
                         })}
-                      </div>
+                      </EntryColumn>
                     </div>
                   );
                 })}
