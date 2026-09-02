@@ -17,6 +17,9 @@ import {
 import { parseTabataData } from '@/lib/tabataSettings';
 import { saveSetActual } from '@/lib/plannedSets';
 import { duplicatePlan } from '@/lib/plansApi';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 
 /**
  * PlanSheet — the workout execution screen, laid out like the printed
@@ -157,6 +160,87 @@ function subLabel(sub, kind, idx) {
 }
 
 /**
+ * A name that overflows is almost never one long name — it is a name
+ * plus a clarification: "עליות מתח בשכיבה ( מוט נמוך או טבעות)". The
+ * printed sheet puts the clarification on the muted line beneath, so
+ * the name itself stays readable at a full size. This does the same.
+ *
+ * DISPLAY ONLY. The stored exercise_name is never touched — the long
+ * press dialog still shows it whole, and every write still uses it.
+ */
+// The earliest of these wins; JS alternation already matches leftmost.
+const SPLIT_AT = /[(·,]|\s-\s/;
+const SPLIT_MIN = 16;
+
+export function splitExerciseName(name) {
+  const full = (name || "").trim();
+  // A short name stays whole even when it holds a comma: splitting
+  // "עליה לישיבה, איטי" buys no width and costs a line.
+  if (full.length < SPLIT_MIN) return { head: full, tail: "" };
+  const at = full.match(SPLIT_AT);
+  if (!at) return { head: full, tail: "" };
+  const head = full.slice(0, at.index).trim()
+    .replace(/[\s,·(-]+$/, "")   // a trailing separator
+    .replace(/\s*\)+$/, "")      // an unmatched closing bracket
+    .trim();
+  const tail = full.slice(at.index + at[0].length).trim()
+    .replace(/^[\s,·)-]+/, "")
+    // Brackets go everywhere in the tail, not just at its ends: a name
+    // split on its first comma can leave a second, now unmatched, open
+    // bracket mid-string ("וכפיפה לפנים( שפגט").
+    .replace(/[()[\]]/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  // A split that leaves no name is not a split.
+  if (!head) return { head: full, tail: "" };
+  return { head, tail };
+}
+
+/**
+ * Long press — 500ms with the finger still — opens the detail dialog.
+ * It is bound to the TEXT side of a row only, so the number boxes and
+ * the tick button keep their ordinary tap behaviour, and a scroll
+ * (more than 10px of travel) cancels it rather than firing.
+ */
+const LONG_PRESS_MS = 500;
+const PRESS_SLOP_SQ = 100;
+
+function PressableText({ onLongPress, style, children }) {
+  const timer = useRef(null);
+  const origin = useRef(null);
+  const clear = useCallback(() => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    origin.current = null;
+  }, []);
+  useEffect(() => clear, [clear]);
+  const down = (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    clear();
+    origin.current = { x: e.clientX, y: e.clientY };
+    timer.current = setTimeout(() => { timer.current = null; onLongPress(); }, LONG_PRESS_MS);
+  };
+  const move = (e) => {
+    if (!timer.current || !origin.current) return;
+    const dx = e.clientX - origin.current.x;
+    const dy = e.clientY - origin.current.y;
+    if (dx * dx + dy * dy > PRESS_SLOP_SQ) clear();
+  };
+  return (
+    <div
+      style={{ ...style, WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" }}
+      onPointerDown={down}
+      onPointerMove={move}
+      onPointerUp={clear}
+      onPointerLeave={clear}
+      onPointerCancel={clear}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
  * FitText — sizes a single-line label by the width it ACTUALLY has.
  *
  * Character count was the original bug: a 12-character name kept 16px
@@ -174,28 +258,40 @@ function subLabel(sub, kind, idx) {
  */
 const FONT_STEPS = [16, 15, 14, 13, 12, 11];
 
-function FitText({ text, style, steps = FONT_STEPS }) {
+// `title` defaults to the rendered text, but a split name passes the
+// whole stored one, so hovering a shortened row still shows it all.
+function FitText({ text, title, style, steps = FONT_STEPS }) {
   const ref = useRef(null);
-  const [i, setI] = useState(0);
-  // A different string starts the search again from the top.
-  useLayoutEffect(() => { setI(0); }, [text]);
-  // So does a new viewport width. Without this the size only ever
-  // ratchets DOWN: a sheet first laid out wide would keep 16px after a
-  // rotation into a narrow screen, because nothing re-renders on resize.
+  // `gen` exists only to guarantee a re-render. Setting the step index
+  // back to 0 when it is ALREADY 0 is a no-op: React bails out, so the
+  // measuring effect below — which has no dependency array, and so
+  // runs only when something renders — never re-runs. That is exactly
+  // the resize case, where a sheet first laid out wide would keep 16px
+  // forever after a rotation into a narrow screen.
+  const [fit, setFit] = useState({ i: 0, gen: 0 });
+  const i = fit.i;
+  // A different string starts the search again from the top. Already
+  // at the top on mount, so this stays a no-op there.
+  useLayoutEffect(() => {
+    setFit((f) => (f.i === 0 ? f : { i: 0, gen: f.gen + 1 }));
+  }, [text]);
+  // So does a new viewport width — and this one must re-render even
+  // from 0, hence the gen bump.
   useEffect(() => {
-    const again = () => setI(0);
+    const again = () => setFit((f) => ({ i: 0, gen: f.gen + 1 }));
     window.addEventListener('resize', again);
     return () => window.removeEventListener('resize', again);
   }, []);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (i < steps.length - 1 && el.scrollWidth > el.clientWidth + 1) setI(i + 1);
+    if (i < steps.length - 1 && el.scrollWidth > el.clientWidth + 1)
+      setFit((f) => ({ ...f, i: f.i + 1 }));
   });
   return (
     <span
       ref={ref}
-      title={text}
+      title={title ?? text}
       style={{
         ...style,
         fontSize: steps[i],
@@ -230,6 +326,9 @@ export default function PlanSheet() {
   // Collapsed sections, by id. Empty at mount → every section starts
   // EXPANDED. Deliberately not persisted anywhere.
   const [collapsed, setCollapsed] = useState({});
+  // The row a long press opened, or null. Read-only detail — this is
+  // the fallback for a name too long to fit even at 11px.
+  const [detail, setDetail] = useState(null);
 
 
   // ── Plan + sections + exercises. Three reads, no embeds: this DB has
@@ -431,9 +530,19 @@ export default function PlanSheet() {
     display: 'flex', alignItems: 'center',
     padding: '10px 9px', borderBottom: '1px solid #E0D4C2',
   };
+  // The text side is now a COLUMN: the name line, then the muted line
+  // that carries the clarification split off the name. flex:1 moved up
+  // here — on textGroup it would have flexed the name line vertically.
+  const textColumn = { flex: 1, minWidth: 0 };
   const textGroup = {
-    flex: 1, minWidth: 0, display: 'flex', alignItems: 'baseline',
+    minWidth: 0, display: 'flex', alignItems: 'baseline',
     gap: 9, overflow: 'hidden',
+  };
+  // Indented past the ordinal so it sits under the name, not under
+  // the number.
+  const metaLine = {
+    fontSize: 11, color: MUTED, marginTop: 2, paddingInlineStart: 22,
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   };
   const ordinalStyle = {
     fontSize: 12, color: ORANGE, fontWeight: 500, flexShrink: 0,
@@ -685,16 +794,28 @@ export default function PlanSheet() {
                           const last = sidx === subs.length - 1;
                           const sbp = boxPlan(subEditable ? boxesPerSub : 0);
                           const subText = subLabel(sub, subKindOf, sidx);
+                          const { head: subHead, tail: subTail } = splitExerciseName(subText);
                           return (
                             <div
                               key={`${ex.id}:sub${sidx}`}
                               style={{ ...subRow, padding: last ? "7px 9px 10px" : "7px 9px" }}
                             >
-                              <div style={textGroup}>
-                                <span style={subStar}>✳</span>
-                                <FitText text={subText} style={subName} />
-                                {subParams && <span style={subParam}>{subParams}</span>}
-                              </div>
+                              <PressableText
+                                style={textColumn}
+                                onLongPress={() => setDetail({
+                                  name: subText,
+                                  params: subParams,
+                                  method: method?.label || null,
+                                  note: null,
+                                })}
+                              >
+                                <div style={textGroup}>
+                                  <span style={subStar}>✳</span>
+                                  <FitText text={subHead} title={subText} style={subName} />
+                                  {subParams && <span style={subParam}>{subParams}</span>}
+                                </div>
+                                {subTail && <div style={metaLine}>{subTail}</div>}
+                              </PressableText>
                               <div style={entryColumn(sbp.gap)}>
                                 {subEditable && Array.from({ length: boxesPerSub }).map((_, ri) => {
                                   const key = `${ex.id}:sub${sidx}:${ri + 1}`;
@@ -723,13 +844,27 @@ export default function PlanSheet() {
                   // ── A PLAIN EXERCISE ROW ───────────────────────────
                   const bp = boxPlan(rowKind === "check" ? 1 : boxCount);
                   const exName = ex.exercise_name || ex.name || "";
+                  const { head: exHead, tail: exTail } = splitExerciseName(exName);
+                  // The clarification comes first, then the coach cue.
+                  const rowMeta = [exTail, note].filter(Boolean).join(" · ");
                   return (
                     <div key={ex.id} style={plainRow}>
-                      <div style={textGroup}>
-                        <span style={ordinalStyle}>{myOrdinal}.</span>
-                        <FitText text={exName} style={nameStyle} />
-                        {params && <span style={paramStyle}>{params}</span>}
-                      </div>
+                      <PressableText
+                        style={textColumn}
+                        onLongPress={() => setDetail({
+                          name: exName,
+                          params,
+                          method: method?.label || null,
+                          note,
+                        })}
+                      >
+                        <div style={textGroup}>
+                          <span style={ordinalStyle}>{myOrdinal}.</span>
+                          <FitText text={exHead} title={exName} style={nameStyle} />
+                          {params && <span style={paramStyle}>{params}</span>}
+                        </div>
+                        {rowMeta && <div style={metaLine}>{rowMeta}</div>}
+                      </PressableText>
                       <div style={entryColumn(bp.gap)}>
                         {rowKind === "check" ? (
                           <button
@@ -828,6 +963,46 @@ export default function PlanSheet() {
         )}
 
       </div>
+
+      {/* Long press detail — the whole stored name, never the split
+          one, plus what the row could not show. Read only. */}
+      <Dialog open={!!detail} onOpenChange={(open) => { if (!open) setDetail(null); }}>
+        <DialogContent
+          // The shared DialogContent blocks Escape by default, because
+          // forms must close through save. Nothing here is editable,
+          // so a no-op handler lets Radix close on Escape as usual.
+          onEscapeKeyDown={() => {}}
+          style={{ maxWidth: 380 }}
+        >
+          <DialogHeader>
+            <DialogTitle style={{
+              fontSize: 17, lineHeight: 1.35, color: CHARCOAL,
+              paddingInlineEnd: 26,
+            }}>
+              {detail?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div style={{ marginTop: 14, display: 'grid', gap: 10 }}>
+            {[
+              ['מדדים', detail?.params],
+              ['שיטה', detail?.method],
+              ['הערה', detail?.note],
+            ].filter(([, v]) => v).map(([label, v]) => (
+              <div key={label} style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                <span style={{ fontSize: 12, color: MUTED, flexShrink: 0, minWidth: 46 }}>
+                  {label}
+                </span>
+                <span style={{
+                  fontSize: 14, color: CHARCOAL, fontWeight: 500,
+                  unicodeBidi: 'isolate', direction: 'rtl',
+                }}>
+                  {v}
+                </span>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
