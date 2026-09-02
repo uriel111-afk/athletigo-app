@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -48,12 +48,13 @@ const MUTED    = '#A89A88';
 const WHITE    = '#FFFFFF';
 // 68px so the longest Hebrew section name (תנועתיות) fits on one line
 // at 11px. Tested against תנועתיות / מתיחות / גמישות / הערות / חימום / כוח.
-// Section label column, from the approved mockup.
-const RAIL_W   = 60;
+// Section label column. 52 — Hebrew section names are short and this
+// hands 8px back to the text side.
+const RAIL_W   = 52;
 // The FIXED entry column. Always this wide whatever the box count, so
 // every row's first box lands on the same vertical line — the printed
 // sheet's ruled column.
-const ENTRY_W  = 112;
+const ENTRY_W  = 80;
 const TOUCH    = 44;
 const ROW_H    = 46;
 // No alignment line and no percentage width anywhere. The entry boxes
@@ -155,6 +156,57 @@ function subLabel(sub, kind, idx) {
   return "תרגיל";
 }
 
+/**
+ * FitText — sizes a single-line label by the width it ACTUALLY has.
+ *
+ * Character count was the original bug: a 12-character name kept 16px
+ * and ellipsised anyway. A canvas measureText helper was the next
+ * attempt and was measurably wrong — it under-estimated by 4-20px,
+ * because the available width had to be reconstructed arithmetically
+ * from constants and because the canvas resolves the web font
+ * differently from the layout engine. Measured live: "מתיחה ל4 ראשי"
+ * was sized 16px on a canvas estimate but needed 106px in a 102px slot.
+ *
+ * So this measures the real element in the real layout: render, compare
+ * scrollWidth to clientWidth in useLayoutEffect, step down one size,
+ * repeat. At most six passes, all before paint, so nothing flickers.
+ * Only if the floor still overflows does it ellipsise.
+ */
+const FONT_STEPS = [16, 15, 14, 13, 12, 11];
+
+function FitText({ text, style, steps = FONT_STEPS }) {
+  const ref = useRef(null);
+  const [i, setI] = useState(0);
+  // A different string starts the search again from the top.
+  useLayoutEffect(() => { setI(0); }, [text]);
+  // So does a new viewport width. Without this the size only ever
+  // ratchets DOWN: a sheet first laid out wide would keep 16px after a
+  // rotation into a narrow screen, because nothing re-renders on resize.
+  useEffect(() => {
+    const again = () => setI(0);
+    window.addEventListener('resize', again);
+    return () => window.removeEventListener('resize', again);
+  }, []);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (i < steps.length - 1 && el.scrollWidth > el.clientWidth + 1) setI(i + 1);
+  });
+  return (
+    <span
+      ref={ref}
+      title={text}
+      style={{
+        ...style,
+        fontSize: steps[i],
+        whiteSpace: 'nowrap', overflow: 'hidden',
+        textOverflow: 'ellipsis', minWidth: 0,
+      }}
+    >
+      {text}
+    </span>
+  );
+}
 const todayLabel = () => new Date().toLocaleDateString('he-IL');
 
 export default function PlanSheet() {
@@ -178,6 +230,7 @@ export default function PlanSheet() {
   // Collapsed sections, by id. Empty at mount → every section starts
   // EXPANDED. Deliberately not persisted anywhere.
   const [collapsed, setCollapsed] = useState({});
+
 
   // ── Plan + sections + exercises. Three reads, no embeds: this DB has
   //    no foreign keys, so PostgREST embeds are not available. ────────
@@ -388,12 +441,7 @@ export default function PlanSheet() {
   // Wrapping breaks the ruled column, so the name never wraps — it
   // steps its font size down by length instead. Ellipsis is the last
   // resort, only if it still will not fit.
-  const nameFont = (len) => (len <= 14 ? 16 : (len <= 22 ? 14 : (len <= 30 ? 12 : 11)));
-  const nameStyle = (len) => ({
-    fontSize: nameFont(len), color: CHARCOAL, fontWeight: 500,
-    whiteSpace: 'nowrap',
-    overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0,
-  });
+  const nameStyle = { color: CHARCOAL, fontWeight: 500 };
   // No separator dot — the 9px gap is the separation. The bidi isolate
   // stays: without it a label ending in a digit merges with the target
   // ("סט 1" + "15" read as "סט 115").
@@ -409,15 +457,15 @@ export default function PlanSheet() {
     width: ENTRY_W, flexShrink: 0, display: 'flex',
     justifyContent: 'flex-start', gap,
   });
-  // Sized so the group always fits 112px. Nothing overflows, nothing
-  // scrolls.
+  // Sized so the group always fits the 80px column. Nothing overflows,
+  // nothing scrolls.
   const boxPlan = (n) => {
     if (n <= 0) return { w: 0, gap: 0 };
-    if (n <= 2) return { w: 34, gap: 4 };
-    if (n === 3) return { w: 32, gap: 4 };
-    if (n === 4) return { w: 25, gap: 3 };
-    if (n === 5) return { w: 20, gap: 3 };
-    return { w: 18, gap: 2 };
+    if (n <= 2) return { w: 30, gap: 4 };
+    if (n === 3) return { w: 24, gap: 4 };
+    if (n === 4) return { w: 18, gap: 3 };
+    if (n === 5) return { w: 14, gap: 3 };
+    return { w: 12, gap: 2 };
   };
 
   // ── Container: one wrapper, tinted, orange rail on its RIGHT. ───
@@ -444,11 +492,7 @@ export default function PlanSheet() {
     paddingInlineStart: 12,
   };
   const subStar  = { fontSize: 14, color: ORANGE, flexShrink: 0 };
-  const subName  = (len) => ({
-    fontSize: nameFont(len), color: CHARCOAL, fontWeight: 500,
-    whiteSpace: 'nowrap',
-    overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0,
-  });
+  const subName  = { color: CHARCOAL, fontWeight: 500 };
   const subParam = {
     fontSize: 13, color: CHARCOAL, flexShrink: 0,
     unicodeBidi: "isolate", direction: "rtl", whiteSpace: "nowrap",
@@ -560,9 +604,13 @@ export default function PlanSheet() {
                   cursor: 'pointer', fontFamily: 'inherit', color: CHARCOAL,
                 }}
               >
-                <span style={{ fontSize: 12, fontWeight: 500, lineHeight: 1.2, whiteSpace: 'nowrap' }}>
-                  {section.section_name || cat}
-                </span>
+                {/* Fits itself down from 12px: תנועתיות needs more than
+                    a 52px column gives at 12. */}
+                <FitText
+                  text={section.section_name || cat}
+                  steps={[12, 11, 10, 9]}
+                  style={{ fontWeight: 500, lineHeight: 1.2, maxWidth: "100%" }}
+                />
                 {/* Chevron shows the state: ▾ open, ◂ shut. */}
                 <span style={{ fontSize: 10, color: CHARCOAL, lineHeight: 1 }}>
                   {isShut ? '◂' : '▾'}
@@ -644,7 +692,7 @@ export default function PlanSheet() {
                             >
                               <div style={textGroup}>
                                 <span style={subStar}>✳</span>
-                                <span style={subName(subText.length)}>{subText}</span>
+                                <FitText text={subText} style={subName} />
                                 {subParams && <span style={subParam}>{subParams}</span>}
                               </div>
                               <div style={entryColumn(sbp.gap)}>
@@ -679,7 +727,7 @@ export default function PlanSheet() {
                     <div key={ex.id} style={plainRow}>
                       <div style={textGroup}>
                         <span style={ordinalStyle}>{myOrdinal}.</span>
-                        <span style={nameStyle(exName.length)}>{exName}</span>
+                        <FitText text={exName} style={nameStyle} />
                         {params && <span style={paramStyle}>{params}</span>}
                       </div>
                       <div style={entryColumn(bp.gap)}>
