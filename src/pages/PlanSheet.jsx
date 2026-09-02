@@ -57,7 +57,9 @@ const RAIL_W   = 52;
 // The FIXED entry column. Always this wide whatever the box count, so
 // every row's first box lands on the same vertical line — the printed
 // sheet's ruled column.
-const ENTRY_W  = 80;
+const ENTRY_W  = 64;
+// A box stays tappable however narrow it gets.
+const BOX_MIN_H = 34;
 const TOUCH    = 44;
 const ROW_H    = 46;
 // No alignment line and no percentage width anywhere. The entry boxes
@@ -268,25 +270,32 @@ function FitText({ text, title, style, steps = FONT_STEPS }) {
   // runs only when something renders — never re-runs. That is exactly
   // the resize case, where a sheet first laid out wide would keep 16px
   // forever after a rotation into a narrow screen.
-  const [fit, setFit] = useState({ i: 0, gen: 0 });
-  const i = fit.i;
+  const [fit, setFit] = useState({ i: 0, gen: 0, wrap: false });
+  const { i, wrap } = fit;
   // A different string starts the search again from the top. Already
   // at the top on mount, so this stays a no-op there.
   useLayoutEffect(() => {
-    setFit((f) => (f.i === 0 ? f : { i: 0, gen: f.gen + 1 }));
+    setFit((f) => (f.i === 0 && !f.wrap ? f : { i: 0, gen: f.gen + 1, wrap: false }));
   }, [text]);
   // So does a new viewport width — and this one must re-render even
   // from 0, hence the gen bump.
   useEffect(() => {
-    const again = () => setFit((f) => ({ i: 0, gen: f.gen + 1 }));
+    const again = () => setFit((f) => ({ i: 0, gen: f.gen + 1, wrap: false }));
     window.addEventListener('resize', again);
     return () => window.removeEventListener('resize', again);
   }, []);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (i < steps.length - 1 && el.scrollWidth > el.clientWidth + 1)
-      setFit((f) => ({ ...f, i: f.i + 1 }));
+    // Once wrapping, scrollWidth equals clientWidth and there is
+    // nothing left to measure.
+    if (wrap) return;
+    if (el.scrollWidth <= el.clientWidth + 1) return;
+    if (i < steps.length - 1) setFit((f) => ({ ...f, i: f.i + 1 }));
+    // The floor is reached and it STILL does not fit. Height is free
+    // and width is not, so the line wraps rather than losing its end
+    // to an ellipsis. The row grows; nothing is hidden.
+    else setFit((f) => ({ ...f, wrap: true }));
   });
   return (
     <span
@@ -295,8 +304,11 @@ function FitText({ text, title, style, steps = FONT_STEPS }) {
       style={{
         ...style,
         fontSize: steps[i],
-        whiteSpace: 'nowrap', overflow: 'hidden',
-        textOverflow: 'ellipsis', minWidth: 0,
+        minWidth: 0,
+        whiteSpace: wrap ? 'normal' : 'nowrap',
+        overflow: wrap ? 'visible' : 'hidden',
+        textOverflow: wrap ? 'clip' : 'ellipsis',
+        overflowWrap: 'anywhere',
       }}
     >
       {text}
@@ -540,9 +552,13 @@ export default function PlanSheet() {
   };
   // Indented past the ordinal so it sits under the name, not under
   // the number.
+  // Two lines, then an ellipsis. A single nowrap line lost the end of
+  // every clarification that ran past ~125px.
   const metaLine = {
     fontSize: 11, color: MUTED, marginTop: 2, paddingInlineStart: 22,
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+    lineHeight: 1.35,
+    display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2,
+    overflow: 'hidden', overflowWrap: 'anywhere',
   };
   const ordinalStyle = {
     fontSize: 12, color: ORANGE, fontWeight: 500, flexShrink: 0,
@@ -568,13 +584,30 @@ export default function PlanSheet() {
   });
   // Sized so the group always fits the 80px column. Nothing overflows,
   // nothing scrolls.
+  // The target sizes. Four of them do not actually fit a 64px column
+  // as written — 3 boxes want 66px, 4 want 69, 5 want 68, 6 want 70 —
+  // so the plan below is CLAMPED to the column. The gap is given up
+  // first, because it is only separation; the width goes last, because
+  // it is the tap target. Nothing may spill out of the ruled column.
+  const BOX_SPEC = [
+    null,
+    { w: 26, gap: 4 },
+    { w: 26, gap: 4 },
+    { w: 20, gap: 3 },
+    { w: 15, gap: 3 },
+    { w: 12, gap: 2 },
+  ];
   const boxPlan = (n) => {
     if (n <= 0) return { w: 0, gap: 0 };
-    if (n <= 2) return { w: 30, gap: 4 };
-    if (n === 3) return { w: 24, gap: 4 };
-    if (n === 4) return { w: 18, gap: 3 };
-    if (n === 5) return { w: 14, gap: 3 };
-    return { w: 12, gap: 2 };
+    const spec = BOX_SPEC[n] || { w: 10, gap: 2 };
+    let { w, gap } = spec;
+    const fits = () => n * w + (n - 1) * gap <= ENTRY_W;
+    while (!fits() && gap > 1) gap -= 1;
+    if (!fits()) w = Math.floor((ENTRY_W - (n - 1) * gap) / n);
+    // Past about a dozen boxes even a 1px gap costs more than it is
+    // worth, so the last thing to go is the separation.
+    if (w < 6) { gap = 0; w = Math.floor(ENTRY_W / n); }
+    return { w: Math.max(w, 1), gap };
   };
 
   // ── Container: one wrapper, tinted, orange rail on its RIGHT. ───
@@ -602,6 +635,20 @@ export default function PlanSheet() {
   };
   const subStar  = { fontSize: 14, color: ORANGE, flexShrink: 0 };
   const subName  = { color: CHARCOAL, fontWeight: 500 };
+
+  // ── A הערות section is prose, not exercises. Its rows carry no
+  //    ordinal, no tick, no entry column, and wrap to as many lines
+  //    as the text needs. Matched on the section name alone, so no
+  //    other section changes shape.
+  const notesRow = {
+    display: 'flex', gap: 8, alignItems: 'baseline',
+    padding: '9px 10px', borderBottom: '1px solid #E0D4C2',
+  };
+  const notesStar = { fontSize: 12, color: ORANGE, flexShrink: 0, lineHeight: 1.5 };
+  const notesText = {
+    fontSize: 12, color: CHARCOAL, fontWeight: 500, lineHeight: 1.5,
+    minWidth: 0, overflowWrap: 'anywhere',
+  };
   const subParam = {
     fontSize: 13, color: CHARCOAL, flexShrink: 0,
     unicodeBidi: "isolate", direction: "rtl", whiteSpace: "nowrap",
@@ -618,7 +665,8 @@ export default function PlanSheet() {
 
   const box = (filled, bp) => ({
     flexShrink: 0,
-    width: bp.w, textAlign: "center", fontSize: 13, padding: "6px 0",
+    width: bp.w, minHeight: BOX_MIN_H,
+    textAlign: "center", fontSize: 13, padding: "6px 0",
     border: filled ? `1.5px solid ${ORANGE}` : "1.5px solid #C9BCAB",
     borderRadius: 5,
     background: filled ? "#FFF" : CREAM,
@@ -636,12 +684,14 @@ export default function PlanSheet() {
         minHeight: '100dvh', background: CREAM, color: CHARCOAL,
         fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
         textAlign: 'right',
-        padding: 'calc(12px + env(safe-area-inset-top)) 12px calc(24px + env(safe-area-inset-bottom))',
+        padding: 'calc(12px + env(safe-area-inset-top)) 0 calc(24px + env(safe-area-inset-bottom))',
       }}
     >
-      {/* Outer sheet — mockup values. */}
+      {/* Outer sheet — full bleed. No page padding and no max width:
+          at 360px the old 12px page padding either side plus a
+          centred frame cost 24px of content, which is 24px the
+          exercise names now keep. Border and inner padding stay. */}
       <div style={{
-        maxWidth: 720, margin: '0 auto',
         background: CREAM, border: `2px solid ${CHARCOAL}`,
         borderRadius: 12, padding: 11, boxSizing: 'border-box',
       }}>
@@ -694,6 +744,9 @@ export default function PlanSheet() {
         {grouped.map(({ section, rows }) => {
           const cat = (section.category || section.section_name || '').trim();
           const rail = section.coach_notes || '';
+          // Exactly this name, nothing fuzzy — one section renders as
+          // prose and every other one is untouched.
+          const isNotes = (section.section_name || '').trim() === 'הערות';
           const isShut = !!collapsed[section.id];
           const toggle = () => setCollapsed((c) => ({ ...c, [section.id]: !c[section.id] }));
           return (
@@ -730,8 +783,14 @@ export default function PlanSheet() {
                     {rows.length} תרגילים
                   </span>
                 ) : rail ? (
-                  <span style={{ fontSize: 10, color: ORANGE, fontWeight: 500, lineHeight: 1.3 }}>
-                    {rail.length > 40 ? rail.slice(0, 38) + '…' : rail}
+                  /* No character cap: the note wraps down the rail for
+                     as long as it needs. Cutting it at 40 characters
+                     hid most of a three-line coach note. */
+                  <span style={{
+                    fontSize: 10, color: ORANGE, fontWeight: 500,
+                    lineHeight: 1.3, overflowWrap: 'anywhere',
+                  }}>
+                    {rail}
                   </span>
                 ) : null}
               </button>
@@ -745,6 +804,19 @@ export default function PlanSheet() {
                 overflow: 'hidden',
               }}>
                 {rows.map((ex, i) => {
+                  // ── A הערות row is a line of prose. Before the
+                  //    ordinal is spent, so the numbering of real
+                  //    exercises is not pushed along by a note.
+                  if (isNotes) {
+                    return (
+                      <div key={ex.id} style={notesRow}>
+                        <span style={notesStar}>✳</span>
+                        <span style={notesText}>
+                          {ex.exercise_name || ex.name || ''}
+                        </span>
+                      </div>
+                    );
+                  }
                   const container = isContainer(ex, parseTabataData);
                   const td = container ? parseTabataData(ex.tabata_data) : null;
                   const { list: subs, kind: subKindOf } = container
