@@ -51,10 +51,18 @@ export async function getPlanFamily(planId) {
   return data || [];
 }
 
-export async function updateCoachNotes(table, id, notes) {
-  const { error } = await supabase.from(table).update({ coach_private_notes: notes }).eq('id', id);
-  if (error) throw error;
-}
+// updateCoachNotes was removed here. It took a table name and wrote
+// coach_private_notes — a column that exists on `sessions` but NOT on
+// training_plans, training_sections or exercises, the three tables a
+// plans API would ever be pointed at. The never-applied
+// migrations/2026-04-30-plan-execution-engine.sql would have added it
+// to all three. Nothing called it; it was dead from b3baee7.
+//
+// The live coach private-notes flows are unaffected and were not
+// touched: SessionFormDialog and SessionDetailDialog both write
+// straight to `sessions`, where the column is real.
+//
+// Do not re-add this without the columns.
 
 // ── Plan duplication — the ONLY implementation in the app ────────────
 // Every "שכפל" / "העתק לתלמיד" entry point routes here. Three call

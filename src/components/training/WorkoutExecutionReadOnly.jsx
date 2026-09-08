@@ -102,6 +102,14 @@ function ExerciseRow({ exercise, completed, savedLogs }) {
               <div style={{ fontSize: 12, color: '#666' }}>{params}</div>
             ) : null;
           })()}
+          {/* exercises.coach_private_notes does not exist on this
+              database — the 2026-04-30 migration that would have added
+              it was never applied. This is a plain property read on a
+              select('*') row, so it is undefined, the && short-circuits
+              and nothing renders. It cannot throw: a missing column
+              only errors when it is named in a select list or a write,
+              and it is neither here. Kept deliberately, so the note
+              lights up on its own if the column is ever added. */}
           {exercise.coach_private_notes && (
             <div style={{
               fontSize: 12, color: '#555', fontStyle: 'italic',
