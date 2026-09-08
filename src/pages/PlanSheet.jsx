@@ -610,26 +610,48 @@ export default function PlanSheet() {
   const { plan } = data;
   const planTitle = plan?.title || plan?.plan_name || 'תוכנית אימונים';
 
-  // ── ROW — one flex line, never two, never wrapping. ────────────
+  // ── ROW — ONE flex line, never two, never wrapping. ────────────
   //    right to left: tick, ordinal, name, pill, parameters,
-  //    flex:1 spacer, entry group.
+  //    spacer, entry group.
+  //
+  // The row is a FLAT flex line. The text used to sit in a nested flex
+  // box, which hid the name's own flex-basis from the row's layout and
+  // made the name the first thing to be squeezed. Flat, the name and
+  // the entry group negotiate directly.
   const rowLine = (last) => ({
     display: 'flex', alignItems: 'center', gap: 5,
     padding: '7px 8px',
     borderBottom: last ? 'none' : `1px solid ${DIVIDER}`,
-  });
-  // The only shrinkable thing on the row. Everything inside it except
-  // the name itself refuses to shrink, so the name is what gives.
-  const textGroup = {
-    display: 'flex', alignItems: 'center', gap: 5,
-    minWidth: 0, flexShrink: 1, overflow: 'hidden',
     cursor: 'pointer',
-  };
+  });
   const ordinalStyle = { fontSize: 11, color: ORANGE, flexShrink: 0, lineHeight: 1.4 };
+  /**
+   * NAME_MIN is the width the name is LAID OUT at, not a hard minimum.
+   *
+   * flex-basis 110 puts the name into the row's preferred size at
+   * 110px, so the row asks for 110px of name before anything is
+   * negotiated. The entry group shrinks a thousand times harder (see
+   * .ps-entry), so the group is what gives that width up — it walks
+   * its start LEFT of the centre line until the name has its 110.
+   *
+   * max-width:max-content stops a SHORT name from claiming 110 it does
+   * not need; the group then stays exactly on the centre line.
+   *
+   * min-width:0 keeps the floor soft. Once the group has hit its own
+   * max-content floor — every box at its width, nothing clipped — the
+   * name is the only thing left to give, so it drops below 110 and
+   * ellipsises rather than pushing a box off the row.
+   */
+  const NAME_MIN = 110;
   const nameStyle = {
     fontSize: 12, fontWeight: 500, color: CHARCOAL, lineHeight: 1.4,
-    minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    flexGrow: 1000, flexShrink: 1, flexBasis: NAME_MIN,
+    minWidth: 0, maxWidth: 'max-content',
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   };
+  // Takes only what the name has already refused (its max-content cap),
+  // so the entry group is never pushed rightward by leftover space.
+  const spacerStyle = { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 };
   // The bidi isolate stays: without it a label ending in a digit merges
   // with the target ("סט 1" + "15" read as "סט 115").
   const paramStyle = {
@@ -717,18 +739,27 @@ export default function PlanSheet() {
       }}
     >
       {/* Rules that inline styles cannot express.
-          1. The entry group starts at the row's horizontal CENTRE and
-             runs left — width 50%, never shrinking. The centre line is
-             a starting point, not an edge: min-width:max-content lets a
-             group that needs more than half the row grow rightward past
-             it instead of clipping a box or opening a scrollport.
+          1. The entry group's start, in three parts:
+             flex-basis 50% — the centre line is where it PREFERS to
+               start, and where it does start whenever the name is
+               already served;
+             flex-shrink 1000 — a thousand times softer than the name
+               (flex-shrink 1 on nameStyle), so when the row cannot
+               hold both, the group is what walks its start LEFT until
+               the name has its 110px;
+             min-width max-content — the floor. A group that needs more
+               than half the row grows RIGHTWARD past the centre rather
+               than clipping a box or opening a scrollport, and it never
+               shrinks below the boxes it holds.
+             In all three cases it still runs LEFT from wherever it
+             starts, because it is the row's last child in RTL.
           2. Spinner arrows would eat a 24px box.
           3. App.css carries a blanket `* { overflow-x: hidden }`, which
              makes every element its own scrollport. `clip` clips the
              same way and creates none. */
       }
       <style>{`
-.ps-entry{width:50%;min-width:-webkit-max-content;min-width:max-content;flex-shrink:0;display:flex;justify-content:flex-start;align-items:center;flex-wrap:nowrap}
+.ps-entry{flex:0 1000 50%;min-width:-webkit-max-content;min-width:max-content;display:flex;justify-content:flex-start;align-items:center;flex-wrap:nowrap}
 .ps-page input[type=number]{-moz-appearance:textfield}
 .ps-page input[type=number]::-webkit-outer-spin-button,
 .ps-page input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
@@ -927,24 +958,26 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                               borderRight: `2px solid ${ORANGE}`,
                               borderBottom: last ? 'none' : `1px solid ${DIVIDER}`,
                             }}>
-                              <div style={rowLine(true)}>
-                                <div
-                                  style={textGroup}
-                                  onClick={() => openDetail({
-                                    name: exName, params: rounds > 1 ? `${rounds} סבבים` : '',
-                                    method: pill?.label || null, note,
-                                  })}
-                                >
-                                  <span style={ordinalStyle}>{myOrdinal}.</span>
-                                  <span style={nameStyle} title={exName}>{exName}</span>
-                                  <MethodPill pill={pill} />
-                                  {/* The clock button already prints the
-                                      round count, so it is not said twice. */}
-                                  {rounds > 1 && !spec && <span style={paramStyle}>{`${rounds} סבבים`}</span>}
-                                </div>
-                                <div style={{ flex: 1, minWidth: 0 }} />
+                              <div
+                                style={rowLine(true)}
+                                onClick={() => openDetail({
+                                  name: exName, params: rounds > 1 ? `${rounds} סבבים` : '',
+                                  method: pill?.label || null, note,
+                                })}
+                              >
+                                <span style={ordinalStyle}>{myOrdinal}.</span>
+                                <span style={nameStyle} title={exName}>{exName}</span>
+                                <MethodPill pill={pill} />
+                                {/* The clock button already prints the
+                                    round count, so it is not said twice. */}
+                                {rounds > 1 && !spec && <span style={paramStyle}>{`${rounds} סבבים`}</span>}
+                                <div style={spacerStyle} />
                                 {spec && (
-                                  <div className="ps-entry" style={{ gap: 4 }}>
+                                  <div
+                                    className="ps-entry"
+                                    style={{ gap: 4 }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
                                     {/* A tabata or interval container is a
                                         clock, not a measurement: the button
                                         only, and nothing written back. */}
@@ -970,7 +1003,14 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                 const subText = subLabel(sub, subKindOf, sidx);
                                 const subKey = `${ex.id}:sub${sidx}`;
                                 return (
-                                  <div key={subKey} style={rowLine(lastSub)}>
+                                  <div
+                                    key={subKey}
+                                    style={rowLine(lastSub)}
+                                    onClick={() => openDetail({
+                                      name: subText, params: subParams,
+                                      method: pill?.label || null, note: null,
+                                    })}
+                                  >
                                     {/* Nothing to measure, and not a clock →
                                         the same tick a plain row gets. A
                                         tabata's sub rows stay blank: the
@@ -978,7 +1018,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                     {!subEditable && !isClock && (
                                       <button
                                         type="button"
-                                        onClick={() => toggleSubCheck(ex.id, sidx)}
+                                        onClick={(e) => { e.stopPropagation(); toggleSubCheck(ex.id, sidx); }}
                                         disabled={locked}
                                         aria-pressed={!!checks[subKey]}
                                         aria-label="סמן כבוצע"
@@ -989,22 +1029,18 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                         </span>
                                       </button>
                                     )}
-                                    <div
-                                      style={textGroup}
-                                      onClick={() => openDetail({
-                                        name: subText, params: subParams,
-                                        method: pill?.label || null, note: null,
-                                      })}
-                                    >
-                                      <span style={starStyle}>✳</span>
-                                      <span style={nameStyle} title={subText}>{subText}</span>
-                                      {subParams && showParams(subEditable ? boxesPerSub : 0, false) && (
-                                        <span style={paramStyle}>{subParams}</span>
-                                      )}
-                                    </div>
-                                    <div style={{ flex: 1, minWidth: 0 }} />
+                                    <span style={starStyle}>✳</span>
+                                    <span style={nameStyle} title={subText}>{subText}</span>
+                                    {subParams && showParams(subEditable ? boxesPerSub : 0, false) && (
+                                      <span style={paramStyle}>{subParams}</span>
+                                    )}
+                                    <div style={spacerStyle} />
                                     {subEditable && (
-                                      <div className="ps-entry" style={{ gap: sbp.gap }}>
+                                      <div
+                                        className="ps-entry"
+                                        style={{ gap: sbp.gap }}
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
                                         {Array.from({ length: boxesPerSub }).map((_, ri) => {
                                           const key = `${subKey}:${ri + 1}`;
                                           const v = values[key] ?? '';
@@ -1033,11 +1069,18 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         // ── A PLAIN EXERCISE ROW ─────────────────────
                         const bp = boxPlan(boxCount);
                         return (
-                          <div key={ex.id} style={rowLine(last)}>
+                          <div
+                            key={ex.id}
+                            style={rowLine(last)}
+                            onClick={() => openDetail({
+                              name: exName, params: rowParams,
+                              method: pill?.label || null, note,
+                            })}
+                          >
                             {rowKind === 'check' && (
                               <button
                                 type="button"
-                                onClick={() => toggleCheck(ex.id)}
+                                onClick={(e) => { e.stopPropagation(); toggleCheck(ex.id); }}
                                 disabled={locked}
                                 aria-pressed={!!checks[ex.id]}
                                 aria-label="סמן כבוצע"
@@ -1048,23 +1091,19 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                 </span>
                               </button>
                             )}
-                            <div
-                              style={textGroup}
-                              onClick={() => openDetail({
-                                name: exName, params: rowParams,
-                                method: pill?.label || null, note,
-                              })}
-                            >
-                              <span style={ordinalStyle}>{myOrdinal}.</span>
-                              <span style={nameStyle} title={exName}>{exName}</span>
-                              {showPill(boxCount) && <MethodPill pill={pill} />}
-                              {rowParams && showParams(boxCount, !!spec) && (
-                                <span style={paramStyle}>{rowParams}</span>
-                              )}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }} />
+                            <span style={ordinalStyle}>{myOrdinal}.</span>
+                            <span style={nameStyle} title={exName}>{exName}</span>
+                            {showPill(boxCount) && <MethodPill pill={pill} />}
+                            {rowParams && showParams(boxCount, !!spec) && (
+                              <span style={paramStyle}>{rowParams}</span>
+                            )}
+                            <div style={spacerStyle} />
                             {(boxCount > 0 || spec) && (
-                              <div className="ps-entry" style={{ gap: bp.gap }}>
+                              <div
+                                className="ps-entry"
+                                style={{ gap: bp.gap }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
                                 {/* The button sits at the LEFT end of the
                                     group, past the boxes, so the boxes
                                     keep the centre line. */}
