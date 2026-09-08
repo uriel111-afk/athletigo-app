@@ -3,13 +3,11 @@ import { useClock } from "@/contexts/ClockContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Pause, Play, X, Timer, Clock } from "lucide-react";
+import { formatDurationMs, LTR_TIME } from '@/lib/duration';
 
-function fmt(ms) {
-  if (ms < 0) ms = 0;
-  const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60;
-  if (m === 0) return String(s);
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
+// The one shared formatter. This used to drop the minutes entirely
+// below 60s, so the bar read "45" while the clock face read "00:45".
+const fmt = (ms) => formatDurationMs(ms, { ceil: false });
 
 export default function FloatingClockBar() {
   const clock = useClock();

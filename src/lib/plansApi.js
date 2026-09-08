@@ -297,8 +297,41 @@ export async function duplicatePlan(sourcePlanId, options = {}) {
  *   field on a sub-exercise, and the result write-back keys off that
  *   index as exercise_set_logs.drill_index.
  *   Accepted per sub: name (or exercise_name), reps, work_time,
- *   rest_time, hold_seconds, side, range_of_motion.
- *   tabata_preview is written from the sub names, joined with ' • '.
+ *   rest_time, hold_seconds, side, range_of_motion, description.
+ *   description is the coach's hint for THAT movement; PlanSheet
+ *   renders it under the sub row in regular grey, the same as a
+ *   top-level hint.
+ *   tabata_preview is written from the movement names, ' • ' joined.
+ *
+ * ── TABATA SETS → the current shape, mode טבטה only ──────────────
+ *   A SET is a GROUP of exercises performed together for N rounds of
+ *   work/rest; a rest between sets; then the next set. Supply it on
+ *   the exercise as `tabata_sets`, with `rest_between_sets` beside it:
+ *
+ *     { name: 'טבטה בטן', mode: 'טבטה',
+ *       rest_between_sets: 60,
+ *       tabata_sets: [
+ *         { exercises: ['עלייה לישיבה','טיפוס הרים'],
+ *           rounds: 4, work_time: 30, rest_time: 5 },
+ *       ] }
+ *
+ *   serialises to
+ *
+ *     {"container_type":"tabata",
+ *      "sets":[{"exercises":["עלייה לישיבה","טיפוס הרים"],
+ *               "rounds":4,"work_time":"30","rest_time":"5"}],
+ *      "rest_between_sets":"60"}
+ *
+ *   Validated: exercises must be a non-empty list of non-empty names;
+ *   rounds a whole number of at least 1; work_time numeric and above
+ *   zero; rest_time numeric, defaulting to "0". An unknown key inside
+ *   a set throws like any other. Supplying tabata_sets on a non-tabata
+ *   mode throws, and so does supplying both tabata_sets and
+ *   sub_exercises.
+ *
+ *   BACKWARD COMPATIBLE. The legacy flat sub_exercises payload is
+ *   still accepted and still written byte-for-byte as it was; readers
+ *   treat it as a single set. No existing row is modified.
  *
  * Returns the created training_plans row.
  */
@@ -424,12 +457,14 @@ const SPEC_KEYS = {
     'rpe', 'rest_between_sets', 'rest_between_exercises', 'side',
     'range_of_motion', 'body_position', 'equipment', 'grip', 'tempo',
     'emphasis', 'description', 'notes', 'track_for_measurement',
-    'sub_exercises',
+    'sub_exercises', 'tabata_sets',
   ]),
   sub: new Set([
     'name', 'exercise_name', 'reps', 'work_time', 'rest_time',
-    'hold_seconds', 'side', 'range_of_motion',
+    'hold_seconds', 'side', 'range_of_motion', 'description',
   ]),
+  // One block of the tabata sets shape.
+  tabataSet: new Set(['exercises', 'rounds', 'work_time', 'rest_time']),
 };
 
 function assertKnownSpecKeys(level, obj, where) {
@@ -520,7 +555,90 @@ function buildSub(sub, isTabata) {
   }
   put('side', sub.side);
   put('range_of_motion', sub.range_of_motion);
+  // The coach's hint for THIS movement. PlanSheet renders it under the
+  // sub row in the same regular grey a top-level hint gets.
+  put('description', sub.description);
   return out;
+}
+
+/**
+ * THE TABATA SETS SHAPE.
+ *
+ * A SET is a GROUP of exercises performed together for N rounds of
+ * work/rest; a rest between sets; then the next set. Serialised into
+ * the existing TEXT column, no migration:
+ *
+ *   {"container_type":"tabata",
+ *    "sets":[{"exercises":["עלייה לישיבה","טיפוס הרים"],
+ *             "rounds":4,"work_time":"30","rest_time":"5"}],
+ *    "rest_between_sets":"60"}
+ *
+ * Validated hard, because a malformed set is a clock that runs the
+ * wrong workout:
+ *   exercises   non-empty array of non-empty names
+ *   rounds      an integer, at least 1
+ *   work_time   numeric, required — a set with no work has nothing to run
+ *   rest_time   numeric, optional, defaults to "0"
+ * Unknown keys throw, the same as everywhere else in this function.
+ *
+ * Times are written as STRINGS, which is how every number inside
+ * tabata_data is stored.
+ */
+function buildTabataSets(blocks, restBetweenSets, where) {
+  const numeric = (v, field, at, { required = false } = {}) => {
+    if (v == null || v === '') {
+      if (required) {
+        throw new Error(`[createPlanFromSpec] ${at} needs a ${field}`);
+      }
+      return null;
+    }
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0) {
+      throw new Error(
+        `[createPlanFromSpec] ${at} ${field} must be numeric, got ${JSON.stringify(v)}`,
+      );
+    }
+    return n;
+  };
+
+  const sets = blocks.map((b, i) => {
+    const at = `${where}, tabata set ${i + 1}`;
+    assertKnownSpecKeys('tabataSet', b, at);
+
+    const names = (Array.isArray(b?.exercises) ? b.exercises : [])
+      .map((x) => String(typeof x === 'string' ? x : (x?.name ?? x?.exercise_name ?? '')).trim())
+      .filter(Boolean);
+    if (!names.length) {
+      throw new Error(`[createPlanFromSpec] ${at} needs a non-empty exercises list`);
+    }
+
+    const rounds = numeric(b?.rounds, 'rounds', at, { required: true });
+    if (!Number.isInteger(rounds) || rounds < 1) {
+      throw new Error(
+        `[createPlanFromSpec] ${at} rounds must be a whole number of at least 1, `
+        + `got ${JSON.stringify(b?.rounds)}`,
+      );
+    }
+    const work = numeric(b?.work_time, 'work_time', at, { required: true });
+    if (work <= 0) {
+      throw new Error(`[createPlanFromSpec] ${at} work_time must be greater than 0`);
+    }
+    const rest = numeric(b?.rest_time, 'rest_time', at) ?? 0;
+
+    return {
+      exercises: names,
+      rounds,
+      work_time: String(work),
+      rest_time: String(rest),
+    };
+  });
+
+  const between = numeric(restBetweenSets, 'rest_between_sets', where) ?? 0;
+  return {
+    container_type: 'tabata',
+    sets,
+    rest_between_sets: String(between),
+  };
 }
 
 /** The bulleted plan summary, in the format the live rows carry. */
@@ -659,22 +777,49 @@ export async function createPlanFromSpec(spec) {
 
       const mode = e.mode ?? null;
       const subs = Array.isArray(e.sub_exercises) ? e.sub_exercises : [];
-      if (subs.length && !CONTAINER_MODES.has(modeKey(mode))) {
+      const setBlocks = Array.isArray(e.tabata_sets) ? e.tabata_sets : [];
+      if ((subs.length || setBlocks.length) && !CONTAINER_MODES.has(modeKey(mode))) {
         throw new Error(
-          `[createPlanFromSpec] ${where} supplies sub_exercises but its mode `
-          + `is ${JSON.stringify(mode)}, which is not a container method. `
-          + 'Set mode to one of טבטה / סופרסט / קומבו / דרופסט (or another '
-          + 'method from constants/trainingMethods.js).',
+          `[createPlanFromSpec] ${where} supplies sub_exercises or tabata_sets `
+          + `but its mode is ${JSON.stringify(mode)}, which is not a container `
+          + 'method. Set mode to one of טבטה / סופרסט / קומבו / דרופסט (or '
+          + 'another method from constants/trainingMethods.js).',
         );
       }
       const isTabata = TABATA_MODES.has(modeKey(mode));
-      const built = subs.map((sub) => buildSub(sub, isTabata));
-      const tabataData = built.length
-        ? JSON.stringify({
+      if (setBlocks.length && !isTabata) {
+        throw new Error(
+          `[createPlanFromSpec] ${where} supplies tabata_sets but its mode is `
+          + `${JSON.stringify(mode)}. The sets shape belongs to טבטה only; a `
+          + 'superset, combo or dropset uses sub_exercises.',
+        );
+      }
+      if (setBlocks.length && subs.length) {
+        throw new Error(
+          `[createPlanFromSpec] ${where} supplies BOTH tabata_sets and `
+          + 'sub_exercises. Pick one — sets is the current shape, '
+          + 'sub_exercises the legacy flat one.',
+        );
+      }
+
+      // The sets shape when given; otherwise the legacy flat list,
+      // which is still accepted and still written exactly as before.
+      let tabataData = null;
+      let previewNames = [];
+      if (setBlocks.length) {
+        const payload = buildTabataSets(setBlocks, e.rest_between_sets, where);
+        tabataData = JSON.stringify(payload);
+        // De-duplicated across sets: the preview names the movements,
+        // not every repetition of them.
+        previewNames = [...new Set(payload.sets.flatMap((b) => b.exercises))];
+      } else if (subs.length) {
+        const built = subs.map((sub) => buildSub(sub, isTabata));
+        tabataData = JSON.stringify({
           container_type: isTabata ? 'tabata' : 'list',
           sub_exercises: built,
-        })
-        : null;
+        });
+        previewNames = built.map((b) => b.exercise_name);
+      }
 
       const row = {
         // Live rows carry the same string in both columns.
@@ -705,9 +850,8 @@ export async function createPlanFromSpec(spec) {
         notes: e.notes ?? null,
         track_for_measurement: e.track_for_measurement === true,
         tabata_data: tabataData,
-        tabata_preview: built.length
-          ? built.map((b) => b.exercise_name).join(' • ')
-          : null,
+        // The movement names, in order, whichever shape carried them.
+        tabata_preview: previewNames.length ? previewNames.join(' • ') : null,
         // 1-based PER SECTION, as on live rows.
         order: ei + 1,
         order_index: 0,

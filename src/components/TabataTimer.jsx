@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { useExerciseBackGuard } from '@/hooks/useExerciseBackGuard';
 import { useAuth } from '@/lib/AuthContext';
 import { ChevronRight } from 'lucide-react';
+import { formatDuration, formatDurationPadded, LTR_TIME } from '@/lib/duration';
 
 const backBtnStyle = {
   position: 'absolute', top: 16, left: 16, zIndex: 5,
@@ -605,8 +606,8 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
     return (c.prep + (c.work + c.rest) * c.rounds) * c.sets + c.rb * Math.max(0, c.sets - 1) - c.rest * c.sets;
   }
   const totalWorkoutTime = calcTotalFromConfig(cfg);
-  const twMin = Math.floor(totalWorkoutTime / 60);
-  const twSec = totalWorkoutTime % 60;
+  // Routed through the one shared duration formatter.
+  const twLabel = formatDuration(totalWorkoutTime);
 
   // Total session length — prep + every work/rest/set_rest until done.
   // Includes prep so the drain ring starts emptying the moment the
@@ -773,7 +774,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         }}>
           <div style={{ fontSize: 12, color: '#888', fontWeight: 500, marginBottom: 4 }}>זמן כולל</div>
           <div style={{ fontSize: 28, fontWeight: 700, color: '#FF6F20', fontFamily: "'Barlow Condensed', sans-serif" }}>
-            {twMin}:{String(twSec).padStart(2,'0')}
+            <span style={LTR_TIME}>{twLabel}</span>
           </div>
         </div>
 
@@ -843,8 +844,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
   const totalLeftPrecise = calcTotalRemaining();
   // Integer for the displayed mm:ss countdown.
   const totalLeft = Math.ceil(totalLeftPrecise);
-  const totalMin = Math.floor(totalLeft / 60);
-  const totalSec = totalLeft % 60;
+  const totalLabel = formatDurationPadded(totalLeft);
 
   // borderProgress: 1 = full, 0 = empty. Uses the float value so
   // the ring drains continuously every rAF frame in lockstep with
@@ -1195,7 +1195,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
             lineHeight: 1.15,
             color: isWork ? '#FFFFFF' : '#FF6F20',
           }}>
-            {String(totalMin).padStart(2,'0')}:{String(totalSec).padStart(2,'0')}
+            <span style={LTR_TIME}>{totalLabel}</span>
           </span>
         </div>
       </div>

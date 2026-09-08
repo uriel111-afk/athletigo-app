@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Play } from 'lucide-react';
+import { formatDuration, formatDurationPadded, LTR_TIME } from '@/lib/duration';
 
 // ── Launch the matching clock from inside an exercise ────────────────
 // The chip picks a clock mode from the exercise's own time fields and
@@ -72,9 +73,42 @@ export function resolveExerciseClock(exercise) {
   if (isTabataMode(exercise)) {
     const td = parseTabata(exercise.tabata_data) || {};
     const cs = (td.clock_settings && typeof td.clock_settings === 'object') ? td.clock_settings : {};
-    const work = posInt(cs.work_seconds) ?? posInt(td.work_time) ?? posInt(exercise.work_time);
-    const rest = posInt(cs.rest_seconds) ?? posInt(td.rest_time) ?? posInt(exercise.rest_time);
-    const rounds = posInt(cs.rounds) ?? posInt(td.rounds) ?? posInt(exercise.rounds);
+    let work = posInt(cs.work_seconds) ?? posInt(td.work_time) ?? posInt(exercise.work_time);
+    let rest = posInt(cs.rest_seconds) ?? posInt(td.rest_time) ?? posInt(exercise.rest_time);
+    let rounds = posInt(cs.rounds) ?? posInt(td.rounds) ?? posInt(exercise.rounds);
+    let sets = posInt(cs.sets) ?? 1;
+    let restBetweenSets = posInt(cs.rest_between_sets) ?? posInt(td.rest_between_sets) ?? 0;
+
+    // THE FIX. A tabata whose values live only in tabata_data — either
+    // the sets[] shape or a flat sub_exercises list where each movement
+    // carries its own work_time/rest_time — used to fall through here
+    // with work === null and get NO shortcut at all. That was the live
+    // "טבטה בטן": four subs at 30/5 and not a single one of them read.
+    //
+    // clock_settings still wins when present; this only fills the gap.
+    if (!work) {
+      const blocks = Array.isArray(td.sets) && td.sets.length
+        ? td.sets
+        : null;
+      if (blocks) {
+        const first = blocks[0] || {};
+        work = posInt(first.work_time) ?? posInt(first.work_seconds);
+        rest = rest ?? posInt(first.rest_time) ?? posInt(first.rest_seconds);
+        rounds = rounds ?? posInt(first.rounds);
+        sets = blocks.length;
+        restBetweenSets = restBetweenSets || (posInt(td.rest_between_sets) ?? 0);
+      } else {
+        const subs = Array.isArray(td.sub_exercises) ? td.sub_exercises : [];
+        const timed = subs.find((s) => posInt(s?.work_time));
+        if (timed) {
+          work = posInt(timed.work_time);
+          rest = rest ?? posInt(timed.rest_time);
+          // The rotation IS the round list on a flat payload.
+          rounds = rounds ?? subs.length;
+        }
+      }
+    }
+
     // Without a work time there is nothing to run — no chip.
     if (work) {
       return {
@@ -83,8 +117,8 @@ export function resolveExerciseClock(exercise) {
         workSeconds: work,
         restSeconds: rest ?? 0,
         rounds: rounds ?? 1,
-        sets: posInt(cs.sets) ?? 1,
-        restBetweenSets: posInt(cs.rest_between_sets) ?? 0,
+        sets: sets ?? 1,
+        restBetweenSets: restBetweenSets ?? 0,
         hasDuration: true,
       };
     }
@@ -97,11 +131,11 @@ export function resolveExerciseClock(exercise) {
 
   // static_hold_time → countdown for exactly that many seconds.
   if (hold) {
-    return { kind: 'countdown', label: `${hold} שניות`, seconds: hold, hasDuration: true };
+    return { kind: 'countdown', label: formatDuration(hold), seconds: hold, hasDuration: true };
   }
 
   if (work && !rest) {
-    return { kind: 'countdown', label: `${work} שניות`, seconds: work, hasDuration: true };
+    return { kind: 'countdown', label: formatDuration(work), seconds: work, hasDuration: true };
   }
 
   if (work && rest) {
@@ -275,13 +309,15 @@ export function InlineExerciseClock({
         {clock?.roundInfo ? <span>{` · ${clock.roundInfo}`}</span> : null}
       </div>
 
-      {/* the seconds */}
+      {/* the clock face — mm:ss, minutes on the left, isolated so the
+          RTL page cannot reorder it */}
       <div style={{
-        fontFamily: SANS, fontSize: 56, fontWeight: 600,
+        fontFamily: SANS, fontSize: 52, fontWeight: 600,
         color: '#1a1a1a', textAlign: 'center',
         lineHeight: 1.1, margin: '4px 0 10px',
         fontVariantNumeric: 'tabular-nums',
-      }}>{bigSeconds}</div>
+        ...LTR_TIME,
+      }}>{formatDurationPadded(bigSeconds)}</div>
 
       {showTrack && (
         <div style={{
@@ -343,7 +379,7 @@ export function ClockResultStrip({ seconds }) {
         textAlign: 'right',
         lineHeight: 1.4,
       }}
-    >השעון סיים · {seconds} שניות</div>
+    >השעון סיים · <span style={LTR_TIME}>{formatDuration(seconds)}</span></div>
   );
 }
 

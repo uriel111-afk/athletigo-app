@@ -6,13 +6,10 @@ import {
   requestNotifPermission, showTimerNotification, closeTimerNotification,
   acquireTimerWakeLock, releaseTimerWakeLock,
 } from "@/lib/tabataSounds";
+import { formatDurationMs } from "@/lib/duration";
 
-function formatRemaining(ms) {
-  const total = Math.max(0, Math.round(ms / 1000));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-}
+// Notification text. Routed through the one shared formatter.
+const formatRemaining = (ms) => formatDurationMs(ms);
 
 const ClockContext = createContext(null);
 export const useClock = () => useContext(ClockContext);

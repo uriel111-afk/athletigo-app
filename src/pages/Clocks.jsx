@@ -7,6 +7,7 @@ import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 import { AuthContext } from "@/lib/AuthContext";
 import ScrollPickerPopup, { SECONDS_OPTIONS, MINUTES_OPTIONS, PREP_OPTIONS } from "@/components/ScrollPickerPopup";
+import { formatDurationMs, formatStopwatchMs, LTR_TIME } from '@/lib/duration';
 
 const MinimizeBtn = ({ onClick }) => (
   <button onClick={onClick} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
@@ -29,14 +30,18 @@ const C3 = '#9CA3AF';
 const BRD = '#E5E7EB';
 const BG2 = '#F5F5F5';
 
-function fmt(ms) { if (ms < 0) ms = 0; const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60; if (m === 0) return String(s); return `${m}:${String(s).padStart(2,'0')}`; }
+// The one shared formatter. This used to print a bare "45" below a
+// minute, so the same duration read differently here and on the sheet.
+const fmt = (ms) => formatDurationMs(ms, { ceil: false, padded: false });
 // Math.ceil so the visible countdown matches the Tabata clock:
 // "1" stays on screen for the entire last second (ms = 1..1000 → "00:01"),
 // then the phase ends and the setup/done screen replaces this view —
 // "00:00" is never rendered. Floor would drop to "00:00" the moment ms
 // crosses below 1000 and linger there for ~1 s.
-function fmtMMSS(ms) { if (ms <= 0) return '00:00'; const t = Math.ceil(ms / 1000), m = Math.floor(t / 60), s = t % 60; return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
-function fmtStopwatch(ms) { if (ms < 0) ms = 0; const t = Math.floor(ms / 1000), m = Math.floor(t / 60), s = t % 60; const cs = Math.floor((ms % 1000) / 10); return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(cs).padStart(2,'0')}`; }
+// ceil is the running-clock rule, now owned by the shared formatter:
+// "1" holds the screen for the whole final second.
+const fmtMMSS = (ms) => formatDurationMs(ms);
+const fmtStopwatch = (ms) => formatStopwatchMs(ms);
 
 function HoldButton({ onClick, children, className, style }) {
   const intRef = useRef(null), toRef = useRef(null);

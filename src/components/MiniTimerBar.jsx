@@ -1,6 +1,7 @@
 import React, { useReducer, useEffect } from 'react';
 import { useActiveTimer } from '@/contexts/ActiveTimerContext';
 import { useClock } from '@/contexts/ClockContext';
+import { formatDurationMs } from '@/lib/duration';
 
 // Slim timer control rendered INSIDE every open dialog. Solves the
 // "bar inaccessible behind backdrop" class of bugs by living in the
@@ -27,12 +28,8 @@ function stop(handler) {
   };
 }
 
-function fmtMs(ms) {
-  const total = Math.max(0, Math.round((ms || 0) / 1000));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
+// The one shared formatter.
+const fmtMs = (ms) => formatDurationMs(ms, { ceil: false });
 
 export default function MiniTimerBar() {
   const { liveTimerTabata, isMinimized: tabataMinimized } = useActiveTimer() || {};

@@ -15,10 +15,13 @@ import {
   isTabataContainer,
   has,
 } from '@/lib/exerciseMeasurement';
-import { parseTabataData } from '@/lib/tabataSettings';
+import { parseTabataData, readTabataSets, tabataSetToClockCfg } from '@/lib/tabataSettings';
 import { saveSetActual } from '@/lib/plannedSets';
 import { duplicatePlan } from '@/lib/plansApi';
 import { useClock } from '@/contexts/ClockContext';
+import { useActiveTimer } from '@/contexts/ActiveTimerContext';
+import { formatDuration, LTR_TIME } from '@/lib/duration';
+import ClockLeadIn from '@/components/training/ClockLeadIn';
 import {
   resolveExerciseClock, useExerciseClock,
   InlineExerciseClock, ClockSwapPrompt,
@@ -216,21 +219,16 @@ function HintLine({ text, indent }) {
   );
 }
 
-/**
- * Minutes first, then seconds, left to right — even on this RTL page.
- * 180 → 3:00, 20 → 0:20.
- */
-function mmss(seconds) {
-  const t = Math.max(0, Math.round(Number(seconds) || 0));
-  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
-}
+// Durations are formatted by src/lib/duration.js — the ONE formatter.
+// The local formatDuration() that used to live here was the fourth copy in the
+// app and the reason the same 45 seconds read four different ways.
 
 /** The exercise's OWN values, as the shortcut prints them. */
 function clockLabel(spec) {
   if (!spec) return '';
-  if (spec.kind === 'countdown') return mmss(spec.seconds);
-  const bits = [mmss(spec.workSeconds)];
-  if (spec.restSeconds > 0) bits.push(mmss(spec.restSeconds));
+  if (spec.kind === 'countdown') return formatDuration(spec.seconds);
+  const bits = [formatDuration(spec.workSeconds)];
+  if (spec.restSeconds > 0) bits.push(formatDuration(spec.restSeconds));
   const time = bits.join(' / ');
   return spec.rounds > 1 ? `${time} ×${spec.rounds}` : time;
 }
@@ -267,7 +265,7 @@ function paramOf(exercise, m, kind) {
   if (kind === 'tally') return { value: String(m.target), label: 'סבבים', size: 19 };
   if (kind === 'time') {
     return {
-      value: mmss(m.target),
+      value: formatDuration(m.target),
       label: has(exercise?.static_hold_time) ? 'החזקה' : 'זמן',
       size: 17,
     };
@@ -280,7 +278,7 @@ function subParamOf(sub, sm, size = 16) {
   if (!sm || sm.kind === 'check' || !sm.target) return null;
   if (sm.kind === 'time') {
     return {
-      value: mmss(sm.target),
+      value: formatDuration(sm.target),
       label: has(sub?.hold_seconds) ? 'החזקה' : 'זמן',
       size: size - 2,
     };
@@ -415,8 +413,16 @@ function SaveDot({ onClick, size = 22, title = 'שמור' }) {
  * TimerFooterBar — PlanSheet renders outside LayoutWrapper — and the
  * section cards clip their overflow.
  */
-function ClockShortcut({ spec, setNumber, totalSets, onElapsed, disabled }) {
+function ClockShortcut({
+  spec, exerciseName, setNumber, totalSets, onElapsed, disabled, render,
+}) {
   const clock = useClock();
+  const { setPendingTabataCfg, setShowTabata } = useActiveTimer() || {};
+  // The lead-in's working copy of the values. Non-null only between
+  // the tap and the clock actually starting, and thrown away after —
+  // this is what keeps a שינוי scoped to the run.
+  const [runSpec, setRunSpec] = useState(null);
+  const [leadIn, setLeadIn] = useState(false);
   // The hook's completion effect keys off this callback's identity, so
   // it has to be stable across the parent's renders.
   const latest = useRef(onElapsed);
@@ -424,32 +430,79 @@ function ClockShortcut({ spec, setNumber, totalSets, onElapsed, disabled }) {
   const handleElapsed = useCallback((seconds) => {
     if (typeof latest.current === 'function') latest.current(seconds);
   }, []);
-  const ec = useExerciseClock({ spec, clock, onElapsed: handleElapsed });
+  // The hook drives the SHARED ClockContext engine. It is given the
+  // run's values, so an edited lead-in starts the edited clock.
+  const ec = useExerciseClock({ spec: runSpec || spec, clock, onElapsed: handleElapsed });
+
+  // Lead-in finished. A tabata hands off to the full TabataTimer
+  // overlay — the very component the clocks tab shows, already mounted
+  // globally in App.jsx (GlobalTabata) and driven by the one-shot
+  // pendingTabataCfg bus, whose `source: 'workout_exercise'` flag stops
+  // TabataTimer persisting these values over the trainee's own saved
+  // clock settings. Everything else runs on ClockContext, where
+  // useExerciseClock already owns the swap prompt and the write-back.
+  const startNow = useCallback((values) => {
+    setLeadIn(false);
+    const v = values || spec;
+    setRunSpec(v);
+    if (v?.kind === 'tabata' && setPendingTabataCfg && setShowTabata) {
+      setPendingTabataCfg({
+        work: v.workSeconds,
+        rest: v.restSeconds,
+        rounds: v.rounds,
+        sets: v.sets || 1,
+        rb: v.restBetweenSets || 0,
+        // The lead-in has already counted the trainee in.
+        prep: 0,
+        source: 'workout_exercise',
+      });
+      setShowTabata(true);
+      return;
+    }
+    // Deferred a tick so the hook sees the new spec before it starts.
+    setTimeout(() => ec.launch(), 0);
+  }, [spec, ec, setPendingTabataCfg, setShowTabata]);
+
   if (!spec) return null;
+
+  const effective = runSpec || spec;
+  const open = () => { setRunSpec(spec); setLeadIn(true); };
+
   return (
     <>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={(e) => { e.stopPropagation(); ec.launch(); }}
-        onPointerDown={(e) => e.stopPropagation()}
-        aria-label={`הפעל שעון · ${clockLabel(spec)}`}
-        style={{
-          flexShrink: 0,
-          display: 'inline-flex', alignItems: 'center', gap: 4,
-          border: `0.5px solid ${ORANGE}`, borderRadius: 4,
-          padding: '3px 6px', minHeight: BOX_H, height: BOX_H,
-          background: WHITE, color: ORANGE,
-          fontSize: 11, fontFamily: 'inherit', lineHeight: 1,
-          boxSizing: 'border-box', whiteSpace: 'nowrap',
-          cursor: disabled ? 'default' : 'pointer',
-        }}
-      >
-        <Play size={9} fill={ORANGE} color={ORANGE} style={{ flexShrink: 0 }} />
-        {/* Minutes first, then seconds, left to right — inside an RTL page. */}
-        <span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>{clockLabel(spec)}</span>
-      </button>
+      {render ? render(open) : (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={(e) => { e.stopPropagation(); open(); }}
+          onPointerDown={(e) => e.stopPropagation()}
+          aria-label={`הפעל שעון · ${clockLabel(spec)}`}
+          style={{
+            flexShrink: 0,
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            border: `0.5px solid ${ORANGE}`, borderRadius: 4,
+            padding: '3px 6px', minHeight: BOX_H, height: BOX_H,
+            background: WHITE, color: ORANGE,
+            fontSize: 11, fontFamily: 'inherit', lineHeight: 1,
+            boxSizing: 'border-box', whiteSpace: 'nowrap',
+            cursor: disabled ? 'default' : 'pointer',
+          }}
+        >
+          <Play size={9} fill={ORANGE} color={ORANGE} style={{ flexShrink: 0 }} />
+          {/* Minutes first, then seconds, left to right — in an RTL page. */}
+          <span style={LTR_TIME}>{clockLabel(spec)}</span>
+        </button>
+      )}
 
+      <ClockLeadIn
+        open={leadIn}
+        exerciseName={exerciseName}
+        spec={effective}
+        onCancel={() => { setLeadIn(false); setRunSpec(null); }}
+        onConfirm={startNow}
+      />
+
+      {/* The existing running-clock swap prompt, untouched. */}
       <ClockSwapPrompt open={ec.swapOpen} onConfirm={ec.confirmSwap} onCancel={ec.cancelSwap} />
 
       {ec.owned && typeof document !== 'undefined' && createPortal(
@@ -460,17 +513,124 @@ function ClockShortcut({ spec, setNumber, totalSets, onElapsed, disabled }) {
           padding: '10px 12px calc(4px + env(safe-area-inset-bottom, 0px))',
         }}>
           <InlineExerciseClock
-            spec={spec}
+            spec={effective}
             clock={clock}
             setNumber={setNumber}
             totalSets={totalSets}
-            onStop={ec.stopNow}
+            onStop={() => { ec.stopNow(); setRunSpec(null); }}
             onTogglePause={ec.togglePause}
           />
         </div>,
         document.body,
       )}
     </>
+  );
+}
+
+/**
+ * TABATA SETS — the block design.
+ *
+ * A SET is a GROUP of exercises performed together for N rounds of
+ * work/rest. Each set renders as its own block: an orange set tag, the
+ * set's movement names on the tinted band, then a bar carrying play
+ * plus rounds / work / rest as number-over-label. Between two sets, a
+ * dashed rest row.
+ *
+ * readTabataSets() normalises the new sets[] payload AND every legacy
+ * flat one into the same shape, so a row written years ago renders here
+ * as a single set without being modified.
+ */
+function TabataSets({ exercise, exerciseName, model, disabled }) {
+  const { sets, restBetweenSets } = model;
+  if (!sets.length) return null;
+  return (
+    <div>
+      {sets.map((set, i) => {
+        const spec = {
+          kind: 'tabata',
+          label: 'טבטה',
+          workSeconds: set.work,
+          restSeconds: set.rest,
+          rounds: set.rounds,
+          sets: 1,
+          restBetweenSets: 0,
+          hasDuration: true,
+        };
+        return (
+          <React.Fragment key={`set${i}`}>
+            {i > 0 && restBetweenSets > 0 && (
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                gap: 6, padding: '6px 9px',
+                borderTop: `1px dashed ${BAND_LINE}`,
+                borderBottom: `1px dashed ${BAND_LINE}`,
+                background: WHITE,
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 400, color: MUTED }}>מנוחה</span>
+                <span style={{ fontSize: 13, fontWeight: 500, color: CHARCOAL, ...LTR_TIME }}>
+                  {formatDuration(restBetweenSets)}
+                </span>
+              </div>
+            )}
+
+            {/* The set's movements, on the tinted band. */}
+            <div style={{
+              background: BAND_BG, borderBottom: `0.5px solid ${BAND_LINE}`,
+              padding: '7px 9px',
+              display: 'flex', alignItems: 'flex-start', gap: 7,
+            }}>
+              <span style={{
+                flexShrink: 0, background: ORANGE, color: WHITE,
+                fontSize: 10, fontWeight: 500, borderRadius: 4,
+                padding: '2px 7px', lineHeight: 1.5, whiteSpace: 'nowrap',
+              }}>{`סט ${i + 1}`}</span>
+              <span style={{
+                fontSize: 13, fontWeight: 500, color: CHARCOAL,
+                lineHeight: 1.45, minWidth: 0, overflowWrap: 'anywhere',
+              }}>{set.exercises.join(' · ')}</span>
+            </div>
+
+            {/* The bar: play, then the numbers over their labels. */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '7px 9px',
+              borderBottom: i === sets.length - 1 ? 'none' : `0.5px solid ${DIVIDER}`,
+              background: WHITE,
+            }}>
+              <ClockShortcut
+                spec={spec}
+                exerciseName={`${exerciseName} · סט ${i + 1}`}
+                setNumber={i + 1}
+                totalSets={sets.length}
+                disabled={disabled}
+                render={(open) => (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); open(); }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    aria-label={`הפעל סט ${i + 1}`}
+                    style={{
+                      flexShrink: 0, width: 34, height: 34, minHeight: 34,
+                      borderRadius: '50%', border: 'none', background: ORANGE,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: disabled ? 'default' : 'pointer', padding: 0,
+                    }}
+                  >
+                    <Play size={15} fill={WHITE} color={WHITE} />
+                  </button>
+                )}
+              />
+              <ParamBlock value={String(set.rounds)} label="סבבים" size={17} />
+              <ParamBlock value={formatDuration(set.work)} label="עבודה" size={17} />
+              {set.rest > 0 && (
+                <ParamBlock value={formatDuration(set.rest)} label="מנוחה" size={17} />
+              )}
+              <div style={{ flexGrow: 1 }} />
+            </div>
+          </React.Fragment>
+        );
+      })}
+    </div>
   );
 }
 
@@ -1055,6 +1215,9 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         const spec = shortcutOf(ex);
                         const clockOnly = isClockOnly(spec);
                         const isClock = isTabataContainer(ex);
+                        // Normalised sets — new sets[] shape or any
+                        // legacy payload, read the same way.
+                        const tabataModel = isClock ? readTabataSets(ex) : { sets: [], restBetweenSets: 0 };
                         const hasTarget = m.kind !== 'check' && m.target > 0;
                         const rowKind = container
                           ? 'container'
@@ -1103,17 +1266,20 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                   <MethodPill pill={pill} />
                                   <ParamBlock {...(param || {})} />
                                   <div style={spacerStyle} />
-                                  {spec && (
+                                  {spec && !isClock && (
                                     <div
                                       className="ps-entry"
                                       style={{ gap: 4 }}
                                       onClick={(e) => e.stopPropagation()}
                                     >
-                                      {/* A tabata or interval container is
-                                          a clock, not a measurement: the
-                                          button only, nothing written. */}
+                                      {/* An interval container is a clock,
+                                          not a measurement: the button
+                                          only, nothing written back. A
+                                          TABATA carries its play buttons
+                                          per set, in the block below. */}
                                       <ClockShortcut
                                         spec={spec}
+                                        exerciseName={exName}
                                         setNumber={1}
                                         totalSets={rounds}
                                         disabled={false}
@@ -1124,7 +1290,19 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                 <HintLine text={hint} indent={22} />
                               </div>
 
-                              {subs.map((sub, sidx) => {
+                              {/* A tabata renders as SET BLOCKS, each with
+                                  its own play. Legacy flat payloads come
+                                  through readTabataSets as one set. */}
+                              {isClock && tabataModel.sets.length > 0 && (
+                                <TabataSets
+                                  exercise={ex}
+                                  exerciseName={exName}
+                                  model={tabataModel}
+                                  disabled={locked}
+                                />
+                              )}
+
+                              {(isClock && tabataModel.sets.length > 0 ? [] : subs).map((sub, sidx) => {
                                 const sm = subMeasurementKind(sub, section);
                                 const subHasTarget = sm.kind !== 'check' && sm.target > 0;
                                 // Inside a clock the numbers are the
@@ -1268,6 +1446,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                   {spec && (
                                     <ClockShortcut
                                       spec={spec}
+                                      exerciseName={exName}
                                       setNumber={1}
                                       totalSets={Math.max(1, boxCount)}
                                       disabled={locked}
