@@ -375,17 +375,31 @@ const techniqueCountLabel = (n) => (n === 1 ? 'טכניקה אחת' : `${n} טכ
  *
  *   "3 עליות מתח · 5 שכיבות סמיכה"  →  "עליות מתח · שכיבות סמיכה"
  *
- * Deliberately narrow: only a leading whole number, only on a
- * middot-separated segment, and only ever applied to a CONTAINER
- * title. A plain exercise's name is never touched, so a movement
- * genuinely called "90 מעלות" survives everywhere it can appear.
+ * NOT a textual guess. A leading number is removed only when it
+ * MATCHES AN ACTUAL REP TARGET of one of this container's own
+ * sub-exercises. "3 עליות מתח" loses its 3 because a sub really is
+ * prescribed 3 reps; a container called "90 מעלות" keeps its 90,
+ * because no sub of it is prescribed 90. A container with no rep
+ * targets at all — a tabata — is never touched.
+ *
+ * `repTargets` comes from the subs' authored `reps`, read directly
+ * rather than through subMeasurementKind: the section rule can turn a
+ * sub into a tick, and whether a number is PRINTED on the title has
+ * nothing to do with whether it is measured.
  */
-export function shortContainerTitle(name) {
+export function shortContainerTitle(name, repTargets) {
   const full = String(name ?? '').trim();
   if (!full) return '';
+  const targets = repTargets instanceof Set ? repTargets : new Set(repTargets || []);
+  if (!targets.size) return full;
   const stripped = full
     .split('·')
-    .map((part) => part.trim().replace(/^\d+\s+(?=\S)/, '').trim())
+    .map((part) => {
+      const seg = part.trim();
+      const m = /^(\d+)\s+(?=\S)/.exec(seg);
+      if (m && targets.has(Number(m[1]))) return seg.slice(m[0].length).trim();
+      return seg;
+    })
     .filter(Boolean)
     .join(' · ');
   return stripped || full;
@@ -1576,8 +1590,16 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         // readTechniques already took the head before the
                         // first comma. A container additionally drops the
                         // per-movement rep counts, which belong on the sub
-                        // rows beside their own חזרות label.
-                        const exName = container ? shortContainerTitle(baseName) : baseName;
+                        // rows beside their own חזרות label — but ONLY the
+                        // numbers that are genuinely a sub's rep target.
+                        const subRepTargets = new Set(
+                          (container ? subs : [])
+                            .map((s) => Number(s?.reps))
+                            .filter((n) => Number.isFinite(n) && n > 0),
+                        );
+                        const exName = container
+                          ? shortContainerTitle(baseName, subRepTargets)
+                          : baseName;
                         // A CONTAINER's big number is always the round
                         // count, and always labelled סבבים. The reps live
                         // on each sub line under their own חזרות label —
