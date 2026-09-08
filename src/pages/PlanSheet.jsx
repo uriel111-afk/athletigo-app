@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Check, Play } from 'lucide-react';
+import { Check, ChevronLeft, Play } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { AuthContext } from '@/lib/AuthContext';
 import PageLoader from '@/components/PageLoader';
@@ -213,7 +213,7 @@ function HintLine({ text, indent }) {
   return (
     <div style={{
       fontSize: 11, fontWeight: 400, color: MUTED, lineHeight: 1.45,
-      paddingInlineStart: indent, paddingBottom: 6, marginTop: -2,
+      paddingInlineStart: indent, marginTop: 5,
       overflowWrap: 'anywhere',
     }}>{text}</div>
   );
@@ -297,6 +297,109 @@ function noteOf(carrier) {
   if (!t) return '';
   if (t.includes('•') || t.includes('\n')) return '';
   return t;
+}
+
+/**
+ * TECHNIQUES — the variations a coach lists under one movement.
+ *
+ * On live data they arrive two ways, and the row must print NEITHER of
+ * them inline. A row shows a short display name; the list is reachable
+ * in one tap and never lost.
+ *
+ *   1. The description IS the list, comma or middot separated:
+ *        "בסיס, החלפת רגליים, הצלבה"
+ *      The exercise keeps its whole name; the description becomes the
+ *      techniques.
+ *
+ *   2. A legacy LONG NAME carries the list after the first comma:
+ *        "פיסוק לפנים ולצדדים, מצד לצד, לפנים ולאחור, הצלבה"
+ *      Split on the FIRST comma. The head is the display name; the
+ *      tail is the techniques. The stored name is never touched — the
+ *      dialog header still shows it whole.
+ *
+ * A single-item description is NOT a technique list; it is an ordinary
+ * cue and stays the row's hint. That is what keeps "ברצף" and
+ * "אחד אחרי השני" reading as instructions rather than as a list of one.
+ */
+const TECHNIQUE_SPLIT = /[,،·•]/;
+
+function splitTechniques(text) {
+  return String(text ?? '')
+    .split(TECHNIQUE_SPLIT)
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+export function readTechniques(exercise) {
+  const fullName = String(exercise?.exercise_name || exercise?.name || '').trim();
+  const note = noteOf(exercise);
+
+  // 1. A description that is genuinely a list.
+  const fromNote = splitTechniques(note);
+  if (fromNote.length > 1) {
+    return { displayName: fullName, fullName, techniques: fromNote, hint: '' };
+  }
+
+  // 2. A long name. Only a COMMA splits a name — a middot is used
+  //    inside names as an ordinary separator ("סקוואט · לחיצות
+  //    כתפיים" is one movement) and splitting on it would invent
+  //    techniques that are not there.
+  const comma = fullName.indexOf(',');
+  if (comma > 0) {
+    const head = fullName.slice(0, comma).trim();
+    const techniques = splitTechniques(fullName.slice(comma + 1));
+    if (head && techniques.length) {
+      return { displayName: head, fullName, techniques, hint: note };
+    }
+  }
+
+  return { displayName: fullName, fullName, techniques: [], hint: note };
+}
+
+/** Hebrew counts one thing differently. 1 is not "1 טכניקות". */
+const techniqueCountLabel = (n) => (n === 1 ? 'טכניקה אחת' : `${n} טכניקות`);
+
+/** "3 טכניקות" with a chevron — the row's whole reference to the list. */
+function TechniqueHint({ count, indent }) {
+  if (!count) return null;
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 4,
+      fontSize: 11, fontWeight: 400, color: MUTED, lineHeight: 1.45,
+      paddingInlineStart: indent, marginTop: 5,
+    }}>
+      <span>{techniqueCountLabel(count)}</span>
+      <ChevronLeft size={12} color={MUTED} style={{ flexShrink: 0 }} />
+    </div>
+  );
+}
+
+/** The list itself, one technique per line. Dialog only. */
+function TechniqueList({ techniques }) {
+  if (!techniques?.length) return null;
+  return (
+    <div style={{ marginTop: 4 }}>
+      {techniques.map((t, i) => (
+        <div
+          key={`${t}-${i}`}
+          style={{
+            display: 'flex', alignItems: 'flex-start', gap: 9,
+            padding: '9px 0',
+            borderTop: i === 0 ? 'none' : `0.5px solid ${DIVIDER}`,
+          }}
+        >
+          <span style={{
+            flexShrink: 0, width: 5, height: 5, borderRadius: '50%',
+            background: ORANGE, marginTop: 7,
+          }} />
+          <span style={{
+            fontSize: 14, fontWeight: 400, color: CHARCOAL,
+            lineHeight: 1.5, minWidth: 0, overflowWrap: 'anywhere',
+          }}>{t}</span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -991,14 +1094,22 @@ export default function PlanSheet() {
   // The row is FLAT. The text used to sit in a nested flex box, which
   // hid the name's own flex-basis from the row's layout and made the
   // name the first thing squeezed.
+  //
+  // The PADDING lives on the row WRAPPER, not on this line, so a row
+  // grows to fit everything it carries — the flex line, the hint, the
+  // technique count — with 14px clear above and below the lot. When
+  // the padding sat here instead, a hint line was pressed against the
+  // divider and the row read as if it had been cut off.
   const rowLine = {
     display: 'flex', alignItems: 'center', gap: 6,
-    padding: '8px 9px 7px',
   };
-  const ordinalStyle = { fontSize: 13, color: ORANGE, flexShrink: 0, lineHeight: 1.3 };
+  // 14px on an exercise row, 11px on a sub row inside a container.
+  const rowPad = { padding: '14px 9px' };
+  const subRowPad = { padding: '11px 9px' };
+  const ordinalStyle = { fontSize: 13, color: ORANGE, flexShrink: 0, lineHeight: 1.35 };
   // The ONLY shrinking element on the row. Everything else refuses.
   const nameStyle = (size) => ({
-    fontSize: size, fontWeight: 500, color: CHARCOAL, lineHeight: 1.3,
+    fontSize: size, fontWeight: 500, color: CHARCOAL, lineHeight: 1.35,
     flexShrink: 1, minWidth: 0,
     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   });
@@ -1273,7 +1384,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                           return (
                             <div key={ex.id} style={{
                               display: 'flex', gap: 6, alignItems: 'baseline',
-                              padding: '8px 9px', borderBottom: rowEdge,
+                              ...rowPad, borderBottom: rowEdge,
                             }}>
                               <span style={starStyle}>✳</span>
                               <span style={{
@@ -1307,7 +1418,10 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         const myOrdinal = ordinal;
                         const rounds = roundsOf(ex, td);
                         const boxesPerSub = subKindOf === 'sets' ? 1 : rounds;
-                        const exName = ex.exercise_name || ex.name || '';
+                        // The row prints the SHORT name; the technique
+                        // list it was carrying moves to the dialog.
+                        const tech = readTechniques(ex);
+                        const exName = tech.displayName || ex.exercise_name || ex.name || '';
                         const param = container
                           ? (rounds > 1 && !spec ? { value: String(rounds), label: 'סבבים', size: 19 } : null)
                           : paramOf(ex, m, rowKind);
@@ -1315,7 +1429,8 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         // sets, so the sets go where instructions live.
                         const setsNote = (rowKind === 'check' && Number(ex.sets) > 1)
                           ? `${ex.sets} סטים` : '';
-                        const hint = [noteOf(ex), setsNote].filter(Boolean).join(' · ');
+                        const hint = [tech.hint, setsNote].filter(Boolean).join(' · ');
+                        const hintIndent = rowKind === 'check' ? 41 : 22;
 
                         // ── A CONTAINER ──────────────────────────────
                         if (container) {
@@ -1327,10 +1442,11 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                             <div key={ex.id} style={{ borderBottom: rowEdge }}>
                               <div
                                 onClick={() => openDetail({
-                                  ordinal: myOrdinal, name: exName, pill, param, hint,
-                                  entries: [], target: null,
+                                  ordinal: myOrdinal, name: tech.fullName, pill, param, hint,
+                                  techniques: tech.techniques, entries: [], target: null,
                                 })}
                                 style={{
+                                  ...rowPad,
                                   background: banded ? BAND_BG : WHITE,
                                   borderBottom: banded
                                     ? `0.5px solid ${BAND_LINE}`
@@ -1366,6 +1482,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                   )}
                                 </div>
                                 <HintLine text={hint} indent={22} />
+                                <TechniqueHint count={tech.techniques.length} indent={22} />
                               </div>
 
                               {/* A tabata renders as SET BLOCKS, each with
@@ -1391,7 +1508,12 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                 const sbp = boxPlan(subEditable ? boxesPerSub : 0);
                                 const subText = subLabel(sub, subKindOf, sidx);
                                 const subKey = `${ex.id}:sub${sidx}`;
-                                const subHint = noteOf(sub);
+                                // A sub-exercise carries techniques the same
+                                // two ways a top-level row does.
+                                const subTech = readTechniques({
+                                  exercise_name: subText, description: sub?.description, notes: sub?.notes,
+                                });
+                                const subHint = subTech.hint;
                                 const subEntries = subEditable
                                   ? indexEntries(Array.from({ length: boxesPerSub }).map((_, ri) => ({
                                     key: `${subKey}:${ri + 1}`,
@@ -1405,11 +1527,13 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                   <div
                                     key={subKey}
                                     onClick={() => openDetail({
-                                      ordinal: null, name: subText, pill: null,
+                                      ordinal: null, name: subTech.fullName, pill: null,
                                       param: subParam, hint: subHint,
+                                      techniques: subTech.techniques,
                                       entries: subEntries, target: sm.target,
                                     })}
                                     style={{
+                                      ...subRowPad,
                                       background: WHITE, cursor: 'pointer',
                                       borderBottom: lastSub ? 'none' : `0.5px solid ${DIVIDER}`,
                                     }}
@@ -1430,7 +1554,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                         </button>
                                       )}
                                       <span style={starStyle}>✳</span>
-                                      <span style={nameStyle(14)} title={subText}>{subText}</span>
+                                      <span style={nameStyle(14)} title={subText}>{subTech.displayName}</span>
                                       {showParam(subEntries.length) && <ParamBlock {...(subParam || {})} />}
                                       <div style={spacerStyle} />
                                       {subEditable && (
@@ -1457,6 +1581,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                       )}
                                     </div>
                                     <HintLine text={subHint} indent={showTick ? 41 : 22} />
+                                    <TechniqueHint count={subTech.techniques.length} indent={showTick ? 41 : 22} />
                                   </div>
                                 );
                               })}
@@ -1476,10 +1601,10 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                           <div
                             key={ex.id}
                             onClick={() => openDetail({
-                              ordinal: myOrdinal, name: exName, pill, param, hint,
-                              entries, target: m.target,
+                              ordinal: myOrdinal, name: tech.fullName, pill, param, hint,
+                              techniques: tech.techniques, entries, target: m.target,
                             })}
-                            style={{ borderBottom: rowEdge, cursor: 'pointer' }}
+                            style={{ ...rowPad, borderBottom: rowEdge, cursor: 'pointer' }}
                           >
                             <div style={rowLine}>
                               {rowKind === 'check' && (
@@ -1538,7 +1663,8 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                 </div>
                               )}
                             </div>
-                            <HintLine text={hint} indent={rowKind === 'check' ? 41 : 22} />
+                            <HintLine text={hint} indent={hintIndent} />
+                            <TechniqueHint count={tech.techniques.length} indent={hintIndent} />
                           </div>
                         );
                       })}
@@ -1639,9 +1765,19 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
             <div dir="rtl" style={{ fontFamily: SANS }}>
               {/* Full bleed over the shared p-6 padding. */}
               <div style={{
-                margin: '-24px -24px 0',
+                // The band bleeds SIDEWAYS over the shared dialog's
+                // p-6 padding, but NOT upward. Pulling it up too was
+                // the bug: DialogContent is rounded-xl + overflow
+                // hidden, so a band starting at y=0 had its first text
+                // line sliced by the corner radius, and the close
+                // control at right-4 top-4 landed on top of the name.
+                // Starting it 6px down puts the whole band inside the
+                // rounded frame, and 44px of physical right padding
+                // keeps every line clear of the close control.
+                margin: '-18px -24px 0',
+                borderRadius: '8px 8px 0 0',
                 background: BAND_BG, borderBottom: `1px solid ${BAND_LINE}`,
-                padding: '16px 44px 14px 16px',
+                padding: '18px 44px 14px 16px',
                 display: 'flex', alignItems: 'flex-start', gap: 8,
               }}>
                 {detail.ordinal != null && (
@@ -1671,6 +1807,18 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                     fontSize: 12, fontWeight: 400, color: MUTED,
                     lineHeight: 1.6, marginBottom: 14, overflowWrap: 'anywhere',
                   }}>{detail.hint}</div>
+                )}
+
+                {/* Every technique the row could not print, one per
+                    line. This is where the list the sheet shortened
+                    lives — nothing is lost, it is one tap away. */}
+                {detail.techniques?.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{
+                      fontSize: 11, fontWeight: 400, color: MUTED, marginBottom: 2,
+                    }}>{techniqueCountLabel(detail.techniques.length)}</div>
+                    <TechniqueList techniques={detail.techniques} />
+                  </div>
                 )}
 
                 {detail.entries.length > 0 ? (
