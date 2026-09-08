@@ -1014,7 +1014,16 @@ export default function UnifiedPlanBuilder({ plan, isCoach = false, canEdit = fa
         (e) => e.training_section_id === originalSection.id
       );
       for (const ex of originalExercises) {
-        const { id: _exId, created_at: _exCa, training_section_id: _ts, ...exFields } = ex;
+        // `completed` is stripped for the same reason every other copy
+        // path strips it: the column is global across every trainee and
+        // every run, so spreading it here carried the source section's
+        // ticks into the copy. Per-execution completion lives in
+        // exercise_executions.is_completed, keyed by
+        // workout_execution_id.
+        const {
+          id: _exId, created_at: _exCa, training_section_id: _ts,
+          completed: _exCompleted, ...exFields
+        } = ex;
         await base44.entities.Exercise.create({
           ...exFields,
           training_section_id: newSection.id,
