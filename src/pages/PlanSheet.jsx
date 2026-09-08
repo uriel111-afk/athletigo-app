@@ -1,15 +1,16 @@
-import React, { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { Play } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { AuthContext } from '@/lib/AuthContext';
 import PageLoader from '@/components/PageLoader';
-import { getMethodByMode } from '@/constants/trainingMethods';
+import { getMethodByEnglishId } from '@/constants/trainingMethods';
 import {
   measurementKind,
   subMeasurementKind,
-  innerExercisesOf,
   isContainer,
   isTabataContainer,
   has,
@@ -17,22 +18,30 @@ import {
 import { parseTabataData } from '@/lib/tabataSettings';
 import { saveSetActual } from '@/lib/plannedSets';
 import { duplicatePlan } from '@/lib/plansApi';
+import { useClock } from '@/contexts/ClockContext';
+import {
+  resolveExerciseClock, useExerciseClock,
+  InlineExerciseClock, ClockSwapPrompt,
+} from '@/components/training/ExerciseClock';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 
 /**
- * PlanSheet — the workout execution screen, laid out like the printed
- * AthletiGo plan sheet.
+ * PlanSheet — the workout execution screen, drawn as the printed
+ * AthletiGo plan sheet with entry boxes added.
  *
- * One open form, top to bottom. Nothing collapses, nothing expands.
- * Each section is two columns: a narrow beige label rail on the RIGHT
- * (RTL reading order) and the exercise rows on the left.
+ * The shell is the printed page: charcoal frame, cream paper, the
+ * charcoal wedge / orange wordmark header band, the orange wedge at
+ * the foot. Inside it every exercise is ONE line — tick, ordinal,
+ * name, method pill, parameters, then the entry group starting at the
+ * row's horizontal centre and running left. Nothing wraps to a second
+ * line; detail that will not fit opens on a tap.
  *
  * DATA — every column already exists; no schema change, no migration.
  *   plan      → training_plans
  *   sections  → training_sections   (training_plan_id, section_name, "order")
- *   exercises → exercises           (training_section_id, "order")
+ *   exercises → exercises           (training_plan_id, training_section_id, "order")
  *   results   → exercise_set_logs   via saveSetActual(), parented by
  *               workout_executions
  *   feeling   → workout_executions.self_rating (one value per workout)
@@ -40,56 +49,129 @@ import {
  * There is NO measurement-type column. The type is derived at read time
  * by measurementKind() in src/lib/exerciseMeasurement.js — the same
  * helper WorkoutSheet imports, so the two screens cannot disagree.
+ *
+ * CLOCKS are not built here. resolveExerciseClock / useExerciseClock /
+ * InlineExerciseClock in components/training/ExerciseClock.jsx already
+ * map an exercise's own time fields onto the shared ClockContext
+ * engine; this screen only renders their launcher and their running
+ * block. No second engine, no duplicated phase loop.
  */
 
-// ── Palette ──────────────────────────────────────────────────────────
-const CREAM    = '#FBF3EA';
-const CHARCOAL = '#2D2A26';
-const BEIGE    = '#FDE3D2';
-const ORANGE   = '#FF6F20';
-const MUTED    = '#A89A88';
-const WHITE    = '#FFFFFF';
-// 68px so the longest Hebrew section name (תנועתיות) fits on one line
-// at 11px. Tested against תנועתיות / מתיחות / גמישות / הערות / חימום / כוח.
-// Section label column. 52 — Hebrew section names are short and this
-// hands 8px back to the text side.
-const RAIL_W   = 52;
-// The entry strip is sized BY ITS BOX COUNT and never scrolls. The
-// fixed-width ruled column that came before this held exactly three
-// boxes (30*3 + 4*2 = 98) and scrolled a fourth and fifth out of
-// sight — at 360px a five-box row showed three boxes and hid two,
-// which reads as a row that simply has three sets.
-//
-// So the boxes shrink instead, on a fixed table:
-//   1-2 boxes → 32px   3-4 boxes → 28px   5+ boxes → 24px
-//   gap 3px from four boxes up, otherwise 4px.
-// 24px still holds a two-digit number at 13px, and five boxes plus
-// their gaps come to 132px — inside the 255px a plain row has at
-// 360px, so the name keeps 123px and nothing is cut off.
-//
-// BOX_W / BOX_GAP stay as the one-and-two-box case of that table.
-const BOX_W    = 32;
-const BOX_H    = 38;
-const BOX_GAP  = 4;
-// Retained: the width of the old ruled column, kept for reference by
-// anything still reasoning about the three-box sheet.
-const ENTRY_W  = 30 * 3 + 4 * 2;   // 98
-const TOUCH    = 44;
-const ROW_H    = 46;
-// No alignment line and no percentage width anywhere. The entry boxes
-// sit immediately after the parameters in the same flex flow, and the
-// leftover space stays empty at the card edge. A fixed 52% column could
-// not hold four elements plus five boxes at 360px without clipping.
+// ── Palette — the printed sheet's own ────────────────────────────────
+const CREAM       = '#FBF3EA';
+const CHARCOAL    = '#2D2A26';
+const ORANGE      = '#FF6F20';
+const WHITE       = '#FFFFFF';
+const CARD_BORDER = '#E0D4C2';
+const STRIP       = '#FFE2CD';   // the 5px band across every card top
+const DIVIDER     = '#F0E7DA';   // between rows
+const MUTED       = '#8A8079';   // parameter text
+const DESK        = '#EDE3D6';   // behind the sheet
 
-// Measurability is decided by the SECTION first, then the exercise.
-// חימום / מתיחות / גמישות / תנועתיות / הערות are tick-only however
-// many numbers their rows carry, because a 300-rep rope warmup does
-// not belong in the progress graph. Everywhere else a row is measured
-// only if it actually carries a number.
-//
-// The derivation itself lives in src/lib/exerciseMeasurement.js and is
-// shared with WorkoutSheet, so the two screens cannot disagree — which
-// is why the section is passed in rather than re-decided here.
+const SANS = "'Rubik', system-ui, -apple-system, sans-serif";
+
+// Section label card, on the RIGHT of every section.
+const RAIL_W = 56;
+// Entry boxes. Height is fixed; width comes from boxPlan() below.
+const BOX_H  = 26;
+// The one place a 44px touch target still applies: the page's own
+// actions, which are not part of the ruled sheet.
+const TOUCH  = 44;
+
+/**
+ * Box width BY COUNT. Half a row holds five boxes at most, so the
+ * boxes get narrower as there are more of them rather than the strip
+ * getting wider without limit.
+ *   1-2 → 32px   3-4 → 28px   5+ → 24px
+ *   gap 3px from four boxes up, otherwise 4px.
+ * 24px still holds two digits at 12px.
+ */
+function boxPlan(count) {
+  const n = Math.max(1, Number(count) || 1);
+  return { w: n <= 2 ? 32 : n <= 4 ? 28 : 24, gap: n >= 4 ? 3 : 4 };
+}
+
+/**
+ * METHOD PILLS — matched on the exercise's OWN mode value, Hebrew or
+ * English. getMethodByMode() is deliberately NOT used for this: it
+ * falls back to REPS for anything it does not know, which would paint
+ * a "חזרות" pill onto every unlabelled row. An unknown mode gets no
+ * pill at all.
+ */
+const PILLS = {
+  'קומבו':   { id: 'combo',     bg: '#FAC775', fg: '#412402' },
+  'combo':   { id: 'combo',     bg: '#FAC775', fg: '#412402' },
+  'סופרסט':  { id: 'super_set', bg: '#CECBF6', fg: '#26215C' },
+  'superset': { id: 'super_set', bg: '#CECBF6', fg: '#26215C' },
+  'super_set': { id: 'super_set', bg: '#CECBF6', fg: '#26215C' },
+  'טבטה':    { id: 'tabata',    bg: '#F7C1C1', fg: '#501313' },
+  'tabata':  { id: 'tabata',    bg: '#F7C1C1', fg: '#501313' },
+  'חזרות':   { id: 'reps',      bg: '#FFE2CD', fg: '#7A2E00' },
+  'reps':    { id: 'reps',      bg: '#FFE2CD', fg: '#7A2E00' },
+  'דרופסט':  { id: 'drop_set',  bg: '#F5C4B3', fg: '#4A1B0C' },
+  'dropset': { id: 'drop_set',  bg: '#F5C4B3', fg: '#4A1B0C' },
+  'drop_set': { id: 'drop_set',  bg: '#F5C4B3', fg: '#4A1B0C' },
+};
+
+/** The pill for a mode, or null. The label comes from the catalog. */
+export function pillOf(mode) {
+  const key = String(mode ?? '').trim().toLowerCase();
+  if (!key) return null;
+  const p = PILLS[key];
+  if (!p) return null;
+  return { ...p, label: getMethodByEnglishId(p.id).label };
+}
+
+function MethodPill({ pill }) {
+  if (!pill) return null;
+  return (
+    <span style={{
+      flexShrink: 0,
+      background: pill.bg, color: pill.fg,
+      fontSize: 10, lineHeight: 1.5, fontWeight: 500,
+      borderRadius: 9, padding: '1px 6px',
+      whiteSpace: 'nowrap',
+    }}>{pill.label}</span>
+  );
+}
+
+/**
+ * Minutes first, then seconds, left to right — even on this RTL page.
+ * 180 → 3:00, 20 → 0:20.
+ */
+function mmss(seconds) {
+  const t = Math.max(0, Math.round(Number(seconds) || 0));
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+}
+
+/** The exercise's OWN values, as the shortcut prints them. */
+function clockLabel(spec) {
+  if (!spec) return '';
+  if (spec.kind === 'countdown') return mmss(spec.seconds);
+  const bits = [mmss(spec.workSeconds)];
+  if (spec.restSeconds > 0) bits.push(mmss(spec.restSeconds));
+  const time = bits.join(' / ');
+  return spec.rounds > 1 ? `${time} ×${spec.rounds}` : time;
+}
+
+/**
+ * Which rows carry a shortcut, and what shape it takes.
+ *
+ * resolveExerciseClock() is the existing mapping and is not
+ * re-implemented here — this only filters it:
+ *   countdown            → a hold or a timed exercise: button + box,
+ *                          the elapsed seconds are written back
+ *   intervals / tabata   → a clock, not a measurement: button only
+ *   stopwatch            → not a time value at all (rounds with no
+ *                          seconds anywhere), so no shortcut
+ */
+function shortcutOf(exercise) {
+  const spec = resolveExerciseClock(exercise);
+  if (!spec || !spec.hasDuration) return null;
+  if (spec.kind === 'stopwatch') return null;
+  return spec;
+}
+const isClockOnly = (spec) => !!spec && (spec.kind === 'tabata' || spec.kind === 'intervals');
 
 /** "25X2" — reps X sets, capital X, plain text. */
 function paramText(m) {
@@ -146,9 +228,9 @@ function roundsOf(exercise, td) {
  * all. That is why every row read "תרגיל".
  */
 function subsOf(exercise, td) {
-  const named = (arr) => Array.isArray(arr) && arr.length ? arr : null;
+  const named = (arr) => (Array.isArray(arr) && arr.length ? arr : null);
   const list = named(td?.sub_exercises) || named(td?.exercises_in_rotation) || named(td?.stations);
-  if (list) return { list, kind: "exercises" };
+  if (list) return { list, kind: 'exercises' };
   if (Array.isArray(td?.rounds) && td.rounds.length) {
     const flat = [];
     for (const r of td.rounds) for (const e of (r?.exercises || [])) flat.push(e);
@@ -157,207 +239,97 @@ function subsOf(exercise, td) {
       // by name so a 5-round superset lists 2 exercises, not 10.
       const seen = new Set(); const uniq = [];
       for (const e of flat) {
-        const k = e?.name || e?.exercise_name || "";
+        const k = e?.name || e?.exercise_name || '';
         if (seen.has(k)) continue; seen.add(k); uniq.push(e);
       }
-      return { list: uniq, kind: "exercises" };
+      return { list: uniq, kind: 'exercises' };
     }
   }
   if (Array.isArray(td?.planned_sets) && td.planned_sets.length) {
-    return { list: td.planned_sets, kind: "sets" };
+    return { list: td.planned_sets, kind: 'sets' };
   }
-  return { list: [], kind: "exercises" };
+  return { list: [], kind: 'exercises' };
 }
 
 /** A sub row label. Real name, else the set variation, else the set number. */
 function subLabel(sub, kind, idx) {
   const n = sub?.exercise_name || sub?.name || sub?.variation_name;
   if (n && String(n).trim()) return String(n).trim();
-  if (kind === "sets") return `סט ${sub?.set_index ?? idx + 1}`;
-  return "תרגיל";
+  if (kind === 'sets') return `סט ${sub?.set_index ?? idx + 1}`;
+  return 'תרגיל';
 }
 
 /**
- * A name that overflows is almost never one long name — it is a name
- * plus a clarification: "עליות מתח בשכיבה ( מוט נמוך או טבעות)". The
- * printed sheet puts the clarification on the muted line beneath, so
- * the name itself stays readable at a full size. This does the same.
+ * ClockShortcut — the launcher, and the running block it opens.
  *
- * DISPLAY ONLY. The stored exercise_name is never touched — the long
- * press dialog still shows it whole, and every write still uses it.
+ * Owns NO timing. `useExerciseClock` is the existing controller hook
+ * (ExerciseCard.jsx:1190 is the other caller) and it drives the shared
+ * ClockContext engine, so a clock started from a row is the same clock
+ * /clocks runs, complete with its wake lock and its notifications.
+ *
+ * The running block is portalled to the body because this route has no
+ * TimerFooterBar — PlanSheet renders outside LayoutWrapper — and the
+ * section cards clip their overflow.
  */
-// The earliest of these wins; JS alternation already matches leftmost.
-const SPLIT_AT = /[(·,]|\s-\s/;
-const SPLIT_MIN = 16;
-
-export function splitExerciseName(name) {
-  const full = (name || "").trim();
-  // A short name stays whole even when it holds a comma: splitting
-  // "עליה לישיבה, איטי" buys no width and costs a line.
-  if (full.length < SPLIT_MIN) return { head: full, tail: "" };
-  const at = full.match(SPLIT_AT);
-  if (!at) return { head: full, tail: "" };
-  const head = full.slice(0, at.index).trim()
-    .replace(/[\s,·(-]+$/, "")   // a trailing separator
-    .replace(/\s*\)+$/, "")      // an unmatched closing bracket
-    .trim();
-  const tail = full.slice(at.index + at[0].length).trim()
-    .replace(/^[\s,·)-]+/, "")
-    // Brackets go everywhere in the tail, not just at its ends: a name
-    // split on its first comma can leave a second, now unmatched, open
-    // bracket mid-string ("וכפיפה לפנים( שפגט").
-    .replace(/[()[\]]/g, " ")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-  // A split that leaves no name is not a split.
-  if (!head) return { head: full, tail: "" };
-  return { head, tail };
-}
-
-/**
- * Long press — 500ms with the finger still — opens the detail dialog.
- * It is bound to the TEXT side of a row only, so the number boxes and
- * the tick button keep their ordinary tap behaviour, and a scroll
- * (more than 10px of travel) cancels it rather than firing.
- */
-const LONG_PRESS_MS = 500;
-const PRESS_SLOP_SQ = 100;
-
-function PressableText({ onLongPress, style, children }) {
-  const timer = useRef(null);
-  const origin = useRef(null);
-  const clear = useCallback(() => {
-    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
-    origin.current = null;
+function ClockShortcut({ spec, setNumber, totalSets, onElapsed, disabled }) {
+  const clock = useClock();
+  // The hook's completion effect keys off this callback's identity, so
+  // it has to be stable across the parent's renders.
+  const latest = useRef(onElapsed);
+  latest.current = onElapsed;
+  const handleElapsed = useCallback((seconds) => {
+    if (typeof latest.current === 'function') latest.current(seconds);
   }, []);
-  useEffect(() => clear, [clear]);
-  const down = (e) => {
-    if (e.pointerType === "mouse" && e.button !== 0) return;
-    clear();
-    origin.current = { x: e.clientX, y: e.clientY };
-    timer.current = setTimeout(() => { timer.current = null; onLongPress(); }, LONG_PRESS_MS);
-  };
-  const move = (e) => {
-    if (!timer.current || !origin.current) return;
-    const dx = e.clientX - origin.current.x;
-    const dy = e.clientY - origin.current.y;
-    if (dx * dx + dy * dy > PRESS_SLOP_SQ) clear();
-  };
+  const ec = useExerciseClock({ spec, clock, onElapsed: handleElapsed });
+  if (!spec) return null;
   return (
-    <div
-      style={{ ...style, WebkitTouchCallout: "none", WebkitUserSelect: "none", userSelect: "none" }}
-      onPointerDown={down}
-      onPointerMove={move}
-      onPointerUp={clear}
-      onPointerLeave={clear}
-      onPointerCancel={clear}
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      {children}
-    </div>
+    <>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={(e) => { e.stopPropagation(); ec.launch(); }}
+        onPointerDown={(e) => e.stopPropagation()}
+        aria-label={`הפעל שעון · ${clockLabel(spec)}`}
+        style={{
+          flexShrink: 0,
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          border: `0.5px solid ${ORANGE}`, borderRadius: 4,
+          padding: '3px 6px', minHeight: BOX_H, height: BOX_H,
+          background: WHITE, color: ORANGE,
+          fontSize: 11, fontFamily: 'inherit', lineHeight: 1,
+          boxSizing: 'border-box', whiteSpace: 'nowrap',
+          cursor: disabled ? 'default' : 'pointer',
+        }}
+      >
+        <Play size={9} fill={ORANGE} color={ORANGE} style={{ flexShrink: 0 }} />
+        {/* Minutes first, then seconds, left to right — inside an RTL page. */}
+        <span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>{clockLabel(spec)}</span>
+      </button>
+
+      <ClockSwapPrompt open={ec.swapOpen} onConfirm={ec.confirmSwap} onCancel={ec.cancelSwap} />
+
+      {ec.owned && typeof document !== 'undefined' && createPortal(
+        <div style={{
+          position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 12000,
+          background: CREAM, borderTop: `1px solid ${CARD_BORDER}`,
+          boxShadow: '0 -8px 22px rgba(0,0,0,0.16)',
+          padding: '10px 12px calc(4px + env(safe-area-inset-bottom, 0px))',
+        }}>
+          <InlineExerciseClock
+            spec={spec}
+            clock={clock}
+            setNumber={setNumber}
+            totalSets={totalSets}
+            onStop={ec.stopNow}
+            onTogglePause={ec.togglePause}
+          />
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
-/**
- * EntryColumn — the entry strip, as wide as the boxes it holds.
- *
- * It is the LAST child of the row's single flex line and it never
- * shrinks and never scrolls: every box it is given is on screen. The
- * boxes get narrower as there are more of them (boxPlan), which is
- * what buys the room the old fixed-width scrolling column did not
- * have. The name is the only thing on the row that gives up width.
- *
- * `fadeTo` is still accepted so the two call sites read the same as
- * they did; there is no longer a scroll edge to fade.
- */
-function EntryColumn({ gap, fadeTo, children }) {
-  void fadeTo;
-  return (
-    <div
-      className="ps-entry"
-      style={{
-        display: 'flex', justifyContent: 'flex-start', alignItems: 'center',
-        gap, flexShrink: 0, flexWrap: 'nowrap',
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-/**
- * FitText — sizes a single-line label by the width it ACTUALLY has.
- *
- * Character count was the original bug: a 12-character name kept 16px
- * and ellipsised anyway. A canvas measureText helper was the next
- * attempt and was measurably wrong — it under-estimated by 4-20px,
- * because the available width had to be reconstructed arithmetically
- * from constants and because the canvas resolves the web font
- * differently from the layout engine. Measured live: "מתיחה ל4 ראשי"
- * was sized 16px on a canvas estimate but needed 106px in a 102px slot.
- *
- * So this measures the real element in the real layout: render, compare
- * scrollWidth to clientWidth in useLayoutEffect, step down one size,
- * repeat. At most six passes, all before paint, so nothing flickers.
- * Only if the floor still overflows does it ellipsise.
- */
-const FONT_STEPS = [16, 15, 14, 13, 12, 11];
-
-// `title` defaults to the rendered text, but a split name passes the
-// whole stored one, so hovering a shortened row still shows it all.
-function FitText({ text, title, style, steps = FONT_STEPS }) {
-  const ref = useRef(null);
-  // `gen` exists only to guarantee a re-render. Setting the step index
-  // back to 0 when it is ALREADY 0 is a no-op: React bails out, so the
-  // measuring effect below — which has no dependency array, and so
-  // runs only when something renders — never re-runs. That is exactly
-  // the resize case, where a sheet first laid out wide would keep 16px
-  // forever after a rotation into a narrow screen.
-  const [fit, setFit] = useState({ i: 0, gen: 0, wrap: false });
-  const { i, wrap } = fit;
-  // A different string starts the search again from the top. Already
-  // at the top on mount, so this stays a no-op there.
-  useLayoutEffect(() => {
-    setFit((f) => (f.i === 0 && !f.wrap ? f : { i: 0, gen: f.gen + 1, wrap: false }));
-  }, [text]);
-  // So does a new viewport width — and this one must re-render even
-  // from 0, hence the gen bump.
-  useEffect(() => {
-    const again = () => setFit((f) => ({ i: 0, gen: f.gen + 1, wrap: false }));
-    window.addEventListener('resize', again);
-    return () => window.removeEventListener('resize', again);
-  }, []);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    // Once wrapping, scrollWidth equals clientWidth and there is
-    // nothing left to measure.
-    if (wrap) return;
-    if (el.scrollWidth <= el.clientWidth + 1) return;
-    if (i < steps.length - 1) setFit((f) => ({ ...f, i: f.i + 1 }));
-    // The floor is reached and it STILL does not fit. Height is free
-    // and width is not, so the line wraps rather than losing its end
-    // to an ellipsis. The row grows; nothing is hidden.
-    else setFit((f) => ({ ...f, wrap: true }));
-  });
-  return (
-    <span
-      ref={ref}
-      title={title ?? text}
-      style={{
-        ...style,
-        fontSize: steps[i],
-        minWidth: 0,
-        whiteSpace: wrap ? 'normal' : 'nowrap',
-        overflow: wrap ? 'visible' : 'hidden',
-        textOverflow: wrap ? 'clip' : 'ellipsis',
-        overflowWrap: 'anywhere',
-      }}
-    >
-      {text}
-    </span>
-  );
-}
 const todayLabel = () => new Date().toLocaleDateString('he-IL');
 
 export default function PlanSheet() {
@@ -371,6 +343,10 @@ export default function PlanSheet() {
   const { user } = useContext(AuthContext);
 
   const [values, setValues] = useState({});   // `${exId}:${setIdx}` → string
+  // Live mirror of `values`, for handlers that must read the current
+  // map without depending on it (the clock write-back).
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
   const [checks, setChecks] = useState({});   // exId → bool
   const [feeling, setFeeling] = useState(null);
   const [execId, setExecId] = useState(null);
@@ -381,10 +357,9 @@ export default function PlanSheet() {
   // Collapsed sections, by id. Empty at mount → every section starts
   // EXPANDED. Deliberately not persisted anywhere.
   const [collapsed, setCollapsed] = useState({});
-  // The row a long press opened, or null. Read-only detail — this is
-  // the fallback for a name too long to fit even at 11px.
+  // The row a tap opened, or null. Read-only detail — this is where the
+  // text that does not fit on the single line lives.
   const [detail, setDetail] = useState(null);
-
 
   // ── Plan + sections + exercises. Three reads, no embeds: this DB has
   //    no foreign keys, so PostgREST embeds are not available. ────────
@@ -433,7 +408,17 @@ export default function PlanSheet() {
       const next = {}; const nextChecks = {};
       for (const l of logs || []) {
         const v = l.reps_completed ?? l.time_completed ?? l.weight_used;
-        if (v != null) { next[`${l.exercise_id}:${l.set_number}`] = String(v); continue; }
+        if (v != null) {
+          // drill_index 0 is ambiguous — a plain row's own set, or the
+          // FIRST sub of a container. Both keys are written for it, the
+          // same way the tick branch below does, because only one of
+          // them is ever read back: a container renders no top-level
+          // boxes and a plain exercise renders no sub rows.
+          const drill = l.drill_index ?? 0;
+          if (drill === 0) next[`${l.exercise_id}:${l.set_number}`] = String(v);
+          next[`${l.exercise_id}:sub${drill}:${l.set_number}`] = String(v);
+          continue;
+        }
         // A tick row carries no measurement. drill_index alone cannot
         // say whether it came from a top-level row or from sub 0, so
         // BOTH keys are set — which is safe, because only one of them
@@ -548,6 +533,31 @@ export default function PlanSheet() {
     await saveSetActual(supabase, id, exerciseId, drillIdx, 1, {}, { allowEmpty: true });
   }, [ensureExecution, locked]);
 
+  /**
+   * A clock that measured something writes through the ORDINARY save
+   * path — the same commit() a typed box uses, so nothing about
+   * exercise_set_logs changes. It lands in the first empty box, or in
+   * box 1 when every box is already filled.
+   *
+   * Only a countdown (a hold or a timed exercise) ever gets here: an
+   * interval or tabata container is a clock, not a measurement, and
+   * passes no callback at all.
+   */
+  const writeClockSeconds = useCallback((exerciseId, boxCount, payloadField, seconds) => {
+    if (locked) return;
+    if (!Number.isFinite(seconds) || seconds <= 0) return;
+    // Read through the ref rather than inside a setValues updater: the
+    // updater has to stay pure, and it would otherwise fire the write
+    // twice under StrictMode.
+    const current = valuesRef.current;
+    let slot = 1;
+    for (let i = 1; i <= Math.max(1, boxCount); i += 1) {
+      if (!has(current[`${exerciseId}:${i}`])) { slot = i; break; }
+    }
+    setValues((pv) => ({ ...pv, [`${exerciseId}:${slot}`]: String(seconds) }));
+    commit(exerciseId, slot, String(seconds), payloadField);
+  }, [commit, locked]);
+
   const saveFeeling = useCallback(async (n) => {
     if (locked) return;
     setFeeling(n);
@@ -598,115 +608,74 @@ export default function PlanSheet() {
   if (isLoading || !data) return <PageLoader />;
 
   const { plan } = data;
-  // ── TWO flex children, and the ROW never wraps. ────────────────
-  //    child 1: the text side, taking all remaining width.
-  //    child 2: the FIXED 112px entry column.
-  const plainRow = {
-    display: 'flex', alignItems: 'center',
-    padding: '10px 9px', borderBottom: '1px solid #E0D4C2',
-  };
-  // The text side is now a COLUMN: the name line, then the muted line
-  // that carries the clarification split off the name. flex:1 moved up
-  // here — on textGroup it would have flexed the name line vertically.
-  const textColumn = { flex: 1, minWidth: 0 };
+  const planTitle = plan?.title || plan?.plan_name || 'תוכנית אימונים';
+
+  // ── ROW — one flex line, never two, never wrapping. ────────────
+  //    right to left: tick, ordinal, name, pill, parameters,
+  //    flex:1 spacer, entry group.
+  const rowLine = (last) => ({
+    display: 'flex', alignItems: 'center', gap: 5,
+    padding: '7px 8px',
+    borderBottom: last ? 'none' : `1px solid ${DIVIDER}`,
+  });
+  // The only shrinkable thing on the row. Everything inside it except
+  // the name itself refuses to shrink, so the name is what gives.
   const textGroup = {
-    minWidth: 0, display: 'flex', alignItems: 'baseline',
-    gap: 9, overflow: 'hidden',
+    display: 'flex', alignItems: 'center', gap: 5,
+    minWidth: 0, flexShrink: 1, overflow: 'hidden',
+    cursor: 'pointer',
   };
-  // Indented past the ordinal so it sits under the name, not under
-  // the number.
-  // Two lines, then an ellipsis. A single nowrap line lost the end of
-  // every clarification that ran past ~125px.
-  const metaLine = {
-    fontSize: 11, color: MUTED, marginTop: 2, paddingInlineStart: 22,
-    lineHeight: 1.35,
-    display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 2,
-    overflow: 'hidden', overflowWrap: 'anywhere',
+  const ordinalStyle = { fontSize: 11, color: ORANGE, flexShrink: 0, lineHeight: 1.4 };
+  const nameStyle = {
+    fontSize: 12, fontWeight: 500, color: CHARCOAL, lineHeight: 1.4,
+    minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   };
-  const ordinalStyle = {
-    fontSize: 12, color: ORANGE, fontWeight: 500, flexShrink: 0,
-  };
-  // Wrapping breaks the ruled column, so the name never wraps — it
-  // steps its font size down by length instead. Ellipsis is the last
-  // resort, only if it still will not fit.
-  const nameStyle = { color: CHARCOAL, fontWeight: 500 };
-  // No separator dot — the 9px gap is the separation. The bidi isolate
-  // stays: without it a label ending in a digit merges with the target
-  // ("סט 1" + "15" read as "סט 115").
+  // The bidi isolate stays: without it a label ending in a digit merges
+  // with the target ("סט 1" + "15" read as "סט 115").
   const paramStyle = {
-    fontSize: 13, color: CHARCOAL, flexShrink: 0,
-    unicodeBidi: "isolate", direction: "rtl", whiteSpace: "nowrap",
+    fontSize: 11, color: MUTED, flexShrink: 0, lineHeight: 1.4,
+    unicodeBidi: 'isolate', direction: 'rtl', whiteSpace: 'nowrap',
   };
+  const starStyle = { fontSize: 10, color: ORANGE, flexShrink: 0, lineHeight: 1.4 };
 
-  // Box size BY COUNT — see the table at the top of the file. An
-  // earlier attempt shrank continuously and reached 12px, where the
-  // number stopped being readable; these three steps have a 24px
-  // floor, which still holds two digits at 13px.
-  const boxPlan = (count) => {
-    const n = Math.max(1, Number(count) || 1);
-    return {
-      w: n <= 2 ? BOX_W : n <= 4 ? 28 : 24,
-      gap: n >= 4 ? 3 : BOX_GAP,
-    };
-  };
+  /**
+   * What the text side can still afford.
+   *
+   * Half a row holds five boxes. At five the entry group is already
+   * the whole half; at six it has crossed the centre line and grown
+   * rightward, and only the name is allowed to shrink — measured at
+   * 360px, a seven-box row leaves the name 0px and cuts the pill in
+   * two. So the two smallest pieces step aside, in that order:
+   *
+   *   5+ boxes, or any row with a clock button → no parameter text
+   *   6+ boxes                                 → no method pill
+   *
+   * Neither is lost: both are in the detail dialog a tap away, which
+   * is where this sheet puts everything that will not fit on the line.
+   * With that, the same seven-box row keeps a 37px name that ellipsises
+   * instead of vanishing, and nothing is clipped.
+   */
+  const showParams = (boxCount, hasClock) => boxCount < 5 && !hasClock;
+  const showPill = (boxCount) => boxCount < 6;
 
-  // ── Container: one wrapper, tinted, orange rail on its RIGHT. ───
-  const containerWrap = {
-    background: '#FDF6EE', borderRight: `2px solid ${ORANGE}`,
-    marginRight: 3,
-    borderBottom: '1px solid #E0D4C2',
-  };
-  const containerHead = {
-    padding: '8px 9px 4px', display: 'flex', alignItems: 'baseline',
-    gap: 9, minWidth: 0, overflow: 'hidden',
-  };
-  const containerNum  = { fontSize: 12, color: ORANGE, fontWeight: 500, flexShrink: 0 };
-  const containerName = { fontSize: 13, color: CHARCOAL, fontWeight: 500, flexShrink: 0 };
-  const containerMeta = {
-    fontSize: 11, color: MUTED, minWidth: 0,
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-  };
-
-  // ── Sub row: same shape, asterisk instead of an ordinal. ────────
-  //    No borderBottom — the wrapper carries it.
-  const subRow = {
-    display: 'flex', alignItems: 'center',
-    paddingInlineStart: 12,
-  };
-  const subStar  = { fontSize: 14, color: ORANGE, flexShrink: 0 };
-  const subName  = { color: CHARCOAL, fontWeight: 500 };
-
-  // ── A הערות section is prose, not exercises. Its rows carry no
-  //    ordinal, no tick, no entry column, and wrap to as many lines
-  //    as the text needs. Matched on the section name alone, so no
-  //    other section changes shape.
-  const notesRow = {
-    display: 'flex', gap: 8, alignItems: 'baseline',
-    padding: '9px 10px', borderBottom: '1px solid #E0D4C2',
-  };
-  const notesStar = { fontSize: 12, color: ORANGE, flexShrink: 0, lineHeight: 1.5 };
-  const notesText = {
-    fontSize: 12, color: CHARCOAL, fontWeight: 500, lineHeight: 1.5,
-    minWidth: 0, overflowWrap: 'anywhere',
-  };
-  const subParam = {
-    fontSize: 13, color: CHARCOAL, flexShrink: 0,
-    unicodeBidi: "isolate", direction: "rtl", whiteSpace: "nowrap",
-  };
-  // A checkbox, not an entry box. A row with nothing to measure used
-  // to render something that looked exactly like a number field and
-  // took no number. It still sits at the column's start, so it lines
-  // up with the first box of every measured row.
-  const checkStyle = (on) => ({
-    // minHeight for the same reason as the box: index.css gives every
-    // button min-height:44px.
-    flexShrink: 0, width: 22, height: 22, minHeight: 22, borderRadius: 4,
-    border: `1.5px solid ${on ? ORANGE : (locked ? '#E2DAD0' : '#C9BCAB')}`,
-    background: on ? ORANGE : (locked ? '#F4EEE6' : CREAM),
-    color: WHITE, fontSize: 13, fontWeight: 900, lineHeight: 1,
+  // 13px on the page, 25px under the finger. The hit area cannot come
+  // from padding — padding sits INSIDE the border, so it would draw a
+  // 25px square. It comes from a transparent 25px button with the 13px
+  // square inside it, and an equal negative margin hands the extra
+  // space straight back to the layout, so the row still measures 13.
+  const checkHit = {
+    flexShrink: 0, width: 25, height: 25, minHeight: 25,
+    margin: -6, padding: 0,
+    background: 'transparent', border: 'none',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontFamily: 'inherit', padding: 0, boxSizing: 'border-box',
-    cursor: locked ? 'default' : 'pointer',
+    fontFamily: 'inherit', cursor: locked ? 'default' : 'pointer',
+  };
+  const checkStyle = (on) => ({
+    width: 13, height: 13, borderRadius: 3, boxSizing: 'border-box',
+    border: `1px solid ${on ? ORANGE : (locked ? '#E2DAD0' : '#C1B4A3')}`,
+    background: on ? ORANGE : WHITE,
+    color: WHITE, fontSize: 9, fontWeight: 900, lineHeight: 1,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
     opacity: locked && !on ? 0.75 : 1,
   });
 
@@ -715,14 +684,24 @@ export default function PlanSheet() {
     // minHeight as well as height: index.css puts min-height:44px on
     // every input, and a min-height beats a smaller height.
     width: bp.w, height: BOX_H, minHeight: BOX_H,
-    textAlign: "center", fontSize: 13, padding: "6px 0",
-    border: filled ? `1.5px solid ${ORANGE}` : "1.5px solid #C9BCAB",
-    borderRadius: 5,
-    background: filled ? "#FFF" : CREAM,
-    boxSizing: "border-box",
+    textAlign: 'center', fontSize: 12, padding: '2px 0',
+    border: `1px solid ${filled ? ORANGE : '#D5C8B6'}`,
+    borderRadius: 3,
+    background: filled ? '#FFF7F1' : WHITE,
+    boxSizing: 'border-box',
     fontFamily: 'inherit', color: CHARCOAL,
     opacity: locked ? 0.75 : 1,
   });
+
+  // Both cards: white, hairline border, 4px radius, a 5px strip on top.
+  const cardShell = {
+    background: WHITE, border: `0.5px solid ${CARD_BORDER}`,
+    borderRadius: 4, overflow: 'hidden', boxSizing: 'border-box',
+  };
+  const cardStrip = { height: 5, background: STRIP, flexShrink: 0 };
+
+  const openDetail = (d) => setDetail(d);
+
   // Ordinals run across the whole sheet, not per section.
   let ordinal = 0;
 
@@ -731,251 +710,367 @@ export default function PlanSheet() {
       dir="rtl"
       className="ps-page"
       style={{
-        minHeight: '100dvh', background: CREAM, color: CHARCOAL,
-        fontFamily: "'Rubik', system-ui, -apple-system, sans-serif",
-        textAlign: 'right',
-        padding: 'calc(12px + env(safe-area-inset-top)) 0 calc(24px + env(safe-area-inset-bottom))',
+        minHeight: '100dvh', background: DESK, color: CHARCOAL,
+        fontFamily: SANS, textAlign: 'right',
+        padding: 'calc(6px + env(safe-area-inset-top)) 4px calc(20px + env(safe-area-inset-bottom))',
+        boxSizing: 'border-box',
       }}
     >
-      {/* Two rules that inline styles cannot express.
-          1. The fade is the scroll cue, so the native scrollbar is not
-             wanted on top of it, and ::-webkit-scrollbar has no inline
-             equivalent.
-          2. App.css carries a blanket `* { overflow-x: hidden }`. That
-             makes EVERY element its own scrollport, which is why the
-             sticky header did not stick — it had no scrollport that
-             actually scrolls. `clip` clips exactly the same way but
-             creates no scrollport. Scoped to this page's own chain,
-             and it leaves with the page when it unmounts. */}
-      <style>{`.ps-entry{scrollbar-width:none;-ms-overflow-style:none}
-.ps-entry::-webkit-scrollbar{display:none}
+      {/* Rules that inline styles cannot express.
+          1. The entry group starts at the row's horizontal CENTRE and
+             runs left — width 50%, never shrinking. The centre line is
+             a starting point, not an edge: min-width:max-content lets a
+             group that needs more than half the row grow rightward past
+             it instead of clipping a box or opening a scrollport.
+          2. Spinner arrows would eat a 24px box.
+          3. App.css carries a blanket `* { overflow-x: hidden }`, which
+             makes every element its own scrollport. `clip` clips the
+             same way and creates none. */
+      }
+      <style>{`
+.ps-entry{width:50%;min-width:-webkit-max-content;min-width:max-content;flex-shrink:0;display:flex;justify-content:flex-start;align-items:center;flex-wrap:nowrap}
+.ps-page input[type=number]{-moz-appearance:textfield}
+.ps-page input[type=number]::-webkit-outer-spin-button,
+.ps-page input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
-      {/* Outer sheet — full bleed. No page padding and no max width:
-          at 360px the old 12px page padding either side plus a
-          centred frame cost 24px of content, which is 24px the
-          exercise names now keep. Border and inner padding stay. */}
+
+      {/* ── The sheet: charcoal frame, cream paper ─────────────────── */}
       <div className="ps-frame" style={{
-        background: CREAM, border: `2px solid ${CHARCOAL}`,
-        borderRadius: 12, padding: 11, boxSizing: 'border-box',
+        border: `7px solid ${CHARCOAL}`, borderRadius: 12,
+        background: CHARCOAL, boxSizing: 'border-box',
       }}>
-
-        {/* ── Header ─────────────────────────────────────────────── */}
         <div style={{
-          background: ORANGE, color: WHITE,
-          border: `1.5px solid ${CHARCOAL}`, borderBottom: 'none',
-          padding: '6px 14px', minHeight: TOUCH, boxSizing: 'border-box',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: CREAM, borderRadius: 6, overflow: 'hidden',
+          position: 'relative',
         }}>
-          <span style={{ fontSize: 18, fontWeight: 800 }}>תוכנית אימונים</span>
-          <button
-            type="button"
-            onClick={() => navigate(backTo)}
-            aria-label="חזרה"
-            style={{
-              flexShrink: 0, minWidth: TOUCH, height: TOUCH,
-              background: 'transparent', border: 'none', color: WHITE,
-              fontSize: 20, fontWeight: 800, cursor: 'pointer',
-              fontFamily: 'inherit', padding: 0, lineHeight: 1,
-            }}
-          >
-            ←
-          </button>
-        </div>
-        {/* Sticky. The orange title scrolls away, this does not, so
-            mid-sheet it is still clear whose plan this is. It sits
-            below the safe-area inset rather than at a hard 0, so it
-            does not end up under a notch or the browser chrome, and
-            it is opaque so rows pass behind it rather than through. */}
-        <div style={{
-          position: 'sticky', top: 'env(safe-area-inset-top, 0px)', zIndex: 5,
-          background: WHITE, border: `1.5px solid ${CHARCOAL}`,
-          padding: '9px 14px', marginBottom: 14,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          fontSize: 14, fontWeight: 600,
-        }}>
-          <span>{plan?.assigned_to_name || user?.full_name || 'מתאמן'}</span>
-          <span style={{ color: MUTED, fontWeight: 500 }}>{todayLabel()}</span>
-        </div>
 
-        {/* Where this performance sits in its family. Nothing renders
-            for a plan with no copies. */}
-        {family && (
-          <div style={{
-            background: WHITE, border: `1.5px solid ${CHARCOAL}`, borderTop: 'none',
-            padding: '7px 14px', marginTop: -14, marginBottom: 14,
-            fontSize: 13, fontWeight: 700, color: ORANGE,
-          }}>
-            אימון {family.position} מתוך {family.total}
+          {/* ── Header band, 52px ──────────────────────────────────
+              charcoal wedge top LEFT, orange wordmark block top
+              RIGHT, the plan title between them. */}
+          <div style={{ position: 'relative', height: 52, background: CREAM }}>
+            <div style={{
+              position: 'absolute', left: 0, top: 0, width: 120, height: 52,
+              background: CHARCOAL,
+              clipPath: 'polygon(0 0,100% 0,55% 100%,0 100%)',
+              pointerEvents: 'none',
+            }} />
+            {/* The way back. This route has no app header, and the
+                wedge is the one solid block with room for it. */}
+            <button
+              type="button"
+              onClick={() => navigate(backTo)}
+              aria-label="חזרה"
+              style={{
+                position: 'absolute', left: 0, top: 0, width: 52, height: 52,
+                background: 'transparent', border: 'none', color: CREAM,
+                fontSize: 19, lineHeight: 1, cursor: 'pointer',
+                fontFamily: 'inherit', padding: 0, minHeight: 52,
+              }}
+            >←</button>
+
+            <div style={{
+              position: 'absolute', right: 0, top: 0, width: 96, height: 52,
+              background: ORANGE,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{
+                color: CREAM, fontSize: 13, letterSpacing: 1,
+                fontWeight: 600, whiteSpace: 'nowrap', lineHeight: 1,
+              }}>AthletiGo</span>
+            </div>
+
+            {/* To the LEFT of the orange block. */}
+            <div style={{
+              position: 'absolute', top: 0, right: 96, left: 120, height: 52,
+              display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
+              padding: '0 8px', minWidth: 0,
+            }}>
+              <span style={{
+                fontSize: 15, fontWeight: 500, color: CHARCOAL, minWidth: 0,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>{planTitle}</span>
+            </div>
           </div>
-        )}
 
-        {/* ── Sections ───────────────────────────────────────────── */}
-        {grouped.map(({ section, rows }) => {
-          const cat = (section.category || section.section_name || '').trim();
-          const rail = section.coach_notes || '';
-          // Exactly this name, nothing fuzzy — one section renders as
-          // prose and every other one is untouched.
-          const isNotes = (section.section_name || '').trim() === 'הערות';
-          const isShut = !!collapsed[section.id];
-          const toggle = () => setCollapsed((c) => ({ ...c, [section.id]: !c[section.id] }));
-          return (
-            <div key={section.id} style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-              {/* RIGHT rail — first child is rightmost in RTL. Tapping it
-                  collapses or expands the section. */}
-              <button
-                type="button"
-                onClick={toggle}
-                aria-expanded={!isShut}
-                style={{
-                  width: RAIL_W, flexShrink: 0,
-                  background: BEIGE, border: `1.5px solid ${CHARCOAL}`,
-                  borderRadius: 8,
-                  padding: '10px 4px', textAlign: 'center',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                  cursor: 'pointer', fontFamily: 'inherit', color: CHARCOAL,
-                }}
-              >
-                {/* Fits itself down from 12px: תנועתיות needs more than
-                    a 52px column gives at 12. */}
-                <FitText
-                  text={section.section_name || cat}
-                  steps={[12, 11, 10, 9]}
-                  style={{ fontWeight: 500, lineHeight: 1.2, maxWidth: "100%" }}
-                />
-                {/* Chevron shows the state: ▾ open, ◂ shut. */}
-                <span style={{ fontSize: 10, color: CHARCOAL, lineHeight: 1 }}>
-                  {isShut ? '◂' : '▾'}
-                </span>
-                {isShut ? (
-                  /* Collapsed: the count replaces everything else. */
-                  <span style={{ fontSize: 10, color: ORANGE, fontWeight: 500, lineHeight: 1.3, whiteSpace: 'nowrap' }}>
-                    {rows.length} תרגילים
-                  </span>
-                ) : rail ? (
-                  /* No character cap: the note wraps down the rail for
-                     as long as it needs. Cutting it at 40 characters
-                     hid most of a three-line coach note. */
-                  <span style={{
-                    fontSize: 10, color: ORANGE, fontWeight: 500,
-                    lineHeight: 1.3, overflowWrap: 'anywhere',
-                  }}>
-                    {rail}
-                  </span>
-                ) : null}
-              </button>
+          {/* Name and date, one white bar, packed right. */}
+          <div style={{
+            background: WHITE,
+            borderTop: `0.5px solid ${CARD_BORDER}`,
+            borderBottom: `0.5px solid ${CARD_BORDER}`,
+            padding: '6px 9px', display: 'flex', alignItems: 'baseline',
+            justifyContent: 'flex-start', gap: 10, minWidth: 0,
+          }}>
+            <span style={{
+              fontSize: 12, fontWeight: 500, color: CHARCOAL, minWidth: 0,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>{plan?.assigned_to_name || user?.full_name || 'מתאמן'}</span>
+            <span style={{ fontSize: 11, color: MUTED, flexShrink: 0 }}>{todayLabel()}</span>
+            {family && (
+              <span style={{ fontSize: 11, color: ORANGE, flexShrink: 0 }}>
+                אימון {family.position}/{family.total}
+              </span>
+            )}
+          </div>
 
-              {/* Collapsed → the label block is the whole section. */}
-              {/* LEFT column — the rows. */}
-              {isShut ? null : (
-              <div style={{
-                flex: 1, width: '100%', minWidth: 0, background: WHITE,
-                border: `1.5px solid ${CHARCOAL}`, borderRadius: 8,
-                overflow: 'hidden',
-              }}>
-                {rows.map((ex, i) => {
-                  // ── A הערות row is a line of prose. Before the
-                  //    ordinal is spent, so the numbering of real
-                  //    exercises is not pushed along by a note.
-                  if (isNotes) {
-                    return (
-                      <div key={ex.id} style={notesRow}>
-                        <span style={notesStar}>✳</span>
-                        <span style={notesText}>
-                          {ex.exercise_name || ex.name || ''}
+          {/* ── Sections ─────────────────────────────────────────── */}
+          <div style={{ padding: '7px 5px 0' }}>
+            {grouped.map(({ section, rows }) => {
+              const cat = (section.category || section.section_name || '').trim();
+              const rail = section.coach_notes || '';
+              // Exactly this name, nothing fuzzy — one section renders
+              // as prose and every other one is untouched.
+              const isNotes = (section.section_name || '').trim() === 'הערות';
+              const isShut = !!collapsed[section.id];
+              const toggle = () => setCollapsed((c) => ({ ...c, [section.id]: !c[section.id] }));
+              return (
+                <div key={section.id} style={{
+                  display: 'flex', gap: 5, marginBottom: 7, alignItems: 'stretch',
+                }}>
+                  {/* Label card — first child is RIGHTMOST in RTL. */}
+                  <button
+                    type="button"
+                    onClick={toggle}
+                    aria-expanded={!isShut}
+                    style={{
+                      ...cardShell, width: RAIL_W, flexShrink: 0,
+                      padding: 0, minHeight: 0,
+                      display: 'flex', flexDirection: 'column',
+                      cursor: 'pointer', fontFamily: 'inherit', color: CHARCOAL,
+                    }}
+                  >
+                    <div style={cardStrip} />
+                    <div style={{
+                      flex: 1, minHeight: 0,
+                      padding: '5px 3px 6px',
+                      display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', gap: 2,
+                    }}>
+                      <span style={{
+                        fontSize: 11, lineHeight: 1.25, fontWeight: 500,
+                        overflowWrap: 'anywhere', maxWidth: '100%',
+                      }}>{section.section_name || cat}</span>
+                      <span style={{ fontSize: 9, color: MUTED, lineHeight: 1 }}>
+                        {isShut ? '◂' : '▾'}
+                      </span>
+                      {isShut ? (
+                        <span style={{ fontSize: 9, color: ORANGE, lineHeight: 1.2, whiteSpace: 'nowrap' }}>
+                          {rows.length}
                         </span>
-                      </div>
-                    );
-                  }
-                  const container = isContainer(ex, parseTabataData);
-                  const td = container ? parseTabataData(ex.tabata_data) : null;
-                  const { list: subs, kind: subKindOf } = container
-                    ? subsOf(ex, td) : { list: [], kind: "exercises" };
-                  const m = measurementKind(ex, null, section);
-                  const note = noteOf(ex);
-                  const method = getMethodByMode(ex.mode);
-                  const isClock = isTabataContainer(ex);
-                  const hasTarget = m.kind !== "check" && m.target > 0;
-                  const rowKind = container ? "container" : (hasTarget ? m.kind : "check");
-                  const boxCount = (rowKind === "check" || rowKind === "container")
-                    ? 0
-                    : (rowKind === "tally" ? 1 : m.sets);
-                  // Containers and plain exercises share one running count.
-                  // Sub rows get an asterisk, never a number.
-                  ordinal += 1;
-                  const myOrdinal = ordinal;
-                  const params = container ? "" : paramText({ ...m, kind: rowKind });
-                  // Rounds for the container header, and one box per round
-                  // for each sub-exercise.
-                  // ONE source for the header count AND the box count.
-                  const rounds = roundsOf(ex, td);
-                  // A planned_sets ladder IS the sets — one box per row.
-                  const boxesPerSub = subKindOf === "sets" ? 1 : rounds;
-                  const headerBits = [
-                    rounds > 1 ? `${rounds} סבבים` : null,
-                    note || null,
-                  ].filter(Boolean).join(" · ");
+                      ) : rail ? (
+                        <span style={{
+                          fontSize: 9, color: ORANGE, lineHeight: 1.25,
+                          overflowWrap: 'anywhere',
+                        }}>{rail}</span>
+                      ) : null}
+                    </div>
+                  </button>
 
-                  // ── A CONTAINER ────────────────────────────────────
-                  if (container) {
-                    return (
-                      <div key={ex.id} style={containerWrap}>
-                        <div style={containerHead}>
-                          <span style={containerNum}>{myOrdinal}.</span>
-                          <span style={containerName}>{method?.label || ex.exercise_name || ex.name}</span>
-                          {headerBits && <span style={containerMeta}>{headerBits}</span>}
-                        </div>
+                  {/* Content card — fills the rest. */}
+                  {isShut ? null : (
+                    <div style={{ ...cardShell, flex: 1, minWidth: 0 }}>
+                      <div style={cardStrip} />
+                      {rows.map((ex, i) => {
+                        const last = i === rows.length - 1;
 
-                        {subs.map((sub, sidx) => {
-                          const sm = subMeasurementKind(sub, section);
-                          const subHasTarget = sm.kind !== "check" && sm.target > 0;
-                          // Inside a clock the numbers are the programme,
-                          // shown but never editable.
-                          const subEditable = subHasTarget && !isClock;
-                          const subParams = paramText({ ...sm, kind: subHasTarget ? sm.kind : "check" });
-                          const last = sidx === subs.length - 1;
-                          const sbp = boxPlan(subEditable ? boxesPerSub : 0);
-                          const subText = subLabel(sub, subKindOf, sidx);
-                          const { head: subHead, tail: subTail } = splitExerciseName(subText);
+                        // ── A הערות row is a line of prose. Before the
+                        //    ordinal is spent, so the numbering of real
+                        //    exercises is not pushed along by a note.
+                        if (isNotes) {
                           return (
-                            <div
-                              key={`${ex.id}:sub${sidx}`}
-                              style={{ ...subRow, padding: last ? "7px 9px 10px" : "7px 9px" }}
-                            >
-                              <PressableText
-                                style={textColumn}
-                                onLongPress={() => setDetail({
-                                  name: subText,
-                                  params: subParams,
-                                  method: method?.label || null,
-                                  note: null,
-                                })}
-                              >
-                                <div style={textGroup}>
-                                  <span style={subStar}>✳</span>
-                                  <FitText text={subHead} title={subText} style={subName} />
-                                  {subParams && <span style={subParam}>{subParams}</span>}
+                            <div key={ex.id} style={{
+                              display: 'flex', gap: 5, alignItems: 'baseline',
+                              padding: '7px 8px',
+                              borderBottom: last ? 'none' : `1px solid ${DIVIDER}`,
+                            }}>
+                              <span style={starStyle}>✳</span>
+                              <span style={{
+                                fontSize: 11, color: CHARCOAL, lineHeight: 1.45,
+                                minWidth: 0, overflowWrap: 'anywhere',
+                              }}>{ex.exercise_name || ex.name || ''}</span>
+                            </div>
+                          );
+                        }
+
+                        const container = isContainer(ex, parseTabataData);
+                        const td = container ? parseTabataData(ex.tabata_data) : null;
+                        const { list: subs, kind: subKindOf } = container
+                          ? subsOf(ex, td) : { list: [], kind: 'exercises' };
+                        const m = measurementKind(ex, null, section);
+                        const note = noteOf(ex);
+                        const pill = pillOf(ex.mode);
+                        const spec = shortcutOf(ex);
+                        const clockOnly = isClockOnly(spec);
+                        const isClock = isTabataContainer(ex);
+                        const hasTarget = m.kind !== 'check' && m.target > 0;
+                        const rowKind = container
+                          ? 'container'
+                          : (clockOnly ? 'clock' : (hasTarget ? m.kind : 'check'));
+                        const boxCount = (rowKind === 'check' || rowKind === 'container' || rowKind === 'clock')
+                          ? 0
+                          : (rowKind === 'tally' ? 1 : m.sets);
+                        // Containers and plain exercises share one running
+                        // count. Sub rows get an asterisk, never a number.
+                        ordinal += 1;
+                        const myOrdinal = ordinal;
+                        const rowParams = container ? '' : paramText({ ...m, kind: hasTarget ? m.kind : 'check' });
+                        // ONE source for the header count AND the box count.
+                        const rounds = roundsOf(ex, td);
+                        // A planned_sets ladder IS the sets — one box per row.
+                        const boxesPerSub = subKindOf === 'sets' ? 1 : rounds;
+                        const exName = ex.exercise_name || ex.name || '';
+
+                        // ── A CONTAINER ──────────────────────────────
+                        if (container) {
+                          return (
+                            <div key={ex.id} style={{
+                              background: '#FDF9F4',
+                              borderRight: `2px solid ${ORANGE}`,
+                              borderBottom: last ? 'none' : `1px solid ${DIVIDER}`,
+                            }}>
+                              <div style={rowLine(true)}>
+                                <div
+                                  style={textGroup}
+                                  onClick={() => openDetail({
+                                    name: exName, params: rounds > 1 ? `${rounds} סבבים` : '',
+                                    method: pill?.label || null, note,
+                                  })}
+                                >
+                                  <span style={ordinalStyle}>{myOrdinal}.</span>
+                                  <span style={nameStyle} title={exName}>{exName}</span>
+                                  <MethodPill pill={pill} />
+                                  {/* The clock button already prints the
+                                      round count, so it is not said twice. */}
+                                  {rounds > 1 && !spec && <span style={paramStyle}>{`${rounds} סבבים`}</span>}
                                 </div>
-                                {subTail && <div style={metaLine}>{subTail}</div>}
-                              </PressableText>
-                              <EntryColumn gap={sbp.gap} fadeTo="#FDF6EE">
-                                {/* Nothing to measure, and not a clock →
-                                    the same tick the top-level rows get.
-                                    A tabata's sub rows stay blank: the
-                                    clock's own row carries that tick. */}
-                                {!subEditable && !isClock && (
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleSubCheck(ex.id, sidx)}
-                                    disabled={locked}
-                                    aria-pressed={!!checks[`${ex.id}:sub${sidx}`]}
-                                    style={checkStyle(!!checks[`${ex.id}:sub${sidx}`])}
-                                  >
-                                    {checks[`${ex.id}:sub${sidx}`] ? "✓" : ""}
-                                  </button>
+                                <div style={{ flex: 1, minWidth: 0 }} />
+                                {spec && (
+                                  <div className="ps-entry" style={{ gap: 4 }}>
+                                    {/* A tabata or interval container is a
+                                        clock, not a measurement: the button
+                                        only, and nothing written back. */}
+                                    <ClockShortcut
+                                      spec={spec}
+                                      setNumber={1}
+                                      totalSets={rounds}
+                                      disabled={false}
+                                    />
+                                  </div>
                                 )}
-                                {subEditable && Array.from({ length: boxesPerSub }).map((_, ri) => {
-                                  const key = `${ex.id}:sub${sidx}:${ri + 1}`;
-                                  const v = values[key] ?? "";
+                              </div>
+
+                              {subs.map((sub, sidx) => {
+                                const sm = subMeasurementKind(sub, section);
+                                const subHasTarget = sm.kind !== 'check' && sm.target > 0;
+                                // Inside a clock the numbers are the
+                                // programme, shown but never editable.
+                                const subEditable = subHasTarget && !isClock;
+                                const subParams = paramText({ ...sm, kind: subHasTarget ? sm.kind : 'check' });
+                                const lastSub = sidx === subs.length - 1;
+                                const sbp = boxPlan(subEditable ? boxesPerSub : 0);
+                                const subText = subLabel(sub, subKindOf, sidx);
+                                const subKey = `${ex.id}:sub${sidx}`;
+                                return (
+                                  <div key={subKey} style={rowLine(lastSub)}>
+                                    {/* Nothing to measure, and not a clock →
+                                        the same tick a plain row gets. A
+                                        tabata's sub rows stay blank: the
+                                        container's own row carries the clock. */}
+                                    {!subEditable && !isClock && (
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleSubCheck(ex.id, sidx)}
+                                        disabled={locked}
+                                        aria-pressed={!!checks[subKey]}
+                                        aria-label="סמן כבוצע"
+                                        style={checkHit}
+                                      >
+                                        <span style={checkStyle(!!checks[subKey])}>
+                                          {checks[subKey] ? '✓' : ''}
+                                        </span>
+                                      </button>
+                                    )}
+                                    <div
+                                      style={textGroup}
+                                      onClick={() => openDetail({
+                                        name: subText, params: subParams,
+                                        method: pill?.label || null, note: null,
+                                      })}
+                                    >
+                                      <span style={starStyle}>✳</span>
+                                      <span style={nameStyle} title={subText}>{subText}</span>
+                                      {subParams && showParams(subEditable ? boxesPerSub : 0, false) && (
+                                        <span style={paramStyle}>{subParams}</span>
+                                      )}
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }} />
+                                    {subEditable && (
+                                      <div className="ps-entry" style={{ gap: sbp.gap }}>
+                                        {Array.from({ length: boxesPerSub }).map((_, ri) => {
+                                          const key = `${subKey}:${ri + 1}`;
+                                          const v = values[key] ?? '';
+                                          return (
+                                            <input
+                                              key={key}
+                                              type="number"
+                                              inputMode="numeric"
+                                              disabled={locked}
+                                              value={v}
+                                              onChange={(e) => setValues((pv) => ({ ...pv, [key]: e.target.value }))}
+                                              onBlur={(e) => commitInner(ex.id, sidx, e.target.value, sm.payloadField, ri + 1)}
+                                              style={box(has(v), sbp)}
+                                            />
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        }
+
+                        // ── A PLAIN EXERCISE ROW ─────────────────────
+                        const bp = boxPlan(boxCount);
+                        return (
+                          <div key={ex.id} style={rowLine(last)}>
+                            {rowKind === 'check' && (
+                              <button
+                                type="button"
+                                onClick={() => toggleCheck(ex.id)}
+                                disabled={locked}
+                                aria-pressed={!!checks[ex.id]}
+                                aria-label="סמן כבוצע"
+                                style={checkHit}
+                              >
+                                <span style={checkStyle(!!checks[ex.id])}>
+                                  {checks[ex.id] ? '✓' : ''}
+                                </span>
+                              </button>
+                            )}
+                            <div
+                              style={textGroup}
+                              onClick={() => openDetail({
+                                name: exName, params: rowParams,
+                                method: pill?.label || null, note,
+                              })}
+                            >
+                              <span style={ordinalStyle}>{myOrdinal}.</span>
+                              <span style={nameStyle} title={exName}>{exName}</span>
+                              {showPill(boxCount) && <MethodPill pill={pill} />}
+                              {rowParams && showParams(boxCount, !!spec) && (
+                                <span style={paramStyle}>{rowParams}</span>
+                              )}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }} />
+                            {(boxCount > 0 || spec) && (
+                              <div className="ps-entry" style={{ gap: bp.gap }}>
+                                {/* The button sits at the LEFT end of the
+                                    group, past the boxes, so the boxes
+                                    keep the centre line. */}
+                                {Array.from({ length: boxCount }).map((_, si) => {
+                                  const key = `${ex.id}:${si + 1}`;
+                                  const v = values[key] ?? '';
                                   return (
                                     <input
                                       key={key}
@@ -984,144 +1079,110 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                       disabled={locked}
                                       value={v}
                                       onChange={(e) => setValues((pv) => ({ ...pv, [key]: e.target.value }))}
-                                      onBlur={(e) => commitInner(ex.id, sidx, e.target.value, sm.payloadField, ri + 1)}
-                                      style={box(has(v), sbp)}
+                                      onBlur={(e) => commit(ex.id, si + 1, e.target.value, m.payloadField)}
+                                      style={box(has(v), bp)}
                                     />
                                   );
                                 })}
-                              </EntryColumn>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  }
-
-                  // ── A PLAIN EXERCISE ROW ───────────────────────────
-                  const bp = boxPlan(rowKind === "check" ? 1 : boxCount);
-                  const exName = ex.exercise_name || ex.name || "";
-                  const { head: exHead, tail: exTail } = splitExerciseName(exName);
-                  // The clarification comes first, then the coach cue.
-                  const rowMeta = [exTail, note].filter(Boolean).join(" · ");
-                  return (
-                    <div key={ex.id} style={plainRow}>
-                      <PressableText
-                        style={textColumn}
-                        onLongPress={() => setDetail({
-                          name: exName,
-                          params,
-                          method: method?.label || null,
-                          note,
-                        })}
-                      >
-                        <div style={textGroup}>
-                          <span style={ordinalStyle}>{myOrdinal}.</span>
-                          <FitText text={exHead} title={exName} style={nameStyle} />
-                          {params && <span style={paramStyle}>{params}</span>}
-                        </div>
-                        {rowMeta && <div style={metaLine}>{rowMeta}</div>}
-                      </PressableText>
-                      <EntryColumn gap={bp.gap}>
-                        {rowKind === "check" ? (
-                          <button
-                            type="button"
-                            onClick={() => toggleCheck(ex.id)}
-                            disabled={locked}
-                            aria-pressed={!!checks[ex.id]}
-                            style={checkStyle(!!checks[ex.id])}
-                          >
-                            {checks[ex.id] ? "✓" : ""}
-                          </button>
-                        ) : Array.from({ length: boxCount }).map((_, si) => {
-                          const key = `${ex.id}:${si + 1}`;
-                          const v = values[key] ?? "";
-                          return (
-                            <input
-                              key={key}
-                              type="number"
-                              inputMode="numeric"
-                              disabled={locked}
-                              value={v}
-                              onChange={(e) => setValues((pv) => ({ ...pv, [key]: e.target.value }))}
-                              onBlur={(e) => commit(ex.id, si + 1, e.target.value, m.payloadField)}
-                              style={box(has(v), bp)}
-                            />
-                          );
-                        })}
-                      </EntryColumn>
+                                {spec && (
+                                  <ClockShortcut
+                                    spec={spec}
+                                    setNumber={1}
+                                    totalSets={Math.max(1, boxCount)}
+                                    disabled={locked}
+                                    onElapsed={
+                                      // A countdown measures; a clock-only
+                                      // row writes nothing back.
+                                      (!clockOnly && boxCount > 0)
+                                        ? (seconds) => writeClockSeconds(ex.id, boxCount, m.payloadField, seconds)
+                                        : undefined
+                                    }
+                                  />
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </div>
-              )}
-            </div>
-          );
-        })}
-
-        {/* ── Feeling — full width, no rail, label above. ─────────── */}
-        <div style={{
-          background: WHITE, border: `1.5px solid ${CHARCOAL}`,
-          padding: '10px 10px 12px', marginTop: 4,
-        }}>
-          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 8 }}>תחושה</div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            {Array.from({ length: 10 }).map((_, i) => {
-              const n = i + 1;
-              const on = feeling === n;
-              return (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => saveFeeling(n)}
-                  disabled={locked}
-                  style={{
-                    flex: 1, minWidth: 0, height: TOUCH,
-                    border: `1.5px solid ${on ? ORANGE : (locked ? '#E2DAD0' : '#D9D0C4')}`,
-                    background: on ? ORANGE : (locked ? '#F4EEE6' : CREAM),
-                    color: on ? WHITE : CHARCOAL,
-                    fontSize: 15, fontWeight: 800, borderRadius: 6,
-                    cursor: locked ? 'default' : 'pointer', fontFamily: 'inherit', padding: 0,
-                    opacity: locked && !on ? 0.75 : 1,
-                  }}
-                >
-                  {n}
-                </button>
+                  )}
+                </div>
               );
             })}
           </div>
-        </div>
 
-        {/* אימון חדש — the only action on a locked sheet, and always
-            available on an open one. Duplicates through the existing
-            duplicatePlan and drops straight into the copy. */}
-        <button
-          type="button"
-          onClick={startNewWorkout}
-          disabled={duplicating}
-          style={{
-            width: '100%', minHeight: TOUCH + 6, marginTop: 12,
-            border: `1.5px solid ${CHARCOAL}`,
-            background: ORANGE, color: WHITE,
-            fontSize: 17, fontWeight: 800, fontFamily: 'inherit',
-            cursor: duplicating ? 'default' : 'pointer',
-            opacity: duplicating ? 0.6 : 1,
-          }}
-        >
-          {duplicating ? 'יוצר…' : 'אימון חדש מהתוכנית'}
-        </button>
-
-        {locked && (
-          <div style={{
-            marginTop: 8, fontSize: 12, color: MUTED, textAlign: 'center',
-          }}>
-            האימון הזה כבר בוצע — לצפייה בלבד
+          {/* ── Feeling ──────────────────────────────────────────── */}
+          <div style={{ padding: '0 5px' }}>
+            <div style={{ ...cardShell, marginTop: 2 }}>
+              <div style={cardStrip} />
+              <div style={{ padding: '7px 8px 9px' }}>
+                <div style={{ fontSize: 11, fontWeight: 500, marginBottom: 6 }}>תחושה</div>
+                <div style={{ display: 'flex', gap: 3 }}>
+                  {Array.from({ length: 10 }).map((_, i) => {
+                    const n = i + 1;
+                    const on = feeling === n;
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => saveFeeling(n)}
+                        disabled={locked}
+                        style={{
+                          flex: 1, minWidth: 0, height: 30, minHeight: 30,
+                          border: `1px solid ${on ? ORANGE : (locked ? '#E2DAD0' : '#D9D0C4')}`,
+                          background: on ? ORANGE : WHITE,
+                          color: on ? WHITE : CHARCOAL,
+                          fontSize: 12, fontWeight: 500, borderRadius: 3,
+                          cursor: locked ? 'default' : 'pointer',
+                          fontFamily: 'inherit', padding: 0,
+                          opacity: locked && !on ? 0.75 : 1,
+                        }}
+                      >{n}</button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           </div>
-        )}
 
+          {/* אימון חדש — the only action on a locked sheet, and always
+              available on an open one. Duplicates through the existing
+              duplicatePlan and drops straight into the copy. */}
+          <div style={{ padding: '8px 5px 0' }}>
+            <button
+              type="button"
+              onClick={startNewWorkout}
+              disabled={duplicating}
+              style={{
+                width: '100%', minHeight: TOUCH,
+                border: 'none', borderRadius: 4,
+                background: CHARCOAL, color: CREAM,
+                fontSize: 14, fontWeight: 500, fontFamily: 'inherit',
+                cursor: duplicating ? 'default' : 'pointer',
+                opacity: duplicating ? 0.6 : 1,
+              }}
+            >{duplicating ? 'יוצר…' : 'אימון חדש מהתוכנית'}</button>
+
+            {locked && (
+              <div style={{ marginTop: 6, fontSize: 11, color: MUTED, textAlign: 'center' }}>
+                האימון הזה כבר בוצע — לצפייה בלבד
+              </div>
+            )}
+          </div>
+
+          {/* Orange wedge, bottom LEFT — the foot of the printed page. */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+            <div style={{
+              width: 90, height: 22, background: ORANGE,
+              clipPath: 'polygon(0 0,55% 0,100% 100%,0 100%)',
+              pointerEvents: 'none',
+            }} />
+          </div>
+        </div>
       </div>
 
-      {/* Long press detail — the whole stored name, never the split
-          one, plus what the row could not show. Read only. */}
+      {/* Tap detail — the whole stored name plus everything the single
+          line could not show. Read only. */}
       <Dialog open={!!detail} onOpenChange={(open) => { if (!open) setDetail(null); }}>
         <DialogContent
           // The shared DialogContent blocks Escape by default, because
