@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Play } from 'lucide-react';
+import { Check, Play } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { AuthContext } from '@/lib/AuthContext';
 import PageLoader from '@/components/PageLoader';
@@ -24,19 +24,22 @@ import {
   InlineExerciseClock, ClockSwapPrompt,
 } from '@/components/training/ExerciseClock';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent,
 } from '@/components/ui/dialog';
 
 /**
  * PlanSheet — the workout execution screen, drawn as the printed
  * AthletiGo plan sheet with entry boxes added.
  *
- * The shell is the printed page: charcoal frame, cream paper, the
- * charcoal wedge / orange wordmark header band, the orange wedge at
- * the foot. Inside it every exercise is ONE line — tick, ordinal,
- * name, method pill, parameters, then the entry group starting at the
- * row's horizontal centre and running left. Nothing wraps to a second
- * line; detail that will not fit opens on a tap.
+ * THE LAW OF THE SHEET: data bold, instructions regular. Every number
+ * a trainee reads or writes is set large and at weight 500; every
+ * instruction — the coach's hint, the unit under a number — is small,
+ * regular, and grey.
+ *
+ * A row is ONE flex line plus, when the coach wrote one, a hint line
+ * beneath it. Right to left: tick, ordinal, name, method pill, the
+ * param block, a 16px spacer, the entry group. Only the name shrinks.
+ * Anything that will not fit opens on a tap.
  *
  * DATA — every column already exists; no schema change, no migration.
  *   plan      → training_plans
@@ -63,32 +66,64 @@ const CHARCOAL    = '#2D2A26';
 const ORANGE      = '#FF6F20';
 const WHITE       = '#FFFFFF';
 const CARD_BORDER = '#E0D4C2';
-const STRIP       = '#FFE2CD';   // the 5px band across every card top
 const DIVIDER     = '#F0E7DA';   // between rows
-const MUTED       = '#8A8079';   // parameter text
+const MUTED       = '#8A8079';   // hints and unit labels
 const DESK        = '#EDE3D6';   // behind the sheet
+// The container title band, and the tap dialog's header.
+const BAND_BG     = '#FFF4EA';
+const BAND_LINE   = '#F0C9A8';
+// Save + target feedback.
+const GREEN       = '#0F6E56';
+const UNDER       = '#D85A30';
+const BOX_IDLE    = '#D5C8B6';
 
 const SANS = "'Rubik', system-ui, -apple-system, sans-serif";
 
 // Section label card, on the RIGHT of every section.
 const RAIL_W = 56;
+// The charcoal header wedge. Its clip-path runs 55% wide at the
+// bottom, so only the left 55% is solid for the full 52px.
+const WEDGE_W = 120;
 // Entry boxes. Height is fixed; width comes from boxPlan() below.
-const BOX_H  = 26;
+const BOX_H  = 30;
 // The one place a 44px touch target still applies: the page's own
 // actions, which are not part of the ruled sheet.
 const TOUCH  = 44;
 
 /**
- * Box width BY COUNT. Half a row holds five boxes at most, so the
- * boxes get narrower as there are more of them rather than the strip
- * getting wider without limit.
- *   1-2 → 32px   3-4 → 28px   5+ → 24px
- *   gap 3px from four boxes up, otherwise 4px.
- * 24px still holds two digits at 12px.
+ * SECTION COLOURS — one hue per section, carried by the card border,
+ * the 4px strip across the top, and the label card.
+ *
+ * Matched loosely: trimmed, and with or without a trailing colon,
+ * against section_name first and category second. Anything unknown
+ * takes the חימום palette.
+ */
+const SECTION_THEMES = {
+  'חימום':  { hue: '#FF6F20', bg: '#FFE2CD', fg: '#7A2E00' },
+  'מתיחות': { hue: '#EF9F27', bg: '#FAEEDA', fg: '#633806' },
+  'כוח':    { hue: '#2D2A26', bg: '#F1EFE8', fg: '#2D2A26' },
+  'גמישות': { hue: '#D85A30', bg: '#FAECE7', fg: '#4A1B0C' },
+  'הערות':  { hue: '#888780', bg: '#F1EFE8', fg: '#444441' },
+};
+const DEFAULT_THEME = SECTION_THEMES['חימום'];
+
+/** Trimmed, trailing colon (ASCII or full-width) removed. */
+const looseName = (s) => String(s ?? '').trim().replace(/[:：]+\s*$/, '').trim();
+
+export function themeOf(section) {
+  const a = looseName(section?.section_name);
+  const b = looseName(section?.category);
+  return SECTION_THEMES[a] || SECTION_THEMES[b] || DEFAULT_THEME;
+}
+
+/**
+ * Box width BY COUNT, and the entry group never clips.
+ *   1 box → 36px    2-4 → 28px    5+ → 24px
+ * Height is fixed so a row's height does not move with its box count.
  */
 function boxPlan(count) {
   const n = Math.max(1, Number(count) || 1);
-  return { w: n <= 2 ? 32 : n <= 4 ? 28 : 24, gap: n >= 4 ? 3 : 4 };
+  return { w: n === 1 ? 36 : n <= 4 ? 28 : 24, gap: n >= 5 ? 3 : 4 };
 }
 
 /**
@@ -128,10 +163,56 @@ function MethodPill({ pill }) {
     <span style={{
       flexShrink: 0,
       background: pill.bg, color: pill.fg,
-      fontSize: 10, lineHeight: 1.5, fontWeight: 500,
-      borderRadius: 9, padding: '1px 6px',
+      fontSize: 10, lineHeight: 1.6, fontWeight: 500,
+      borderRadius: 9, padding: '1px 7px',
       whiteSpace: 'nowrap',
     }}>{pill.label}</span>
+  );
+}
+
+/**
+ * THE PARAM BLOCK — the number the coach prescribed, set big, with its
+ * unit underneath in small grey. The number is the data; the label is
+ * the instruction.
+ *
+ * SETS ARE NEVER PRINTED here when the row has entry boxes: the box
+ * count IS the sets, and saying it twice was the old "25X2". A
+ * check-only row has no boxes to count, so its sets go to the hint.
+ */
+function ParamBlock({ value, label, size = 19 }) {
+  if (value == null || value === '') return null;
+  return (
+    <div style={{
+      flexShrink: 0, textAlign: 'center',
+      marginInlineStart: 2,   // the 8px separation from the name
+    }}>
+      <div style={{
+        fontSize: size, fontWeight: 500, color: CHARCOAL, lineHeight: 1.05,
+        direction: 'ltr', unicodeBidi: 'isolate', whiteSpace: 'nowrap',
+      }}>{value}</div>
+      {label && (
+        <div style={{
+          fontSize: 9, fontWeight: 400, color: MUTED, lineHeight: 1.3,
+          whiteSpace: 'nowrap',
+        }}>{label}</div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The coach's hint. Its own line under the row, indented past the
+ * ordinal so it reads as belonging to the name above it. REGULAR
+ * weight — it is an instruction, not data.
+ */
+function HintLine({ text, indent }) {
+  if (!text) return null;
+  return (
+    <div style={{
+      fontSize: 11, fontWeight: 400, color: MUTED, lineHeight: 1.45,
+      paddingInlineStart: indent, paddingBottom: 6, marginTop: -2,
+      overflowWrap: 'anywhere',
+    }}>{text}</div>
   );
 }
 
@@ -173,12 +254,38 @@ function shortcutOf(exercise) {
 }
 const isClockOnly = (spec) => !!spec && (spec.kind === 'tabata' || spec.kind === 'intervals');
 
-/** "25X2" — reps X sets, capital X, plain text. */
-function paramText(m) {
-  if (m.kind === 'check') return '';
-  if (m.kind === 'tally') return String(m.target || '');
-  if (!m.target) return '';
-  return m.sets > 1 ? `${m.target}X${m.sets}` : String(m.target);
+/**
+ * The param block for a top-level row, derived from the SAME
+ * measurementKind the boxes are derived from, so the printed target
+ * and the entry strip can never disagree.
+ *
+ * A time row is labelled by which column actually carried it:
+ * static_hold_time reads החזקה, work_time reads זמן.
+ */
+function paramOf(exercise, m, kind) {
+  if (kind === 'check' || !m || !m.target) return null;
+  if (kind === 'tally') return { value: String(m.target), label: 'סבבים', size: 19 };
+  if (kind === 'time') {
+    return {
+      value: mmss(m.target),
+      label: has(exercise?.static_hold_time) ? 'החזקה' : 'זמן',
+      size: 17,
+    };
+  }
+  return { value: String(m.target), label: 'חזרות', size: 19 };
+}
+
+/** The same, for a sub-exercise inside a container. */
+function subParamOf(sub, sm, size = 16) {
+  if (!sm || sm.kind === 'check' || !sm.target) return null;
+  if (sm.kind === 'time') {
+    return {
+      value: mmss(sm.target),
+      label: has(sub?.hold_seconds) ? 'החזקה' : 'זמן',
+      size: size - 2,
+    };
+  }
+  return { value: String(sm.target), label: 'חזרות', size };
 }
 
 /**
@@ -186,8 +293,8 @@ function paramText(m) {
  * movement it belongs in its own row, so anything that looks like a list
  * of exercises is not rendered as a note.
  */
-function noteOf(exercise) {
-  const raw = exercise?.description || exercise?.notes || '';
+function noteOf(carrier) {
+  const raw = carrier?.description || carrier?.notes || '';
   const t = String(raw).trim();
   if (!t) return '';
   if (t.includes('•') || t.includes('\n')) return '';
@@ -257,6 +364,43 @@ function subLabel(sub, kind, idx) {
   if (n && String(n).trim()) return String(n).trim();
   if (kind === 'sets') return `סט ${sub?.set_index ?? idx + 1}`;
   return 'תרגיל';
+}
+
+/**
+ * The border a box wears once its value has been SAVED.
+ *   at or above the coach's target → green
+ *   below it                       → the warm orange-red
+ * No target to compare against (a tally, or a coach who prescribed no
+ * number) → green, because saving is the whole achievement there.
+ * Nothing saved yet → the idle rule.
+ */
+function boxBorder(savedValue, target) {
+  if (!has(savedValue)) return BOX_IDLE;
+  const t = Number(target);
+  if (!Number.isFinite(t) || t <= 0) return GREEN;
+  return Number(savedValue) >= t ? GREEN : UNDER;
+}
+
+/** The green save control. Appears beside a box the moment it is typed in. */
+function SaveDot({ onClick, size = 22, title = 'שמור' }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onPointerDown={(e) => e.stopPropagation()}
+      aria-label={title}
+      title={title}
+      style={{
+        flexShrink: 0, width: size, height: size, minHeight: size,
+        borderRadius: '50%', border: 'none', background: GREEN,
+        color: WHITE, padding: 0, cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: 'inherit',
+      }}
+    >
+      <Check size={Math.round(size * 0.6)} strokeWidth={3} color={WHITE} />
+    </button>
+  );
 }
 
 /**
@@ -343,10 +487,17 @@ export default function PlanSheet() {
   const { user } = useContext(AuthContext);
 
   const [values, setValues] = useState({});   // `${exId}:${setIdx}` → string
-  // Live mirror of `values`, for handlers that must read the current
-  // map without depending on it (the clock write-back).
+  // What is actually IN the database for each key. A box whose value
+  // differs from this is dirty and shows its save control; a box that
+  // matches wears the target-feedback border. Kept separate from
+  // `values` so "typed" and "saved" are never confused.
+  const [saved, setSaved] = useState({});
+  // Live mirrors, for handlers that must read the current maps without
+  // depending on them (the clock write-back, the row save control).
   const valuesRef = useRef(values);
   valuesRef.current = values;
+  const savedRef = useRef(saved);
+  savedRef.current = saved;
   const [checks, setChecks] = useState({});   // exId → bool
   const [feeling, setFeeling] = useState(null);
   const [execId, setExecId] = useState(null);
@@ -357,8 +508,8 @@ export default function PlanSheet() {
   // Collapsed sections, by id. Empty at mount → every section starts
   // EXPANDED. Deliberately not persisted anywhere.
   const [collapsed, setCollapsed] = useState({});
-  // The row a tap opened, or null. Read-only detail — this is where the
-  // text that does not fit on the single line lives.
+  // The row a tap opened, or null. Carries everything the enlarged
+  // view needs, including its own save function.
   const [detail, setDetail] = useState(null);
 
   // ── Plan + sections + exercises. Three reads, no embeds: this DB has
@@ -410,24 +561,24 @@ export default function PlanSheet() {
         const v = l.reps_completed ?? l.time_completed ?? l.weight_used;
         if (v != null) {
           // drill_index 0 is ambiguous — a plain row's own set, or the
-          // FIRST sub of a container. Both keys are written for it, the
-          // same way the tick branch below does, because only one of
-          // them is ever read back: a container renders no top-level
-          // boxes and a plain exercise renders no sub rows.
+          // FIRST sub of a container. Both keys are written for it,
+          // because only one of them is ever read back: a container
+          // renders no top-level boxes and a plain exercise renders no
+          // sub rows.
           const drill = l.drill_index ?? 0;
           if (drill === 0) next[`${l.exercise_id}:${l.set_number}`] = String(v);
           next[`${l.exercise_id}:sub${drill}:${l.set_number}`] = String(v);
           continue;
         }
-        // A tick row carries no measurement. drill_index alone cannot
-        // say whether it came from a top-level row or from sub 0, so
-        // BOTH keys are set — which is safe, because only one of them
-        // is ever read: a container never renders a top-level tick,
-        // and a plain exercise has no sub rows.
+        // A tick row carries no measurement. Same ambiguity, same
+        // both-keys answer.
         nextChecks[l.exercise_id] = true;
         nextChecks[`${l.exercise_id}:sub${l.drill_index ?? 0}`] = true;
       }
-      setValues(next); setChecks(nextChecks);
+      // Everything read back IS what the database holds, so it starts
+      // life saved — the boxes open wearing their target feedback and
+      // no save control.
+      setValues(next); setSaved(next); setChecks(nextChecks);
     })();
   }, [planId, user?.id]);
 
@@ -478,35 +629,47 @@ export default function PlanSheet() {
     return row.id;
   }, [execId, user?.id, data?.plan?.assigned_to, planId]);
 
-  const commit = useCallback(async (exerciseId, setIdx, raw, logField) => {
-    if (locked) return;
+  /**
+   * The ONE write. Every box on the sheet and every box in the dialog
+   * goes through here, and it is the same saveSetActual call the
+   * screen has always made — drill_index 0 for a plain row, the sub's
+   * index for a sub row. On success the key is marked saved, which is
+   * what retires its save control and paints its target feedback.
+   */
+  const commitKey = useCallback(async (key, exerciseId, drillIdx, setNo, raw, payloadField) => {
+    if (locked) return false;
     const id = await ensureExecution();
-    if (!id) { toast.error('לא ניתן לשמור כרגע'); return; }
-    const n = raw === '' ? null : Number(raw);
-    const { error } = await saveSetActual(
-      supabase, id, exerciseId, 0, setIdx,
-      { [logField]: n },
-      { allowEmpty: raw === '' },
-    );
-    if (error) { console.error('[PlanSheet] save failed:', error); toast.error('השמירה נכשלה'); }
-  }, [ensureExecution, locked]);
-
-  // A sub-exercise writes against the SAME exercise row, distinguished
-  // by drill_index — the column exercise_set_logs already uses for
-  // exactly this. saveSetActual upserts on
-  // (execution_id, exercise_id, drill_index, set_number).
-  const commitInner = useCallback(async (exerciseId, drillIdx, raw, payloadField, setNo = 1) => {
-    if (locked) return;
-    const id = await ensureExecution();
-    if (!id) { toast.error('לא ניתן לשמור כרגע'); return; }
+    if (!id) { toast.error('לא ניתן לשמור כרגע'); return false; }
     const n = raw === '' ? null : Number(raw);
     const { error } = await saveSetActual(
       supabase, id, exerciseId, drillIdx, setNo,
       { [payloadField]: n },
       { allowEmpty: raw === '' },
     );
-    if (error) { console.error('[PlanSheet] inner save failed:', error); toast.error('השמירה נכשלה'); }
+    if (error) {
+      console.error('[PlanSheet] save failed:', error);
+      toast.error('השמירה נכשלה');
+      return false;
+    }
+    setSaved((p) => ({ ...p, [key]: raw }));
+    return true;
   }, [ensureExecution, locked]);
+
+  /** Save every box of one row that differs from what is stored. */
+  const saveRow = useCallback(async (entries) => {
+    const v = valuesRef.current; const s = savedRef.current;
+    const dirty = entries.filter((e) => has(v[e.key]) && v[e.key] !== s[e.key]);
+    if (!dirty.length) return;
+    let ok = 0;
+    for (const e of dirty) {
+      // Sequential on purpose: saveSetActual upserts on
+      // (execution_id, exercise_id, drill_index, set_number) and the
+      // first write is what creates the execution row.
+      const done = await commitKey(e.key, e.exerciseId, e.drillIdx, e.setNo, v[e.key], e.payloadField);
+      if (done) ok += 1;
+    }
+    if (ok) toast.success(ok > 1 ? `${ok} ערכים נשמרו` : 'נשמר');
+  }, [commitKey]);
 
   const toggleCheck = useCallback(async (exerciseId) => {
     if (locked) return;
@@ -519,11 +682,10 @@ export default function PlanSheet() {
     await saveSetActual(supabase, id, exerciseId, 0, 1, {}, { allowEmpty: true });
   }, [checks, ensureExecution, locked]);
 
-  // A sub row's tick writes exactly where commitInner writes that sub's
-  // numbers — same exercise_id, drill_index = the sub's index — only
-  // with every measurement column null. No collision with the parent's
-  // own drill_index 0 row: a container never renders a top-level tick,
-  // so it never writes one.
+  // A sub row's tick writes exactly where a sub's numbers write — same
+  // exercise_id, drill_index = the sub's index — only with every
+  // measurement column null. No collision with the parent's own
+  // drill_index 0 row: a container never renders a top-level tick.
   const toggleSubCheck = useCallback(async (exerciseId, drillIdx) => {
     if (locked) return;
     const key = `${exerciseId}:sub${drillIdx}`;
@@ -535,28 +697,22 @@ export default function PlanSheet() {
 
   /**
    * A clock that measured something writes through the ORDINARY save
-   * path — the same commit() a typed box uses, so nothing about
-   * exercise_set_logs changes. It lands in the first empty box, or in
-   * box 1 when every box is already filled.
-   *
-   * Only a countdown (a hold or a timed exercise) ever gets here: an
-   * interval or tabata container is a clock, not a measurement, and
-   * passes no callback at all.
+   * path. It lands in the first empty box, or in box 1 when every box
+   * is already filled. Only a countdown ever gets here: an interval or
+   * tabata container is a clock, not a measurement.
    */
   const writeClockSeconds = useCallback((exerciseId, boxCount, payloadField, seconds) => {
     if (locked) return;
     if (!Number.isFinite(seconds) || seconds <= 0) return;
-    // Read through the ref rather than inside a setValues updater: the
-    // updater has to stay pure, and it would otherwise fire the write
-    // twice under StrictMode.
     const current = valuesRef.current;
     let slot = 1;
     for (let i = 1; i <= Math.max(1, boxCount); i += 1) {
       if (!has(current[`${exerciseId}:${i}`])) { slot = i; break; }
     }
-    setValues((pv) => ({ ...pv, [`${exerciseId}:${slot}`]: String(seconds) }));
-    commit(exerciseId, slot, String(seconds), payloadField);
-  }, [commit, locked]);
+    const key = `${exerciseId}:${slot}`;
+    setValues((pv) => ({ ...pv, [key]: String(seconds) }));
+    commitKey(key, exerciseId, 0, slot, String(seconds), payloadField);
+  }, [commitKey, locked]);
 
   const saveFeeling = useCallback(async (n) => {
     if (locked) return;
@@ -569,9 +725,6 @@ export default function PlanSheet() {
   }, [ensureExecution, locked]);
 
   // ── אימון חדש — duplicate this plan and train the copy ──────────
-  // Uses the EXISTING duplicatePlan; no second copy function. The
-  // date rides in via its nameSuffix option so performances are
-  // tellable apart in a list without inventing a naming scheme.
   const startNewWorkout = useCallback(async () => {
     if (duplicating) return;
     const plan = data?.plan;
@@ -586,7 +739,6 @@ export default function PlanSheet() {
       });
       if (!created?.id) throw new Error('לא התקבלה תוכנית חדשה');
       toast.success('אימון חדש נוצר');
-      // Straight into the copy's sheet so training starts immediately.
       navigate(`/plan-sheet?planId=${encodeURIComponent(created.id)}${from ? `&from=${from}` : ''}`, { replace: true });
     } catch (e) {
       console.error('[PlanSheet] duplicate failed:', e);
@@ -610,81 +762,45 @@ export default function PlanSheet() {
   const { plan } = data;
   const planTitle = plan?.title || plan?.plan_name || 'תוכנית אימונים';
 
-  // ── ROW — ONE flex line, never two, never wrapping. ────────────
-  //    right to left: tick, ordinal, name, pill, parameters,
-  //    spacer, entry group.
+  // ── ROW — ONE flat flex line, plus a hint line when there is one.
+  //    right to left: tick, ordinal, name, pill, param block,
+  //    a 16px spacer, the entry group.
   //
-  // The row is a FLAT flex line. The text used to sit in a nested flex
-  // box, which hid the name's own flex-basis from the row's layout and
-  // made the name the first thing to be squeezed. Flat, the name and
-  // the entry group negotiate directly.
-  const rowLine = (last) => ({
-    display: 'flex', alignItems: 'center', gap: 5,
-    padding: '7px 8px',
-    borderBottom: last ? 'none' : `1px solid ${DIVIDER}`,
-    cursor: 'pointer',
-  });
-  const ordinalStyle = { fontSize: 11, color: ORANGE, flexShrink: 0, lineHeight: 1.4 };
-  /**
-   * NAME_MIN is the width the name is LAID OUT at, not a hard minimum.
-   *
-   * flex-basis 110 puts the name into the row's preferred size at
-   * 110px, so the row asks for 110px of name before anything is
-   * negotiated. The entry group shrinks a thousand times harder (see
-   * .ps-entry), so the group is what gives that width up — it walks
-   * its start LEFT of the centre line until the name has its 110.
-   *
-   * max-width:max-content stops a SHORT name from claiming 110 it does
-   * not need; the group then stays exactly on the centre line.
-   *
-   * min-width:0 keeps the floor soft. Once the group has hit its own
-   * max-content floor — every box at its width, nothing clipped — the
-   * name is the only thing left to give, so it drops below 110 and
-   * ellipsises rather than pushing a box off the row.
-   */
-  const NAME_MIN = 110;
-  const nameStyle = {
-    fontSize: 12, fontWeight: 500, color: CHARCOAL, lineHeight: 1.4,
-    flexGrow: 1000, flexShrink: 1, flexBasis: NAME_MIN,
-    minWidth: 0, maxWidth: 'max-content',
+  // The row is FLAT. The text used to sit in a nested flex box, which
+  // hid the name's own flex-basis from the row's layout and made the
+  // name the first thing squeezed.
+  const rowLine = {
+    display: 'flex', alignItems: 'center', gap: 6,
+    padding: '8px 9px 7px',
+  };
+  const ordinalStyle = { fontSize: 13, color: ORANGE, flexShrink: 0, lineHeight: 1.3 };
+  // The ONLY shrinking element on the row. Everything else refuses.
+  const nameStyle = (size) => ({
+    fontSize: size, fontWeight: 500, color: CHARCOAL, lineHeight: 1.3,
+    flexShrink: 1, minWidth: 0,
     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-  };
-  // Takes only what the name has already refused (its max-content cap),
-  // so the entry group is never pushed rightward by leftover space.
-  const spacerStyle = { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 };
-  // The bidi isolate stays: without it a label ending in a digit merges
-  // with the target ("סט 1" + "15" read as "סט 115").
-  const paramStyle = {
-    fontSize: 11, color: MUTED, flexShrink: 0, lineHeight: 1.4,
-    unicodeBidi: 'isolate', direction: 'rtl', whiteSpace: 'nowrap',
-  };
-  const starStyle = { fontSize: 10, color: ORANGE, flexShrink: 0, lineHeight: 1.4 };
+  });
+  // At LEAST 16px, and it takes any slack so the entry group stays at
+  // the left edge of the row.
+  const spacerStyle = { flexGrow: 1, flexShrink: 0, flexBasis: 16, minWidth: 16 };
+  const starStyle = { fontSize: 11, color: ORANGE, flexShrink: 0, lineHeight: 1.3 };
 
   /**
-   * What the text side can still afford.
+   * What the text side can still afford at 360px.
    *
-   * Half a row holds five boxes. At five the entry group is already
-   * the whole half; at six it has crossed the centre line and grown
-   * rightward, and only the name is allowed to shrink — measured at
-   * 360px, a seven-box row leaves the name 0px and cuts the pill in
-   * two. So the two smallest pieces step aside, in that order:
-   *
-   *   5+ boxes, or any row with a clock button → no parameter text
-   *   6+ boxes                                 → no method pill
-   *
-   * Neither is lost: both are in the detail dialog a tap away, which
-   * is where this sheet puts everything that will not fit on the line.
-   * With that, the same seven-box row keeps a 37px name that ellipsises
-   * instead of vanishing, and nothing is clipped.
+   * The pill and the param block never shrink, so on a row carrying a
+   * lot of boxes they have to step aside or the name goes to zero and
+   * they get cut in half. Both are in the tap dialog, which is where
+   * this sheet puts everything that will not fit on the line.
    */
-  const showParams = (boxCount, hasClock) => boxCount < 5 && !hasClock;
-  const showPill = (boxCount) => boxCount < 6;
+  const showPill = (boxCount) => boxCount < 5;
+  const showParam = (boxCount) => boxCount < 6;
 
   // 13px on the page, 25px under the finger. The hit area cannot come
   // from padding — padding sits INSIDE the border, so it would draw a
   // 25px square. It comes from a transparent 25px button with the 13px
   // square inside it, and an equal negative margin hands the extra
-  // space straight back to the layout, so the row still measures 13.
+  // space straight back to the layout.
   const checkHit = {
     flexShrink: 0, width: 25, height: 25, minHeight: 25,
     margin: -6, padding: 0,
@@ -694,33 +810,30 @@ export default function PlanSheet() {
   };
   const checkStyle = (on) => ({
     width: 13, height: 13, borderRadius: 3, boxSizing: 'border-box',
-    border: `1px solid ${on ? ORANGE : (locked ? '#E2DAD0' : '#C1B4A3')}`,
-    background: on ? ORANGE : WHITE,
+    border: `1px solid ${on ? GREEN : (locked ? '#E2DAD0' : '#C1B4A3')}`,
+    background: on ? GREEN : WHITE,
     color: WHITE, fontSize: 9, fontWeight: 900, lineHeight: 1,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     opacity: locked && !on ? 0.75 : 1,
   });
 
-  const box = (filled, bp) => ({
+  const boxStyle = (key, target, w, h = BOX_H) => ({
     flexShrink: 0,
     // minHeight as well as height: index.css puts min-height:44px on
     // every input, and a min-height beats a smaller height.
-    width: bp.w, height: BOX_H, minHeight: BOX_H,
-    textAlign: 'center', fontSize: 12, padding: '2px 0',
-    border: `1px solid ${filled ? ORANGE : '#D5C8B6'}`,
-    borderRadius: 3,
-    background: filled ? '#FFF7F1' : WHITE,
+    width: w, height: h, minHeight: h,
+    textAlign: 'center', fontSize: 13, fontWeight: 500, padding: '2px 0',
+    border: `1px solid ${boxBorder(saved[key], target)}`,
+    borderRadius: 4,
+    background: WHITE,
     boxSizing: 'border-box',
     fontFamily: 'inherit', color: CHARCOAL,
     opacity: locked ? 0.75 : 1,
   });
 
-  // Both cards: white, hairline border, 4px radius, a 5px strip on top.
-  const cardShell = {
-    background: WHITE, border: `0.5px solid ${CARD_BORDER}`,
-    borderRadius: 4, overflow: 'hidden', boxSizing: 'border-box',
-  };
-  const cardStrip = { height: 5, background: STRIP, flexShrink: 0 };
+  /** Does this row hold anything typed but not yet stored? */
+  const rowIsDirty = (entries) =>
+    entries.some((e) => has(values[e.key]) && values[e.key] !== saved[e.key]);
 
   const openDetail = (d) => setDetail(d);
 
@@ -739,30 +852,21 @@ export default function PlanSheet() {
       }}
     >
       {/* Rules that inline styles cannot express.
-          1. The entry group's start, in three parts:
-             flex-basis 50% — the centre line is where it PREFERS to
-               start, and where it does start whenever the name is
-               already served;
-             flex-shrink 1000 — a thousand times softer than the name
-               (flex-shrink 1 on nameStyle), so when the row cannot
-               hold both, the group is what walks its start LEFT until
-               the name has its 110px;
-             min-width max-content — the floor. A group that needs more
-               than half the row grows RIGHTWARD past the centre rather
-               than clipping a box or opening a scrollport, and it never
-               shrinks below the boxes it holds.
-             In all three cases it still runs LEFT from wherever it
-             starts, because it is the row's last child in RTL.
+          1. The entry group never shrinks and never clips: min-width
+             max-content keeps every box at full width, and the row's
+             name is the only thing that gives.
           2. Spinner arrows would eat a 24px box.
           3. App.css carries a blanket `* { overflow-x: hidden }`, which
              makes every element its own scrollport. `clip` clips the
              same way and creates none. */
       }
       <style>{`
-.ps-entry{flex:0 1000 50%;min-width:-webkit-max-content;min-width:max-content;display:flex;justify-content:flex-start;align-items:center;flex-wrap:nowrap}
-.ps-page input[type=number]{-moz-appearance:textfield}
+.ps-entry{flex:0 0 auto;min-width:-webkit-max-content;min-width:max-content;display:flex;justify-content:flex-start;align-items:center;flex-wrap:nowrap}
+.ps-page input[type=number],.ps-dlg input[type=number]{-moz-appearance:textfield}
 .ps-page input[type=number]::-webkit-outer-spin-button,
-.ps-page input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.ps-page input[type=number]::-webkit-inner-spin-button,
+.ps-dlg input[type=number]::-webkit-outer-spin-button,
+.ps-dlg input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
 
       {/* ── The sheet: charcoal frame, cream paper ─────────────────── */}
@@ -776,41 +880,55 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
         }}>
 
           {/* ── Header band, 52px ──────────────────────────────────
-              charcoal wedge top LEFT, orange wordmark block top
-              RIGHT, the plan title between them. */}
+              The charcoal wedge holds the real logo. The orange block
+              on the right is the way back — on an RTL page "back" sits
+              at the start of the reading direction. */}
           <div style={{ position: 'relative', height: 52, background: CREAM }}>
             <div style={{
-              position: 'absolute', left: 0, top: 0, width: 120, height: 52,
+              position: 'absolute', left: 0, top: 0, width: WEDGE_W, height: 52,
               background: CHARCOAL,
               clipPath: 'polygon(0 0,100% 0,55% 100%,0 100%)',
               pointerEvents: 'none',
             }} />
-            {/* The way back. This route has no app header, and the
-                wedge is the one solid block with room for it. */}
+            {/* The logo, centred on both axes with even padding.
+                It is centred in the wedge's SOLID column — the left
+                55%, the only part that runs the full 52px — not in the
+                wedge's bounding box. The shape tapers from 55% to
+                100%, so a mark centred in the box would have its
+                bottom-left corner cut off by the diagonal. Its own
+                white is used as-is: the loading screen's
+                /logoR-black.png would be invisible on charcoal. */}
+            <div style={{
+              position: 'absolute', left: 0, top: 0,
+              width: Math.round(WEDGE_W * 0.55), height: 52,
+              padding: 9, boxSizing: 'border-box',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              pointerEvents: 'none',
+            }}>
+              <img
+                src="/logoR.png"
+                alt="AthletiGo"
+                style={{
+                  maxWidth: '100%', maxHeight: '100%',
+                  objectFit: 'contain', display: 'block',
+                }}
+              />
+            </div>
+
             <button
               type="button"
               onClick={() => navigate(backTo)}
               aria-label="חזרה"
               style={{
-                position: 'absolute', left: 0, top: 0, width: 52, height: 52,
-                background: 'transparent', border: 'none', color: CREAM,
-                fontSize: 19, lineHeight: 1, cursor: 'pointer',
+                position: 'absolute', right: 0, top: 0, width: 96, height: 52,
+                background: ORANGE, border: 'none', color: CREAM,
+                fontSize: 22, lineHeight: 1, cursor: 'pointer',
                 fontFamily: 'inherit', padding: 0, minHeight: 52,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
-            >←</button>
+            >→</button>
 
-            <div style={{
-              position: 'absolute', right: 0, top: 0, width: 96, height: 52,
-              background: ORANGE,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <span style={{
-                color: CREAM, fontSize: 13, letterSpacing: 1,
-                fontWeight: 600, whiteSpace: 'nowrap', lineHeight: 1,
-              }}>AthletiGo</span>
-            </div>
-
-            {/* To the LEFT of the orange block. */}
+            {/* Between the wedge and the orange block. */}
             <div style={{
               position: 'absolute', top: 0, right: 96, left: 120, height: 52,
               display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
@@ -846,16 +964,21 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
           {/* ── Sections ─────────────────────────────────────────── */}
           <div style={{ padding: '7px 5px 0' }}>
             {grouped.map(({ section, rows }) => {
+              const theme = themeOf(section);
               const cat = (section.category || section.section_name || '').trim();
               const rail = section.coach_notes || '';
-              // Exactly this name, nothing fuzzy — one section renders
-              // as prose and every other one is untouched.
-              const isNotes = (section.section_name || '').trim() === 'הערות';
+              const isNotes = looseName(section.section_name) === 'הערות';
               const isShut = !!collapsed[section.id];
               const toggle = () => setCollapsed((c) => ({ ...c, [section.id]: !c[section.id] }));
+              // One hue: the card border, the 4px strip, the label card.
+              const cardShell = {
+                background: WHITE, border: `1px solid ${theme.hue}`,
+                borderRadius: 5, overflow: 'hidden', boxSizing: 'border-box',
+              };
+              const strip = { height: 4, background: theme.hue, flexShrink: 0 };
               return (
                 <div key={section.id} style={{
-                  display: 'flex', gap: 5, marginBottom: 7, alignItems: 'stretch',
+                  display: 'flex', gap: 5, marginBottom: 8, alignItems: 'stretch',
                 }}>
                   {/* Label card — first child is RIGHTMOST in RTL. */}
                   <button
@@ -864,32 +987,33 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                     aria-expanded={!isShut}
                     style={{
                       ...cardShell, width: RAIL_W, flexShrink: 0,
+                      background: theme.bg, color: theme.fg,
                       padding: 0, minHeight: 0,
                       display: 'flex', flexDirection: 'column',
-                      cursor: 'pointer', fontFamily: 'inherit', color: CHARCOAL,
+                      cursor: 'pointer', fontFamily: 'inherit',
                     }}
                   >
-                    <div style={cardStrip} />
+                    <div style={strip} />
                     <div style={{
                       flex: 1, minHeight: 0,
-                      padding: '5px 3px 6px',
+                      padding: '6px 3px 7px',
                       display: 'flex', flexDirection: 'column',
-                      alignItems: 'center', gap: 2,
+                      alignItems: 'center', gap: 3,
                     }}>
                       <span style={{
                         fontSize: 11, lineHeight: 1.25, fontWeight: 500,
                         overflowWrap: 'anywhere', maxWidth: '100%',
                       }}>{section.section_name || cat}</span>
-                      <span style={{ fontSize: 9, color: MUTED, lineHeight: 1 }}>
+                      <span style={{ fontSize: 9, lineHeight: 1, opacity: 0.7 }}>
                         {isShut ? '◂' : '▾'}
                       </span>
                       {isShut ? (
-                        <span style={{ fontSize: 9, color: ORANGE, lineHeight: 1.2, whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: 9, lineHeight: 1.2, whiteSpace: 'nowrap', opacity: 0.85 }}>
                           {rows.length}
                         </span>
                       ) : rail ? (
                         <span style={{
-                          fontSize: 9, color: ORANGE, lineHeight: 1.25,
+                          fontSize: 9, lineHeight: 1.3, opacity: 0.85,
                           overflowWrap: 'anywhere',
                         }}>{rail}</span>
                       ) : null}
@@ -899,9 +1023,10 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                   {/* Content card — fills the rest. */}
                   {isShut ? null : (
                     <div style={{ ...cardShell, flex: 1, minWidth: 0 }}>
-                      <div style={cardStrip} />
+                      <div style={strip} />
                       {rows.map((ex, i) => {
                         const last = i === rows.length - 1;
+                        const rowEdge = last ? 'none' : `1px solid ${DIVIDER}`;
 
                         // ── A הערות row is a line of prose. Before the
                         //    ordinal is spent, so the numbering of real
@@ -909,14 +1034,13 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         if (isNotes) {
                           return (
                             <div key={ex.id} style={{
-                              display: 'flex', gap: 5, alignItems: 'baseline',
-                              padding: '7px 8px',
-                              borderBottom: last ? 'none' : `1px solid ${DIVIDER}`,
+                              display: 'flex', gap: 6, alignItems: 'baseline',
+                              padding: '8px 9px', borderBottom: rowEdge,
                             }}>
                               <span style={starStyle}>✳</span>
                               <span style={{
-                                fontSize: 11, color: CHARCOAL, lineHeight: 1.45,
-                                minWidth: 0, overflowWrap: 'anywhere',
+                                fontSize: 12, fontWeight: 400, color: CHARCOAL,
+                                lineHeight: 1.5, minWidth: 0, overflowWrap: 'anywhere',
                               }}>{ex.exercise_name || ex.name || ''}</span>
                             </div>
                           );
@@ -927,7 +1051,6 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         const { list: subs, kind: subKindOf } = container
                           ? subsOf(ex, td) : { list: [], kind: 'exercises' };
                         const m = measurementKind(ex, null, section);
-                        const note = noteOf(ex);
                         const pill = pillOf(ex.mode);
                         const spec = shortcutOf(ex);
                         const clockOnly = isClockOnly(spec);
@@ -939,56 +1062,66 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         const boxCount = (rowKind === 'check' || rowKind === 'container' || rowKind === 'clock')
                           ? 0
                           : (rowKind === 'tally' ? 1 : m.sets);
-                        // Containers and plain exercises share one running
-                        // count. Sub rows get an asterisk, never a number.
                         ordinal += 1;
                         const myOrdinal = ordinal;
-                        const rowParams = container ? '' : paramText({ ...m, kind: hasTarget ? m.kind : 'check' });
-                        // ONE source for the header count AND the box count.
                         const rounds = roundsOf(ex, td);
-                        // A planned_sets ladder IS the sets — one box per row.
                         const boxesPerSub = subKindOf === 'sets' ? 1 : rounds;
                         const exName = ex.exercise_name || ex.name || '';
+                        const param = container
+                          ? (rounds > 1 && !spec ? { value: String(rounds), label: 'סבבים', size: 19 } : null)
+                          : paramOf(ex, m, rowKind);
+                        // A check-only row has no boxes to count its
+                        // sets, so the sets go where instructions live.
+                        const setsNote = (rowKind === 'check' && Number(ex.sets) > 1)
+                          ? `${ex.sets} סטים` : '';
+                        const hint = [noteOf(ex), setsNote].filter(Boolean).join(' · ');
 
                         // ── A CONTAINER ──────────────────────────────
                         if (container) {
+                          // Superset, combo and dropset put their title
+                          // on a tinted band; the tabata clock keeps the
+                          // plain treatment.
+                          const banded = !isClock;
                           return (
-                            <div key={ex.id} style={{
-                              background: '#FDF9F4',
-                              borderRight: `2px solid ${ORANGE}`,
-                              borderBottom: last ? 'none' : `1px solid ${DIVIDER}`,
-                            }}>
+                            <div key={ex.id} style={{ borderBottom: rowEdge }}>
                               <div
-                                style={rowLine(true)}
                                 onClick={() => openDetail({
-                                  name: exName, params: rounds > 1 ? `${rounds} סבבים` : '',
-                                  method: pill?.label || null, note,
+                                  ordinal: myOrdinal, name: exName, pill, param, hint,
+                                  entries: [], target: null,
                                 })}
+                                style={{
+                                  background: banded ? BAND_BG : WHITE,
+                                  borderBottom: banded
+                                    ? `0.5px solid ${BAND_LINE}`
+                                    : `0.5px solid ${DIVIDER}`,
+                                  cursor: 'pointer',
+                                }}
                               >
-                                <span style={ordinalStyle}>{myOrdinal}.</span>
-                                <span style={nameStyle} title={exName}>{exName}</span>
-                                <MethodPill pill={pill} />
-                                {/* The clock button already prints the
-                                    round count, so it is not said twice. */}
-                                {rounds > 1 && !spec && <span style={paramStyle}>{`${rounds} סבבים`}</span>}
-                                <div style={spacerStyle} />
-                                {spec && (
-                                  <div
-                                    className="ps-entry"
-                                    style={{ gap: 4 }}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    {/* A tabata or interval container is a
-                                        clock, not a measurement: the button
-                                        only, and nothing written back. */}
-                                    <ClockShortcut
-                                      spec={spec}
-                                      setNumber={1}
-                                      totalSets={rounds}
-                                      disabled={false}
-                                    />
-                                  </div>
-                                )}
+                                <div style={rowLine}>
+                                  <span style={ordinalStyle}>{myOrdinal}.</span>
+                                  <span style={nameStyle(16)} title={exName}>{exName}</span>
+                                  <MethodPill pill={pill} />
+                                  <ParamBlock {...(param || {})} />
+                                  <div style={spacerStyle} />
+                                  {spec && (
+                                    <div
+                                      className="ps-entry"
+                                      style={{ gap: 4 }}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {/* A tabata or interval container is
+                                          a clock, not a measurement: the
+                                          button only, nothing written. */}
+                                      <ClockShortcut
+                                        spec={spec}
+                                        setNumber={1}
+                                        totalSets={rounds}
+                                        disabled={false}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                                <HintLine text={hint} indent={22} />
                               </div>
 
                               {subs.map((sub, sidx) => {
@@ -997,68 +1130,77 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                 // Inside a clock the numbers are the
                                 // programme, shown but never editable.
                                 const subEditable = subHasTarget && !isClock;
-                                const subParams = paramText({ ...sm, kind: subHasTarget ? sm.kind : 'check' });
+                                const subParam = subParamOf(sub, sm, 16);
                                 const lastSub = sidx === subs.length - 1;
                                 const sbp = boxPlan(subEditable ? boxesPerSub : 0);
                                 const subText = subLabel(sub, subKindOf, sidx);
                                 const subKey = `${ex.id}:sub${sidx}`;
+                                const subHint = noteOf(sub);
+                                const subEntries = subEditable
+                                  ? Array.from({ length: boxesPerSub }).map((_, ri) => ({
+                                    key: `${subKey}:${ri + 1}`,
+                                    exerciseId: ex.id, drillIdx: sidx, setNo: ri + 1,
+                                    payloadField: sm.payloadField,
+                                    setLabel: `סט ${ri + 1}`,
+                                  }))
+                                  : [];
+                                const showTick = !subEditable && !isClock;
                                 return (
                                   <div
                                     key={subKey}
-                                    style={rowLine(lastSub)}
                                     onClick={() => openDetail({
-                                      name: subText, params: subParams,
-                                      method: pill?.label || null, note: null,
+                                      ordinal: null, name: subText, pill: null,
+                                      param: subParam, hint: subHint,
+                                      entries: subEntries, target: sm.target,
                                     })}
+                                    style={{
+                                      background: WHITE, cursor: 'pointer',
+                                      borderBottom: lastSub ? 'none' : `0.5px solid ${DIVIDER}`,
+                                    }}
                                   >
-                                    {/* Nothing to measure, and not a clock →
-                                        the same tick a plain row gets. A
-                                        tabata's sub rows stay blank: the
-                                        container's own row carries the clock. */}
-                                    {!subEditable && !isClock && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => { e.stopPropagation(); toggleSubCheck(ex.id, sidx); }}
-                                        disabled={locked}
-                                        aria-pressed={!!checks[subKey]}
-                                        aria-label="סמן כבוצע"
-                                        style={checkHit}
-                                      >
-                                        <span style={checkStyle(!!checks[subKey])}>
-                                          {checks[subKey] ? '✓' : ''}
-                                        </span>
-                                      </button>
-                                    )}
-                                    <span style={starStyle}>✳</span>
-                                    <span style={nameStyle} title={subText}>{subText}</span>
-                                    {subParams && showParams(subEditable ? boxesPerSub : 0, false) && (
-                                      <span style={paramStyle}>{subParams}</span>
-                                    )}
-                                    <div style={spacerStyle} />
-                                    {subEditable && (
-                                      <div
-                                        className="ps-entry"
-                                        style={{ gap: sbp.gap }}
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        {Array.from({ length: boxesPerSub }).map((_, ri) => {
-                                          const key = `${subKey}:${ri + 1}`;
-                                          const v = values[key] ?? '';
-                                          return (
+                                    <div style={rowLine}>
+                                      {showTick && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); toggleSubCheck(ex.id, sidx); }}
+                                          disabled={locked}
+                                          aria-pressed={!!checks[subKey]}
+                                          aria-label="סמן כבוצע"
+                                          style={checkHit}
+                                        >
+                                          <span style={checkStyle(!!checks[subKey])}>
+                                            {checks[subKey] ? '✓' : ''}
+                                          </span>
+                                        </button>
+                                      )}
+                                      <span style={starStyle}>✳</span>
+                                      <span style={nameStyle(14)} title={subText}>{subText}</span>
+                                      {showParam(subEntries.length) && <ParamBlock {...(subParam || {})} />}
+                                      <div style={spacerStyle} />
+                                      {subEditable && (
+                                        <div
+                                          className="ps-entry"
+                                          style={{ gap: sbp.gap }}
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          {subEntries.map((en) => (
                                             <input
-                                              key={key}
+                                              key={en.key}
                                               type="number"
                                               inputMode="numeric"
                                               disabled={locked}
-                                              value={v}
-                                              onChange={(e) => setValues((pv) => ({ ...pv, [key]: e.target.value }))}
-                                              onBlur={(e) => commitInner(ex.id, sidx, e.target.value, sm.payloadField, ri + 1)}
-                                              style={box(has(v), sbp)}
+                                              value={values[en.key] ?? ''}
+                                              onChange={(e) => setValues((pv) => ({ ...pv, [en.key]: e.target.value }))}
+                                              style={boxStyle(en.key, sm.target, sbp.w)}
                                             />
-                                          );
-                                        })}
-                                      </div>
-                                    )}
+                                          ))}
+                                          {!locked && rowIsDirty(subEntries) && (
+                                            <SaveDot onClick={() => saveRow(subEntries)} />
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <HintLine text={subHint} indent={showTick ? 41 : 22} />
                                   </div>
                                 );
                               })}
@@ -1068,78 +1210,78 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
 
                         // ── A PLAIN EXERCISE ROW ─────────────────────
                         const bp = boxPlan(boxCount);
+                        const entries = Array.from({ length: boxCount }).map((_, si) => ({
+                          key: `${ex.id}:${si + 1}`,
+                          exerciseId: ex.id, drillIdx: 0, setNo: si + 1,
+                          payloadField: m.payloadField,
+                          setLabel: `סט ${si + 1}`,
+                        }));
                         return (
                           <div
                             key={ex.id}
-                            style={rowLine(last)}
                             onClick={() => openDetail({
-                              name: exName, params: rowParams,
-                              method: pill?.label || null, note,
+                              ordinal: myOrdinal, name: exName, pill, param, hint,
+                              entries, target: m.target,
                             })}
+                            style={{ borderBottom: rowEdge, cursor: 'pointer' }}
                           >
-                            {rowKind === 'check' && (
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); toggleCheck(ex.id); }}
-                                disabled={locked}
-                                aria-pressed={!!checks[ex.id]}
-                                aria-label="סמן כבוצע"
-                                style={checkHit}
-                              >
-                                <span style={checkStyle(!!checks[ex.id])}>
-                                  {checks[ex.id] ? '✓' : ''}
-                                </span>
-                              </button>
-                            )}
-                            <span style={ordinalStyle}>{myOrdinal}.</span>
-                            <span style={nameStyle} title={exName}>{exName}</span>
-                            {showPill(boxCount) && <MethodPill pill={pill} />}
-                            {rowParams && showParams(boxCount, !!spec) && (
-                              <span style={paramStyle}>{rowParams}</span>
-                            )}
-                            <div style={spacerStyle} />
-                            {(boxCount > 0 || spec) && (
-                              <div
-                                className="ps-entry"
-                                style={{ gap: bp.gap }}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {/* The button sits at the LEFT end of the
-                                    group, past the boxes, so the boxes
-                                    keep the centre line. */}
-                                {Array.from({ length: boxCount }).map((_, si) => {
-                                  const key = `${ex.id}:${si + 1}`;
-                                  const v = values[key] ?? '';
-                                  return (
+                            <div style={rowLine}>
+                              {rowKind === 'check' && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); toggleCheck(ex.id); }}
+                                  disabled={locked}
+                                  aria-pressed={!!checks[ex.id]}
+                                  aria-label="סמן כבוצע"
+                                  style={checkHit}
+                                >
+                                  <span style={checkStyle(!!checks[ex.id])}>
+                                    {checks[ex.id] ? '✓' : ''}
+                                  </span>
+                                </button>
+                              )}
+                              <span style={ordinalStyle}>{myOrdinal}.</span>
+                              <span style={nameStyle(16)} title={exName}>{exName}</span>
+                              {showPill(boxCount) && <MethodPill pill={pill} />}
+                              {showParam(boxCount) && <ParamBlock {...(param || {})} />}
+                              <div style={spacerStyle} />
+                              {(boxCount > 0 || spec) && (
+                                <div
+                                  className="ps-entry"
+                                  style={{ gap: bp.gap }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {entries.map((en) => (
                                     <input
-                                      key={key}
+                                      key={en.key}
                                       type="number"
                                       inputMode="numeric"
                                       disabled={locked}
-                                      value={v}
-                                      onChange={(e) => setValues((pv) => ({ ...pv, [key]: e.target.value }))}
-                                      onBlur={(e) => commit(ex.id, si + 1, e.target.value, m.payloadField)}
-                                      style={box(has(v), bp)}
+                                      value={values[en.key] ?? ''}
+                                      onChange={(e) => setValues((pv) => ({ ...pv, [en.key]: e.target.value }))}
+                                      style={boxStyle(en.key, m.target, bp.w)}
                                     />
-                                  );
-                                })}
-                                {spec && (
-                                  <ClockShortcut
-                                    spec={spec}
-                                    setNumber={1}
-                                    totalSets={Math.max(1, boxCount)}
-                                    disabled={locked}
-                                    onElapsed={
-                                      // A countdown measures; a clock-only
-                                      // row writes nothing back.
-                                      (!clockOnly && boxCount > 0)
-                                        ? (seconds) => writeClockSeconds(ex.id, boxCount, m.payloadField, seconds)
-                                        : undefined
-                                    }
-                                  />
-                                )}
-                              </div>
-                            )}
+                                  ))}
+                                  {!locked && rowIsDirty(entries) && (
+                                    <SaveDot onClick={() => saveRow(entries)} />
+                                  )}
+                                  {spec && (
+                                    <ClockShortcut
+                                      spec={spec}
+                                      setNumber={1}
+                                      totalSets={Math.max(1, boxCount)}
+                                      disabled={locked}
+                                      onElapsed={
+                                        (!clockOnly && boxCount > 0)
+                                          ? (seconds) => writeClockSeconds(ex.id, boxCount, m.payloadField, seconds)
+                                          : undefined
+                                      }
+                                    />
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <HintLine text={hint} indent={rowKind === 'check' ? 41 : 22} />
                           </div>
                         );
                       })}
@@ -1152,10 +1294,13 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
 
           {/* ── Feeling ──────────────────────────────────────────── */}
           <div style={{ padding: '0 5px' }}>
-            <div style={{ ...cardShell, marginTop: 2 }}>
-              <div style={cardStrip} />
-              <div style={{ padding: '7px 8px 9px' }}>
-                <div style={{ fontSize: 11, fontWeight: 500, marginBottom: 6 }}>תחושה</div>
+            <div style={{
+              background: WHITE, border: `1px solid ${CARD_BORDER}`,
+              borderRadius: 5, overflow: 'hidden', marginTop: 2,
+            }}>
+              <div style={{ height: 4, background: CARD_BORDER }} />
+              <div style={{ padding: '8px 9px 10px' }}>
+                <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 7 }}>תחושה</div>
                 <div style={{ display: 'flex', gap: 3 }}>
                   {Array.from({ length: 10 }).map((_, i) => {
                     const n = i + 1;
@@ -1167,11 +1312,11 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         onClick={() => saveFeeling(n)}
                         disabled={locked}
                         style={{
-                          flex: 1, minWidth: 0, height: 30, minHeight: 30,
+                          flex: 1, minWidth: 0, height: 32, minHeight: 32,
                           border: `1px solid ${on ? ORANGE : (locked ? '#E2DAD0' : '#D9D0C4')}`,
                           background: on ? ORANGE : WHITE,
                           color: on ? WHITE : CHARCOAL,
-                          fontSize: 12, fontWeight: 500, borderRadius: 3,
+                          fontSize: 13, fontWeight: 500, borderRadius: 4,
                           cursor: locked ? 'default' : 'pointer',
                           fontFamily: 'inherit', padding: 0,
                           opacity: locked && !on ? 0.75 : 1,
@@ -1185,8 +1330,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
           </div>
 
           {/* אימון חדש — the only action on a locked sheet, and always
-              available on an open one. Duplicates through the existing
-              duplicatePlan and drops straight into the copy. */}
+              available on an open one. */}
           <div style={{ padding: '8px 5px 0' }}>
             <button
               type="button"
@@ -1194,7 +1338,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
               disabled={duplicating}
               style={{
                 width: '100%', minHeight: TOUCH,
-                border: 'none', borderRadius: 4,
+                border: 'none', borderRadius: 5,
                 background: CHARCOAL, color: CREAM,
                 fontSize: 14, fontWeight: 500, fontFamily: 'inherit',
                 cursor: duplicating ? 'default' : 'pointer',
@@ -1220,43 +1364,130 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
         </div>
       </div>
 
-      {/* Tap detail — the whole stored name plus everything the single
-          line could not show. Read only. */}
+      {/* ── The tap dialog — the row, enlarged ──────────────────────
+          The header repeats the row on the same tinted band a container
+          title wears, with the FULL name wrapping instead of
+          ellipsising. The body carries the hint and every entry box at
+          a size a thumb can hit. One save at the foot, not one per box:
+          inside the dialog the trainee is filling a whole exercise. */}
       <Dialog open={!!detail} onOpenChange={(open) => { if (!open) setDetail(null); }}>
         <DialogContent
+          className="ps-dlg"
           // The shared DialogContent blocks Escape by default, because
-          // forms must close through save. Nothing here is editable,
-          // so a no-op handler lets Radix close on Escape as usual.
+          // forms must close through save. This one is safe to dismiss.
           onEscapeKeyDown={() => {}}
-          style={{ maxWidth: 380 }}
+          style={{ maxWidth: 400 }}
         >
-          <DialogHeader>
-            <DialogTitle style={{
-              fontSize: 17, lineHeight: 1.35, color: CHARCOAL,
-              paddingInlineEnd: 26,
-            }}>
-              {detail?.name}
-            </DialogTitle>
-          </DialogHeader>
-          <div style={{ marginTop: 14, display: 'grid', gap: 10 }}>
-            {[
-              ['מדדים', detail?.params],
-              ['שיטה', detail?.method],
-              ['הערה', detail?.note],
-            ].filter(([, v]) => v).map(([label, v]) => (
-              <div key={label} style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
-                <span style={{ fontSize: 12, color: MUTED, flexShrink: 0, minWidth: 46 }}>
-                  {label}
-                </span>
-                <span style={{
-                  fontSize: 14, color: CHARCOAL, fontWeight: 500,
-                  unicodeBidi: 'isolate', direction: 'rtl',
-                }}>
-                  {v}
-                </span>
+          {detail && (
+            <div dir="rtl" style={{ fontFamily: SANS }}>
+              {/* Full bleed over the shared p-6 padding. */}
+              <div style={{
+                margin: '-24px -24px 0',
+                background: BAND_BG, borderBottom: `1px solid ${BAND_LINE}`,
+                padding: '16px 44px 14px 16px',
+                display: 'flex', alignItems: 'flex-start', gap: 8,
+              }}>
+                {detail.ordinal != null && (
+                  <span style={{ ...ordinalStyle, fontSize: 14, lineHeight: 1.45 }}>
+                    {detail.ordinal}.
+                  </span>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 17, fontWeight: 500, color: CHARCOAL, lineHeight: 1.4,
+                    // The whole name, wrapping. Nothing truncated here —
+                    // this dialog is where the sheet stops abbreviating.
+                    whiteSpace: 'normal', overflowWrap: 'anywhere',
+                  }}>{detail.name}</div>
+                  {detail.pill && (
+                    <div style={{ marginTop: 6 }}><MethodPill pill={detail.pill} /></div>
+                  )}
+                </div>
+                {detail.param && (
+                  <ParamBlock {...detail.param} size={(detail.param.size || 19) + 3} />
+                )}
               </div>
-            ))}
-          </div>
+
+              <div style={{ paddingTop: 14 }}>
+                {detail.hint && (
+                  <div style={{
+                    fontSize: 12, fontWeight: 400, color: MUTED,
+                    lineHeight: 1.6, marginBottom: 14, overflowWrap: 'anywhere',
+                  }}>{detail.hint}</div>
+                )}
+
+                {detail.entries.length > 0 ? (
+                  <div style={{
+                    display: 'flex', flexWrap: 'wrap', gap: 10,
+                    justifyContent: 'flex-start',
+                  }}>
+                    {detail.entries.map((en) => (
+                      <div key={en.key} style={{ textAlign: 'center' }}>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          disabled={locked}
+                          value={values[en.key] ?? ''}
+                          onChange={(e) => setValues((pv) => ({ ...pv, [en.key]: e.target.value }))}
+                          style={{
+                            width: 52, height: 44, minHeight: 44,
+                            textAlign: 'center', fontSize: 18, fontWeight: 500,
+                            border: `1.5px solid ${boxBorder(saved[en.key], detail.target)}`,
+                            borderRadius: 6, background: WHITE,
+                            boxSizing: 'border-box', fontFamily: 'inherit',
+                            color: CHARCOAL, padding: 0,
+                            opacity: locked ? 0.75 : 1,
+                          }}
+                        />
+                        <div style={{
+                          fontSize: 10, fontWeight: 400, color: MUTED,
+                          marginTop: 4, whiteSpace: 'nowrap',
+                        }}>{en.setLabel}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: MUTED }}>
+                    אין ערכים להזנה בתרגיל הזה
+                  </div>
+                )}
+              </div>
+
+              <div style={{
+                display: 'flex', gap: 8, marginTop: 18,
+                paddingTop: 14, borderTop: `1px solid ${DIVIDER}`,
+              }}>
+                {detail.entries.length > 0 && !locked && (
+                  <button
+                    type="button"
+                    onClick={async () => { await saveRow(detail.entries); setDetail(null); }}
+                    style={{
+                      flex: 2, minHeight: TOUCH, borderRadius: 8, border: 'none',
+                      background: GREEN, color: WHITE,
+                      fontSize: 15, fontWeight: 500, fontFamily: 'inherit',
+                      cursor: 'pointer',
+                      display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', gap: 7,
+                    }}
+                  >
+                    <Check size={17} strokeWidth={3} color={WHITE} />
+                    שמור
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setDetail(null)}
+                  style={{
+                    flex: 1, minHeight: TOUCH, borderRadius: 8,
+                    border: `1px solid ${CARD_BORDER}`,
+                    background: WHITE, color: MUTED,
+                    fontSize: 15, fontWeight: 400, fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                >סגור</button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
