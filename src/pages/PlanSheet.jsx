@@ -1,5 +1,4 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -21,11 +20,10 @@ import { duplicatePlan } from '@/lib/plansApi';
 import { useClock } from '@/contexts/ClockContext';
 import { useActiveTimer } from '@/contexts/ActiveTimerContext';
 import { formatDuration, LTR_TIME } from '@/lib/duration';
-import ClockLeadIn from '@/components/training/ClockLeadIn';
+import { PLAN_PREP_SECONDS } from '@/components/clocks/clockUi';
 import CompletionSheet from '@/components/training/CompletionSheet';
 import {
-  resolveExerciseClock, useExerciseClock,
-  InlineExerciseClock, ClockSwapPrompt,
+  resolveExerciseClock, useExerciseClock, ClockSwapPrompt,
 } from '@/components/training/ExerciseClock';
 import {
   Dialog, DialogContent,
@@ -57,11 +55,15 @@ import {
  * by measurementKind() in src/lib/exerciseMeasurement.js — the same
  * helper WorkoutSheet imports, so the two screens cannot disagree.
  *
- * CLOCKS are not built here. resolveExerciseClock / useExerciseClock /
- * InlineExerciseClock in components/training/ExerciseClock.jsx already
- * map an exercise's own time fields onto the shared ClockContext
- * engine; this screen only renders their launcher and their running
- * block. No second engine, no duplicated phase loop.
+ * CLOCKS are not built here, and not even DRAWN here any more.
+ * resolveExerciseClock / useExerciseClock in
+ * components/training/ExerciseClock.jsx map an exercise's own time
+ * fields onto the shared ClockContext engine and own the swap prompt,
+ * the elapsed measurement and the write-back. The FACE is the clocks
+ * tab's own: tapping a shortcut raises GlobalTabata or GlobalTimer,
+ * the very components /clocks renders, prefilled from the exercise and
+ * counting their ten seconds of prep inside themselves. This screen
+ * renders a launcher and nothing else.
  */
 
 // ── Palette — the printed sheet's own ────────────────────────────────
@@ -521,12 +523,10 @@ function ClockShortcut({
   spec, exerciseName, setNumber, totalSets, onElapsed, disabled, render,
 }) {
   const clock = useClock();
-  const { setPendingTabataCfg, setShowTabata } = useActiveTimer() || {};
-  // The lead-in's working copy of the values. Non-null only between
-  // the tap and the clock actually starting, and thrown away after —
-  // this is what keeps a שינוי scoped to the run.
-  const [runSpec, setRunSpec] = useState(null);
-  const [leadIn, setLeadIn] = useState(false);
+  const {
+    setPendingTabataCfg, setShowTabata,
+    setPendingTimerCfg, setShowTimer,
+  } = useActiveTimer() || {};
   // The hook's completion effect keys off this callback's identity, so
   // it has to be stable across the parent's renders.
   const latest = useRef(onElapsed);
@@ -534,43 +534,76 @@ function ClockShortcut({
   const handleElapsed = useCallback((seconds) => {
     if (typeof latest.current === 'function') latest.current(seconds);
   }, []);
-  // The hook drives the SHARED ClockContext engine. It is given the
-  // run's values, so an edited lead-in starts the edited clock.
-  const ec = useExerciseClock({ spec: runSpec || spec, clock, onElapsed: handleElapsed });
+  // The hook still owns the run on ClockContext: the swap prompt, the
+  // elapsed measurement and the once-per-run write-back are unchanged.
+  // What changed is what the trainee SEES while it runs — the full
+  // clocks-tab face, not an inline strip.
+  const ec = useExerciseClock({ spec, clock, onElapsed: handleElapsed });
 
-  // Lead-in finished. A tabata hands off to the full TabataTimer
-  // overlay — the very component the clocks tab shows, already mounted
-  // globally in App.jsx (GlobalTabata) and driven by the one-shot
-  // pendingTabataCfg bus, whose `source: 'workout_exercise'` flag stops
-  // TabataTimer persisting these values over the trainee's own saved
-  // clock settings. Everything else runs on ClockContext, where
-  // useExerciseClock already owns the swap prompt and the write-back.
-  const startNow = useCallback((values) => {
-    setLeadIn(false);
-    const v = values || spec;
-    setRunSpec(v);
-    if (v?.kind === 'tabata' && setPendingTabataCfg && setShowTabata) {
+  /**
+   * Tapping raises the FULL clock at once. There is no plan-side
+   * lead-in any more; the ten seconds are the CLOCK'S OWN prepare
+   * phase, counted inside its face.
+   *
+   *   tabata  → GlobalTabata, the same TabataTimer the clocks tab
+   *             opens, prefilled through the one-shot pendingTabataCfg
+   *             bus with prep = PLAN_PREP_SECONDS. Its
+   *             source:'workout_exercise' flag is what stops
+   *             TabataTimer persisting these values over the trainee's
+   *             own saved settings, so an edit on its settings screen
+   *             is scoped to this run.
+   *
+   *   countdown / intervals → GlobalTimer, the same TimerView, seeded
+   *             through pendingTimerCfg and started by
+   *             useExerciseClock with the prepare phase ClockContext
+   *             already supports. The seeded values live in
+   *             TimerView's own component state, so they are equally
+   *             run-scoped.
+   */
+  const open = useCallback(() => {
+    if (!spec) return;
+    if (spec.kind === 'tabata' && setPendingTabataCfg && setShowTabata) {
       setPendingTabataCfg({
-        work: v.workSeconds,
-        rest: v.restSeconds,
-        rounds: v.rounds,
-        sets: v.sets || 1,
-        rb: v.restBetweenSets || 0,
-        // The lead-in has already counted the trainee in.
-        prep: 0,
+        work: spec.workSeconds,
+        rest: spec.restSeconds,
+        rounds: spec.rounds,
+        sets: spec.sets || 1,
+        rb: spec.restBetweenSets || 0,
+        // The prep runs INSIDE the tabata face, as it does on the tab.
+        prep: PLAN_PREP_SECONDS,
         source: 'workout_exercise',
       });
       setShowTabata(true);
       return;
     }
-    // Deferred a tick so the hook sees the new spec before it starts.
-    setTimeout(() => ec.launch(), 0);
-  }, [spec, ec, setPendingTabataCfg, setShowTabata]);
+    if (setPendingTimerCfg && setShowTimer) {
+      setPendingTimerCfg({
+        seconds: spec.kind === 'countdown' ? spec.seconds : spec.workSeconds,
+        prepSeconds: PLAN_PREP_SECONDS,
+        exerciseName,
+        source: 'workout_exercise',
+      });
+      setShowTimer(true);
+    }
+    // useExerciseClock owns the engine, the swap prompt and the
+    // write-back exactly as before.
+    ec.launch();
+  }, [spec, exerciseName, ec, setPendingTabataCfg, setShowTabata, setPendingTimerCfg, setShowTimer]);
+
+  // The clock finished or was stopped: drop the overlay and return to
+  // the sheet in place. Never a navigation.
+  //
+  // Guarded on the true→false TRANSITION, not on `!owned`. Every
+  // shortcut on the sheet runs this effect, and all of them start
+  // un-owned — without the ref they would each close an overlay a
+  // sibling had just opened.
+  const ownedRef = useRef(false);
+  useEffect(() => {
+    if (ownedRef.current && !ec.owned && setShowTimer) setShowTimer(false);
+    ownedRef.current = ec.owned;
+  }, [ec.owned, setShowTimer]);
 
   if (!spec) return null;
-
-  const effective = runSpec || spec;
-  const open = () => { setRunSpec(spec); setLeadIn(true); };
 
   return (
     <>
@@ -598,35 +631,8 @@ function ClockShortcut({
         </button>
       )}
 
-      <ClockLeadIn
-        open={leadIn}
-        exerciseName={exerciseName}
-        spec={effective}
-        onCancel={() => { setLeadIn(false); setRunSpec(null); }}
-        onConfirm={startNow}
-      />
-
       {/* The existing running-clock swap prompt, untouched. */}
       <ClockSwapPrompt open={ec.swapOpen} onConfirm={ec.confirmSwap} onCancel={ec.cancelSwap} />
-
-      {ec.owned && typeof document !== 'undefined' && createPortal(
-        <div style={{
-          position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 12000,
-          background: CREAM, borderTop: `1px solid ${CARD_BORDER}`,
-          boxShadow: '0 -8px 22px rgba(0,0,0,0.16)',
-          padding: '10px 12px calc(4px + env(safe-area-inset-bottom, 0px))',
-        }}>
-          <InlineExerciseClock
-            spec={effective}
-            clock={clock}
-            setNumber={setNumber}
-            totalSets={totalSets}
-            onStop={() => { ec.stopNow(); setRunSpec(null); }}
-            onTogglePause={ec.togglePause}
-          />
-        </div>,
-        document.body,
-      )}
     </>
   );
 }

@@ -15,6 +15,7 @@ import PageLoader from '@/components/PageLoader';
 import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
 import PlanSheet from './pages/PlanSheet';
+import TimerView from './components/clocks/TimerView';
 import CasualHealth from './pages/CasualHealth';
 import CoachHub from './pages/CoachHub';
 import Pro from './pages/Pro';
@@ -144,6 +145,56 @@ function GlobalTabata() {
       <TabataTimer
         onMinimize={handleMinimize}
         setLiveTimer={setLiveTimer}
+      />
+    </div>
+  );
+}
+
+// Global countdown timer — always mounted, mirrors GlobalTabata. It
+// renders the SAME TimerView the clocks tab renders, so a hold or a
+// timed exercise launched from the plan screen gets the real clock
+// face and controls rather than a second, smaller one. Closing it
+// returns the trainee to whatever page raised it; it never navigates.
+function GlobalTimer() {
+  const { showTimer, setShowTimer, pendingTimerCfg, setPendingTimerCfg, setLiveTimer } = useActiveTimer();
+  const cfg = pendingTimerCfg;
+
+  // Same event trap as GlobalTabata: taps inside the overlay must not
+  // reach the document-level pointer listener Radix uses to decide
+  // whether a dialog should close.
+  const stopTimerEvents = (e) => {
+    e.stopPropagation();
+    if (typeof e.nativeEvent?.stopImmediatePropagation === 'function') {
+      e.nativeEvent.stopImmediatePropagation();
+    }
+  };
+
+  const close = useCallback(() => {
+    setShowTimer(false);
+    setPendingTimerCfg(null);
+  }, [setShowTimer, setPendingTimerCfg]);
+
+  return (
+    <div
+      data-timer-bar="true"
+      onClick={stopTimerEvents}
+      onPointerDown={stopTimerEvents}
+      onPointerUp={stopTimerEvents}
+      onMouseDown={stopTimerEvents}
+      onMouseUp={stopTimerEvents}
+      onTouchStart={stopTimerEvents}
+      onTouchEnd={stopTimerEvents}
+      style={{
+        display: showTimer ? 'block' : 'none',
+        position: 'fixed', inset: 0, zIndex: 10000, background: '#FFFFFF',
+      }}>
+      <TimerView
+        onMinimize={close}
+        onBack={close}
+        initialSeconds={cfg?.seconds ?? null}
+        initialPrepSec={cfg?.prepSeconds ?? null}
+        exerciseName={cfg?.exerciseName ?? null}
+        bigDigits
       />
     </div>
   );
@@ -745,6 +796,7 @@ function App() {
               <NavigationTracker />
               <AndroidBackButton />
               <GlobalTabata />
+              <GlobalTimer />
               <GlobalDynamicIntervals />
               <Routes>
                 <Route path="/login" element={<Login />} />

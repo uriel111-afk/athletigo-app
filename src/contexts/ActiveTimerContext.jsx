@@ -12,6 +12,10 @@ export const ActiveTimerProvider = ({ children }) => {
   const [liveTimerTabata, setLiveTimerTabata] = useState(null);
   const [liveTimerDynamic, setLiveTimerDynamic] = useState(null);
   const [showTabata, setShowTabata] = useState(false);
+  // The countdown overlay — GlobalTimer in App.jsx, the SAME TimerView
+  // the clocks tab renders. Raised by the plan screen so a hold or a
+  // timed exercise gets the full clock instead of an inline strip.
+  const [showTimer, setShowTimer] = useState(false);
   const [showDynamic, setShowDynamic] = useState(false);
   // TimerFooterBar only renders when a timer is active AND the user
   // explicitly minimized it (tap of the minimize button or nav-away).
@@ -23,6 +27,12 @@ export const ActiveTimerProvider = ({ children }) => {
   // falls back to the localStorage 'tb3' cfg untouched. Shape:
   //   { prep, work, rest, rb, rounds, sets, source: 'workout_exercise' }
   const [pendingTabataCfg, setPendingTabataCfg] = useState(null);
+  // The same one-shot prefill idea for the countdown. Shape:
+  //   { seconds, prepSeconds, exerciseName, source: 'workout_exercise' }
+  // TimerView seeds its wheels from it; nothing is persisted, so the
+  // trainee's own saved clock settings are never touched — the mirror
+  // of the tabata's source flag.
+  const [pendingTimerCfg, setPendingTimerCfg] = useState(null);
 
   // Legacy single-slot getter — prefer tabata since it has richer info.
   const liveTimer = liveTimerTabata || liveTimerDynamic || liveTimerClock;
@@ -64,12 +74,16 @@ export const ActiveTimerProvider = ({ children }) => {
     activeTimers,
     showTabata,
     setShowTabata,
+    showTimer,
+    setShowTimer,
     showDynamic,
     setShowDynamic,
     isMinimized,
     setIsMinimized,
     pendingTabataCfg,
     setPendingTabataCfg,
+    pendingTimerCfg,
+    setPendingTimerCfg,
   };
 
   return (

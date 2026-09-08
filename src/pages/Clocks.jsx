@@ -7,6 +7,16 @@ import { useClock } from "@/contexts/ClockContext";
 import { useActiveTimer } from "@/contexts/ActiveTimerContext";
 import { AuthContext } from "@/lib/AuthContext";
 import ScrollPickerPopup, { SECONDS_OPTIONS, MINUTES_OPTIONS, PREP_OPTIONS } from "@/components/ScrollPickerPopup";
+// TimerView and the clocks-tab furniture moved out so the SAME clock
+// can also be raised as a global overlay from the plan screen. This
+// tab renders the identical component.
+import TimerView from '@/components/clocks/TimerView';
+import {
+  BRAND, FN, FL, C1, C2, C3, BRD, BG2,
+  fmt, fmtMMSS, fmtStopwatch, HoldButton,
+  SOUND_START, SOUND_RESET, SOUND_TICK, SOUND_ALERT, SOUND_TRIPLE_BELL,
+  unlockAudio,
+} from '@/components/clocks/clockUi';
 import { formatDurationMs, formatStopwatchMs, LTR_TIME } from '@/lib/duration';
 
 const MinimizeBtn = ({ onClick }) => (
@@ -17,55 +27,6 @@ const MinimizeBtn = ({ onClick }) => (
     </svg>
   </button>
 );
-
-const BRAND = '#FF6F20';
-// FN — display font for the clocks tab only (digits + scoreboard
-// labels + tab toggles). Reverted to Barlow Condensed; the rest of
-// the app keeps Bebas Neue for numerical accents.
-const FN = "'Barlow Condensed', sans-serif";
-const FL = "'Rubik', system-ui, sans-serif";
-const C1 = '#1A1A1A';
-const C2 = '#6B7280';
-const C3 = '#9CA3AF';
-const BRD = '#E5E7EB';
-const BG2 = '#F5F5F5';
-
-// The one shared formatter. This used to print a bare "45" below a
-// minute, so the same duration read differently here and on the sheet.
-const fmt = (ms) => formatDurationMs(ms, { ceil: false, padded: false });
-// Math.ceil so the visible countdown matches the Tabata clock:
-// "1" stays on screen for the entire last second (ms = 1..1000 → "00:01"),
-// then the phase ends and the setup/done screen replaces this view —
-// "00:00" is never rendered. Floor would drop to "00:00" the moment ms
-// crosses below 1000 and linger there for ~1 s.
-// ceil is the running-clock rule, now owned by the shared formatter:
-// "1" holds the screen for the whole final second.
-const fmtMMSS = (ms) => formatDurationMs(ms);
-const fmtStopwatch = (ms) => formatStopwatchMs(ms);
-
-function HoldButton({ onClick, children, className, style }) {
-  const intRef = useRef(null), toRef = useRef(null);
-  const start = useCallback(() => { onClick(); toRef.current = setTimeout(() => { intRef.current = setInterval(onClick, 80); }, 400); }, [onClick]);
-  const stop = useCallback(() => { if (toRef.current) { clearTimeout(toRef.current); toRef.current = null; } if (intRef.current) { clearInterval(intRef.current); intRef.current = null; } }, []);
-  return <button onMouseDown={start} onMouseUp={stop} onMouseLeave={stop} onTouchStart={(e) => { e.preventDefault(); start(); }} onTouchEnd={stop} onTouchCancel={stop} className={className} style={style}>{children}</button>;
-}
-
-// Preset options for TimerView columns
-const MIN_COL_OPTIONS = [0, 1, 2, 3, 5, 10, 15, 20, 30, 45, 60, 75, 90, 99];
-const SEC_COL_OPTIONS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 59];
-
-// ═══ SOUNDS (Timer & Stopwatch) — unified with the Tabata sound set ═══
-// Start/Resume taps → playSoftBreath (Tabata's tap cue).
-// Pause is owned by ClockContext (fires playPauseSound) — buttons don't
-// double-trigger it. 3-2-1 ticks reuse playBeep (Tabata countdown).
-// Finish reuses playVictory (Tabata workout-end signal).
-// SOUND_ALERT (the 10-second warning) is intentionally kept on playBeep×2.
-import { unlock as unlockAudio, playBeep, playClick, playVictory, playSoftBreath } from '@/lib/tabataSounds';
-const SOUND_START = playSoftBreath;
-const SOUND_RESET = playClick;
-const SOUND_TICK = playBeep;
-const SOUND_ALERT = () => { playBeep(); setTimeout(playBeep, 150); };
-const SOUND_TRIPLE_BELL = playVictory;
 
 /* ═══ STOPWATCH ═══ */
 function StopwatchView({ onMinimize }) {
@@ -162,164 +123,6 @@ function StopwatchView({ onMinimize }) {
 }
 
 /* ═══ TIMER ═══ */
-function TimerCol({ label, value, onChange, max, options, title }) {
-  const [picking, setPicking] = useState(false);
-  return (
-    <>
-      <div className="flex flex-col items-center gap-2">
-        <HoldButton onClick={() => onChange(Math.min(max, value + 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: BRAND, color: '#FFF', fontSize: 22, fontWeight: 700, border: 'none' }}>+</HoldButton>
-        <div onClick={() => setPicking(true)} className="tabular-nums" style={{ fontSize: 48, fontWeight: 900, fontFamily: FN, color: C1, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 4, textDecorationColor: '#D1D5DB' }}>{String(value).padStart(2, '0')}</div>
-        <div style={{ fontSize: 12, fontWeight: 700, fontFamily: FL, color: C2 }}>{label}</div>
-        <HoldButton onClick={() => onChange(Math.max(0, value - 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: BG2, color: C2, fontSize: 22, fontWeight: 700, border: `0.5px solid ${BRD}` }}>−</HoldButton>
-      </div>
-      <ScrollPickerPopup isOpen={picking} value={value} options={options} onSelect={onChange} onClose={() => setPicking(false)} title={title || label} />
-    </>
-  );
-}
-
-function TimerView({ onMinimize }) {
-  const navigate = useNavigate();
-  const { startTimer, pause, resume, stop, display, totalDuration, isRunning, activeClock, phase } = useClock();
-  const { setLiveTimer: setLiveTimerAT, setIsMinimized: setIsMinimizedAT, isMinimized: isMinimizedAT } = useActiveTimer();
-  const [prepSec, setPrepSec] = useState(0);
-  const [timerMin, setTimerMin] = useState(0);
-  const [timerSec, setTimerSec] = useState(30);
-  const [prepPicking, setPrepPicking] = useState(false);
-  // Gate the full-screen overlay on the *bar* minimize flag so that
-  // TimerFooterBar.handleExpand (which flips this flag back to false)
-  // returns the user to the running overlay — not the setup screen.
-  const active = activeClock === 'timer' && !isMinimizedAT;
-  const showSetup = !active || phase === 'idle' || phase === 'done';
-
-  // Mirror minimizeTimer (Clocks.jsx) state writes EXACTLY so the bar
-  // gets the same snapshot the proven minimize button writes. Only the
-  // navigation destination differs — back goes to /clocks, the original
-  // minimize button goes to the role home.
-  const handleClockBack = (e) => {
-    e.stopPropagation();
-    setLiveTimerAT({ type: 'timer', display: fmt(display), phase: 'טיימר', info: null, paused: !isRunning });
-    setIsMinimizedAT(true);
-    navigate('/clocks');
-  };
-  const totalTimerMs = (timerMin * 60 + timerSec) * 1000;
-  const lastBeepRef = useRef(-1);
-
-  useEffect(() => {
-    if (!active || !isRunning || phase === 'prepare') return;
-    const secLeft = Math.ceil(display / 1000);
-    if (secLeft === 10 && lastBeepRef.current !== 10) { lastBeepRef.current = 10; SOUND_ALERT(); }
-    // Countdown beeps on 3, 2, 1 only — match Tabata's `secs >= 1 && secs <= 3`.
-    // `display > 50` ensures the tick can't re-fire inside the bell zone
-    // (where lastBeepRef is reset to 0 by SOUND_TRIPLE_BELL and would
-    // otherwise allow secLeft===1 to retrigger as 1 !== 0).
-    if ((secLeft === 3 || secLeft === 2 || secLeft === 1) && secLeft !== lastBeepRef.current && display > 50) { lastBeepRef.current = secLeft; SOUND_TICK(); }
-    if (display <= 50 && lastBeepRef.current !== 0) { lastBeepRef.current = 0; SOUND_TRIPLE_BELL(); }
-  }, [display, active, isRunning, phase]);
-  useEffect(() => { if (!active) lastBeepRef.current = -1; }, [active]);
-
-  if (showSetup) {
-    return (
-      <div dir="rtl" style={{ padding: '16px 16px 100px' }} className="flex flex-col items-center gap-5">
-        <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: C3, letterSpacing: 2, textTransform: 'uppercase' }}>TIMER</div>
-        <div className="flex items-center gap-3" dir="ltr">
-          <TimerCol label="דקות" value={timerMin} onChange={setTimerMin} max={99} options={MIN_COL_OPTIONS} title="בחר דקות" />
-          <span className="tabular-nums" style={{ fontSize: 48, fontWeight: 900, fontFamily: FN, color: C3, marginTop: -16 }}>:</span>
-          <TimerCol label="שניות" value={timerSec} onChange={setTimerSec} max={59} options={SEC_COL_OPTIONS} title="בחר שניות" />
-        </div>
-        <div className="flex items-center gap-3 w-full justify-center" style={{ backgroundColor: BG2, borderRadius: 10, padding: '10px 16px' }}>
-          <span style={{ fontSize: 14, fontWeight: 700, fontFamily: FL, color: C2 }}>הכנה</span>
-          <HoldButton onClick={() => setPrepSec(Math.max(0, prepSec - 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: '#FFF', color: C2, fontSize: 18, fontWeight: 700, border: `0.5px solid ${BRD}` }}>−</HoldButton>
-          <span
-            onClick={() => setPrepPicking(true)}
-            className="tabular-nums"
-            style={{ fontSize: 24, fontWeight: 700, fontFamily: FN, color: C1, minWidth: 32, textAlign: 'center', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3, textDecorationColor: '#D1D5DB' }}
-          >{prepSec}</span>
-          <HoldButton onClick={() => setPrepSec(Math.min(60, prepSec + 1))} className="flex items-center justify-center active:scale-90 transition-transform" style={{ width: 32, height: 32, borderRadius: '50%', backgroundColor: BRAND, color: '#FFF', fontSize: 18, fontWeight: 700, border: 'none' }}>+</HoldButton>
-          <span style={{ fontSize: 12, fontWeight: 600, fontFamily: FL, color: C3 }}>שניות</span>
-        </div>
-        <ScrollPickerPopup isOpen={prepPicking} value={prepSec} options={PREP_OPTIONS} onSelect={setPrepSec} onClose={() => setPrepPicking(false)} title="זמן הכנה (שניות)" />
-        <button onClick={() => { unlockAudio(); playSoftBreath(); startTimer(totalTimerMs, prepSec * 1000); }} disabled={totalTimerMs === 0}
-          className="w-full flex items-center justify-center disabled:opacity-40 active:scale-[0.98] transition-transform"
-          style={{ height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
-          <Play className="w-6 h-6 ml-2" />התחל
-        </button>
-      </div>
-    );
-  }
-
-  const isPrep = phase === 'prepare';
-  const R = 128, circ = 2 * Math.PI * R;
-  const progress = totalDuration > 0 ? display / totalDuration : 0;
-  const offset = circ * (1 - Math.max(0, Math.min(1, progress)));
-
-  return (
-    <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" dir="rtl"
-      style={{ backgroundColor: '#FFFFFF', padding: '20px 16px 100px', gap: 16, position: 'fixed' }}>
-      <button
-        onClick={handleClockBack}
-        onPointerDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        aria-label="חזרה"
-        style={{
-          position: 'absolute', top: 16, left: 16, zIndex: 5,
-          width: 44, height: 44, borderRadius: 12,
-          background: '#FFFFFF', border: '1px solid #F0E4D0',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: 'pointer',
-        }}
-      >
-        <ChevronRight size={24} color="#1a1a1a" />
-      </button>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={onMinimize} style={{ background: '#FFF0E8', border: 'none', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={BRAND} strokeWidth="2.5" strokeLinecap="round">
-            <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>
-            <line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/>
-          </svg>
-        </button>
-        <div className="transition-colors duration-300" style={{ fontSize: 28, fontWeight: 700, fontFamily: FL, color: isPrep ? C2 : BRAND }}>
-          {isPrep ? 'הכנה' : 'ספירה לאחור'}
-        </div>
-      </div>
-      {/* Ring fills ~88% of the viewport width (capped 460px for tablets).
-          The SVG keeps its 0 0 280 280 viewBox, so cx/cy/r and the 10-unit
-          stroke all scale proportionally with the rendered size. */}
-      <div className="relative flex-shrink-0" style={{ width: 'min(88vw, 460px)', aspectRatio: '1 / 1' }}>
-        <svg width="100%" height="100%" viewBox="0 0 280 280">
-          <circle cx="140" cy="140" r={R} fill="none" stroke="#FFF0E8" strokeWidth="10" />
-          <circle cx="140" cy="140" r={R} fill="none" stroke={isPrep ? '#BBBBBB' : BRAND} strokeWidth="10" strokeLinecap="round"
-            strokeDasharray={circ} strokeDashoffset={offset} transform="rotate(-90 140 140)"
-            className="transition-colors duration-300" style={{ transition: 'stroke-dashoffset 0.15s linear, stroke 0.3s ease' }} />
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          {/* Digits styled to match the Tabata running screen: Barlow
-              Condensed (FN), weight 800, tabular-nums, letterSpacing -2,
-              lineHeight 1 — clamp sized to fit the MM:SS inside the ring. */}
-          <span className="tabular-nums leading-none" style={{ fontSize: 'clamp(64px, 18vw, 116px)', fontWeight: 800, fontVariantNumeric: 'tabular-nums', fontFamily: FN, color: C1, letterSpacing: -2, lineHeight: 1 }}>{fmtMMSS(display)}</span>
-        </div>
-      </div>
-      <div className="flex w-full" style={{ gap: 10 }}>
-        <button onClick={() => { SOUND_RESET(); stop(); }} className="flex items-center justify-center active:scale-90 transition-transform"
-          style={{ flex: 1, height: 56, borderRadius: 12, border: `1px solid ${BRD}`, backgroundColor: '#FFF', fontSize: 16, fontWeight: 700, fontFamily: FL, color: C2 }}>
-          <RotateCcw className="w-5 h-5 ml-1.5" />אפס
-        </button>
-        {isRunning ? (
-          <button onClick={() => { pause(); }} className="flex items-center justify-center active:scale-95 transition-transform"
-            style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
-            <Pause className="w-6 h-6 ml-2" />השהה
-          </button>
-        ) : (
-          <button onClick={() => { playSoftBreath(); resume(); }} className="flex items-center justify-center active:scale-95 transition-transform"
-            style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
-            <Play className="w-6 h-6 ml-2" />המשך
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /* ═══ CLOCKS PAGE ═══ */
 const MODES = [
   { id: 'tabata', label: 'טבטה', icon: Zap },
