@@ -186,7 +186,9 @@ function MethodPill({ pill }) {
  * check-only row has no boxes to count, so its sets go to the hint.
  */
 function ParamBlock({ value, label, size = 19 }) {
-  if (value == null || value === '') return null;
+  // A bare number is ambiguous — 4 could be reps or rounds. If there is
+  // no label there is nothing to render.
+  if (value == null || value === '' || !label) return null;
   return (
     <div style={{
       flexShrink: 0, textAlign: 'center',
@@ -196,12 +198,10 @@ function ParamBlock({ value, label, size = 19 }) {
         fontSize: size, fontWeight: 500, color: CHARCOAL, lineHeight: 1.05,
         direction: 'ltr', unicodeBidi: 'isolate', whiteSpace: 'nowrap',
       }}>{value}</div>
-      {label && (
-        <div style={{
-          fontSize: 9, fontWeight: 400, color: MUTED, lineHeight: 1.3,
-          whiteSpace: 'nowrap',
-        }}>{label}</div>
-      )}
+      <div style={{
+        fontSize: 9, fontWeight: 400, color: MUTED, lineHeight: 1.3,
+        whiteSpace: 'nowrap',
+      }}>{label}</div>
     </div>
   );
 }
@@ -650,7 +650,7 @@ function ClockShortcut({
  * flat one into the same shape, so a row written years ago renders here
  * as a single set without being modified.
  */
-function TabataSets({ exercise, exerciseName, model, disabled }) {
+function TabataSets({ exercise, exerciseName, model, disabled, readOnly = false }) {
   const { sets, restBetweenSets } = model;
   if (!sets.length) return null;
   return (
@@ -707,6 +707,10 @@ function TabataSets({ exercise, exerciseName, model, disabled }) {
               borderBottom: i === sets.length - 1 ? 'none' : `0.5px solid ${DIVIDER}`,
               background: WHITE,
             }}>
+              {/* No launcher in the dialog — a clock overlay raised
+                  from inside a dialog would stack on top of it. The
+                  set still reads the same; play lives on the sheet. */}
+              {!readOnly && (
               <ClockShortcut
                 spec={spec}
                 exerciseName={`${exerciseName} · סט ${i + 1}`}
@@ -730,6 +734,7 @@ function TabataSets({ exercise, exerciseName, model, disabled }) {
                   </button>
                 )}
               />
+              )}
               <ParamBlock value={String(set.rounds)} label="סבבים" size={17} />
               <ParamBlock value={formatDuration(set.work)} label="עבודה" size={17} />
               {set.rest > 0 && (
@@ -1539,8 +1544,13 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         // list it was carrying moves to the dialog.
                         const tech = readTechniques(ex);
                         const exName = tech.displayName || ex.exercise_name || ex.name || '';
+                        // A CONTAINER's big number is always the round
+                        // count, and always labelled סבבים. The reps live
+                        // on each sub line under their own חזרות label —
+                        // "3 עליות מתח · 5 שכיבות" in the name are reps,
+                        // 4 is rounds, and the two must never be confused.
                         const param = container
-                          ? (rounds > 1 && !spec ? { value: String(rounds), label: 'סבבים', size: 19 } : null)
+                          ? (rounds > 1 ? { value: String(rounds), label: 'סבבים', size: 19 } : null)
                           : paramOf(ex, m, rowKind);
                         // A check-only row has no boxes to count its
                         // sets, so the sets go where instructions live.
@@ -1548,6 +1558,46 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                           ? `${ex.sets} סטים` : '';
                         const hint = [tech.hint, setsNote].filter(Boolean).join(' · ');
                         const hintIndent = rowKind === 'check' ? 41 : 22;
+
+                        // ONE derivation of the sub rows, used by BOTH the
+                        // sheet and the tap dialog. The dialog used to be
+                        // handed entries:[] and so reported "no values to
+                        // enter" on a superset whose subs were right there
+                        // on the sheet. Deriving once is what stops the two
+                        // surfaces disagreeing again.
+                        const subDetails = subs.map((sub, sidx) => {
+                          const sm = subMeasurementKind(sub, section);
+                          const subHasTarget = sm.kind !== 'check' && sm.target > 0;
+                          // Inside a clock the numbers are the programme,
+                          // shown but never editable.
+                          const subEditable = subHasTarget && !isClock;
+                          const subText = subLabel(sub, subKindOf, sidx);
+                          const subKey = `${ex.id}:sub${sidx}`;
+                          // A sub-exercise carries techniques the same two
+                          // ways a top-level row does.
+                          const subTech = readTechniques({
+                            exercise_name: subText, description: sub?.description, notes: sub?.notes,
+                          });
+                          return {
+                            sub, sidx, sm, subEditable, subText, subKey, subTech,
+                            subParam: subParamOf(sub, sm, 16),
+                            subHint: subTech.hint,
+                            sbp: boxPlan(subEditable ? boxesPerSub : 0),
+                            showTick: !subEditable && !isClock,
+                            lastSub: sidx === subs.length - 1,
+                            subEntries: subEditable
+                              ? indexEntries(Array.from({ length: boxesPerSub }).map((_, ri) => ({
+                                key: `${subKey}:${ri + 1}`,
+                                exerciseId: ex.id, drillIdx: sidx, setNo: ri + 1,
+                                payloadField: sm.payloadField,
+                                setLabel: `סט ${ri + 1}`,
+                              })))
+                              : [],
+                          };
+                        });
+                        // Every box the container holds, flattened — this is
+                        // what the dialog's one save button writes.
+                        const containerEntries = subDetails.flatMap((d) => d.subEntries);
 
                         // ── A CONTAINER ──────────────────────────────
                         if (container) {
@@ -1560,7 +1610,18 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                               <div
                                 onClick={() => openDetail({
                                   ordinal: myOrdinal, name: tech.fullName, pill, param, hint,
-                                  techniques: tech.techniques, entries: [], target: null,
+                                  techniques: tech.techniques,
+                                  // The container's OWN row carries no reps
+                                  // and no boxes — its numbers live on the
+                                  // subs. Hand the dialog the sub rows it
+                                  // must list, and the flattened boxes its
+                                  // one save button writes. `entries: []`
+                                  // here was the whole bug.
+                                  subs: subDetails,
+                                  tabataSets: isClock && tabataModel.sets.length > 0
+                                    ? tabataModel : null,
+                                  entries: containerEntries,
+                                  target: null,
                                 })}
                                 style={{
                                   ...rowPad,
@@ -1614,32 +1675,14 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                 />
                               )}
 
-                              {(isClock && tabataModel.sets.length > 0 ? [] : subs).map((sub, sidx) => {
-                                const sm = subMeasurementKind(sub, section);
-                                const subHasTarget = sm.kind !== 'check' && sm.target > 0;
-                                // Inside a clock the numbers are the
-                                // programme, shown but never editable.
-                                const subEditable = subHasTarget && !isClock;
-                                const subParam = subParamOf(sub, sm, 16);
-                                const lastSub = sidx === subs.length - 1;
-                                const sbp = boxPlan(subEditable ? boxesPerSub : 0);
-                                const subText = subLabel(sub, subKindOf, sidx);
-                                const subKey = `${ex.id}:sub${sidx}`;
-                                // A sub-exercise carries techniques the same
-                                // two ways a top-level row does.
-                                const subTech = readTechniques({
-                                  exercise_name: subText, description: sub?.description, notes: sub?.notes,
-                                });
-                                const subHint = subTech.hint;
-                                const subEntries = subEditable
-                                  ? indexEntries(Array.from({ length: boxesPerSub }).map((_, ri) => ({
-                                    key: `${subKey}:${ri + 1}`,
-                                    exerciseId: ex.id, drillIdx: sidx, setNo: ri + 1,
-                                    payloadField: sm.payloadField,
-                                    setLabel: `סט ${ri + 1}`,
-                                  })))
-                                  : [];
-                                const showTick = !subEditable && !isClock;
+                              {(isClock && tabataModel.sets.length > 0 ? [] : subDetails).map((d) => {
+                                // Read straight off the one derivation above,
+                                // so the row and the dialog can never
+                                // disagree about a sub's numbers.
+                                const {
+                                  sidx, sm, subEditable, subParam, lastSub, sbp,
+                                  subText, subKey, subTech, subHint, subEntries, showTick,
+                                } = d;
                                 return (
                                   <div
                                     key={subKey}
@@ -1953,7 +1996,95 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                   </div>
                 )}
 
-                {detail.entries.length > 0 ? (
+                {/* A TABATA container is a clock, not a measurement.
+                    It lists its sets exactly as the sheet does — set
+                    tag, the set's movement names, the rounds / work /
+                    rest bar — and never says "no values to enter". */}
+                {detail.tabataSets && (
+                  <div style={{
+                    border: `0.5px solid ${CARD_BORDER}`, borderRadius: 6,
+                    overflow: 'hidden',
+                  }}>
+                    <TabataSets
+                      exerciseName={detail.name}
+                      model={detail.tabataSets}
+                      disabled
+                      readOnly
+                    />
+                  </div>
+                )}
+
+                {/* A LIST container — superset, combo, dropset — lists
+                    its SUB-EXERCISES, one row each: the sub name, its
+                    own param block, and its boxes enlarged. The
+                    container's own row carries no numbers, which is
+                    why reading it alone produced an empty dialog. */}
+                {!detail.tabataSets && detail.subs?.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {detail.subs.map((d) => (
+                      <div key={d.subKey} style={{
+                        borderTop: `0.5px solid ${DIVIDER}`, paddingTop: 12,
+                      }}>
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
+                        }}>
+                          <span style={starStyle}>✳</span>
+                          <span style={{
+                            fontSize: 14, fontWeight: 500, color: CHARCOAL,
+                            lineHeight: 1.35, minWidth: 0, overflowWrap: 'anywhere',
+                          }}>{d.subText}</span>
+                          <div style={{ flexGrow: 1 }} />
+                          {/* reps read חזרות, a hold reads החזקה, a
+                              timed sub reads זמן — never a bare number */}
+                          <ParamBlock {...(d.subParam || {})} />
+                        </div>
+                        {d.subHint && (
+                          <div style={{
+                            fontSize: 12, fontWeight: 400, color: MUTED,
+                            lineHeight: 1.5, marginBottom: 10,
+                            overflowWrap: 'anywhere',
+                          }}>{d.subHint}</div>
+                        )}
+                        {d.subEntries.length > 0 ? (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                            {d.subEntries.map((en) => (
+                              <div key={en.key} style={{ textAlign: 'center' }}>
+                                <input
+                                  type="number"
+                                  inputMode="numeric"
+                                  disabled={locked}
+                                  value={values[en.key] ?? ''}
+                                  onChange={(e) => setValues((pv) => ({ ...pv, [en.key]: e.target.value }))}
+                                  style={{
+                                    width: 52, height: 44, minHeight: 44,
+                                    textAlign: 'center', fontSize: 18, fontWeight: 500,
+                                    border: `1.5px solid ${boxBorder(saved[en.key], d.sm?.target)}`,
+                                    borderRadius: 6, background: WHITE,
+                                    boxSizing: 'border-box', fontFamily: 'inherit',
+                                    color: CHARCOAL, padding: 0,
+                                    opacity: locked ? 0.75 : 1,
+                                  }}
+                                />
+                                <div style={{
+                                  fontSize: 10, fontWeight: 400, color: MUTED,
+                                  marginTop: 4, whiteSpace: 'nowrap',
+                                }}>{en.setLabel}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 11, color: MUTED }}>ללא רישום</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* A PLAIN exercise: its own boxes. The empty-state
+                    line below can only ever be reached from here — a
+                    container always has subs or sets to show. */}
+                {!detail.tabataSets && !detail.subs?.length && (
+                detail.entries.length > 0 ? (
                   <div style={{
                     display: 'flex', flexWrap: 'wrap', gap: 10,
                     justifyContent: 'flex-start',
@@ -1987,6 +2118,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                   <div style={{ fontSize: 12, color: MUTED }}>
                     אין ערכים להזנה בתרגיל הזה
                   </div>
+                )
                 )}
               </div>
 
