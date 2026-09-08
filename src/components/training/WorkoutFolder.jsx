@@ -12,8 +12,14 @@ const DARK = '#1a1a1a';
 // When isCoach=true, the card is wrapped in SwipeableCard (swipe left
 // reveals edit + delete buttons) AND an "✏️ עריכה" chip appears next
 // to the chevron for desktop / non-touch users.
+// FAMILY MODE. When performanceCount / lastPerformedAt are supplied
+// the card describes a plan FAMILY — the coach original plus its
+// duplicates — and the second line counts performances rather than
+// workout_executions. Without them the card behaves exactly as it
+// always has, so every existing caller is untouched.
 export default function WorkoutFolder({
   plan, sectionsCount, exercisesCount, executions,
+  performanceCount = null, lastPerformedAt = null,
   isCoach = false, onSelect, onEdit, onDelete,
 }) {
   const completed = executions || [];
@@ -21,6 +27,7 @@ export default function WorkoutFolder({
     .slice()
     .sort((a, b) => new Date(b.executed_at) - new Date(a.executed_at));
   const lastScore = newestFirst[0]?.self_rating ?? null;
+  const isFamily = performanceCount != null;
 
   const cardInner = (
     <div
@@ -59,8 +66,10 @@ export default function WorkoutFolder({
             {sectionsCount} סקשנים · {exercisesCount} תרגילים
           </div>
           <div style={{ fontSize: 13, color: '#666' }}>
-            {completed.length} ביצועים
-            {lastScore != null && (
+            {isFamily
+              ? (performanceCount === 1 ? 'ביצוע אחד' : `${performanceCount} ביצועים`)
+              : `${completed.length} ביצועים`}
+            {!isFamily && lastScore != null && (
               <>
                 {' · ציון אחרון: '}
                 <span style={{ color: ORANGE, fontWeight: 800 }}>
@@ -69,7 +78,7 @@ export default function WorkoutFolder({
               </>
             )}
           </div>
-          {plan.created_at && (
+          {(isFamily ? lastPerformedAt : plan.created_at) && (
             <div style={{
               fontSize: 11,
               color: '#aaa',
@@ -78,7 +87,8 @@ export default function WorkoutFolder({
               alignItems: 'center',
               gap: 4,
             }}>
-              📅 נוצר: {new Date(plan.created_at).toLocaleDateString('he-IL', {
+              📅 {isFamily ? 'אחרון: ' : 'נוצר: '}
+              {new Date(isFamily ? lastPerformedAt : plan.created_at).toLocaleDateString('he-IL', {
                 day: 'numeric', month: 'long', year: 'numeric',
               })}
             </div>

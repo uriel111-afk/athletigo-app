@@ -6,11 +6,12 @@ import PageLoader from '@/components/PageLoader';
 import PermGate from '@/components/PermGate';
 import WorkoutFolder from '@/components/training/WorkoutFolder';
 import WorkoutFolderDetail from '@/components/training/WorkoutFolderDetail';
+import PlanFamilyDetail from '@/components/training/PlanFamilyDetail';
 import { readOpenWorkout, writeOpenWorkout, clearOpenWorkout } from '@/lib/workoutResume';
 import UnifiedPlanBuilder from '@/components/training/UnifiedPlanBuilder';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
-import { getPlansForTrainee, getPlanWithDetails, softDeletePlan, buildPlanDeleteMessage } from '@/lib/plansApi';
+import { getPlansForTrainee, getPlanWithDetails, softDeletePlan, buildPlanDeleteMessage, groupPlansIntoFamilies, getFamilyProgress } from '@/lib/plansApi';
 import { getExecutionsForPlan, createDuplicatedExecution } from '@/lib/workoutExecutionApi';
 
 // Persist the (view, openPlanId) tuple in sessionStorage so a reload
@@ -96,6 +97,8 @@ export function WorkoutsInner({
   // canEdit=true / isCoach=true. Both the list-card edit chip and the
   // master-card "ערוך תוכנית" button route through this state.
   const [editingPlan, setEditingPlan] = useState(null);
+  // Which FAMILY folder is open, by root id. Null on the list.
+  const [openFamilyId, setOpenFamilyId] = useState(null);
 
   const { data: currentUser } = useQuery({
     queryKey: ['current-user-workouts'],
@@ -145,6 +148,38 @@ export function WorkoutsInner({
     },
     enabled: plans.length > 0 && !!traineeId,
   });
+
+  // The list groups by FAMILY: the coach's original is the folder, its
+  // duplicates are the performances inside it. Purely client-side —
+  // parent_plan_id already points every copy at the root, so no extra
+  // query and no schema change.
+  const visibleForFamilies = (plans || []).filter(
+    (p) => p && p.status !== 'deleted' && !p.deleted_at,
+  );
+  const families = React.useMemo(
+    () => groupPlansIntoFamilies(visibleForFamilies),
+    // Keyed on the ids and their parents, so the fold reruns only
+    // when the family shape actually changes — not on every refetch
+    // that returns an equal-but-new array.
+    [visibleForFamilies.map((p) => `${p.id}:${p.parent_plan_id || ''}`).join(',')],
+  );
+  const openFamily = openFamilyId
+    ? families.find((f) => f.rootId === openFamilyId) || null
+    : null;
+
+  // The progress cue for the OPEN folder only — two queries for the
+  // whole family, and nothing at all while the list is showing.
+  const { data: familyProgress = {} } = useQuery({
+    queryKey: ['family-progress', openFamilyId, traineeId,
+      openFamily?.performances.map((p) => p.id).join(',')],
+    queryFn: () => getFamilyProgress(openFamily.performances.map((p) => p.id), traineeId),
+    enabled: !!openFamily && !!traineeId,
+  });
+
+  const handleSelectFamily = (family) => {
+    setOpenFamilyId(family.rootId);
+    setView('family');
+  };
 
   const handleSelect = (plan) => {
     setSelectedPlan(plan);
@@ -233,8 +268,21 @@ export function WorkoutsInner({
   };
 
   const handleBack = () => {
-    setView('list');
+    // Out of a performance, back to the folder it lives in — not all
+    // the way to the list. Falls through to the list when the family
+    // is unknown (a restored sessionStorage planId, say).
+    const root = selectedPlan?.parent_plan_id || selectedPlan?.id;
+    const family = root ? families.find((f) => f.rootId === root) : null;
     setSelectedPlan(null);
+    if (family) { setOpenFamilyId(family.rootId); setView('family'); return; }
+    setOpenFamilyId(null);
+    setView('list');
+  };
+
+  const handleBackToList = () => {
+    setOpenFamilyId(null);
+    setSelectedPlan(null);
+    setView('list');
   };
 
   // Persist (view, planId) every time the user navigates between the
@@ -296,6 +344,25 @@ export function WorkoutsInner({
     );
   }
 
+  if (view === 'family' && openFamily) {
+    return (
+      <PlanFamilyDetail
+        family={openFamily}
+        progress={familyProgress}
+        isCoach={isCoach}
+        onBack={handleBackToList}
+        onOpenPerformance={handleSelect}
+        onCreated={(created) => {
+          queryClient.invalidateQueries({ queryKey: ['workouts-plans'] });
+          queryClient.invalidateQueries({ queryKey: ['workouts-plan-details'] });
+          // Straight into the new performance, the same move the plan
+          // sheet's own אימון חדש makes.
+          handleSelect(created);
+        }}
+      />
+    );
+  }
+
   if (view === 'folder' && selectedPlan) {
     const detailed = planDetails[selectedPlan.id] || selectedPlan;
     const sections = detailed?.sections || [];
@@ -343,23 +410,28 @@ export function WorkoutsInner({
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {visiblePlans.map((plan, i) => {
-              const detailed = planDetails[plan.id];
+            {/* One card per FAMILY. The root's title, how many
+                performances it has, and when the latest one was made.
+                A plan with no duplicates is a family of one. */}
+            {families.map((family, i) => {
+              const rootPlan = family.root;
+              const detailed = planDetails[rootPlan.id];
               const sections = detailed?.sections || [];
               const exCount = sections.reduce((s, sec) => s + (sec.exercises?.length || 0), 0);
               return (
-                <React.Fragment key={plan.id}>
+                <React.Fragment key={family.rootId}>
                   <WorkoutFolder
-                    plan={detailed || plan}
+                    plan={detailed || rootPlan}
                     sectionsCount={sections.length}
                     exercisesCount={exCount}
-                    executions={executionsByPlan[plan.id] || []}
+                    performanceCount={family.count}
+                    lastPerformedAt={family.latest}
                     isCoach={isCoach}
-                    onSelect={handleSelect}
+                    onSelect={() => handleSelectFamily(family)}
                     onEdit={handleEditPlan}
                     onDelete={handleDeletePlan}
                   />
-                  {i < visiblePlans.length - 1 && (
+                  {i < families.length - 1 && (
                     <div style={{ height: 1, background: '#EEE', margin: '0 8px' }} />
                   )}
                 </React.Fragment>

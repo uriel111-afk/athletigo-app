@@ -999,7 +999,104 @@ export function getSectionColor(index) {
   return SECTION_COLORS[index % SECTION_COLORS.length];
 }
 
-export async function setTraineeCanEdit(planId, canEdit) {
-  const { error } = await supabase.from('training_plans').update({ trainee_can_edit: canEdit }).eq('id', planId);
-  if (error) throw error;
+// setTraineeCanEdit was removed here. It updated
+// training_plans.trainee_can_edit, a column the never-applied
+// migrations/2026-04-30-plan-execution-engine.sql would have added, so
+// it could only ever have thrown PGRST204 — and nothing in the app
+// called it. It was dead on arrival in b3baee7. Do not re-add it
+// without the column.
+
+// ═════════════════════════════════════════════════════════════════════
+// PLAN FAMILIES — the folder model.
+//
+// A FOLDER is a family: the coach's original plan plus every duplicate
+// of it. parent_plan_id already points every copy at the family ROOT
+// (duplicatePlan sets it to `source.parent_plan_id || source.id`, so a
+// copy of a copy still resolves to the alpha), which makes the whole
+// grouping a client-side fold over the flat list the trainee already
+// loads. No schema change, no extra round trip.
+// ═════════════════════════════════════════════════════════════════════
+
+/** The family a plan belongs to. A root points at itself. */
+export const familyRootId = (plan) => plan?.parent_plan_id || plan?.id || null;
+
+/**
+ * Fold a flat plan list into families, newest family first.
+ *
+ * Each family comes back as
+ *   { rootId, root, performances, latest, count }
+ * where `performances` is newest-first and `root` is the actual root
+ * row when the trainee can see it. A copy whose root is NOT in the
+ * list — the coach deleted the original, or it was never assigned to
+ * this trainee — still forms a family; its oldest member stands in as
+ * the root so the folder always has a title. A plan with no duplicates
+ * is simply a family of one.
+ */
+export function groupPlansIntoFamilies(plans) {
+  const byRoot = new Map();
+  for (const p of plans || []) {
+    if (!p?.id) continue;
+    const rootId = familyRootId(p);
+    if (!byRoot.has(rootId)) byRoot.set(rootId, []);
+    byRoot.get(rootId).push(p);
+  }
+  const families = [];
+  for (const [rootId, members] of byRoot) {
+    const newestFirst = members.slice().sort(
+      (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0),
+    );
+    const oldest = newestFirst[newestFirst.length - 1];
+    families.push({
+      rootId,
+      root: members.find((m) => m.id === rootId) || oldest,
+      performances: newestFirst,
+      latest: newestFirst[0]?.created_at || null,
+      count: members.length,
+    });
+  }
+  return families.sort((a, b) => new Date(b.latest || 0) - new Date(a.latest || 0));
+}
+
+/**
+ * The progress cue for a folder's performances: how many distinct
+ * exercises the trainee actually logged something for, per plan.
+ *
+ * Two queries for the whole family, not one per performance —
+ * executions for every plan id at once, then the set logs for those
+ * executions at once. Returns planId → { executions, exercisesDone,
+ * lastAt }. A plan never performed is simply absent.
+ */
+export async function getFamilyProgress(planIds, traineeId) {
+  const ids = (planIds || []).filter(Boolean);
+  if (!ids.length || !traineeId) return {};
+  const { data: execs, error: eErr } = await supabase
+    .from('workout_executions')
+    .select('id, plan_id, executed_at')
+    .in('plan_id', ids)
+    .eq('trainee_id', traineeId);
+  if (eErr || !execs?.length) return {};
+
+  const planByExec = new Map(execs.map((e) => [e.id, e.plan_id]));
+  const out = {};
+  for (const e of execs) {
+    const slot = (out[e.plan_id] ||= { executions: 0, exercisesDone: 0, lastAt: null, _seen: new Set() });
+    slot.executions += 1;
+    if (!slot.lastAt || new Date(e.executed_at) > new Date(slot.lastAt)) slot.lastAt = e.executed_at;
+  }
+
+  const { data: logs } = await supabase
+    .from('exercise_set_logs')
+    .select('execution_id, exercise_id')
+    .in('execution_id', execs.map((e) => e.id));
+  for (const l of logs || []) {
+    const planId = planByExec.get(l.execution_id);
+    const slot = out[planId];
+    if (!slot || !l.exercise_id) continue;
+    slot._seen.add(l.exercise_id);
+  }
+  for (const slot of Object.values(out)) {
+    slot.exercisesDone = slot._seen.size;
+    delete slot._seen;
+  }
+  return out;
 }
