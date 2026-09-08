@@ -658,6 +658,9 @@ export default function PlanSheet() {
   valuesRef.current = values;
   const savedRef = useRef(saved);
   savedRef.current = saved;
+  // key → entry descriptor for every box on screen; filled during
+  // render, read by the safety net.
+  const entryIndexRef = useRef(new Map());
   const [checks, setChecks] = useState({});   // exId → bool
   const [feeling, setFeeling] = useState(null);
   const [execId, setExecId] = useState(null);
@@ -815,8 +818,15 @@ export default function PlanSheet() {
     return true;
   }, [ensureExecution, locked]);
 
-  /** Save every box of one row that differs from what is stored. */
-  const saveRow = useCallback(async (entries) => {
+  /**
+   * Save every box of one row that differs from what is stored.
+   *
+   * `silent` is what the safety net below uses. A save the trainee
+   * asked for says so; a save that merely caught something on the way
+   * out says nothing — a toast firing as the screen unmounts is noise
+   * about work the trainee already thought was done.
+   */
+  const saveRow = useCallback(async (entries, { silent = false } = {}) => {
     const v = valuesRef.current; const s = savedRef.current;
     const dirty = entries.filter((e) => has(v[e.key]) && v[e.key] !== s[e.key]);
     if (!dirty.length) return;
@@ -828,8 +838,60 @@ export default function PlanSheet() {
       const done = await commitKey(e.key, e.exerciseId, e.drillIdx, e.setNo, v[e.key], e.payloadField);
       if (done) ok += 1;
     }
-    if (ok) toast.success(ok > 1 ? `${ok} ערכים נשמרו` : 'נשמר');
+    if (ok && !silent) toast.success(ok > 1 ? `${ok} ערכים נשמרו` : 'נשמר');
   }, [commitKey]);
+
+  /**
+   * THE SAFETY NET.
+   *
+   * Tap-to-save stays the only VISIBLE way to save: the green control
+   * appears when a box is dirty and saving is something the trainee
+   * does. Nothing here saves on blur and nothing here makes the dot
+   * flash — the net is invisible and it only ever catches boxes that
+   * were about to be lost, when the trainee
+   *
+   *   - leaves the plan screen, or
+   *   - opens a DIFFERENT row's dialog, which is the one in-page move
+   *     that puts a filled row out of sight and out of reach.
+   *
+   * It writes through saveRow, so it is the same saveSetActual path as
+   * the green control, silently.
+   *
+   * `exceptKeys` is how "a different row" is expressed: the row being
+   * opened is left alone, so its own green control still governs it.
+   */
+  const flushDirty = useCallback((exceptKeys) => {
+    if (locked) return;
+    const skip = exceptKeys instanceof Set ? exceptKeys : null;
+    const v = valuesRef.current; const s = savedRef.current;
+    const dirty = [...entryIndexRef.current.values()].filter(
+      (e) => (!skip || !skip.has(e.key)) && has(v[e.key]) && v[e.key] !== s[e.key],
+    );
+    if (!dirty.length) return;
+    // Deliberately not awaited by the caller: on unmount there is
+    // nothing left to await into. The requests are already in flight.
+    saveRow(dirty, { silent: true });
+  }, [locked, saveRow]);
+
+  // Leaving the screen. The unmount cleanup covers the back button,
+  // אימון חדש (which navigates), and any route change. pagehide covers
+  // the tab or the webview being torn down, where React never gets an
+  // unmount at all.
+  //
+  // visibilitychange is deliberately NOT hooked. Backgrounding the app
+  // loses nothing — the values are still in React state and the boxes
+  // are still dirty when the trainee comes back — so saving there would
+  // only commit half-typed numbers on every app switch.
+  const flushRef = useRef(flushDirty);
+  flushRef.current = flushDirty;
+  useEffect(() => {
+    const onHide = () => flushRef.current();
+    window.addEventListener('pagehide', onHide);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      flushRef.current();
+    };
+  }, []);
 
   const toggleCheck = useCallback(async (exerciseId) => {
     if (locked) return;
@@ -995,7 +1057,23 @@ export default function PlanSheet() {
   const rowIsDirty = (entries) =>
     entries.some((e) => has(values[e.key]) && values[e.key] !== saved[e.key]);
 
-  const openDetail = (d) => setDetail(d);
+  // Every entry box currently on screen, key → descriptor. Rebuilt on
+  // each render as the rows are laid out, so the safety net always
+  // knows how to save whatever it finds dirty. A Map keyed by the entry
+  // key makes the fill idempotent under StrictMode's double render.
+  entryIndexRef.current = new Map();
+  const indexEntries = (list) => {
+    for (const e of list) entryIndexRef.current.set(e.key, e);
+    return list;
+  };
+
+  // Opening a row enlarges it. Anything dirty in a DIFFERENT row is
+  // about to go out of sight, so it is saved on the way — silently.
+  // The row being opened is exempt: its own green control still owns it.
+  const openDetail = (d) => {
+    flushDirty(new Set((d?.entries || []).map((e) => e.key)));
+    setDetail(d);
+  };
 
   // Ordinals run across the whole sheet, not per section.
   let ordinal = 0;
@@ -1315,12 +1393,12 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                 const subKey = `${ex.id}:sub${sidx}`;
                                 const subHint = noteOf(sub);
                                 const subEntries = subEditable
-                                  ? Array.from({ length: boxesPerSub }).map((_, ri) => ({
+                                  ? indexEntries(Array.from({ length: boxesPerSub }).map((_, ri) => ({
                                     key: `${subKey}:${ri + 1}`,
                                     exerciseId: ex.id, drillIdx: sidx, setNo: ri + 1,
                                     payloadField: sm.payloadField,
                                     setLabel: `סט ${ri + 1}`,
-                                  }))
+                                  })))
                                   : [];
                                 const showTick = !subEditable && !isClock;
                                 return (
@@ -1388,12 +1466,12 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
 
                         // ── A PLAIN EXERCISE ROW ─────────────────────
                         const bp = boxPlan(boxCount);
-                        const entries = Array.from({ length: boxCount }).map((_, si) => ({
+                        const entries = indexEntries(Array.from({ length: boxCount }).map((_, si) => ({
                           key: `${ex.id}:${si + 1}`,
                           exerciseId: ex.id, drillIdx: 0, setNo: si + 1,
                           payloadField: m.payloadField,
                           setLabel: `סט ${si + 1}`,
-                        }));
+                        })));
                         return (
                           <div
                             key={ex.id}
