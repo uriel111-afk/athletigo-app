@@ -22,6 +22,7 @@ import { useClock } from '@/contexts/ClockContext';
 import { useActiveTimer } from '@/contexts/ActiveTimerContext';
 import { formatDuration, LTR_TIME } from '@/lib/duration';
 import ClockLeadIn from '@/components/training/ClockLeadIn';
+import CompletionSheet from '@/components/training/CompletionSheet';
 import {
   resolveExerciseClock, useExerciseClock,
   InlineExerciseClock, ClockSwapPrompt,
@@ -765,6 +766,17 @@ export default function PlanSheet() {
   // render, read by the safety net.
   const entryIndexRef = useRef(new Map());
   const [checks, setChecks] = useState({});   // exId → bool
+  // The completion sheet: which exercise it is asking about, or null.
+  const [completion, setCompletion] = useState(null);
+  // exId → { difficulty, control }, mirrored from exercises so the
+  // sheet reopens on what is stored without refetching the plan.
+  const [ratings, setRatings] = useState({});
+  const ratingsRef = useRef(ratings);
+  ratingsRef.current = ratings;
+  // exId → trainee_note, read back from exercise_executions.
+  const [notes, setNotes] = useState({});
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
   const [feeling, setFeeling] = useState(null);
   const [execId, setExecId] = useState(null);
   // A plan whose performance is finished opens for VIEWING.
@@ -845,8 +857,37 @@ export default function PlanSheet() {
       // life saved — the boxes open wearing their target feedback and
       // no save control.
       setValues(next); setSaved(next); setChecks(nextChecks);
+
+      // The notes the trainee left on this performance, so reopening
+      // the completion sheet shows what they wrote.
+      const { data: execRows } = await supabase
+        .from('exercise_executions')
+        .select('exercise_id, trainee_note')
+        .eq('workout_execution_id', ex.id);
+      const nextNotes = {};
+      for (const r of execRows || []) {
+        if (r.trainee_note) nextNotes[r.exercise_id] = r.trainee_note;
+      }
+      setNotes(nextNotes);
     })();
   }, [planId, user?.id]);
+
+  // Ratings live on the exercises rows themselves, so they arrive with
+  // the plan. Mirrored into state once so the sheet can reopen on them
+  // without a refetch after every save.
+  useEffect(() => {
+    if (!data?.exercises) return;
+    const next = {};
+    for (const e of data.exercises) {
+      if (e.difficulty_rating != null || e.control_rating != null) {
+        next[e.id] = {
+          difficulty: e.difficulty_rating ?? null,
+          control: e.control_rating ?? null,
+        };
+      }
+    }
+    setRatings(next);
+  }, [data?.exercises]);
 
   // ── The chain of performances ───────────────────────────────────
   // duplicatePlan sets parent_plan_id to the FAMILY ROOT, so the whole
@@ -996,16 +1037,86 @@ export default function PlanSheet() {
     };
   }, []);
 
-  const toggleCheck = useCallback(async (exerciseId) => {
+  const toggleCheck = useCallback(async (exerciseId, exerciseName) => {
     if (locked) return;
     const nextVal = !checks[exerciseId];
     setChecks((p) => ({ ...p, [exerciseId]: nextVal }));
+    // COMPLETION FIRST, and never gated on the sheet. The tick is
+    // already flipped and the row already written before the sheet is
+    // even opened; closing it without answering anything leaves the
+    // exercise complete. Unticking only clears the tick — the ratings
+    // and the note live on different columns and are left alone.
+    if (nextVal) setCompletion({ exerciseId, name: exerciseName });
     const id = await ensureExecution();
     if (!id) return;
     // A check carries no measurement, so allowEmpty is required or the
     // empty-write guard in saveSetActual drops it.
     await saveSetActual(supabase, id, exerciseId, 0, 1, {}, { allowEmpty: true });
   }, [checks, ensureExecution, locked]);
+
+  /**
+   * What the completion sheet answered. Everything on it is optional,
+   * so every field here can legitimately be null.
+   *
+   *   difficulty + control → exercises.control_rating /
+   *     difficulty_rating on the performance being trained, on a 1-5
+   *     scale, stored as 1-5. This is per-performance because
+   *     duplicatePlan now strips both from a copy, so a duplicated
+   *     plan opens clean. exercise_set_logs.difficulty_rating is a
+   *     DIFFERENT column on a 1-10 scale serving the older screen and
+   *     is deliberately not touched.
+   *
+   *   note → exercise_executions.trainee_note, through the same
+   *     select-then-update-or-insert ExerciseCard.jsx:5226 uses.
+   *     NEVER exercises.notes: PlanSheet's noteOf() reads
+   *     `description || notes`, so a note written there would surface
+   *     as the row's coach hint, and readTechniques() would split one
+   *     containing a comma into a technique list.
+   */
+  const saveCompletion = useCallback(async (exerciseId, answers) => {
+    if (locked) return;
+    const { note = '', difficulty = null, control = null } = answers || {};
+    const before = ratingsRef.current[exerciseId] || {};
+
+    // Only write when something actually changed — the sheet opens on
+    // every tick and most of the time is closed untouched.
+    if (before.difficulty !== difficulty || before.control !== control) {
+      setRatings((p) => ({ ...p, [exerciseId]: { difficulty, control } }));
+      const { error } = await supabase
+        .from('exercises')
+        .update({ difficulty_rating: difficulty, control_rating: control })
+        .eq('id', exerciseId);
+      if (error) console.warn('[PlanSheet] ratings save failed:', error.message);
+    }
+
+    const beforeNote = notesRef.current[exerciseId] ?? '';
+    if (note === beforeNote) return;
+    setNotes((p) => ({ ...p, [exerciseId]: note }));
+    const id = await ensureExecution();
+    if (!id) return;
+    const { data: existing } = await supabase
+      .from('exercise_executions')
+      .select('id')
+      .eq('workout_execution_id', id)
+      .eq('exercise_id', exerciseId)
+      .limit(1);
+    if (existing && existing.length > 0) {
+      const { error } = await supabase.from('exercise_executions')
+        .update({ trainee_note: note || null }).eq('id', existing[0].id);
+      if (error) console.warn('[PlanSheet] note update failed:', error.message);
+    } else if (note) {
+      const row = (data?.exercises || []).find((e) => e.id === exerciseId);
+      const { error } = await supabase.from('exercise_executions').insert({
+        workout_execution_id: id,
+        exercise_id: exerciseId,
+        section_id: row?.training_section_id || null,
+        is_completed: true,
+        trainee_note: note,
+        completed_at: new Date().toISOString(),
+      });
+      if (error) console.warn('[PlanSheet] note insert failed:', error.message);
+    }
+  }, [ensureExecution, locked, data?.exercises]);
 
   // A sub row's tick writes exactly where a sub's numbers write — same
   // exercise_id, drill_index = the sub's index — only with every
@@ -1610,7 +1721,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                               {rowKind === 'check' && (
                                 <button
                                   type="button"
-                                  onClick={(e) => { e.stopPropagation(); toggleCheck(ex.id); }}
+                                  onClick={(e) => { e.stopPropagation(); toggleCheck(ex.id, exName); }}
                                   disabled={locked}
                                   aria-pressed={!!checks[ex.id]}
                                   aria-label="סמן כבוצע"
@@ -1753,6 +1864,21 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
           ellipsising. The body carries the hint and every entry box at
           a size a thumb can hit. One save at the foot, not one per box:
           inside the dialog the trainee is filling a whole exercise. */}
+      {/* The completion sheet. The exercise is ALREADY complete when
+          this opens — the sheet only collects what the trainee wants to
+          add, and closing it untouched writes nothing. */}
+      <CompletionSheet
+        open={!!completion}
+        exerciseName={completion?.name}
+        initial={completion ? {
+          note: notes[completion.exerciseId] ?? '',
+          difficulty: ratings[completion.exerciseId]?.difficulty ?? null,
+          control: ratings[completion.exerciseId]?.control ?? null,
+        } : null}
+        onSave={(answers) => completion && saveCompletion(completion.exerciseId, answers)}
+        onClose={() => setCompletion(null)}
+      />
+
       <Dialog open={!!detail} onOpenChange={(open) => { if (!open) setDetail(null); }}>
         <DialogContent
           className="ps-dlg"

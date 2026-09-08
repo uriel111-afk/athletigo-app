@@ -140,7 +140,16 @@ export async function duplicatePlan(sourcePlanId, options = {}) {
   for (const ex of srcExercises || []) {
     const {
       id: srcExId, training_section_id: oldSecId, training_plan_id: _etp,
-      created_at: _eca, completed: _ec, source_exercise_id: srcLink, ...exRest
+      created_at: _eca, completed: _ec, source_exercise_id: srcLink,
+      // The trainee's own answers about the LAST performance. They are
+      // per-performance data living on a per-plan row, so a copy that
+      // inherited them would open pre-filled with someone else's
+      // ratings — and, because every copy inherits from the copy
+      // before it, that would propagate down the whole chain.
+      // MyPlan.jsx:586 already nulls both in its own duplicate path;
+      // this is the same strip, in the path that actually runs.
+      control_rating: _ecr, difficulty_rating: _edr,
+      ...exRest
     } = ex;
     const { error: exErr } = await supabase.from('exercises').insert({
       ...exRest,
