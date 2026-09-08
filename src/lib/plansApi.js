@@ -119,8 +119,16 @@ export async function duplicatePlan(sourcePlanId, options = {}) {
         : (source.assigned_to_name ?? null),
       plan_name: baseName + nameSuffix,
       title: (source.title || baseName) + nameSuffix,
-      best_score: null,
-      execution_count: 0,
+      // best_score and execution_count are NOT written here. They do
+      // not exist on this database — migrations/2026-04-30-plan-
+      // execution-engine.sql, which would have added them, was never
+      // applied — so naming them made PostgREST reject the whole
+      // insert with PGRST204 and every trainee duplicate, including
+      // "אימון חדש מהתוכנית" on the plan sheet, threw.
+      //
+      // The destructure above still strips them off `source`, so if
+      // that migration is ever applied a copy will start at a clean
+      // score rather than inheriting the source's.
     })
     .select().single();
   if (pErr) throw pErr;
