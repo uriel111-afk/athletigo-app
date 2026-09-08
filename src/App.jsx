@@ -15,6 +15,8 @@ import PageLoader from '@/components/PageLoader';
 import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
 import PlanSheet from './pages/PlanSheet';
+// TEMPORARY — remove with the /dev-ingest-plan route below.
+import DevIngestPlan from './pages/DevIngestPlan';
 import CasualHealth from './pages/CasualHealth';
 import CoachHub from './pages/CoachHub';
 import Pro from './pages/Pro';
@@ -647,6 +649,14 @@ const AuthenticatedApp = () => {
           the screen like the printed page it mirrors. Shared page key:
           the trainee runs it, the coach can open the same URL. */}
       <Route path="/plan-sheet" element={<PageRouteGuard pageKey="PlanSheet"><PlanSheet /></PageRouteGuard>} />
+
+      {/* TEMPORARY — one-shot plan ingestion. createPlanFromSpec reads
+          the coach id from the CALL SITE, and the call site must take
+          it from AuthContext, which only exists inside the app. Remove
+          this route and src/pages/DevIngestPlan.jsx once the plan is
+          in. "DevIngestPlan" is in neither traineeOnlyPages nor
+          sharedPages, so the guard makes it coach-only. */}
+      <Route path="/dev-ingest-plan" element={<PageRouteGuard pageKey="DevIngestPlan"><DevIngestPlan /></PageRouteGuard>} />
 
       <Route path="/hub"                 element={<PageRouteGuard pageKey="CoachHub"><CoachHub /></PageRouteGuard>} />
 
