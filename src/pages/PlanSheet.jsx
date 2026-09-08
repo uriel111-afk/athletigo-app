@@ -362,6 +362,35 @@ export function readTechniques(exercise) {
 /** Hebrew counts one thing differently. 1 is not "1 טכניקות". */
 const techniqueCountLabel = (n) => (n === 1 ? 'טכניקה אחת' : `${n} טכניקות`);
 
+/**
+ * A CONTAINER's title carries no rep numbers.
+ *
+ * Coaches author a container's name as the movements it holds, counts
+ * and all — "3 עליות מתח · 5 שכיבות סמיכה". Those 3 and 5 are per-set
+ * REP targets, and the 4 beside them on the row is the ROUND count.
+ * Two different numbers on one line, one labelled and one not, is
+ * exactly the confusion this strips out: the counts live on the sub
+ * rows under their own חזרות label, so the title keeps only the
+ * movements and its own סבבים.
+ *
+ *   "3 עליות מתח · 5 שכיבות סמיכה"  →  "עליות מתח · שכיבות סמיכה"
+ *
+ * Deliberately narrow: only a leading whole number, only on a
+ * middot-separated segment, and only ever applied to a CONTAINER
+ * title. A plain exercise's name is never touched, so a movement
+ * genuinely called "90 מעלות" survives everywhere it can appear.
+ */
+export function shortContainerTitle(name) {
+  const full = String(name ?? '').trim();
+  if (!full) return '';
+  const stripped = full
+    .split('·')
+    .map((part) => part.trim().replace(/^\d+\s+(?=\S)/, '').trim())
+    .filter(Boolean)
+    .join(' · ');
+  return stripped || full;
+}
+
 /** "3 טכניקות" with a chevron — the row's whole reference to the list. */
 function TechniqueHint({ count, indent }) {
   if (!count) return null;
@@ -1543,7 +1572,12 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         // The row prints the SHORT name; the technique
                         // list it was carrying moves to the dialog.
                         const tech = readTechniques(ex);
-                        const exName = tech.displayName || ex.exercise_name || ex.name || '';
+                        const baseName = tech.displayName || ex.exercise_name || ex.name || '';
+                        // readTechniques already took the head before the
+                        // first comma. A container additionally drops the
+                        // per-movement rep counts, which belong on the sub
+                        // rows beside their own חזרות label.
+                        const exName = container ? shortContainerTitle(baseName) : baseName;
                         // A CONTAINER's big number is always the round
                         // count, and always labelled סבבים. The reps live
                         // on each sub line under their own חזרות label —
@@ -1609,7 +1643,13 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                             <div key={ex.id} style={{ borderBottom: rowEdge }}>
                               <div
                                 onClick={() => openDetail({
-                                  ordinal: myOrdinal, name: tech.fullName, pill, param, hint,
+                                  // The SHORT title here too. The dialog
+                                  // stops abbreviating for a plain
+                                  // exercise, but a container's rep counts
+                                  // are not abbreviation — they are the
+                                  // sub rows' numbers, listed in full
+                                  // right below with their חזרות labels.
+                                  ordinal: myOrdinal, name: exName, pill, param, hint,
                                   techniques: tech.techniques,
                                   // The container's OWN row carries no reps
                                   // and no boxes — its numbers live on the
