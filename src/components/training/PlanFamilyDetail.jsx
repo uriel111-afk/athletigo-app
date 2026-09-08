@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ChevronRight, ChevronLeft, Loader2, Plus } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Loader2, Plus, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { duplicatePlan } from '@/lib/plansApi';
+import { ExerciseTrendGraph, WorkoutDashboard } from './ExerciseTrendGraph';
 
 /**
  * PlanFamilyDetail — the inside of a folder.
@@ -29,6 +30,8 @@ export default function PlanFamilyDetail({
   family, progress = {}, isCoach = false, onBack, onOpenPerformance, onCreated,
 }) {
   const [creating, setCreating] = useState(false);
+  // Which performance has its per-exercise trend open, by id.
+  const [trendFor, setTrendFor] = useState(null);
   if (!family) return null;
   const { root, performances, count } = family;
   const title = root?.plan_name || root?.title || 'תוכנית';
@@ -91,43 +94,83 @@ export default function PlanFamilyDetail({
           const prog = progress[p.id];
           const isRoot = p.id === family.rootId;
           return (
-            <div
-              key={p.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => onOpenPerformance?.(p)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenPerformance?.(p); }}
-              style={{
-                cursor: 'pointer', background: 'white',
-                borderRight: `4px solid ${ORANGE}`, borderRadius: 14,
-                boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
-                padding: 14, display: 'flex', alignItems: 'center', gap: 10,
-              }}
-            >
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{
-                  fontSize: 15, fontWeight: 700, color: DARK,
-                  display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-                }}>
-                  <span>{dateLabel(p.created_at)}</span>
-                  {isRoot && (
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, color: ORANGE,
-                      background: '#FFF5EE', border: `1px solid ${ORANGE}`,
-                      borderRadius: 6, padding: '1px 6px',
-                    }}>המקור</span>
-                  )}
+            <div key={p.id}>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => onOpenPerformance?.(p)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenPerformance?.(p); }}
+                style={{
+                  cursor: 'pointer', background: 'white',
+                  borderRight: `4px solid ${ORANGE}`, borderRadius: 14,
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+                  padding: 14, display: 'flex', alignItems: 'center', gap: 10,
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 15, fontWeight: 700, color: DARK,
+                    display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                  }}>
+                    <span>{dateLabel(p.created_at)}</span>
+                    {isRoot && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, color: ORANGE,
+                        background: '#FFF5EE', border: `1px solid ${ORANGE}`,
+                        borderRadius: 6, padding: '1px 6px',
+                      }}>המקור</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: MUTED, marginTop: 5 }}>
+                    {prog?.exercisesDone
+                      ? `${prog.exercisesDone} תרגילים בוצעו`
+                      : (prog?.executions ? 'התחיל, טרם נרשמו תרגילים' : 'טרם בוצע')}
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, color: MUTED, marginTop: 5 }}>
-                  {prog?.exercisesDone
-                    ? `${prog.exercisesDone} תרגילים בוצעו`
-                    : (prog?.executions ? 'התחיל, טרם נרשמו תרגילים' : 'טרם בוצע')}
-                </div>
+                {/* The per-exercise trend for THIS performance. It opens
+                    in place; the graph's own chip strip then moves
+                    between the family's exercises. Stops propagation so
+                    it never also opens the performance. */}
+                <button
+                  type="button"
+                  aria-label="מגמת תרגילים"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setTrendFor((cur) => (cur === p.id ? null : p.id));
+                  }}
+                  style={{
+                    flexShrink: 0, width: 34, height: 34, minHeight: 34,
+                    borderRadius: 9, cursor: 'pointer', padding: 0,
+                    border: `1px solid ${trendFor === p.id ? ORANGE : '#F0E4D0'}`,
+                    background: trendFor === p.id ? ORANGE : '#FFF',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  <TrendingUp size={16} color={trendFor === p.id ? '#FFF' : ORANGE} />
+                </button>
+                <ChevronLeft className="w-5 h-5" style={{ color: ORANGE, flexShrink: 0 }} />
               </div>
-              <ChevronLeft className="w-5 h-5" style={{ color: ORANGE, flexShrink: 0 }} />
+
+              {trendFor === p.id && (
+                <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 10 }}>
+                  <ExerciseTrendGraph
+                    planId={p.id}
+                    traineeId={root?.assigned_to || null}
+                  />
+                </div>
+              )}
             </div>
           );
         })}
+      </div>
+
+      {/* The workout as a whole, across every performance in the
+          family. Reads the same loader the trend graph does. */}
+      <div style={{ padding: '4px 14px 14px' }}>
+        <WorkoutDashboard
+          planId={root?.id}
+          traineeId={root?.assigned_to || null}
+        />
       </div>
 
       <div style={{ padding: '0 14px' }}>
