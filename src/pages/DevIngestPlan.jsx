@@ -92,9 +92,20 @@ const SPEC_SECTIONS = [
     ],
   },
   {
+    // The note travels as an EXERCISE ROW, not as coach_notes.
+    // PlanSheet matches the section name 'הערות' exactly and renders
+    // its rows as prose off exercise_name, and it drops any section
+    // with no rows — so a note in coach_notes would exist in the
+    // database and never appear on the sheet.
+    //
+    // The three live הערות rows carry name + exercise_name + order and
+    // nothing else: mode null, no measurement columns, and coach_notes
+    // null on the section. This matches that exactly. The text is one
+    // note and is sent as one row, verbatim.
     section_name: 'הערות',
-    coach_notes: 'דגש · תרגול תנועת החלפת הרגליים והרמת הברכיים. האולרים בסגנון שעשינו עם הכדור בין הרגליים',
-    // No exercises. See the warning rendered below the button.
+    exercises: [
+      { name: 'דגש · תרגול תנועת החלפת הרגליים והרמת הברכיים. האולרים בסגנון שעשינו עם הכדור בין הרגליים' },
+    ],
   },
 ];
 
@@ -176,11 +187,6 @@ export default function DevIngestPlan() {
       >
         {result ? 'נוצר ✓' : busy ? 'יוצר…' : 'צור את התוכנית'}
       </button>
-
-      <p style={{ fontSize: 12, color: '#B45309', marginTop: 12, lineHeight: 1.6 }}>
-        שים לב: מקטע &quot;הערות&quot; מוגדר עם coach_notes בלבד וללא תרגילים.
-        PlanSheet מסנן מקטעים ריקים, ולכן הוא לא יופיע במסך המתאמן.
-      </p>
 
       {error && (
         <pre style={{ ...box, background: '#7f1d1d', marginTop: 14 }}>{error}</pre>
