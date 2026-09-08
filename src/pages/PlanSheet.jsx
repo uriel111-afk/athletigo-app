@@ -54,16 +54,26 @@ const WHITE    = '#FFFFFF';
 // Section label column. 52 — Hebrew section names are short and this
 // hands 8px back to the text side.
 const RAIL_W   = 52;
-// The FIXED entry column. Always this wide whatever the box count, so
-// every row's first box lands on the same vertical line — the printed
-// sheet's ruled column.
-// Sized for exactly THREE boxes: 30*3 + 4*2. Up to three fit with no
-// scrolling; four or more scroll horizontally inside the column, which
-// keeps this width — and so keeps every row's first box on one line.
-const BOX_W    = 30;
+// The entry strip is sized BY ITS BOX COUNT and never scrolls. The
+// fixed-width ruled column that came before this held exactly three
+// boxes (30*3 + 4*2 = 98) and scrolled a fourth and fifth out of
+// sight — at 360px a five-box row showed three boxes and hid two,
+// which reads as a row that simply has three sets.
+//
+// So the boxes shrink instead, on a fixed table:
+//   1-2 boxes → 32px   3-4 boxes → 28px   5+ boxes → 24px
+//   gap 3px from four boxes up, otherwise 4px.
+// 24px still holds a two-digit number at 13px, and five boxes plus
+// their gaps come to 132px — inside the 255px a plain row has at
+// 360px, so the name keeps 123px and nothing is cut off.
+//
+// BOX_W / BOX_GAP stay as the one-and-two-box case of that table.
+const BOX_W    = 32;
 const BOX_H    = 38;
 const BOX_GAP  = 4;
-const ENTRY_W  = BOX_W * 3 + BOX_GAP * 2;   // 98
+// Retained: the width of the old ruled column, kept for reference by
+// anything still reasoning about the three-box sheet.
+const ENTRY_W  = 30 * 3 + 4 * 2;   // 98
 const TOUCH    = 44;
 const ROW_H    = 46;
 // No alignment line and no percentage width anywhere. The entry boxes
@@ -249,58 +259,28 @@ function PressableText({ onLongPress, style, children }) {
 }
 
 /**
- * EntryColumn — the ruled column, fixed at three boxes wide.
+ * EntryColumn — the entry strip, as wide as the boxes it holds.
  *
- * A fourth box does not shrink the set; it scrolls. The column keeps
- * ENTRY_W whatever it holds, which is what keeps every row's first box
- * on the same vertical line. Only this block scrolls sideways —
- * nothing else on the page does.
+ * It is the LAST child of the row's single flex line and it never
+ * shrinks and never scrolls: every box it is given is on screen. The
+ * boxes get narrower as there are more of them (boxPlan), which is
+ * what buys the room the old fixed-width scrolling column did not
+ * have. The name is the only thing on the row that gives up width.
  *
- * The fade on the LEFT edge is the cue that more boxes are out there.
- * Left, because the boxes start at the column's right in RTL and run
- * off the far side. It appears only while there is something still to
- * reach, so a fully scrolled row shows no fade.
+ * `fadeTo` is still accepted so the two call sites read the same as
+ * they did; there is no longer a scroll edge to fade.
  */
-function EntryColumn({ gap, fadeTo = '#FFFFFF', children }) {
-  const ref = useRef(null);
-  const [fade, setFade] = useState(false);
-  const check = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    const more = el.scrollWidth > el.clientWidth + 1;
-    // RTL reports scrollLeft as 0 at the start and negative as it
-    // scrolls away, so compare on the magnitude.
-    const atEnd = Math.abs(el.scrollLeft) + el.clientWidth >= el.scrollWidth - 1;
-    setFade(more && !atEnd);
-  }, []);
-  // No dependency array: re-check after every render, since the box
-  // count changes with the data. setFade to the same boolean is a
-  // no-op in React, so this settles immediately.
-  useLayoutEffect(check);
+function EntryColumn({ gap, fadeTo, children }) {
+  void fadeTo;
   return (
-    <div style={{ position: 'relative', width: ENTRY_W, flexShrink: 0 }}>
-      <div
-        ref={ref}
-        className="ps-entry"
-        onScroll={check}
-        style={{
-          display: 'flex', justifyContent: 'flex-start', gap,
-          overflowX: 'auto', overflowY: 'hidden',
-          WebkitOverflowScrolling: 'touch',
-        }}
-      >
-        {children}
-      </div>
-      {fade && (
-        <div
-          aria-hidden="true"
-          style={{
-            position: 'absolute', insetInlineEnd: 'auto', left: 0,
-            top: 0, bottom: 0, width: 20, pointerEvents: 'none',
-            background: `linear-gradient(to left, ${fadeTo}00, ${fadeTo})`,
-          }}
-        />
-      )}
+    <div
+      className="ps-entry"
+      style={{
+        display: 'flex', justifyContent: 'flex-start', alignItems: 'center',
+        gap, flexShrink: 0, flexWrap: 'nowrap',
+      }}
+    >
+      {children}
     </div>
   );
 }
@@ -658,11 +638,17 @@ export default function PlanSheet() {
     unicodeBidi: "isolate", direction: "rtl", whiteSpace: "nowrap",
   };
 
-  // ONE box size, whatever the count. Shrinking by count reached 12px,
-  // where the number inside stopped being readable — which defeats the
-  // point of writing it down. A row with more boxes than the column
-  // holds scrolls instead of shrinking.
-  const boxPlan = () => ({ w: BOX_W, gap: BOX_GAP });
+  // Box size BY COUNT — see the table at the top of the file. An
+  // earlier attempt shrank continuously and reached 12px, where the
+  // number stopped being readable; these three steps have a 24px
+  // floor, which still holds two digits at 13px.
+  const boxPlan = (count) => {
+    const n = Math.max(1, Number(count) || 1);
+    return {
+      w: n <= 2 ? BOX_W : n <= 4 ? 28 : 24,
+      gap: n >= 4 ? 3 : BOX_GAP,
+    };
+  };
 
   // ── Container: one wrapper, tinted, orange rail on its RIGHT. ───
   const containerWrap = {
@@ -1121,7 +1107,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
             opacity: duplicating ? 0.6 : 1,
           }}
         >
-          {duplicating ? 'יוצר…' : 'אימון חדש'}
+          {duplicating ? 'יוצר…' : 'אימון חדש מהתוכנית'}
         </button>
 
         {locked && (
