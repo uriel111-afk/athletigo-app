@@ -21,13 +21,13 @@ import { useQuery } from '@tanstack/react-query';
 //
 // Inline styles only; nothing anchored left; nothing truncates.
 
-const ORANGE = '#FF6F20';
-const INK = '#1a1a1a';
-const MUTED = '#8a8177';
-const GREY = '#B9AE9E';
-const SANS = "'Rubik', system-ui, sans-serif";
+export const ORANGE = '#FF6F20';
+export const INK = '#1a1a1a';
+export const MUTED = '#8a8177';
+export const GREY = '#B9AE9E';
+export const SANS = "'Rubik', system-ui, sans-serif";
 const GAP_DAYS = 14;
-const MIN_SESSIONS = 3;
+export const MIN_SESSIONS = 3;
 
 const LEVELS = [
   { key: 'plan', label: 'תוכנית' },
@@ -47,22 +47,22 @@ const PERIODS = [
   { key: '1m', label: 'חודש', days: 30 },
 ];
 
-const fmtNum = (v) => {
+export const fmtNum = (v) => {
   if (v == null || Number.isNaN(v)) return '—';
   return Number.isInteger(v) ? String(v) : String(Math.round(v * 10) / 10);
 };
-const fmtDate = (iso) => {
+export const fmtDate = (iso) => {
   try {
     return new Date(iso).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
   } catch { return ''; }
 };
-const daysBetween = (a, b) => Math.abs(new Date(b) - new Date(a)) / 86400000;
+export const daysBetween = (a, b) => Math.abs(new Date(b) - new Date(a)) / 86400000;
 
 // ── Data loader ──────────────────────────────────────────────────────
 // Returns one row per (session, exercise) with the aggregated metrics,
 // plus an explicit `entered` flag so the renderer can tell a real value
 // from a completed-but-unfilled session.
-async function loadFamilyProgress({ planId, traineeId }) {
+export async function loadFamilyProgress({ planId, traineeId }) {
   if (!planId) return { sessions: [], exercises: [], missingColumn: false };
 
   // 1. The plan family: the root plus every copy pointing at it.
@@ -84,7 +84,7 @@ async function loadFamilyProgress({ planId, traineeId }) {
   //    matching, which would silently merge unrelated exercises.
   const exRes = await supabase
     .from('exercises')
-    .select('id, exercise_name, name, training_plan_id, training_section_id, source_exercise_id, sets, reps')
+    .select('id, exercise_name, name, training_plan_id, training_section_id, source_exercise_id, sets, reps, mode, static_hold_time, work_time, weight, difficulty_rating, control_rating, tabata_data, order')
     .in('training_plan_id', planIds);
   if (exRes.error) {
     return { sessions: [], exercises: [], missingColumn: exRes.error.code === '42703', error: exRes.error.message };
@@ -106,7 +106,7 @@ async function loadFamilyProgress({ planId, traineeId }) {
   // 4. Set logs for those executions.
   const { data: logs } = await supabase
     .from('exercise_set_logs')
-    .select('execution_id, exercise_id, set_number, reps_completed, time_completed, weight_used')
+    .select('execution_id, exercise_id, drill_index, set_number, reps_completed, time_completed, weight_used')
     .in('execution_id', executions.map((e) => e.id));
 
   const byExec = new Map();
@@ -115,31 +115,107 @@ async function loadFamilyProgress({ planId, traineeId }) {
     byExec.get(l.execution_id).push(l);
   }
 
+  // 5. The trainee's own note per (execution, exercise). Surfaced on
+  //    the point it belongs to, never merged into a number.
+  const { data: exExecs } = await supabase
+    .from('exercise_executions')
+    .select('workout_execution_id, exercise_id, trainee_note, is_completed')
+    .in('workout_execution_id', executions.map((e) => e.id));
+  const noteOfExec = new Map();
+  for (const r of exExecs || []) {
+    if (r.trainee_note) noteOfExec.set(`${r.workout_execution_id}:${r.exercise_id}`, r.trainee_note);
+  }
+
   const sessions = executions.map((ex) => {
     const rows = byExec.get(ex.id) || [];
     const perExercise = new Map();               // rootExerciseId -> agg
+    // perSeries keeps a CONTAINER's sub-exercises apart: the key is
+    // (family root, drill_index), so a superset yields one series per
+    // movement instead of one summed line that means nothing.
+    const perSeries = new Map();                 // `${root}:${drill}` -> agg
     for (const r of rows) {
       const root = rootOf.get(r.exercise_id) || r.exercise_id;
-      if (!perExercise.has(root)) {
-        perExercise.set(root, { reps: 0, seconds: 0, weight: 0, sets: 0, entered: false });
+      const drill = Number.isFinite(r.drill_index) ? r.drill_index : 0;
+      const skey = `${root}:${drill}`;
+      for (const [map, key] of [[perExercise, root], [perSeries, skey]]) {
+        if (!map.has(key)) {
+          map.set(key, { reps: 0, seconds: 0, weight: 0, sets: 0, entered: false });
+        }
+        const a = map.get(key);
+        a.sets += 1;
+        if (r.reps_completed != null) { a.reps += Number(r.reps_completed) || 0; a.entered = true; }
+        if (r.time_completed != null) { a.seconds += Number(r.time_completed) || 0; a.entered = true; }
+        if (r.weight_used != null) { a.weight = Math.max(a.weight, Number(r.weight_used) || 0); a.entered = true; }
       }
-      const a = perExercise.get(root);
-      a.sets += 1;
-      if (r.reps_completed != null) { a.reps += Number(r.reps_completed) || 0; a.entered = true; }
-      if (r.time_completed != null) { a.seconds += Number(r.time_completed) || 0; a.entered = true; }
-      if (r.weight_used != null) { a.weight = Math.max(a.weight, Number(r.weight_used) || 0); a.entered = true; }
     }
+    // Which exercise rows belong to THIS performance's plan copy — the
+    // ratings the trainee gave live on those rows.
+    const noteOf = (root) => {
+      const own = exercises.find(
+        (e) => e.training_plan_id === ex.plan_id && (e.source_exercise_id || e.id) === root,
+      );
+      return own ? (noteOfExec.get(`${ex.id}:${own.id}`) || null) : null;
+    };
+    const ratingOf = (root) => {
+      const own = exercises.find(
+        (e) => e.training_plan_id === ex.plan_id && (e.source_exercise_id || e.id) === root,
+      );
+      if (!own) return null;
+      const d = own.difficulty_rating == null ? null : Number(own.difficulty_rating);
+      const c = own.control_rating == null ? null : Number(own.control_rating);
+      return (d == null && c == null) ? null : { difficulty: d, control: c };
+    };
     return {
       id: ex.id,
       date: ex.executed_at,
       planId: ex.plan_id,
       completion: ex.completion_percent == null ? null : Number(ex.completion_percent),
       perExercise,
+      perSeries,
+      noteOf,
+      ratingOf,
       entered: [...perExercise.values()].some((a) => a.entered),
     };
   });
 
   return { sessions, exercises, missingColumn: false };
+}
+
+// ── What a point MEANS, per exercise type ────────────────────────────
+// Decided per type because "progress" is not one thing. A longer hold
+// is an achievement; a longer 120-second work window is not, it is
+// just the window the coach set. Getting this wrong would draw a
+// rising line out of a trainee simply doing what they were told.
+export const EX_KINDS = {
+  reps:   { key: 'reps',   metric: 'reps',    unit: 'חזרות', better: 'up',        label: 'חזרות' },
+  hold:   { key: 'hold',   metric: 'seconds', unit: '',      better: 'up',        label: 'זמן החזקה', time: true },
+  work:   { key: 'work',   metric: 'seconds', unit: '',      better: 'adherence', label: 'ביצוע לפי התוכנית', time: true },
+  weight: { key: 'weight', metric: 'weight',  unit: 'ק"ג',   better: 'up',        label: 'משקל' },
+  tabata: { key: 'tabata', metric: null,      unit: '',      better: 'done',      label: 'בוצע' },
+  tick:   { key: 'tick',   metric: null,      unit: '',      better: 'done',      label: 'בוצע' },
+};
+
+const hasVal = (v) => v != null && v !== '';
+
+/** The type of ONE exercise row, from the fields the coach filled in. */
+export function exerciseKind(ex) {
+  if (!ex) return EX_KINDS.tick;
+  if (String(ex.mode || '').trim() === 'טבטה') return EX_KINDS.tabata;
+  if (hasVal(ex.reps)) return EX_KINDS.reps;
+  if (hasVal(ex.static_hold_time)) return EX_KINDS.hold;
+  if (hasVal(ex.work_time)) return EX_KINDS.work;
+  if (hasVal(ex.weight)) return EX_KINDS.weight;
+  return EX_KINDS.tick;
+}
+
+/** The coach's prescribed number for that type, or null. */
+export function exerciseTarget(ex, kind) {
+  if (!ex || !kind) return null;
+  if (kind.key === 'reps') return Number(ex.reps) || null;
+  if (kind.key === 'hold') return Number(ex.static_hold_time) || null;
+  if (kind.key === 'work') return Number(ex.work_time) || null;
+  if (kind.key === 'weight') return Number(ex.weight) || null;
+  return null;
 }
 
 // ── Series builder ───────────────────────────────────────────────────
@@ -203,13 +279,19 @@ function Sparkline({ values, width = 64, height = 22 }) {
 }
 
 // ── Chart ────────────────────────────────────────────────────────────
-function Chart({ points, unit }) {
-  const W = 320, H = 150, PAD_X = 8, PAD_Y = 14;
+// target, format and showValues are additive and default to the
+// previous behaviour, so the existing caller is untouched. Every
+// honesty rule below — run splitting on absent points, the 14-day
+// break, dashed grey for completed-but-empty, hollow dots, no dot for
+// a session that was not performed — is the original code.
+export function Chart({ points, unit, target = null, format = null, showValues = false }) {
+  const W = 320, H = 165, PAD_X = 8, PAD_Y = showValues ? 26 : 14;
   const withValues = points.filter((p) => p.value != null);
   if (withValues.length === 0) return null;
 
-  const min = Math.min(...withValues.map((p) => p.value));
-  const max = Math.max(...withValues.map((p) => p.value));
+  const scaleVals = withValues.map((p) => p.value).concat(target != null ? [target] : []);
+  const min = Math.min(...scaleVals);
+  const max = Math.max(...scaleVals);
   const span = max - min || Math.max(1, Math.abs(max) * 0.1);
   const n = points.length;
   const x = (i) => PAD_X + (n <= 1 ? (W - 2 * PAD_X) / 2 : (i / (n - 1)) * (W - 2 * PAD_X));
@@ -248,9 +330,21 @@ function Chart({ points, unit }) {
         </linearGradient>
       </defs>
 
-      {/* dashed baseline at the starting value */}
-      <line x1={PAD_X} x2={W - PAD_X} y1={y(first)} y2={y(first)}
-        stroke={GREY} strokeWidth="1" strokeDasharray="3 3" opacity="0.7" />
+      {/* The coach's target, when there is one — otherwise the old
+          dashed baseline at the trainee's own starting value. */}
+      {target != null ? (
+        <>
+          <line x1={PAD_X} x2={W - PAD_X} y1={y(target)} y2={y(target)}
+            stroke={ORANGE} strokeWidth="1.2" strokeDasharray="5 4" opacity="0.75" />
+          <text x={W - PAD_X} y={y(target) - 5} textAnchor="end"
+            fontSize="10" fill={ORANGE} fontFamily={SANS}>
+            יעד {format ? format(target) : fmtNum(target)}
+          </text>
+        </>
+      ) : (
+        <line x1={PAD_X} x2={W - PAD_X} y1={y(first)} y2={y(first)}
+          stroke={GREY} strokeWidth="1" strokeDasharray="3 3" opacity="0.7" />
+      )}
 
       {/* light area fill under the first solid run */}
       {areaRun && (
@@ -290,6 +384,25 @@ function Chart({ points, unit }) {
               strokeWidth="1.6"
             />
           </g>
+        );
+      })}
+
+      {/* the exact number above each point — only when asked for, so
+          the plan-level chart keeps its uncluttered look */}
+      {showValues && points.map((p, i) => {
+        if (p.value == null) return null;
+        const isLast = i === points.length - 1;
+        return (
+          <text
+            key={`v${i}`}
+            x={x(i)} y={y(p.value) - (isLast ? 12 : 9)}
+            textAnchor="middle"
+            fontSize={isLast ? 12 : 10}
+            fontWeight={isLast ? 600 : 400}
+            fill={p.status === 'entered' ? INK : MUTED}
+            fontFamily={SANS}
+            style={{ direction: 'ltr' }}
+          >{format ? format(p.value) : fmtNum(p.value)}</text>
         );
       })}
     </svg>
