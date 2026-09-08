@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { prepareExerciseData } from './exercisePayload';
 
 export async function getPlanWithDetails(planId) {
   const { data: plan, error: pErr } = await supabase
@@ -156,6 +157,621 @@ export async function duplicatePlan(sourcePlanId, options = {}) {
       // across every trainee and every run, so it is never authored.
     });
     if (exErr) throw exErr;
+  }
+
+  return newPlan;
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// createPlanFromSpec — the ingestion channel.
+//
+// Takes a whole workout as a plain object and lands it as a plan row,
+// its sections in order, and its exercises remapped onto the new
+// section ids. It is the same three-level walk duplicatePlan does, and
+// deliberately the same shape: read nothing, insert plan, insert
+// sections keeping an explicit index → new-id map, insert exercises
+// through that map. There is no second insert path.
+//
+// It writes through supabase.from(...).insert() directly, NOT through
+// base44Client's createEntity. That wrapper retries by DROPPING any
+// column Postgres rejects (base44Client.js:42), which turns a typo into
+// silently missing data. Everything here is validated up front instead
+// and throws on an unknown key.
+// ═════════════════════════════════════════════════════════════════════
+
+/**
+ * THE SPEC SHAPE
+ * ==============
+ * Column names below are the live ones. Anything omitted is null.
+ *
+ * ── PLAN LEVEL → training_plans ──────────────────────────────────
+ *   title              text      REQUIRED
+ *   plan_name          text      defaults to title
+ *   description        text
+ *   goal_focus         string[]  the column is TEXT, not jsonb — the
+ *                                array is JSON.stringify'd into it,
+ *                                which is what the live rows hold
+ *   weekly_days        string[]  a REAL text[]; passed through as an
+ *                                array, not stringified
+ *   difficulty_level   text
+ *   duration_weeks     integer
+ *   plan_type          text
+ *   difficulty         text
+ *   status             text      defaults 'פעילה'
+ *   is_template        boolean   defaults false
+ *   start_date         date      defaults today, YYYY-MM-DD
+ *   series_id          uuid
+ *   parent_plan_id     uuid      leave null; this is an original, not
+ *                                a copy in a duplication chain
+ *   preview_text       text      derived from the exercise names if
+ *                                not supplied
+ *   exercises_count    integer   derived from the spec if not supplied
+ *
+ * ── IDENTITY ─────────────────────────────────────────────────────
+ *   coachId    uuid  REQUIRED. Written to BOTH created_by and
+ *                    coach_id. Never defaulted, never hardcoded — the
+ *                    call site reads it from AuthContext.
+ *   traineeId  uuid  optional → assigned_to.
+ *   assigned_to_name and created_by_name are NOT accepted from the
+ *   caller. They are read from users.full_name for those two ids.
+ *
+ * ── SECTION LEVEL → training_sections, in array order ─────────────
+ *   sections: [{
+ *     section_name   text   REQUIRED
+ *     category       text   defaults to section_name
+ *     description    text
+ *     coach_notes    text   the note down the section rail
+ *     color_theme    text   defaults to getSectionColor(index)
+ *     icon           text
+ *     tracking_mode  text   defaults 'full'
+ *     exercises: [ ... ]
+ *   }]
+ *   "order" is 1-based array position and is the column every reader
+ *   sorts by. order_index is dead on live data (0 everywhere) and is
+ *   written 0 to match. training_sections.exercises is a json column
+ *   that is [] on every live row; it is not written.
+ *
+ * ── EXERCISE LEVEL → exercises, in array order within its section ─
+ *   {
+ *     name                   text     REQUIRED → written to BOTH
+ *                                     name and exercise_name, the way
+ *                                     every live row has them
+ *     mode                   text     a value from
+ *                                     constants/trainingMethods.js:
+ *                                     חזרות, רשימה, טבטה, סופרסט,
+ *                                     קומבו, פירמידה, דרופסט,
+ *                                     רסטפאוז, מחזורי, דלורם.
+ *                                     null means a plain exercise.
+ *     sets                   integer
+ *     reps                   integer
+ *     rounds                 integer
+ *     static_hold_time       integer  seconds
+ *     work_time              TEXT     the column is text — 120 is
+ *                                     coerced to "120"
+ *     rest_time              TEXT     same
+ *     weight                 numeric
+ *     weight_type            text
+ *     side                   text     e.g. דו־צדדי, לסירוגין
+ *     range_of_motion        text
+ *     body_position          text
+ *     equipment              text
+ *     grip                   text
+ *     tempo                  text
+ *     emphasis               text
+ *     rpe                    integer
+ *     rest_between_sets      integer
+ *     rest_between_exercises integer
+ *     description            text     the hint shown under the row.
+ *                                     PlanSheet reads description
+ *                                     first and notes second.
+ *     notes                  text
+ *     track_for_measurement  boolean
+ *     sub_exercises: [ ... ]           NOT a column — see below
+ *   }
+ *   "order" is 1-based PER SECTION, which is how live data numbers
+ *   them; the running number across a plan is computed in the UI.
+ *   order_index is written 0, as on live rows.
+ *   `completed` is never written. It is global across every trainee
+ *   and every run; per-run completion lives in exercise_executions.
+ *
+ * ── SUB-EXERCISES → exercises.tabata_data ────────────────────────
+ *   There is no child table. A superset, combo, dropset or tabata is
+ *   ONE exercises row whose children live inside the TEXT column
+ *   tabata_data as a JSON string. Two containers, matching the two
+ *   live examples:
+ *
+ *     mode סופרסט / קומבו / דרופסט →
+ *       {"container_type":"list","sub_exercises":[
+ *          {"id":"…","exercise_name":"סיבוב ראש","reps":"5",
+ *           "range_of_motion":"מלא"}, … ]}
+ *
+ *     mode טבטה →
+ *       {"container_type":"tabata","sub_exercises":[
+ *          {"id":"…","exercise_name":"עליה לישיבה",
+ *           "work_time":"30","rest_time":"5"}, … ]}
+ *
+ *   Every number INSIDE tabata_data is a STRING, unlike the integer
+ *   columns on the row itself. That is what the builder writes and
+ *   what every reader parses.
+ *   Order inside the parent is ARRAY POSITION — there is no order
+ *   field on a sub-exercise, and the result write-back keys off that
+ *   index as exercise_set_logs.drill_index.
+ *   Accepted per sub: name (or exercise_name), reps, work_time,
+ *   rest_time, hold_seconds, side, range_of_motion.
+ *   tabata_preview is written from the sub names, joined with ' • '.
+ *
+ * Returns the created training_plans row.
+ */
+
+// Modes whose sub_exercises serialise as a tabata clock rather than a
+// plain list. Hebrew is what `mode` actually holds; the english_id
+// spellings are accepted so a caller can use either.
+const TABATA_MODES = new Set(['טבטה', 'tabata']);
+// Modes that carry sub-exercises at all.
+const CONTAINER_MODES = new Set([
+  'טבטה', 'tabata',
+  'סופרסט', 'superset', 'super_set',
+  'קומבו', 'combo',
+  'דרופסט', 'dropset', 'drop_set',
+  'פירמידה', 'pyramid',
+  'רסטפאוז', 'rest_pause',
+  'מחזורי', 'circuit',
+  'דלורם', 'delorme',
+  'רשימה', 'exercise_list',
+]);
+
+const modeKey = (m) => String(m ?? '').trim().toLowerCase();
+
+/**
+ * The live column set for a table, used to reject an unknown key
+ * BEFORE anything is inserted.
+ *
+ * information_schema.columns is the right source and is what the task
+ * asks for, but it is not reachable from the app: PostgREST does not
+ * expose the information_schema profile (406) and the OpenAPI document
+ * that carries the catalog is service_role only. So the column set is
+ * read the one way an anon/authenticated client can read it — one row
+ * of the table itself. PostgREST returns every column the role may
+ * select, so the keys of a single row ARE the column list.
+ *
+ * If the table is empty, or RLS hides every row, that probe yields
+ * nothing and the documented fallback list below is used instead. A
+ * key in neither source throws.
+ */
+const COLUMN_FALLBACK = {
+  training_plans: [
+    'id', 'created_at', 'updated_at', 'title', 'description', 'difficulty',
+    'plan_type', 'is_template', 'status', 'created_by', 'plan_name',
+    'assigned_to', 'assigned_to_name', 'created_by_name', 'goal_focus',
+    'start_date', 'progress_percentage', 'exercises_count', 'preview_text',
+    'series_id', 'parent_plan_id', 'weekly_days', 'difficulty_level',
+    'duration_weeks', 'coach_id',
+  ],
+  training_sections: [
+    'id', 'created_at', 'updated_at', 'title', 'description', 'order_index',
+    'plan_id', 'exercises', 'created_by', 'training_plan_id', 'section_name',
+    'category', 'color_theme', 'icon', 'order', 'completed', 'coach_notes',
+    'tracking_mode', 'coach_id',
+  ],
+  exercises: [
+    'id', 'created_at', 'updated_at', 'name', 'description', 'category',
+    'muscle_group', 'difficulty', 'video_url', 'image_url', 'instructions',
+    'tips', 'created_by', 'training_plan_id', 'training_section_id',
+    'exercise_name', 'sets', 'reps', 'weight', 'rest_time', 'work_time',
+    'rpe', 'mode', 'weight_type', 'order', 'completed', 'tabata_data',
+    'tabata_preview', 'control_rating', 'difficulty_rating', 'actual_result',
+    'rounds', 'tempo', 'superset_rounds', 'combo_sets', 'trainee_media_urls',
+    'was_deducted', 'params', 'body_position', 'equipment', 'static_hold',
+    'side', 'range_of_motion', 'grip', 'rest_between_sets',
+    'rest_between_exercises', 'exercise_list', 'emphasis', 'tabata_config',
+    'notes', 'order_index', 'static_hold_time', 'coach_id',
+    'track_for_measurement', 'source_exercise_id',
+  ],
+};
+
+const columnCache = new Map();
+
+async function columnsOf(table) {
+  if (columnCache.has(table)) return columnCache.get(table);
+  let cols = null;
+  const { data, error } = await supabase.from(table).select('*').limit(1);
+  if (error) {
+    throw new Error(
+      `[createPlanFromSpec] cannot read the column list of "${table}": ${error.message}`,
+    );
+  }
+  if (Array.isArray(data) && data.length && data[0] && typeof data[0] === 'object') {
+    cols = new Set(Object.keys(data[0]));
+  } else {
+    console.warn(
+      `[createPlanFromSpec] "${table}" returned no row to read columns from; `
+      + 'falling back to the documented column list.',
+    );
+    cols = new Set(COLUMN_FALLBACK[table] || []);
+  }
+  columnCache.set(table, cols);
+  return cols;
+}
+
+/**
+ * The keys a SPEC may carry, per level.
+ *
+ * Validating the built payloads alone is not enough. The builders read
+ * named fields rather than spreading the spec, so a key the spec
+ * carries and the builder does not know about never reaches a payload
+ * at all — it would be dropped even more quietly than base44Client
+ * drops one, because Postgres would never even see it. A typo like
+ * `statichold_time` has to be loud.
+ *
+ * So the spec is checked on the way IN, and the payloads on the way
+ * OUT. Both throw.
+ */
+const SPEC_KEYS = {
+  plan: new Set([
+    'coachId', 'traineeId', 'sections',
+    'title', 'plan_name', 'description', 'goal_focus', 'weekly_days',
+    'difficulty_level', 'duration_weeks', 'plan_type', 'difficulty',
+    'status', 'is_template', 'start_date', 'series_id', 'parent_plan_id',
+    'preview_text', 'exercises_count',
+  ]),
+  section: new Set([
+    'section_name', 'category', 'description', 'coach_notes',
+    'color_theme', 'icon', 'tracking_mode', 'exercises',
+  ]),
+  exercise: new Set([
+    'name', 'exercise_name', 'mode', 'sets', 'reps', 'rounds',
+    'static_hold_time', 'work_time', 'rest_time', 'weight', 'weight_type',
+    'rpe', 'rest_between_sets', 'rest_between_exercises', 'side',
+    'range_of_motion', 'body_position', 'equipment', 'grip', 'tempo',
+    'emphasis', 'description', 'notes', 'track_for_measurement',
+    'sub_exercises',
+  ]),
+  sub: new Set([
+    'name', 'exercise_name', 'reps', 'work_time', 'rest_time',
+    'hold_seconds', 'side', 'range_of_motion',
+  ]),
+};
+
+function assertKnownSpecKeys(level, obj, where) {
+  const allowed = SPEC_KEYS[level];
+  for (const key of Object.keys(obj || {})) {
+    if (!allowed.has(key)) {
+      throw new Error(
+        `[createPlanFromSpec] unknown ${level} key "${key}"`
+        + `${where ? ` (${where})` : ''}. Nothing was inserted. `
+        + `Known ${level} keys: ${[...allowed].join(', ')}.`,
+      );
+    }
+  }
+}
+
+/**
+ * Throws on the FIRST unknown key, naming the key and the table. This
+ * is the whole point of the function: base44Client would have dropped
+ * that key and inserted the rest, leaving a row that looks fine and is
+ * missing a column of the coach's workout.
+ */
+function assertKnownColumns(table, payload, cols, where) {
+  for (const key of Object.keys(payload)) {
+    if (!cols.has(key)) {
+      throw new Error(
+        `[createPlanFromSpec] unknown column "${key}" on table "${table}"`
+        + `${where ? ` (${where})` : ''}. Nothing was inserted. `
+        + 'Fix the spec or the mapping — do NOT let this key be dropped.',
+      );
+    }
+  }
+}
+
+/** Integers throw rather than coerce to null, so nothing is lost quietly. */
+function intOrNull(value, field, where) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    throw new Error(
+      `[createPlanFromSpec] "${field}" must be a number${where ? ` (${where})` : ''}, `
+      + `got ${JSON.stringify(value)}`,
+    );
+  }
+  return Math.round(n);
+}
+
+function numOrNull(value, field, where) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) {
+    throw new Error(
+      `[createPlanFromSpec] "${field}" must be a number${where ? ` (${where})` : ''}, `
+      + `got ${JSON.stringify(value)}`,
+    );
+  }
+  return n;
+}
+
+/** work_time / rest_time are TEXT columns. 120 → "120". */
+function textOrNull(value) {
+  if (value == null || value === '') return null;
+  return String(value);
+}
+
+let subSeq = 0;
+/** Ids in the live rows are Date.now()-shaped; a counter keeps a batch unique. */
+const makeSubId = () => `${Date.now()}${(subSeq += 1).toString(36)}`;
+
+/**
+ * One sub-exercise, in the shape the live rows use. Keys that carry
+ * nothing are omitted rather than written null — that is how the
+ * builder writes them, and readers test for presence.
+ */
+function buildSub(sub, isTabata) {
+  const name = String(sub?.exercise_name ?? sub?.name ?? '').trim();
+  if (!name) throw new Error('[createPlanFromSpec] every sub-exercise needs a name');
+  const out = { id: makeSubId(), exercise_name: name };
+  // Numbers inside tabata_data are STRINGS.
+  const put = (k, v) => { if (v != null && v !== '') out[k] = String(v); };
+  if (isTabata) {
+    put('work_time', sub.work_time);
+    put('rest_time', sub.rest_time);
+  } else {
+    put('reps', sub.reps);
+    put('work_time', sub.work_time);
+    put('rest_time', sub.rest_time);
+    put('hold_seconds', sub.hold_seconds);
+  }
+  put('side', sub.side);
+  put('range_of_motion', sub.range_of_motion);
+  return out;
+}
+
+/** The bulleted plan summary, in the format the live rows carry. */
+function buildPreviewText(names) {
+  const shown = names.slice(0, 5).map((n) => `• ${n}`);
+  const rest = names.length - shown.length;
+  return rest > 0 ? `${shown.join('\n')}\n+ עוד ${rest}` : shown.join('\n');
+}
+
+/** users.full_name for an id, or null. Throws if the id resolves to nothing. */
+async function fullNameOf(userId, role) {
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from('users').select('id, full_name').eq('id', userId).maybeSingle();
+  if (error) {
+    throw new Error(`[createPlanFromSpec] could not read the ${role} user row: ${error.message}`);
+  }
+  if (!data) {
+    throw new Error(
+      `[createPlanFromSpec] ${role} id ${userId} matches no row in users. `
+      + 'Refusing to write a name for an id that does not exist.',
+    );
+  }
+  const name = String(data.full_name ?? '').trim();
+  return name || null;
+}
+
+export async function createPlanFromSpec(spec) {
+  if (!spec || typeof spec !== 'object') {
+    throw new Error('[createPlanFromSpec] spec is required');
+  }
+  const coachId = spec.coachId ?? null;
+  if (!coachId) {
+    throw new Error(
+      '[createPlanFromSpec] coachId is required and is never defaulted. '
+      + 'Read it from AuthContext at the call site.',
+    );
+  }
+  const traineeId = spec.traineeId ?? null;
+  const title = String(spec.title ?? '').trim();
+  if (!title) throw new Error('[createPlanFromSpec] title is required');
+  const sections = Array.isArray(spec.sections) ? spec.sections : [];
+  if (!sections.length) throw new Error('[createPlanFromSpec] at least one section is required');
+
+  // ── Reject an unrecognised spec key before anything else happens.
+  assertKnownSpecKeys('plan', spec, 'plan level');
+  sections.forEach((s, si) => {
+    const at = `section ${si + 1} "${s?.section_name ?? ''}"`;
+    assertKnownSpecKeys('section', s, at);
+    (Array.isArray(s?.exercises) ? s.exercises : []).forEach((e, ei) => {
+      assertKnownSpecKeys('exercise', e, `${at}, exercise ${ei + 1}`);
+      (Array.isArray(e?.sub_exercises) ? e.sub_exercises : []).forEach((sub, bi) => {
+        assertKnownSpecKeys('sub', sub, `${at}, exercise ${ei + 1}, sub ${bi + 1}`);
+      });
+    });
+  });
+
+  // ── Names come from the users table, never from the caller. ────────
+  const [assignedToName, createdByName] = await Promise.all([
+    fullNameOf(traineeId, 'trainee'),
+    fullNameOf(coachId, 'coach'),
+  ]);
+
+  // ── Build every payload BEFORE inserting anything, so validation
+  //    can reject the whole spec without leaving a half-written plan.
+  const flatNames = [];
+  for (const s of sections) {
+    for (const e of (Array.isArray(s.exercises) ? s.exercises : [])) {
+      flatNames.push(String(e?.name ?? e?.exercise_name ?? '').trim());
+    }
+  }
+
+  const planPayload = {
+    title,
+    plan_name: spec.plan_name ?? title,
+    description: spec.description ?? null,
+    // TEXT column holding a JSON array as a string — see the shape doc.
+    goal_focus: Array.isArray(spec.goal_focus) && spec.goal_focus.length
+      ? JSON.stringify(spec.goal_focus)
+      : (spec.goal_focus ?? null),
+    // A genuine text[]; passed through as an array.
+    weekly_days: Array.isArray(spec.weekly_days) ? spec.weekly_days : [],
+    difficulty_level: spec.difficulty_level ?? null,
+    duration_weeks: intOrNull(spec.duration_weeks, 'duration_weeks'),
+    plan_type: spec.plan_type ?? null,
+    difficulty: spec.difficulty ?? null,
+    status: spec.status ?? 'פעילה',
+    is_template: spec.is_template === true,
+    start_date: spec.start_date ?? new Date().toISOString().split('T')[0],
+    series_id: spec.series_id ?? null,
+    parent_plan_id: spec.parent_plan_id ?? null,
+    assigned_to: traineeId,
+    assigned_to_name: assignedToName,
+    created_by: coachId,
+    created_by_name: createdByName,
+    coach_id: coachId,
+    progress_percentage: 0,
+    // Denormalised copies the plan lists read directly.
+    exercises_count: spec.exercises_count ?? flatNames.length,
+    preview_text: spec.preview_text ?? buildPreviewText(flatNames),
+  };
+
+  const sectionPayloads = sections.map((s, i) => {
+    const sectionName = String(s?.section_name ?? '').trim();
+    if (!sectionName) {
+      throw new Error(`[createPlanFromSpec] section ${i + 1} has no section_name`);
+    }
+    return {
+      section_name: sectionName,
+      category: s.category ?? sectionName,
+      description: s.description ?? null,
+      coach_notes: s.coach_notes ?? null,
+      color_theme: s.color_theme ?? getSectionColor(i),
+      icon: s.icon ?? null,
+      tracking_mode: s.tracking_mode ?? 'full',
+      // 1-based array position — the column every reader sorts by.
+      order: i + 1,
+      order_index: 0,
+      completed: false,
+      coach_id: coachId,
+      // training_plan_id is filled in after the plan row exists.
+      training_plan_id: null,
+    };
+  });
+
+  // Exercises are built with a null training_section_id placeholder.
+  // Validation is about KEYS, and the key set does not change when the
+  // real id is filled in after the sections are inserted.
+  const exercisePayloads = [];
+  sections.forEach((s, si) => {
+    const rows = Array.isArray(s.exercises) ? s.exercises : [];
+    rows.forEach((e, ei) => {
+      const where = `section ${si + 1} "${s.section_name}", exercise ${ei + 1}`;
+      const name = String(e?.name ?? e?.exercise_name ?? '').trim();
+      if (!name) throw new Error(`[createPlanFromSpec] ${where} has no name`);
+
+      const mode = e.mode ?? null;
+      const subs = Array.isArray(e.sub_exercises) ? e.sub_exercises : [];
+      if (subs.length && !CONTAINER_MODES.has(modeKey(mode))) {
+        throw new Error(
+          `[createPlanFromSpec] ${where} supplies sub_exercises but its mode `
+          + `is ${JSON.stringify(mode)}, which is not a container method. `
+          + 'Set mode to one of טבטה / סופרסט / קומבו / דרופסט (or another '
+          + 'method from constants/trainingMethods.js).',
+        );
+      }
+      const isTabata = TABATA_MODES.has(modeKey(mode));
+      const built = subs.map((sub) => buildSub(sub, isTabata));
+      const tabataData = built.length
+        ? JSON.stringify({
+          container_type: isTabata ? 'tabata' : 'list',
+          sub_exercises: built,
+        })
+        : null;
+
+      const row = {
+        // Live rows carry the same string in both columns.
+        name,
+        exercise_name: name,
+        mode,
+        sets: intOrNull(e.sets, 'sets', where),
+        reps: intOrNull(e.reps, 'reps', where),
+        rounds: intOrNull(e.rounds, 'rounds', where),
+        static_hold_time: intOrNull(e.static_hold_time, 'static_hold_time', where),
+        // TEXT columns.
+        work_time: textOrNull(e.work_time),
+        rest_time: textOrNull(e.rest_time),
+        weight: numOrNull(e.weight, 'weight', where),
+        weight_type: e.weight_type ?? null,
+        rpe: intOrNull(e.rpe, 'rpe', where),
+        rest_between_sets: intOrNull(e.rest_between_sets, 'rest_between_sets', where),
+        rest_between_exercises:
+          intOrNull(e.rest_between_exercises, 'rest_between_exercises', where),
+        side: e.side ?? null,
+        range_of_motion: e.range_of_motion ?? null,
+        body_position: e.body_position ?? null,
+        equipment: e.equipment ?? null,
+        grip: e.grip ?? null,
+        tempo: e.tempo ?? null,
+        emphasis: e.emphasis ?? null,
+        description: e.description ?? null,
+        notes: e.notes ?? null,
+        track_for_measurement: e.track_for_measurement === true,
+        tabata_data: tabataData,
+        tabata_preview: built.length
+          ? built.map((b) => b.exercise_name).join(' • ')
+          : null,
+        // 1-based PER SECTION, as on live rows.
+        order: ei + 1,
+        order_index: 0,
+        coach_id: coachId,
+        training_plan_id: null,
+        training_section_id: null,
+      };
+      // `completed` is stripped and '' becomes null, through the same
+      // choke point the coach's own editor uses.
+      exercisePayloads.push({ sectionIndex: si, row: prepareExerciseData(row) });
+    });
+  });
+
+  // ── Validate EVERY key of EVERY payload before the first insert. ──
+  const [planCols, sectionCols, exerciseCols] = await Promise.all([
+    columnsOf('training_plans'),
+    columnsOf('training_sections'),
+    columnsOf('exercises'),
+  ]);
+  assertKnownColumns('training_plans', planPayload, planCols, 'plan row');
+  sectionPayloads.forEach((p, i) => {
+    assertKnownColumns('training_sections', p, sectionCols, `section ${i + 1}`);
+  });
+  exercisePayloads.forEach(({ row }, i) => {
+    assertKnownColumns('exercises', row, exerciseCols, `exercise ${i + 1}`);
+  });
+
+  // ── Insert, plan → sections → exercises, same walk as duplicatePlan.
+  const { data: newPlan, error: pErr } = await supabase
+    .from('training_plans').insert(planPayload).select().single();
+  if (pErr) throw pErr;
+
+  // Explicit array-index → new section id map. Never reuse a spec index
+  // as anything but a lookup key.
+  const sectionIdByIndex = new Map();
+  for (let i = 0; i < sectionPayloads.length; i += 1) {
+    const { data: newSec, error: sErr } = await supabase
+      .from('training_sections')
+      .insert({ ...sectionPayloads[i], training_plan_id: newPlan.id })
+      .select().single();
+    if (sErr) {
+      throw new Error(
+        `[createPlanFromSpec] section ${i + 1} failed: ${sErr.message}. `
+        + `Plan ${newPlan.id} was already created and is now partial — `
+        + 'there is no rollback here, the same as duplicatePlan.',
+      );
+    }
+    sectionIdByIndex.set(i, newSec.id);
+  }
+
+  for (let i = 0; i < exercisePayloads.length; i += 1) {
+    const { sectionIndex, row } = exercisePayloads[i];
+    const { error: eErr } = await supabase.from('exercises').insert({
+      ...row,
+      training_plan_id: newPlan.id,
+      training_section_id: sectionIdByIndex.get(sectionIndex) ?? null,
+    });
+    if (eErr) {
+      throw new Error(
+        `[createPlanFromSpec] exercise ${i + 1} failed: ${eErr.message}. `
+        + `Plan ${newPlan.id} was already created and is now partial — `
+        + 'there is no rollback here, the same as duplicatePlan.',
+      );
+    }
   }
 
   return newPlan;
