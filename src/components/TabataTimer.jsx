@@ -670,6 +670,11 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
       if (setIsMinimized) setIsMinimized(true);
     }
     if (setShowTabata) setShowTabata(false);
+    // Raised from an exercise: closing returns the trainee to the page
+    // that raised it, IN PLACE. Only a plain entry from the clocks tab
+    // falls through to the original navigate. This is the same guard
+    // TimerView and StopwatchView carry as their onBack prop.
+    if (fromExercise) return;
     Promise.resolve().then(() => {
       navigate('/clocks', { replace: true });
     });
