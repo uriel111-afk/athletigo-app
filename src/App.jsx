@@ -16,6 +16,7 @@ import { useDataGate } from '@/components/hooks/useDataGate';
 import Login from './pages/Login';
 import PlanSheet from './pages/PlanSheet';
 import TimerView from './components/clocks/TimerView';
+import StopwatchView from './components/clocks/StopwatchView';
 import CasualHealth from './pages/CasualHealth';
 import CoachHub from './pages/CoachHub';
 import Pro from './pages/Pro';
@@ -156,8 +157,17 @@ function GlobalTabata() {
 // face and controls rather than a second, smaller one. Closing it
 // returns the trainee to whatever page raised it; it never navigates.
 function GlobalTimer() {
-  const { showTimer, setShowTimer, pendingTimerCfg, setPendingTimerCfg, setLiveTimer } = useActiveTimer();
+  const { showTimer, setShowTimer, pendingTimerCfg, setPendingTimerCfg, setLiveTimer, setIsMinimized } = useActiveTimer();
   const cfg = pendingTimerCfg;
+
+  // The face is gated on the bar's minimize flag. Raising the overlay
+  // has to clear it, exactly as GlobalTabata does, or a clock the
+  // trainee minimized earlier would leave this one stuck on its setup
+  // screen while it counts.
+  useEffect(() => {
+    if (!showTimer) return;
+    setIsMinimized(false);
+  }, [showTimer, setIsMinimized]);
 
   // Same event trap as GlobalTabata: taps inside the overlay must not
   // reach the document-level pointer listener Radix uses to decide
@@ -193,6 +203,59 @@ function GlobalTimer() {
         onBack={close}
         initialSeconds={cfg?.seconds ?? null}
         initialPrepSec={cfg?.prepSeconds ?? null}
+        exerciseName={cfg?.exerciseName ?? null}
+        bigDigits
+      />
+    </div>
+  );
+}
+
+// Global stopwatch — always mounted, mirrors GlobalTimer. A
+// rounds-only exercise has nothing to count down, so its shortcut
+// raises the clocks tab's own stopwatch face. It opens on the READY
+// screen and waits: the trainee presses התחל.
+function GlobalStopwatch() {
+  const {
+    showStopwatch, setShowStopwatch,
+    pendingStopwatchCfg, setPendingStopwatchCfg,
+    setIsMinimized,
+  } = useActiveTimer();
+  const cfg = pendingStopwatchCfg;
+
+  useEffect(() => {
+    if (!showStopwatch) return;
+    setIsMinimized(false);
+  }, [showStopwatch, setIsMinimized]);
+
+  const stopTimerEvents = (e) => {
+    e.stopPropagation();
+    if (typeof e.nativeEvent?.stopImmediatePropagation === 'function') {
+      e.nativeEvent.stopImmediatePropagation();
+    }
+  };
+
+  const close = useCallback(() => {
+    setShowStopwatch(false);
+    setPendingStopwatchCfg(null);
+  }, [setShowStopwatch, setPendingStopwatchCfg]);
+
+  return (
+    <div
+      data-timer-bar="true"
+      onClick={stopTimerEvents}
+      onPointerDown={stopTimerEvents}
+      onPointerUp={stopTimerEvents}
+      onMouseDown={stopTimerEvents}
+      onMouseUp={stopTimerEvents}
+      onTouchStart={stopTimerEvents}
+      onTouchEnd={stopTimerEvents}
+      style={{
+        display: showStopwatch ? 'block' : 'none',
+        position: 'fixed', inset: 0, zIndex: 10000, background: '#FFFFFF',
+      }}>
+      <StopwatchView
+        onMinimize={close}
+        onBack={close}
         exerciseName={cfg?.exerciseName ?? null}
         bigDigits
       />
@@ -797,6 +860,7 @@ function App() {
               <AndroidBackButton />
               <GlobalTabata />
               <GlobalTimer />
+              <GlobalStopwatch />
               <GlobalDynamicIntervals />
               <Routes>
                 <Route path="/login" element={<Login />} />

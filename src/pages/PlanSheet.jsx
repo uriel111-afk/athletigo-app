@@ -567,9 +567,15 @@ function ClockShortcut({
 }) {
   const clock = useClock();
   const {
-    setPendingTabataCfg, setShowTabata,
-    setPendingTimerCfg, setShowTimer,
+    setPendingTabataCfg, setShowTabata, showTabata,
+    setPendingTimerCfg, setShowTimer, showTimer,
+    setPendingStopwatchCfg, setShowStopwatch, showStopwatch,
   } = useActiveTimer() || {};
+  // Which face this shortcut raised, so the same shortcut can close it.
+  const faceRef = useRef(null);
+  // "another clock is running" — asked HERE now, before the face is
+  // raised, because the face no longer starts anything by itself.
+  const [swapAsk, setSwapAsk] = useState(false);
   // The hook's completion effect keys off this callback's identity, so
   // it has to be stable across the parent's renders.
   const latest = useRef(onElapsed);
@@ -577,46 +583,66 @@ function ClockShortcut({
   const handleElapsed = useCallback((seconds) => {
     if (typeof latest.current === 'function') latest.current(seconds);
   }, []);
-  // The hook still owns the run on ClockContext: the swap prompt, the
-  // elapsed measurement and the once-per-run write-back are unchanged.
-  // What changed is what the trainee SEES while it runs — the full
-  // clocks-tab face, not an inline strip.
+  // The hook still owns the run on ClockContext — the elapsed
+  // measurement and the once-per-run write-back are unchanged. What
+  // changed is WHO starts it: the shortcut only arms the hook, and the
+  // trainee's press on the clock's own start is what it adopts.
   const ec = useExerciseClock({ spec, clock, onElapsed: handleElapsed });
 
   /**
-   * Tapping raises the FULL clock at once. There is no plan-side
-   * lead-in any more; the ten seconds are the CLOCK'S OWN prepare
-   * phase, counted inside its face.
+   * Tapping raises the FULL clock, prefilled, and STOPS there. The
+   * trainee presses the clock's own start control. Nothing counts down
+   * on the tap — not the run, not the prepare phase.
    *
-   *   tabata  → GlobalTabata, the same TabataTimer the clocks tab
-   *             opens, prefilled through the one-shot pendingTabataCfg
-   *             bus with prep = PLAN_PREP_SECONDS. Its
-   *             source:'workout_exercise' flag is what stops
-   *             TabataTimer persisting these values over the trainee's
-   *             own saved settings, so an edit on its settings screen
-   *             is scoped to this run.
+   *   tabata / intervals → GlobalTabata, the same TabataTimer the
+   *             clocks tab opens, prefilled through the one-shot
+   *             pendingTabataCfg bus and landing on its SETTINGS
+   *             screen. Its source:'workout_exercise' flag is what
+   *             stops TabataTimer persisting these values over the
+   *             trainee's own saved settings, so an edit there is
+   *             scoped to this run. Intervals are work+rest+rounds —
+   *             the same shape — and this is the only face in the app
+   *             that can run them.
    *
-   *   countdown / intervals → GlobalTimer, the same TimerView, seeded
-   *             through pendingTimerCfg and started by
-   *             useExerciseClock with the prepare phase ClockContext
-   *             already supports. The seeded values live in
-   *             TimerView's own component state, so they are equally
-   *             run-scoped.
+   *   countdown / hold → GlobalTimer, the same TimerView, seeded
+   *             through pendingTimerCfg and landing on its SETUP
+   *             screen with the seconds and the prepare value already
+   *             turned. The seeded values live in TimerView's own
+   *             component state, so they are equally run-scoped.
+   *
+   *   stopwatch → GlobalStopwatch, the clocks tab's own stopwatch,
+   *             on its READY screen. A rounds-only exercise has
+   *             nothing to count down.
+   *
+   * useExerciseClock is ARMED rather than launched: it claims the run
+   * the moment the trainee's own start brings the shared engine alive,
+   * so the elapsed measurement and the once-per-run write-back are the
+   * same ones a hook-started run got. TabataTimer runs its own engine,
+   * not ClockContext, so the tabata face is not armed — it never was.
    */
-  const open = useCallback(() => {
+  const raise = useCallback(() => {
     if (!spec) return;
-    if (spec.kind === 'tabata' && setPendingTabataCfg && setShowTabata) {
+    if ((spec.kind === 'tabata' || spec.kind === 'intervals')
+        && setPendingTabataCfg && setShowTabata) {
       setPendingTabataCfg({
         work: spec.workSeconds,
         rest: spec.restSeconds,
         rounds: spec.rounds,
         sets: spec.sets || 1,
         rb: spec.restBetweenSets || 0,
-        // The prep runs INSIDE the tabata face, as it does on the tab.
+        // Seeded into the prep FIELD. It runs when the trainee starts.
         prep: PLAN_PREP_SECONDS,
         source: 'workout_exercise',
       });
+      faceRef.current = 'tabata';
       setShowTabata(true);
+      return;
+    }
+    if (spec.kind === 'stopwatch' && setPendingStopwatchCfg && setShowStopwatch) {
+      setPendingStopwatchCfg({ exerciseName, source: 'workout_exercise' });
+      faceRef.current = 'stopwatch';
+      setShowStopwatch(true);
+      ec.arm();
       return;
     }
     if (setPendingTimerCfg && setShowTimer) {
@@ -626,12 +652,29 @@ function ClockShortcut({
         exerciseName,
         source: 'workout_exercise',
       });
+      faceRef.current = 'timer';
       setShowTimer(true);
+      ec.arm();
     }
-    // useExerciseClock owns the engine, the swap prompt and the
-    // write-back exactly as before.
-    ec.launch();
-  }, [spec, exerciseName, ec, setPendingTabataCfg, setShowTabata, setPendingTimerCfg, setShowTimer]);
+  }, [spec, exerciseName, ec,
+      setPendingTabataCfg, setShowTabata,
+      setPendingTimerCfg, setShowTimer,
+      setPendingStopwatchCfg, setShowStopwatch]);
+
+  // The swap question is asked before the face goes up: raising a
+  // second clock face over a running clock would show the trainee a
+  // setup screen while the old clock keeps counting behind it.
+  const open = useCallback(() => {
+    if (!spec) return;
+    if (clock?.activeClock != null) { setSwapAsk(true); return; }
+    raise();
+  }, [spec, clock, raise]);
+
+  const confirmSwap = useCallback(() => {
+    setSwapAsk(false);
+    if (clock?.stop) clock.stop();
+    raise();
+  }, [clock, raise]);
 
   // The clock finished or was stopped: drop the overlay and return to
   // the sheet in place. Never a navigation.
@@ -642,9 +685,28 @@ function ClockShortcut({
   // sibling had just opened.
   const ownedRef = useRef(false);
   useEffect(() => {
-    if (ownedRef.current && !ec.owned && setShowTimer) setShowTimer(false);
+    if (ownedRef.current && !ec.owned) {
+      if (faceRef.current === 'stopwatch') { if (setShowStopwatch) setShowStopwatch(false); }
+      else if (faceRef.current === 'timer') { if (setShowTimer) setShowTimer(false); }
+      faceRef.current = null;
+    }
     ownedRef.current = ec.owned;
-  }, [ec.owned, setShowTimer]);
+  }, [ec.owned, setShowTimer, setShowStopwatch]);
+
+  // Armed, then the face was closed without a start. Drop the arming,
+  // or a clock started later from anywhere else would be adopted as
+  // this exercise's run and written back to its box.
+  useEffect(() => {
+    if (!ec.armed) return;
+    const face = faceRef.current;
+    const visible = face === 'tabata' ? !!showTabata
+      : face === 'stopwatch' ? !!showStopwatch
+      : face === 'timer' ? !!showTimer
+      : false;
+    if (visible) return;
+    faceRef.current = null;
+    ec.disarm();
+  }, [ec.armed, ec.disarm, showTimer, showTabata, showStopwatch]);
 
   if (!spec) return null;
 
@@ -674,8 +736,8 @@ function ClockShortcut({
         </button>
       )}
 
-      {/* The existing running-clock swap prompt, untouched. */}
-      <ClockSwapPrompt open={ec.swapOpen} onConfirm={ec.confirmSwap} onCancel={ec.cancelSwap} />
+      {/* The same running-clock swap prompt, asked one step earlier. */}
+      <ClockSwapPrompt open={swapAsk} onConfirm={confirmSwap} onCancel={() => setSwapAsk(false)} />
     </>
   );
 }

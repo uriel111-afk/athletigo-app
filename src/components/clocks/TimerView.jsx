@@ -89,8 +89,13 @@ export default function TimerView({
   // minimize button goes to the role home.
   const handleClockBack = (e) => {
     e.stopPropagation();
-    setLiveTimerAT({ type: 'timer', display: fmt(display), phase: 'טיימר', info: null, paused: !isRunning });
-    setIsMinimizedAT(true);
+    // From the SETUP screen no clock is running, so skip the snapshot
+    // write — it would surface a phantom footer bar. TabataTimer's back
+    // button follows the same rule.
+    if (activeClock === 'timer') {
+      setLiveTimerAT({ type: 'timer', display: fmt(display), phase: 'טיימר', info: null, paused: !isRunning });
+      setIsMinimizedAT(true);
+    }
     // A plan run closes its overlay and stays on the sheet. Only the
     // clocks tab falls through to the original navigate.
     if (onBack) { onBack(); return; }
@@ -114,8 +119,36 @@ export default function TimerView({
 
   if (showSetup) {
     return (
-      <div dir="rtl" style={{ padding: '16px 16px 100px' }} className="flex flex-col items-center gap-5">
+      <div dir="rtl" style={{ padding: '16px 16px 100px', position: 'relative' }} className="flex flex-col items-center gap-5">
+        {/* The SETUP screen is where a plan shortcut now lands — the
+            clock opens ready and waits — so it needs a way out. The
+            clocks tab passes no onBack and keeps its own mode
+            navigation; nothing changes there. */}
+        {onBack && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onBack(); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            aria-label="חזרה"
+            style={{
+              position: 'absolute', top: 8, left: 8, zIndex: 5,
+              width: 44, height: 44, borderRadius: 12,
+              background: '#FFFFFF', border: '1px solid #F0E4D0',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <ChevronRight size={24} color="#1a1a1a" />
+          </button>
+        )}
         <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: C3, letterSpacing: 2, textTransform: 'uppercase' }}>TIMER</div>
+        {exerciseName && (
+          <div style={{
+            fontSize: 15, fontWeight: 700, fontFamily: FL, color: C1,
+            textAlign: 'center', maxWidth: 320, lineHeight: 1.3, marginTop: -8,
+          }}>{exerciseName}</div>
+        )}
         <div className="flex items-center gap-3" dir="ltr">
           <TimerCol label="דקות" value={timerMin} onChange={setTimerMin} max={99} options={MIN_COL_OPTIONS} title="בחר דקות" />
           <span className="tabular-nums" style={{ fontSize: 48, fontWeight: 900, fontFamily: FN, color: C3, marginTop: -16 }}>:</span>

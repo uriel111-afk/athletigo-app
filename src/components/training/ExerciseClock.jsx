@@ -16,9 +16,11 @@ import { formatDuration, formatDurationPadded, LTR_TIME } from '@/lib/duration';
 //   tabata           → startTabata(from tabata_data)
 //   stopwatch        → startStopwatch()
 //
-// Prepare is ALWAYS 0 from an exercise, so `totalDuration` is
-// unambiguously the exercise's own duration and elapsed can be read
-// as `totalDuration - display`.
+// Prepare is always 0 when this hook starts the clock itself. When it
+// ADOPTS a run the trainee started on the full clock face there may be
+// a prepare phase, but `totalDuration` describes the CURRENT phase, so
+// elapsed is still `totalDuration - display` inside the work phase and
+// the prepare seconds are never counted as work.
 //
 // The engine files (ClockContext.jsx, TabataTimer.jsx,
 // DynamicIntervalsTimer.jsx) are deliberately untouched. ClockContext
@@ -408,6 +410,12 @@ const engineHolder = { token: null };
 // rest seconds as work.
 export function useExerciseClock({ spec, clock, onElapsed, onStart }) {
   const [owned, setOwned] = useState(false);
+  // ARMED — the clock face is open, prefilled, and waiting for the
+  // trainee to press its own start. Nothing is running and nothing is
+  // claimed yet; the moment the shared engine comes alive this hook
+  // ADOPTS that run, so the measurement and the once-per-run write-back
+  // below are exactly the ones a hook-started run would have got.
+  const [armed, setArmed] = useState(false);
   const [swapOpen, setSwapOpen] = useState(false);
   const [resultSeconds, setResultSeconds] = useState(null);
 
@@ -495,6 +503,36 @@ export function useExerciseClock({ spec, clock, onElapsed, onStart }) {
   const confirmSwap = useCallback(() => { setSwapOpen(false); startNow(); }, [startNow]);
   const cancelSwap = useCallback(() => setSwapOpen(false), []);
 
+  // Arm without starting. The caller has just raised the full clock
+  // face prefilled with this exercise's values; the trainee is the one
+  // who starts it.
+  const arm = useCallback(() => {
+    if (!spec || !clock) return;
+    settledRef.current = false;
+    lastWorkElapsedRef.current = 0;
+    setResultSeconds(null);
+    setArmed(true);
+  }, [spec, clock]);
+
+  // The face was closed without ever being started — drop the arming so
+  // a clock started later somewhere else is never mistaken for this
+  // exercise's run.
+  const disarm = useCallback(() => setArmed(false), []);
+
+  // Adoption. The engine went live while we were armed: claim it.
+  useEffect(() => {
+    if (!armed || owned) return;
+    if (activeClock == null) return;
+    setArmed(false);
+    settledRef.current = false;
+    lastWorkElapsedRef.current = 0;
+    engineRunSeq += 1;
+    runTokenRef.current = engineRunSeq;
+    engineHolder.token = engineRunSeq;
+    setOwned(true);
+    if (typeof onStart === 'function') onStart();
+  }, [armed, owned, activeClock, onStart]);
+
   // Stop button — read elapsed first, then stop.
   const releaseClaim = useCallback(() => {
     if (engineHolder.token === runTokenRef.current) engineHolder.token = null;
@@ -557,8 +595,8 @@ export function useExerciseClock({ spec, clock, onElapsed, onStart }) {
   }, []);
 
   return {
-    owned, swapOpen, resultSeconds,
-    launch, confirmSwap, cancelSwap, stopNow, togglePause,
+    owned, armed, swapOpen, resultSeconds,
+    launch, arm, disarm, confirmSwap, cancelSwap, stopNow, togglePause,
     clearResult: () => setResultSeconds(null),
   };
 }

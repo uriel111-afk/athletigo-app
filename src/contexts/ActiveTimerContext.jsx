@@ -16,6 +16,10 @@ export const ActiveTimerProvider = ({ children }) => {
   // the clocks tab renders. Raised by the plan screen so a hold or a
   // timed exercise gets the full clock instead of an inline strip.
   const [showTimer, setShowTimer] = useState(false);
+  // The stopwatch overlay — GlobalStopwatch in App.jsx, the SAME
+  // StopwatchView the clocks tab renders. Raised by the plan screen for
+  // a rounds-only exercise, which has nothing to count down.
+  const [showStopwatch, setShowStopwatch] = useState(false);
   const [showDynamic, setShowDynamic] = useState(false);
   // TimerFooterBar only renders when a timer is active AND the user
   // explicitly minimized it (tap of the minimize button or nav-away).
@@ -33,6 +37,9 @@ export const ActiveTimerProvider = ({ children }) => {
   // trainee's own saved clock settings are never touched — the mirror
   // of the tabata's source flag.
   const [pendingTimerCfg, setPendingTimerCfg] = useState(null);
+  // The stopwatch has no values to prefill — only a name to show.
+  // Shape: { exerciseName, source: 'workout_exercise' }
+  const [pendingStopwatchCfg, setPendingStopwatchCfg] = useState(null);
 
   // Legacy single-slot getter — prefer tabata since it has richer info.
   const liveTimer = liveTimerTabata || liveTimerDynamic || liveTimerClock;
@@ -76,6 +83,8 @@ export const ActiveTimerProvider = ({ children }) => {
     setShowTabata,
     showTimer,
     setShowTimer,
+    showStopwatch,
+    setShowStopwatch,
     showDynamic,
     setShowDynamic,
     isMinimized,
@@ -84,6 +93,8 @@ export const ActiveTimerProvider = ({ children }) => {
     setPendingTabataCfg,
     pendingTimerCfg,
     setPendingTimerCfg,
+    pendingStopwatchCfg,
+    setPendingStopwatchCfg,
   };
 
   return (
