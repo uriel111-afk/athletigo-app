@@ -70,25 +70,11 @@ export default function RoadmapMap({ traineeId, currentUserId = null }) {
   if (!traineeId) return null;
   if (isLoading) return null;
 
-  // ── Empty ────────────────────────────────────────────────────────
-  if (!ladder) {
-    return (
-      <Frame>
-        <div style={{ padding: '28px 18px', textAlign: 'center' }}>
-          <div style={{ fontSize: 30, marginBottom: 8 }}>🗺️</div>
-          <div style={{ fontSize: 15, fontWeight: 800, color: CHARCOAL }}>
-            עדיין אין מסלול
-          </div>
-          <div style={{
-            fontSize: 12.5, color: MUTED, marginTop: 6, lineHeight: 1.6,
-          }}>
-            המאמן בונה מסלול תחנות על תרגיל אחד — כל תחנה היא שיא
-            שצריך לפרוץ, והאחרונה היא היעד.
-          </div>
-        </div>
-      </Frame>
-    );
-  }
+  // No ladder, no card. A trainee whose coach has not built a
+  // roadmap yet sees nothing here at all — not an empty state. The
+  // coach's own editor keeps its empty state, because the coach is
+  // the one who has something to do about it.
+  if (!ladder) return null;
 
   const { stations: rows, goal, currentIndex, exerciseName } = ladder;
   const trail = rows.slice(0, Math.max(0, rows.length - 1));  // goal is the band
