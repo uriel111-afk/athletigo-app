@@ -92,10 +92,18 @@ function SaveCheckmark({ show }) {
 }
 
 // Goals system v2 — measurable, trackable goals.
-//   Per-goal accordion card with a sparkline of every measurement.
-//   "+ הוסף מדידה" appends to goals.measurements JSONB and updates
-//   current_value. New goals open via NewGoalSheet (type picker
-//   then form).
+//   Per-goal accordion card with a start→current sparkline.
+//   "+ הוסף מדידה" updates current_value. New goals open via
+//   NewGoalSheet (type picker then form).
+//
+// COLUMN NAMES ARE THE LIVE ONES. This file used to write the v2
+// names from migrations/2026-05-04-goals-redesign.sql — goal_type,
+// start_value, unit, success_definition, measurements — and that
+// migration was never applied, so every insert here died with
+// PGRST204. The live table carries the same meanings under
+// category / starting_value / target_unit / description, and has
+// no home for a measurement history at all, so the per-measurement
+// series is gone and the chart plots start → current.
 
 const GOAL_PRESETS = [
   { type: 'distance',     icon: '🏃', label: 'ריצה / מרחק',  unit: 'ק"מ' },
@@ -113,18 +121,10 @@ const goalTypeIcon = (type) => {
   return found ? found.icon : '🎯';
 };
 
-const parseMeasurements = (raw) => {
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw === 'string' && raw) {
-    try { return JSON.parse(raw); } catch { return []; }
-  }
-  return [];
-};
-
 const getProgressPct = (goal) => {
-  const start = Number(goal.start_value);
+  const start = Number(goal.starting_value);
   const target = Number(goal.target_value);
-  const current = Number(goal.current_value ?? goal.start_value);
+  const current = Number(goal.current_value ?? goal.starting_value);
   if (!Number.isFinite(start) || !Number.isFinite(target) || target === start) return 0;
   const range = target - start;
   const advanced = current - start;
@@ -160,8 +160,8 @@ function NewGoalSheet({ onClose, traineeId, onSaved }) {
     try {
       // Open inputs — the trainee may type "10 חזרות" or "5 ק״מ".
       // parseFloat extracts the leading number for the NUMERIC
-      // start_value / target_value columns; the full string also
-      // lands in title / success_definition for free-text recall.
+      // starting_value / target_value columns; the full string also
+      // lands in title / description for free-text recall.
       const startNum = parseFloat(form.startValue);
       const targetNum = parseFloat(form.targetValue);
       const startVal = Number.isFinite(startNum) ? startNum : 0;
@@ -169,20 +169,17 @@ function NewGoalSheet({ onClose, traineeId, onSaved }) {
       const { error } = await supabase.from('goals').insert({
         trainee_id: traineeId,
         title: form.title.trim(),
-        goal_type: selectedType.type,
-        start_value: startVal,
+        // The preset id lands in category — the same column
+        // GoalFormDialog writes its goal_type into.
+        category: selectedType.type,
+        starting_value: startVal,
         current_value: startVal,
         target_value: targetVal,
-        unit: form.unit?.trim() || selectedType.unit || null,
-        success_definition: form.successDefinition?.trim() || null,
+        target_unit: form.unit?.trim() || selectedType.unit || null,
+        description: form.successDefinition?.trim() || null,
         target_date: form.targetDate || null,
         status: 'פעיל',
         source: 'manual',
-        measurements: JSON.stringify([{
-          date: new Date().toISOString(),
-          value: startVal,
-          note: 'מדידה ראשונית',
-        }]),
       });
       if (error) throw error;
       setSavedFlash(true);
@@ -396,20 +393,19 @@ function GoalCard({ goal, isOpen, onToggle, onMeasurementSaved }) {
   const [savedFlash, setSavedFlash] = useState(false);
 
   const pct = getProgressPct(goal);
-  const measurements = parseMeasurements(goal.measurements);
+  // Two points: where the goal started and where it stands. The live
+  // table keeps no measurement history, so there is nothing between
+  // them to plot.
   const chartData = [
-    { date: 'התחלה', value: Number(goal.start_value) || 0 },
-    ...measurements.map((m) => ({
-      date: new Date(m.date).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' }),
-      value: Number(m.value),
-    })).filter((d) => Number.isFinite(d.value)),
-  ];
+    { date: 'התחלה', value: Number(goal.starting_value) || 0 },
+    { date: 'עכשיו', value: Number(goal.current_value ?? goal.starting_value) },
+  ].filter((d) => Number.isFinite(d.value));
 
   const saveMeasurement = async () => {
     // Open input — accept "10 חזרות" or "5 ק״מ" too. parseFloat
-    // extracts the leading number for the chart point; the
-    // freeform note (full string) attaches as the "note" field
-    // so the trainee can recall what they actually wrote.
+    // extracts the leading number. The live table has no
+    // measurements column, so only the number is kept, on
+    // current_value.
     const val = parseFloat(measValue);
     if (!Number.isFinite(val)) {
       toast.error('יש להזין מספר במדידה');
@@ -417,18 +413,9 @@ function GoalCard({ goal, isOpen, onToggle, onMeasurementSaved }) {
     }
     setSaving(true);
     try {
-      const trimmed = (measValue || '').trim();
-      const note = trimmed && trimmed !== String(val) ? trimmed : null;
-      const entry = note
-        ? { date: new Date().toISOString(), value: val, note }
-        : { date: new Date().toISOString(), value: val };
-      const updated = [...measurements, entry];
       const { error } = await supabase
         .from('goals')
-        .update({
-          measurements: JSON.stringify(updated),
-          current_value: val,
-        })
+        .update({ current_value: val })
         .eq('id', goal.id);
       if (error) throw error;
       setMeasValue('');
@@ -474,7 +461,7 @@ function GoalCard({ goal, isOpen, onToggle, onMeasurementSaved }) {
           alignItems: 'center', justifyContent: 'center',
           fontSize: 24, flexShrink: 0,
         }}>
-          {goalTypeIcon(goal.goal_type)}
+          {goalTypeIcon(goal.category)}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
@@ -484,7 +471,7 @@ function GoalCard({ goal, isOpen, onToggle, onMeasurementSaved }) {
             {goal.title || goal.goal_name || 'יעד'}
           </div>
           <div style={{ fontSize: 13, color: '#888', marginTop: 3 }}>
-            {goal.current_value ?? goal.start_value ?? 0} / {goal.target_value ?? '?'} {goal.unit || ''}
+            {goal.current_value ?? goal.starting_value ?? 0} / {goal.target_value ?? '?'} {goal.target_unit || ''}
           </div>
         </div>
         <div style={{ textAlign: 'center', flexShrink: 0 }}>
@@ -496,13 +483,13 @@ function GoalCard({ goal, isOpen, onToggle, onMeasurementSaved }) {
 
       {isOpen && (
         <div style={{ borderTop: '1px solid #F5F5F5', padding: 16 }}>
-          {goal.success_definition && (
+          {goal.description && (
             <div style={{
               background: '#FFF5EE', borderRadius: 10, padding: '10px 14px',
               marginBottom: 14, fontSize: 13, color: '#FF6F20',
               borderRight: '3px solid #FF6F20', fontStyle: 'italic',
             }}>
-              הצלחה = {goal.success_definition}
+              הצלחה = {goal.description}
             </div>
           )}
 
@@ -520,7 +507,7 @@ function GoalCard({ goal, isOpen, onToggle, onMeasurementSaved }) {
                   <YAxis tick={{ fontSize: 10, fill: '#aaa' }} axisLine={false} tickLine={false} />
                   <Tooltip
                     contentStyle={{ background: '#1a1a1a', border: 'none', borderRadius: 10, color: 'white', fontSize: 12 }}
-                    formatter={(v) => [`${v} ${goal.unit || ''}`, goal.title || 'יעד']}
+                    formatter={(v) => [`${v} ${goal.target_unit || ''}`, goal.title || 'יעד']}
                   />
                   <Area
                     type="monotone" dataKey="value"
@@ -537,7 +524,7 @@ function GoalCard({ goal, isOpen, onToggle, onMeasurementSaved }) {
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
               <input
                 type="text"
-                placeholder={goal.unit ? `לדוגמה: 10 ${goal.unit}` : 'הזן ערך'}
+                placeholder={goal.target_unit ? `לדוגמה: 10 ${goal.target_unit}` : 'הזן ערך'}
                 value={measValue}
                 onChange={(e) => setMeasValue(e.target.value.slice(0, GOAL_TITLE_MAX))}
                 autoFocus
