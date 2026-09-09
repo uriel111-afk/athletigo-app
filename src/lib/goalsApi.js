@@ -7,6 +7,14 @@ import { supabase } from '@/lib/supabaseClient';
 //   'הושג'  = achieved (cancellation by goal completion)
 //   'בוטל'  = cancelled (manual cancel)
 
+// Trim + lowercase + collapse whitespace so two strings that "look
+// the same" compare equal. THE one definition — goals, records and
+// the roadmap all key on a free-text exercise name and every one of
+// them has to normalise it identically. It also exists in SQL, as
+// public.ag_norm_exercise_name(), for the roadmap triggers.
+export const normalizeExerciseName = (name) =>
+  (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
 export const GOAL_STATUS = {
   ACTIVE: 'פעיל',
   ACHIEVED: 'הושג',

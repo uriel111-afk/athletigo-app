@@ -12,6 +12,7 @@ import PermGate from "@/components/PermGate";
 import FullscreenChart from "@/components/FullscreenChart";
 import GoalsOverviewChart from "@/components/charts/GoalsOverviewChart";
 import BaselineGraph from "@/components/charts/BaselineGraph";
+import RoadmapMap from "@/components/roadmap/RoadmapMap";
 
 // Visual progress dashboard for the trainee.
 // 4 stat cards on top → baseline JPS chart → personal records bar →
@@ -365,6 +366,14 @@ function ProgressInner() {
             סקירה ויזואלית של כל המסע שלך
           </div>
         </div>
+
+        {/* ── The roadmap, first thing on the records screen ──────
+            It lives HERE, inside the existing שיאים area, rather
+            than behind a nav tab of its own: the map is a reading of
+            personal_records, so it belongs where the records are.
+            Read-only — every write it can reach goes through
+            personal_records. */}
+        <RoadmapMap traineeId={traineeId} currentUserId={traineeId} />
 
         {noData ? (
           <div style={{ textAlign: 'center', padding: 40, color: 'var(--ag-text-soft)' }}>

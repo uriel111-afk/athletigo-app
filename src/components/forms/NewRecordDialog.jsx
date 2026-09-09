@@ -3,9 +3,9 @@ import { supabase } from '@/lib/supabaseClient';
 import { toast } from 'sonner';
 import {
   DEFAULT_EXERCISES, RECORD_UNITS, RECORD_TYPE_OPTIONS,
-  exerciseInfoFor, unitLabel,
+  exerciseInfoFor,
 } from '@/lib/recordExercises';
-import { checkAchievement } from '@/lib/goalsApi';
+import { createPersonalRecord } from '@/lib/recordsApi';
 
 const O = 'var(--ag-accent)';
 const BORDER = 'var(--ag-border)';
@@ -146,104 +146,36 @@ export default function NewRecordDialog({
       return;
     }
 
-    // Pull existing records for this exercise to compute previous_value,
-    // improvement, and is_personal_best.
-    const { data: prior, error: priorErr } = await supabase
-      .from('personal_records')
-      .select('id, value, date, is_personal_best')
-      .eq('trainee_id', resolvedTraineeId)
-      .eq('name', exerciseName)
-      .or('status.is.null,status.neq.deleted');
-    if (priorErr) {
-      console.error('[Records] prior fetch failed:', priorErr);
-    }
-
-    let previousValue = null;
-    let maxPrev = -Infinity;
-    let priorPbId = null;
-    if (Array.isArray(prior) && prior.length) {
-      const byDateDesc = [...prior].sort(
-        (a, b) => String(b.date || '').localeCompare(String(a.date || ''))
-      );
-      previousValue = Number(byDateDesc[0]?.value);
-      for (const r of prior) {
-        const v = Number(r.value);
-        if (v > maxPrev) maxPrev = v;
-        if (r.is_personal_best) priorPbId = r.id;
-      }
-    }
-
-    const isPersonalBest = !Number.isFinite(maxPrev) || numericValue > maxPrev;
-    const improvement = Number.isFinite(previousValue)
-      ? +(numericValue - previousValue).toFixed(2)
-      : null;
-
-    if (isPersonalBest && priorPbId) {
-      await supabase
-        .from('personal_records')
-        .update({ is_personal_best: false })
-        .eq('id', priorPbId);
-    }
-
-    const payload = {
-      trainee_id: resolvedTraineeId,
-      coach_id: isCoach ? (coachId || currentUserId || null) : null,
-      record_type: form.type || 'max_reps',
-      name: exerciseName,
-      unit: form.unit || 'reps',
-      value: numericValue,
-      date: form.date || today,
-      notes: form.notes?.trim() || null,
-      exercise_category: exerciseInfo?.category || 'general',
-      previous_value: Number.isFinite(previousValue) ? previousValue : null,
-      improvement,
-      video_url: form.videoUrl?.trim() || null,
-      rpe: form.rpe ? Number(form.rpe) : null,
-      quality_rating: form.quality ? Number(form.quality) : null,
-      technique_acquired: form.type === 'technique',
-      technique_name: form.type === 'technique' ? (form.techniqueName?.trim() || null) : null,
-      is_personal_best: isPersonalBest,
-      created_by_role: isCoach ? 'coach' : 'trainee',
-      created_by_user_id: currentUserId || null,
-    };
-
-    const { error: insertErr } = await supabase
-      .from('personal_records')
-      .insert(payload);
-
-    if (insertErr) {
-      console.error('[Records] insert error:', insertErr);
-      toast.error('שגיאה בשמירה: ' + insertErr.message);
+    // The insert itself — previous_value / improvement /
+    // is_personal_best, the prior-PB demotion, the notification and
+    // the goal check — lives in lib/recordsApi so the roadmap's
+    // station screen writes a record through the exact same path.
+    let isPersonalBest = false;
+    let achievementResult = null;
+    try {
+      const res = await createPersonalRecord({
+        traineeId: resolvedTraineeId,
+        coachId,
+        isCoach,
+        currentUserId,
+        exerciseName,
+        value: numericValue,
+        unit: form.unit || 'reps',
+        recordType: form.type || 'max_reps',
+        date: form.date || today,
+        notes: form.notes?.trim() || null,
+        videoUrl: form.videoUrl?.trim() || null,
+        rpe: form.rpe || null,
+        quality: form.quality || null,
+        techniqueName: form.techniqueName?.trim() || null,
+        exerciseCategory: exerciseInfo?.category || 'general',
+      });
+      isPersonalBest = res.isPersonalBest;
+      achievementResult = res.achievement;
+    } catch (e) {
+      toast.error('שגיאה בשמירה: ' + (e?.message || 'נסה שוב'));
       setSaving(false);
       return;
-    }
-
-    if (isPersonalBest && resolvedTraineeId) {
-      try {
-        await supabase.from('notifications').insert({
-          user_id: resolvedTraineeId,
-          type: 'new_record',
-          title: '🏆 שיא אישי חדש!',
-          message: `${exerciseName}: ${numericValue} ${unitLabel(form.unit)}`,
-          is_read: false,
-        });
-      } catch (e) {
-        console.warn('[Records] notification failed:', e?.message);
-      }
-    }
-
-    // Goal achievement check — fires AFTER the personal_records insert
-    // lands so the celebration popup reads against the freshest state.
-    // Best-effort: failure here doesn't undo the record save.
-    let achievementResult = null;
-    if (resolvedTraineeId && Number.isFinite(numericValue)) {
-      try {
-        achievementResult = await checkAchievement(
-          resolvedTraineeId, exerciseName, numericValue
-        );
-      } catch (e) {
-        console.warn('[Records] achievement check failed:', e?.message);
-      }
     }
 
     toast.success(isPersonalBest ? '🏆 שיא אישי חדש!' : '✓ שיא נשמר');

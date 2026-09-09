@@ -12,7 +12,7 @@ import { exerciseInfoFor, unitLabel } from '@/lib/recordExercises';
 import ProgressGraph from '@/components/training/ProgressGraph';
 import NewRecordDialog from '@/components/forms/NewRecordDialog';
 import { Chip } from '@/components/ui/Chip';
-import { GOAL_STATUS } from '@/lib/goalsApi';
+import { GOAL_STATUS, normalizeExerciseName } from '@/lib/goalsApi';
 import GoalAchievedPopup from '@/components/trainee/GoalAchievedPopup';
 import RecordsByDay from '@/components/profile/RecordsByDay';
 import { useWindowSize } from '@/hooks/useWindowSize';
@@ -22,6 +22,8 @@ import TimeRangeSelector from '@/components/charts/TimeRangeSelector';
 import ExerciseNumericTrendGraph from '@/components/charts/ExerciseNumericTrendGraph';
 import TraineeProgressBoard from '@/components/profile/TraineeProgressBoard';
 import { aggregateRecords } from '@/lib/chartDataHelpers';
+import RoadmapMap from '@/components/roadmap/RoadmapMap';
+import RoadmapEditor from '@/components/roadmap/RoadmapEditor';
 
 const O = '#FF6F20';
 const CARD_BG = '#FFFFFF';
@@ -98,14 +100,6 @@ const CustomLegend = ({ payload }) => {
     </div>
   );
 };
-
-// Trim + lowercase + collapse whitespace so two strings that "look
-// the same" actually compare equal. Required for goal↔records
-// matching because users can create goals via different forms (the
-// goal dialog, the achievement popup CTA, an old onboarding row) and
-// the casing/spacing isn't always identical to the records.name.
-const normalizeExerciseName = (name) =>
-  (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 // Find the single active goal whose exercise_name normalizes to the
 // passed exerciseName. Returns null when none matches.
@@ -1014,6 +1008,18 @@ export default function ProgressTab({ traineeId }) {
           chart with a chip picker, and the honesty rules the old one
           did not carry. The shared component itself is untouched and
           still serves the plan folder. */}
+
+      {/* The roadmap. Coaches get the EDITOR — the only place in the
+          client that writes roadmap_stations, always with coach_id
+          from AuthContext. Everyone else (the trainee looking at
+          their own profile) gets the read-only map, the same one
+          the שיאים screen shows. status / reached_at are stamped by
+          the database triggers in either case. */}
+      <section style={{ marginTop: 24 }}>
+        {isCoach
+          ? <RoadmapEditor traineeId={traineeId} />
+          : <RoadmapMap traineeId={traineeId} currentUserId={traineeId} />}
+      </section>
 
       {/* Per-day folder view — sits between the master chart and
           the per-exercise folders. Mirrors the chip filter so a
