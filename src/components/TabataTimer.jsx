@@ -14,7 +14,12 @@ import { useNavigate } from 'react-router-dom';
 import { useExerciseBackGuard } from '@/hooks/useExerciseBackGuard';
 import { useAuth } from '@/lib/AuthContext';
 import { ChevronRight } from 'lucide-react';
-import { formatDuration, formatDurationPadded, LTR_TIME } from '@/lib/duration';
+import { formatDuration, formatDurationPadded } from '@/lib/duration';
+import {
+  DIGITS_WRAP, phaseTitle, RING_DIGITS, COUNTER_LABEL, COUNTER_VALUE,
+  TOTAL_LABEL, TOTAL_VALUE, NEXT_LINE, BTN_PRIMARY, BTN_SECONDARY, BTN_NAV,
+  CHIP, HEADER_ROW, HEADER_TITLE_BOX, BACK_BTN,
+} from '@/lib/clockTypography';
 
 const backBtnStyle = {
   position: 'absolute', top: 16, left: 16, zIndex: 5,
@@ -779,7 +784,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         }}>
           <div style={{ fontSize: 12, color: '#888', fontWeight: 500, marginBottom: 4 }}>זמן כולל</div>
           <div style={{ fontSize: 28, fontWeight: 700, color: '#FF6F20', fontFamily: "'Barlow Condensed', sans-serif" }}>
-            <span style={LTR_TIME}>{twLabel}</span>
+            <span style={DIGITS_WRAP}>{twLabel}</span>
           </div>
         </div>
 
@@ -1015,16 +1020,6 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
 
   return (
     <div style={{ background: bg, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', paddingTop: 'max(env(safe-area-inset-top), 8px)', paddingBottom: 'max(env(safe-area-inset-bottom), 10px)', direction: 'rtl', color: textPrimary, overflow: 'hidden', transition: 'background 0.3s ease, color 0.3s ease', position: 'relative' }}>
-      <button
-        onClick={handleClockBack}
-        onPointerDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        aria-label="חזרה"
-        style={backBtnStyle}
-      >
-        <ChevronRight size={24} color="#1a1a1a" />
-      </button>
-
       {/* ─── TOP SECTION (3 rows) ──────────────────────────────────
           Top-only redesign per spec. Logic, sounds, the central
           ring + digit, and the bottom controls below remain
@@ -1032,52 +1027,56 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           was changed. */}
       <div style={{ width: '100%', maxWidth: 460, flexShrink: 0 }}>
 
-        {/* ROW 1 — phase title + minimize button. Title fills the
-            row right-aligned (RTL), minimize floats top-left. */}
-        <div style={{ position: 'relative', width: '100%', minHeight: 64 }}>
-          <button
-            type="button"
-            onClick={doMinimize}
-            aria-label="מזער טיימר"
-            style={{
-              position: 'absolute', top: 0, left: 0,
-              background: isWork ? 'rgba(255,255,255,0.2)' : 'rgba(255,111,32,0.1)',
-              color: isWork ? '#FFFFFF' : '#FF6F20',
-              border: 'none', borderRadius: 10,
-              padding: '8px 14px',
-              fontSize: 14, fontWeight: 700,
-              cursor: 'pointer', touchAction: 'manipulation',
-              zIndex: 5, minHeight: 36,
-            }}
-          >מזער ↗</button>
+        {/* ROW 1 — one flex row, nothing absolute. RTL: the first
+            child sits on the right, so title (right, flex:1) →
+            minimize chip → back button (left, fixed 44px). The back
+            button used to float absolute over the minimize chip and
+            cut its text. */}
+        <div style={HEADER_ROW}>
           {(() => {
             const phaseLabel =
               phase.type === 'work'     ? 'עבודה' :
               phase.type === 'rest'     ? 'מנוחה' :
               phase.type === 'set_rest' ? 'מנוחה בין סטים' :
               phase.type === 'prep'     ? 'הכנה' : '';
-            // Short labels (עבודה / מנוחה / הכנה) get the 64px headline.
-            // The long "מנוחה בין סטים" (13 chars) shrinks to 42px AND
-            // gets reserved padding on the visual-left so it never
-            // crosses under the minimize button at top:0 left:0.
-            const titleSize = phaseLabel.length > 6 ? 42 : 64;
+            // Short labels get the full headline; the long
+            // "מנוחה בין סטים" steps down so it fits beside the chip.
             return (
-              <div style={{
-                textAlign: 'right',
-                paddingLeft: 100, // reserve room for the minimize button on the visual left
-                paddingTop: 4,
-                direction: 'rtl',
-                fontSize: titleSize,
-                fontWeight: 800,
-                lineHeight: 0.9,
-                letterSpacing: '-2px',
-                color: isWork ? '#FFFFFF' : '#FF6F20',
-                whiteSpace: 'nowrap',
-              }}>
-                {phaseLabel}
+              <div style={HEADER_TITLE_BOX}>
+                <div style={{
+                  ...phaseTitle(phaseLabel),
+                  paddingTop: 4,
+                  color: isWork ? '#FFFFFF' : '#FF6F20',
+                }}>
+                  {phaseLabel}
+                </div>
               </div>
             );
           })()}
+          <button
+            type="button"
+            onClick={doMinimize}
+            aria-label="מזער טיימר"
+            style={{
+              flexShrink: 0,
+              background: isWork ? 'rgba(255,255,255,0.2)' : 'rgba(255,111,32,0.1)',
+              color: isWork ? '#FFFFFF' : '#FF6F20',
+              border: 'none', borderRadius: 10,
+              padding: '8px 14px',
+              ...CHIP, whiteSpace: 'nowrap',
+              cursor: 'pointer', touchAction: 'manipulation',
+              minHeight: 36,
+            }}
+          >מזער ↗</button>
+          <button
+            onClick={handleClockBack}
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            aria-label="חזרה"
+            style={BACK_BTN}
+          >
+            <ChevronRight size={24} color="#1a1a1a" />
+          </button>
         </div>
 
         {/* ROW 2 — round + set, side by side. Round chip stays
@@ -1100,15 +1099,13 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
           >
             <span style={{
               pointerEvents: 'none',
-              fontSize: 24, fontWeight: 600,
+              ...COUNTER_LABEL,
               color: isWork ? 'rgba(255,255,255,0.75)' : '#888',
             }}>סבב</span>
             <span style={{
               pointerEvents: 'none',
-              fontSize: 42, fontWeight: 800,
-              fontVariantNumeric: 'tabular-nums',
+              ...COUNTER_VALUE,
               color: isWork ? '#FFFFFF' : '#1A1A1A',
-              lineHeight: 1.15,
             }}>
               {Math.max(1, phase.round)}/{cfg.rounds}
             </span>
@@ -1121,14 +1118,12 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
             padding: '10px 12px',
           }}>
             <span style={{
-              fontSize: 24, fontWeight: 600,
+              ...COUNTER_LABEL,
               color: isWork ? 'rgba(255,255,255,0.75)' : '#888',
             }}>סט</span>
             <span style={{
-              fontSize: 42, fontWeight: 800,
-              fontVariantNumeric: 'tabular-nums',
+              ...COUNTER_VALUE,
               color: isWork ? '#FFFFFF' : '#1A1A1A',
-              lineHeight: 1.15,
             }}>
               {Math.max(1, phase.set)}/{cfg.sets}
             </span>
@@ -1189,18 +1184,17 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
             </svg>
           )}
           <span style={{
-            fontSize: 22, fontWeight: 600,
+            ...TOTAL_LABEL,
             color: isWork ? 'rgba(255,255,255,0.8)' : '#FF6F20',
           }}>⏱ זמן כולל</span>
+          {/* DIGITS_WRAP, not LTR_TIME: the bare LTR span had no
+              font-size, so index.css's `* { font-size }` wildcard
+              rendered the 72px value at ~15px. */}
           <span style={{
-            fontSize: 72, fontWeight: 700,
-            fontVariantNumeric: 'tabular-nums',
-            fontFamily: "'Barlow Condensed', sans-serif",
-            letterSpacing: '0.5px',
-            lineHeight: 1.15,
+            ...TOTAL_VALUE,
             color: isWork ? '#FFFFFF' : '#FF6F20',
           }}>
-            <span style={LTR_TIME}>{totalLabel}</span>
+            <span style={DIGITS_WRAP}>{totalLabel}</span>
           </span>
         </div>
       </div>
@@ -1214,7 +1208,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
               strokeDasharray={CIRC} strokeDashoffset={dashOffset} transform={`rotate(-90 ${CX} ${CY})`} style={{ transition: 'stroke 0.3s ease' }} />
           </svg>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 'min(55vw, 180px)', fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1, color: textPrimary }}>{display}</span>
+            <span style={{ ...RING_DIGITS, color: textPrimary }}>{display}</span>
           </div>
         </div>
       </div>
@@ -1224,7 +1218,7 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
         {nextP && nextP.type !== 'done' && (
           <div style={{
             textAlign: 'center', marginBottom: 8,
-            fontSize: 22, fontWeight: 700,
+            ...NEXT_LINE,
             color: isWork ? 'rgba(255,255,255,0.85)' : 'rgba(26,26,26,0.85)',
             padding: '8px 0', letterSpacing: '1px',
           }}>
@@ -1235,15 +1229,15 @@ export default function TabataTimer({ onMinimize, setLiveTimer }) {
             last child at the left. To put הבא on the right and
             חזור on the left, render הבא first. Styles unchanged. */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          <button onClick={skipToNext} style={{ flex: 1, height: 48, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>הבא ▶</button>
-          <button onClick={skipToPrev} style={{ flex: 1, height: 48, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>◀ חזור</button>
+          <button onClick={skipToNext} style={{ flex: 1, ...BTN_NAV, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 14, cursor: 'pointer', touchAction: 'manipulation' }}>הבא ▶</button>
+          <button onClick={skipToPrev} style={{ flex: 1, ...BTN_NAV, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 14, cursor: 'pointer', touchAction: 'manipulation' }}>◀ חזור</button>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           {paused
-            ? <button onClick={handleResume} style={{ flex: 2, height: 56, fontSize: 22, fontWeight: 800, background: primaryBtn.bg, color: primaryBtn.fg, border: 'none', borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>המשך ▶</button>
-            : <button onClick={handlePause} style={{ flex: 2, height: 56, fontSize: 22, fontWeight: 800, background: primaryBtn.bg, color: primaryBtn.fg, border: 'none', borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>השהה ‖</button>
+            ? <button onClick={handleResume} style={{ flex: 2, ...BTN_PRIMARY, background: primaryBtn.bg, color: primaryBtn.fg, border: 'none', borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>המשך ▶</button>
+            : <button onClick={handlePause} style={{ flex: 2, ...BTN_PRIMARY, background: primaryBtn.bg, color: primaryBtn.fg, border: 'none', borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>השהה ‖</button>
           }
-          <button onClick={handleStop} style={{ flex: 1, height: 56, fontSize: 18, fontWeight: 800, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>עצור</button>
+          <button onClick={handleStop} style={{ flex: 1, ...BTN_SECONDARY, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>עצור</button>
         </div>
       </div>
       <RoundJumpPicker

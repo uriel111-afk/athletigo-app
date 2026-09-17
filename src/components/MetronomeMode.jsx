@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { BPM_DIGITS, BTN_PRIMARY, CHIP, CARD_LABEL } from '@/lib/clockTypography';
 
 // Fixed output gain — no user slider. The DynamicsCompressor after the
 // gain keeps it distortion-free; the phone's media (STREAM_MUSIC) volume
@@ -309,7 +310,7 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
           }}
         >
           <div style={{ fontSize: 15, fontWeight: 700, color: '#D9C7B4' }}>{bpm < MAX_BPM ? bpm + 1 : ''}</div>
-          <div style={{ fontSize: 'clamp(55px, 11vh, 78px)', fontWeight: 900, color: '#1A1A1A', letterSpacing: -1, transform: dragging ? 'scale(1.12)' : 'scale(1)', transition: 'transform 0.12s ease' }}>{bpm}</div>
+          <div style={{ ...BPM_DIGITS, color: '#1A1A1A', transform: dragging ? 'scale(1.12)' : 'scale(1)', transition: 'transform 0.12s ease' }}>{bpm}</div>
           <div style={{ fontSize: 12, fontWeight: 700, color: ORANGE, marginTop: -2 }}>BPM</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#D9C7B4' }}>{bpm > MIN_BPM ? bpm - 1 : ''}</div>
         </div>
@@ -330,7 +331,7 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
         <div style={{
           flexShrink: 0, padding: '7px 14px', borderRadius: 999,
           background: 'linear-gradient(90deg, #FF6F20, #FF8F4D)', color: '#fff',
-          fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap',
+          ...CHIP, whiteSpace: 'nowrap',
         }}>{paceLabel(bpm)}</div>
       </div>
 
@@ -341,13 +342,13 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
         overflow: 'hidden', transition: 'max-height .28s ease, opacity .28s ease, transform .28s ease',
       }}>
         <div style={{ background: 'linear-gradient(135deg, #FFF0E5, #FFE3D1)', border: '1px solid #F5D3BC', borderRadius: 16, padding: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: '#8A4A1E', marginBottom: 8 }}>🔥 אחוז תרגול מהקצב</div>
+          <div style={{ ...CARD_LABEL, color: '#8A4A1E', marginBottom: 8 }}>🔥 אחוז תרגול מהקצב</div>
           <div style={{ display: 'flex', gap: 6, justifyContent: 'space-between' }}>
             {[50, 75, 85, 95, 100].map((p) => {
               const on = percent === p;
               return (
                 <button key={p} type="button" onClick={() => setPercent(p)} style={{
-                  flex: 1, height: 40, borderRadius: 10, cursor: 'pointer', fontSize: 14, fontWeight: 800,
+                  flex: 1, height: 40, minHeight: 40, borderRadius: 10, cursor: 'pointer', ...CHIP,
                   border: on ? 'none' : '1px solid #F0C9AC',
                   background: on ? ORANGE : '#FFF7F0', color: on ? '#fff' : '#8A4A1E',
                   boxShadow: on ? '0 0 12px 2px rgba(255,111,32,0.5)' : 'none',
@@ -366,7 +367,7 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
       {/* 5. CONTROLS — two equal cards */}
       <div style={{ display: 'flex', gap: 10 }}>
         <div style={{ ...card, flex: 1 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: '#8A6A52', marginBottom: 8, textAlign: 'center' }}>פעימות בסבב</div>
+          <div style={{ ...CARD_LABEL, color: '#8A6A52', marginBottom: 8, textAlign: 'center' }}>פעימות בסבב</div>
           <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
             {[2, 3, 4].map((n) => {
               const on = beatsPerBar === n;
@@ -381,7 +382,7 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
           </div>
         </div>
         <div style={{ ...card, flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: '#8A6A52', marginBottom: 8 }}>קצב בהקשה</div>
+          <div style={{ ...CARD_LABEL, color: '#8A6A52', marginBottom: 8 }}>קצב בהקשה</div>
           <button type="button" onClick={tap} style={{
             width: 48, height: 48, borderRadius: '50%', cursor: 'pointer', border: '1px solid #F0E4D0',
             background: '#FFF4ED', fontSize: 24, lineHeight: 1,
@@ -391,8 +392,8 @@ export default function MetronomeMode({ active, onRunningChange, stopSignal = 0 
 
       {/* 6. START / STOP */}
       <button type="button" onClick={toggle} style={{
-        width: '100%', minHeight: 56, borderRadius: 16, border: 'none', cursor: 'pointer',
-        fontSize: 20, fontWeight: 900, color: '#fff',
+        width: '100%', ...BTN_PRIMARY, minHeight: 56, borderRadius: 16, border: 'none', cursor: 'pointer',
+        color: '#fff',
         background: running ? 'linear-gradient(135deg,#2B2B2B,#454545)' : 'linear-gradient(135deg,#FF6F20,#FF8A42)',
         boxShadow: running ? '0 6px 18px rgba(0,0,0,0.25)' : '0 8px 22px rgba(255,111,32,0.45)',
       }}>{running ? '⏸ עצור' : '▶ התחל'}</button>

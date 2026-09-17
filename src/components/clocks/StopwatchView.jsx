@@ -7,6 +7,10 @@ import {
   BRAND, FN, FL, C3, fmtStopwatch,
   SOUND_START, SOUND_RESET, unlockAudio,
 } from '@/components/clocks/clockUi';
+import {
+  PHASE_TITLE_LONG, CLOCK_DIGITS, CLOCK_DIGITS_BIG, BTN_PRIMARY, BTN_SECONDARY,
+  HEADER_ROW, HEADER_TITLE_BOX, BACK_BTN,
+} from '@/lib/clockTypography';
 
 /**
  * StopwatchView — the clocks tab's stopwatch, lifted out of Clocks.jsx
@@ -24,7 +28,7 @@ import {
  */
 
 const MinimizeBtn = ({ onClick }) => (
-  <button onClick={onClick} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+  <button onClick={onClick} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 8, width: 36, height: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
       <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>
       <line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/>
@@ -62,35 +66,43 @@ function StopwatchView({ onMinimize, onBack, exerciseName = null, bigDigits = fa
 
   if (active) {
     return (
-      <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" dir="rtl"
-        style={{ backgroundColor: BRAND, padding: '20px 16px 100px', gap: 16, position: 'fixed' }}>
-        <button
-          onClick={handleClockBack}
-          onPointerDown={(e) => e.stopPropagation()}
-          onTouchStart={(e) => e.stopPropagation()}
-          aria-label="חזרה"
-          style={{
-            position: 'absolute', top: 16, left: 16, zIndex: 5,
-            width: 44, height: 44, borderRadius: 12,
-            background: '#FFFFFF', border: '1px solid #F0E4D0',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer',
-          }}
-        >
-          <ChevronRight size={24} color="#1a1a1a" />
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <MinimizeBtn onClick={onMinimize} />
-          <div style={{ fontSize: 14, fontWeight: 700, fontFamily: FN, color: 'rgba(255,255,255,0.7)', letterSpacing: 2, textTransform: 'uppercase' }}>STOPWATCH</div>
+      <div className="fixed inset-0 z-[90] flex flex-col items-center" dir="rtl"
+        style={{
+          backgroundColor: BRAND, position: 'fixed', gap: 16,
+          // Fills the viewport: header on top, digits + laps in the
+          // flex:1 middle, primary button anchored to the bottom.
+          justifyContent: 'space-between',
+          padding: '0 16px',
+          paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))',
+          paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+        }}>
+        <div style={{ width: '100%', flexShrink: 0 }}>
+          {/* Header — one flex row, nothing absolute (same as tabata).
+              RTL: title right (flex:1) → minimize → back button. */}
+          <div style={HEADER_ROW}>
+            <div style={HEADER_TITLE_BOX}>
+              <div style={{ ...PHASE_TITLE_LONG, fontFamily: FN, color: 'rgba(255,255,255,0.7)', letterSpacing: 2, textTransform: 'uppercase' }}>STOPWATCH</div>
+            </div>
+            <MinimizeBtn onClick={onMinimize} />
+            <button
+              onClick={handleClockBack}
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              aria-label="חזרה"
+              style={BACK_BTN}
+            >
+              <ChevronRight size={24} color="#1a1a1a" />
+            </button>
+          </div>
+          {exerciseName && (
+            <div style={{
+              fontSize: 16, fontWeight: 700, fontFamily: FL, color: '#FFF',
+              textAlign: 'center', maxWidth: 320, lineHeight: 1.3, margin: '8px auto 0',
+            }}>{exerciseName}</div>
+          )}
         </div>
-        {exerciseName && (
-          <div style={{
-            fontSize: 16, fontWeight: 700, fontFamily: FL, color: '#FFF',
-            textAlign: 'center', maxWidth: 320, lineHeight: 1.3,
-          }}>{exerciseName}</div>
-        )}
-        <div className="tabular-nums leading-none" style={{ fontSize: bigDigits ? 'clamp(60px, 17vw, 108px)' : 'clamp(52px, 15vw, 96px)', fontWeight: 800, fontVariantNumeric: 'tabular-nums', fontFamily: FN, color: '#FFF', letterSpacing: -2, lineHeight: 1 }}>{fmtStopwatch(display)}</div>
+        <div style={{ flex: 1, minHeight: 0, width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <div className="tabular-nums leading-none" style={{ ...(bigDigits ? CLOCK_DIGITS_BIG : CLOCK_DIGITS), color: '#FFF' }}>{fmtStopwatch(display)}</div>
         {laps.length > 0 && (
           <div className="w-full rounded-xl p-3 max-h-28 overflow-y-auto" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}>
             {laps.map((l, i) => (
@@ -101,25 +113,26 @@ function StopwatchView({ onMinimize, onBack, exerciseName = null, bigDigits = fa
             ))}
           </div>
         )}
-        <div className="flex w-full" style={{ gap: 10 }}>
+        </div>
+        <div className="flex w-full" style={{ gap: 10, flexShrink: 0 }}>
           <button onClick={() => { SOUND_RESET(); reset(); }} className="flex items-center justify-center active:scale-90 transition-transform"
-            style={{ flex: 1, height: 56, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', fontSize: 16, fontWeight: 700, fontFamily: FL, color: '#FFF', border: 'none' }}>
+            style={{ flex: 1, ...BTN_SECONDARY, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', fontFamily: FL, color: '#FFF', border: 'none' }}>
             <RotateCcw className="w-5 h-5 ml-1.5" />אפס
           </button>
           {isRunning && (
             <button onClick={lapStopwatch} className="flex items-center justify-center active:scale-90 transition-transform"
-              style={{ flex: 1, height: 56, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', fontSize: 16, fontWeight: 700, fontFamily: FL, color: '#FFF', border: 'none' }}>
+              style={{ flex: 1, ...BTN_SECONDARY, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', fontFamily: FL, color: '#FFF', border: 'none' }}>
               <Flag className="w-5 h-5 ml-1.5" />הקפה
             </button>
           )}
           {isRunning ? (
             <button onClick={() => { pause(); }} className="flex items-center justify-center active:scale-95 transition-transform"
-              style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: '#FFF', fontSize: 20, fontWeight: 700, fontFamily: FL, color: BRAND }}>
+              style={{ flex: 2, ...BTN_PRIMARY, borderRadius: 12, backgroundColor: '#FFF', fontFamily: FL, color: BRAND }}>
               <Pause className="w-6 h-6 ml-2" />השהה
             </button>
           ) : (
             <button onClick={() => { SOUND_START(); resume(); }} className="flex items-center justify-center active:scale-95 transition-transform"
-              style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: '#FFF', fontSize: 20, fontWeight: 700, fontFamily: FL, color: BRAND }}>
+              style={{ flex: 2, ...BTN_PRIMARY, borderRadius: 12, backgroundColor: '#FFF', fontFamily: FL, color: BRAND }}>
               <Play className="w-6 h-6 ml-2" />המשך
             </button>
           )}
@@ -157,7 +170,7 @@ function StopwatchView({ onMinimize, onBack, exerciseName = null, bigDigits = fa
           textAlign: 'center', maxWidth: 320, lineHeight: 1.3, marginTop: -8,
         }}>{exerciseName}</div>
       )}
-      <div className="text-center tabular-nums leading-none" style={{ fontSize: 80, fontWeight: 900, fontFamily: FN, color: '#D1D5DB' }}>00:00.00</div>
+      <div className="text-center tabular-nums leading-none" style={{ ...CLOCK_DIGITS, color: '#D1D5DB' }}>00:00.00</div>
       <button onClick={() => { unlockAudio(); SOUND_START(); startStopwatch(); }} className="w-full flex items-center justify-center active:scale-[0.98] transition-transform"
         style={{ height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
         <Play className="w-6 h-6 ml-2" />התחל

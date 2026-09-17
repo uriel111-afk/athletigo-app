@@ -10,6 +10,10 @@ import {
   SOUND_RESET, SOUND_TICK, SOUND_ALERT, SOUND_TRIPLE_BELL,
   unlockAudio, playSoftBreath,
 } from './clockUi';
+import {
+  phaseTitle, CLOCK_DIGITS, CLOCK_DIGITS_BIG, BTN_PRIMARY, BTN_SECONDARY,
+  HEADER_ROW, HEADER_TITLE_BOX, BACK_BTN,
+} from '@/lib/clockTypography';
 
 /**
  * TimerView — the countdown clock, MOVED here verbatim from
@@ -181,45 +185,53 @@ export default function TimerView({
   const offset = circ * (1 - Math.max(0, Math.min(1, progress)));
 
   return (
-    <div className="fixed inset-0 z-[90] flex flex-col items-center justify-center" dir="rtl"
-      style={{ backgroundColor: '#FFFFFF', padding: '20px 16px 100px', gap: 16, position: 'fixed' }}>
-      <button
-        onClick={handleClockBack}
-        onPointerDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        aria-label="חזרה"
-        style={{
-          position: 'absolute', top: 16, left: 16, zIndex: 5,
-          width: 44, height: 44, borderRadius: 12,
-          background: '#FFFFFF', border: '1px solid #F0E4D0',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: 'pointer',
-        }}
-      >
-        <ChevronRight size={24} color="#1a1a1a" />
-      </button>
-      {exerciseName && (
-        <div style={{
-          fontSize: 24, fontWeight: 700, fontFamily: FL, color: C1,
-          textAlign: 'center', lineHeight: 1.3, maxWidth: 460,
-          overflowWrap: 'anywhere', padding: '0 8px',
-        }}>{exerciseName}</div>
-      )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={onMinimize} style={{ background: '#FFF0E8', border: 'none', borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={BRAND} strokeWidth="2.5" strokeLinecap="round">
-            <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>
-            <line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/>
-          </svg>
-        </button>
-        <div className="transition-colors duration-300" style={{ fontSize: 28, fontWeight: 700, fontFamily: FL, color: isPrep ? C2 : BRAND }}>
-          {isPrep ? 'הכנה' : 'ספירה לאחור'}
+    <div className="fixed inset-0 z-[90] flex flex-col items-center" dir="rtl"
+      style={{
+        backgroundColor: '#FFFFFF', position: 'fixed', gap: 16,
+        // Fills the viewport: header on top, ring in the flex:1 middle,
+        // primary button anchored to the bottom safe area.
+        justifyContent: 'space-between',
+        padding: '0 16px',
+        paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))',
+        paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+      }}>
+      <div style={{ width: '100%', flexShrink: 0 }}>
+        {/* Header — one flex row, nothing absolute (same as tabata).
+            RTL: title right (flex:1) → minimize → back button. */}
+        <div style={HEADER_ROW}>
+          <div style={HEADER_TITLE_BOX}>
+            <div className="transition-colors duration-300" style={{ ...phaseTitle(isPrep ? 'הכנה' : 'ספירה לאחור'), fontFamily: FL, color: isPrep ? C2 : BRAND }}>
+              {isPrep ? 'הכנה' : 'ספירה לאחור'}
+            </div>
+          </div>
+          <button onClick={onMinimize} style={{ background: '#FFF0E8', border: 'none', borderRadius: 8, width: 36, height: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={BRAND} strokeWidth="2.5" strokeLinecap="round">
+              <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>
+              <line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/>
+            </svg>
+          </button>
+          <button
+            onClick={handleClockBack}
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            aria-label="חזרה"
+            style={BACK_BTN}
+          >
+            <ChevronRight size={24} color="#1a1a1a" />
+          </button>
         </div>
+        {exerciseName && (
+          <div style={{
+            fontSize: 24, fontWeight: 700, fontFamily: FL, color: C1,
+            textAlign: 'center', lineHeight: 1.3, maxWidth: 460,
+            overflowWrap: 'anywhere', padding: '0 8px', margin: '8px auto 0',
+          }}>{exerciseName}</div>
+        )}
       </div>
       {/* Ring fills ~88% of the viewport width (capped 460px for tablets).
           The SVG keeps its 0 0 280 280 viewBox, so cx/cy/r and the 10-unit
           stroke all scale proportionally with the rendered size. */}
+      <div style={{ flex: 1, minHeight: 0, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div className="relative flex-shrink-0" style={{ width: 'min(88vw, 460px)', aspectRatio: '1 / 1' }}>
         <svg width="100%" height="100%" viewBox="0 0 280 280">
           <circle cx="140" cy="140" r={R} fill="none" stroke="#FFF0E8" strokeWidth="10" />
@@ -228,25 +240,25 @@ export default function TimerView({
             className="transition-colors duration-300" style={{ transition: 'stroke-dashoffset 0.15s linear, stroke 0.3s ease' }} />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          {/* Digits styled to match the Tabata running screen: Barlow
-              Condensed (FN), weight 800, tabular-nums, letterSpacing -2,
-              lineHeight 1 — clamp sized to fit the MM:SS inside the ring. */}
-          <span className="tabular-nums leading-none" style={{ fontSize: bigDigits ? 'clamp(88px, 22vw, 132px)' : 'clamp(64px, 18vw, 116px)', fontWeight: 800, fontVariantNumeric: 'tabular-nums', fontFamily: FN, color: C1, letterSpacing: -2, lineHeight: 1 }}>{fmtMMSS(display)}</span>
+          {/* Digits styled to match the Tabata running screen — sizes
+              come from the shared clock typography tokens. */}
+          <span className="tabular-nums leading-none" style={{ ...(bigDigits ? CLOCK_DIGITS_BIG : CLOCK_DIGITS), color: C1 }}>{fmtMMSS(display)}</span>
         </div>
+      </div>
       </div>
       <div className="flex w-full" style={{ gap: 10 }}>
         <button onClick={() => { SOUND_RESET(); stop(); }} className="flex items-center justify-center active:scale-90 transition-transform"
-          style={{ flex: 1, height: 56, borderRadius: 12, border: `1px solid ${BRD}`, backgroundColor: '#FFF', fontSize: 16, fontWeight: 700, fontFamily: FL, color: C2 }}>
+          style={{ flex: 1, ...BTN_SECONDARY, borderRadius: 12, border: `1px solid ${BRD}`, backgroundColor: '#FFF', fontFamily: FL, color: C2 }}>
           <RotateCcw className="w-5 h-5 ml-1.5" />אפס
         </button>
         {isRunning ? (
           <button onClick={() => { pause(); }} className="flex items-center justify-center active:scale-95 transition-transform"
-            style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
+            style={{ flex: 2, ...BTN_PRIMARY, borderRadius: 12, backgroundColor: BRAND, fontFamily: FL, color: '#FFF' }}>
             <Pause className="w-6 h-6 ml-2" />השהה
           </button>
         ) : (
           <button onClick={() => { playSoftBreath(); resume(); }} className="flex items-center justify-center active:scale-95 transition-transform"
-            style={{ flex: 2, height: 56, borderRadius: 12, backgroundColor: BRAND, fontSize: 20, fontWeight: 700, fontFamily: FL, color: '#FFF' }}>
+            style={{ flex: 2, ...BTN_PRIMARY, borderRadius: 12, backgroundColor: BRAND, fontFamily: FL, color: '#FFF' }}>
             <Play className="w-6 h-6 ml-2" />המשך
           </button>
         )}

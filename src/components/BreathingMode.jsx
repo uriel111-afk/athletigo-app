@@ -1,4 +1,8 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  PHASE_TITLE, COUNTER_VALUE, BREATH_DIGITS, BREATH_DIGITS_ONE, BREATH_DIGITS_TWO,
+  NEXT_LINE, NEXT_LINE_LABEL, BTN_SECONDARY,
+} from '@/lib/clockTypography';
 import { useNavigate } from 'react-router-dom';
 import { ensureBreathPermission, showBreathNotification, clearBreathNotification } from '@/lib/breathNotification';
 import { useExerciseBackGuard } from '@/hooks/useExerciseBackGuard';
@@ -756,7 +760,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
       }}>
         {/* Round line — only during the exercise (hidden in prep). Deep brand
             orange, independent of the (now green) exhale phase colour. */}
-        <div style={{ fontSize: 'clamp(28px,5vh,40px)', fontWeight: 800, color: 'var(--brand-orange-deep)', minHeight: 44, lineHeight: 1.1 }}>
+        <div style={{ ...COUNTER_VALUE, color: 'var(--brand-orange-deep)', minHeight: 44, lineHeight: 1.1 }}>
           {(!done && mode === 'run') ? `סבב ${roundCur} ${rounds === 'inf' ? '' : `מתוך ${rounds}`}` : ''}
         </div>
 
@@ -776,7 +780,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
             const twoDigit = String(bigNum).length >= 2;
             // Sized to sit inside the MOST-contracted circle (scale SMALL);
             // 2-digit steps down so it never clips. Fixed — doesn't breathe.
-            const numFont = twoDigit ? 'clamp(66px,14vh,104px)' : 'clamp(100px,21vh,158px)';
+            const numFont = twoDigit ? BREATH_DIGITS_TWO : BREATH_DIGITS_ONE;
             const title = mode === 'prep' ? 'תתכוננו' : phaseName;
             // Per-phase title colour (earth & sea tokens, keyed by phase).
             // Prep keeps the inhale colour.
@@ -785,7 +789,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
             const circleBg = (mode !== 'prep' && contracted) ? CIRCLE_DOWN : CIRCLE_UP;
             return (
               <>
-                <div style={{ fontSize: 'clamp(40px,8vh,56px)', fontWeight: 900, color: titleColor, lineHeight: 1, transition: 'color 0.3s ease' }}>{title}</div>
+                <div style={{ ...PHASE_TITLE, color: titleColor, lineHeight: 1, transition: 'color 0.3s ease' }}>{title}</div>
                 {/* Square = time-meter base. Rounded, slightly-darker cream. */}
                 <div style={{
                   position: 'relative', width: 'clamp(220px,46vh,340px)', aspectRatio: '1 / 1',
@@ -820,7 +824,7 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
                   {/* Big number — fixed & centered over the whole square, so
                       it stays huge and stable regardless of the circle scale. */}
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                    <span style={{ fontSize: numFont, fontWeight: 900, color: 'var(--breath-number)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{bigNum}</span>
+                    <span style={{ ...BREATH_DIGITS, fontSize: numFont, color: 'var(--breath-number)' }}>{bigNum}</span>
                   </div>
                 </div>
               </>
@@ -844,12 +848,12 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
                 transform: `scale(${nextScale})`, transformOrigin: 'center',
               }}>
                 {nextInfo.finishing ? (
-                  <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--breath-ink-soft)' }}>סיום מתקרב</span>
+                  <span style={{ ...NEXT_LINE, color: 'var(--breath-ink-soft)' }}>סיום מתקרב</span>
                 ) : (
                   <>
-                    <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--breath-label)' }}>{'הבא: '}</span>
-                    <span style={{ fontSize: 22, fontWeight: 800, color: PHASE_COLOR[nextInfo.key] || 'var(--breath-ink-soft)', transition: 'color 0.3s ease' }}>{nextInfo.name}</span>
-                    <span style={{ fontSize: 22, fontWeight: 400, color: 'var(--breath-ink-soft)' }}>{` · ${nextInfo.dur} ${nextInfo.dur === 1 ? 'שנייה' : 'שניות'}`}</span>
+                    <span style={{ ...NEXT_LINE_LABEL, color: 'var(--breath-label)' }}>{'הבא: '}</span>
+                    <span style={{ ...NEXT_LINE, fontWeight: 800, color: PHASE_COLOR[nextInfo.key] || 'var(--breath-ink-soft)', transition: 'color 0.3s ease' }}>{nextInfo.name}</span>
+                    <span style={{ ...NEXT_LINE, fontWeight: 400, color: 'var(--breath-ink-soft)' }}>{` · ${nextInfo.dur} ${nextInfo.dur === 1 ? 'שנייה' : 'שניות'}`}</span>
                   </>
                 )}
               </span>
@@ -858,8 +862,8 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
         )}
 
         <button type="button" onClick={done ? () => setDone(false) : stop} style={{
-          width: '100%', minHeight: 50, borderRadius: 14, cursor: 'pointer',
-          border: '1px solid var(--breath-stop-border)', background: 'var(--breath-card)', color: 'var(--breath-ink-soft)', fontSize: 16, fontWeight: 800,
+          width: '100%', ...BTN_SECONDARY, flexShrink: 0, borderRadius: 14, cursor: 'pointer',
+          border: '1px solid var(--breath-stop-border)', background: 'var(--breath-card)', color: 'var(--breath-ink-soft)',
         }}>{done ? 'סגור' : '⏹ עצור'}</button>
       </div>
     );

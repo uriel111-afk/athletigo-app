@@ -12,6 +12,11 @@ import { useNavigate } from 'react-router-dom';
 import { useExerciseBackGuard } from '@/hooks/useExerciseBackGuard';
 import { useAuth } from '@/lib/AuthContext';
 import { ChevronRight } from 'lucide-react';
+import {
+  phaseTitle, RING_DIGITS, COUNTER_LABEL, COUNTER_VALUE,
+  TOTAL_LABEL, TOTAL_VALUE, NEXT_LINE, BTN_PRIMARY, BTN_SECONDARY, BTN_NAV,
+  CHIP, HEADER_ROW, HEADER_TITLE_BOX, BACK_BTN,
+} from '@/lib/clockTypography';
 
 const backBtnStyle = {
   position: 'absolute', top: 16, left: 16, zIndex: 5,
@@ -871,51 +876,47 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
       transition: 'background 0.3s ease, color 0.3s ease',
       position: 'relative',
     }}>
-      <button
-        onClick={handleClockBack}
-        onPointerDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        aria-label="חזרה"
-        style={backBtnStyle}
-      >
-        <ChevronRight size={24} color="#1a1a1a" />
-      </button>
       {/* TOP — phase title + minimize + set counter + total row */}
       <div style={{ width: '100%', maxWidth: 460, flexShrink: 0 }}>
-        <div style={{ position: 'relative', width: '100%', minHeight: 64 }}>
+        {/* Header — one flex row, nothing absolute (same as tabata).
+            RTL: title right (flex:1) → minimize chip → back button. */}
+        <div style={HEADER_ROW}>
+          {(() => {
+            const phaseLabel = PHASE_LABEL[phase.type] || '';
+            return (
+              <div style={HEADER_TITLE_BOX}>
+                <div style={{
+                  ...phaseTitle(phaseLabel),
+                  paddingTop: 4,
+                  color: isWork ? '#FFFFFF' : accent,
+                }}>{phaseLabel}</div>
+              </div>
+            );
+          })()}
           <button
             type="button"
             onClick={doMinimize}
             aria-label="מזער טיימר"
             style={{
-              position: 'absolute', top: 0, left: 0,
+              flexShrink: 0,
               background: isWork ? 'rgba(255,255,255,0.2)' : (isPrep ? 'rgba(234,179,8,0.12)' : 'rgba(255,111,32,0.1)'),
               color: isWork ? '#FFFFFF' : accent,
               border: 'none', borderRadius: 10,
               padding: '8px 14px',
-              fontSize: 14, fontWeight: 700,
+              ...CHIP, whiteSpace: 'nowrap',
               cursor: 'pointer', touchAction: 'manipulation',
-              zIndex: 5, minHeight: 36,
+              minHeight: 36,
             }}
           >מזער ↗</button>
-          {(() => {
-            const phaseLabel = PHASE_LABEL[phase.type] || '';
-            const titleSize = phaseLabel.length > 6 ? 42 : 64;
-            return (
-              <div style={{
-                textAlign: 'right',
-                paddingLeft: 100,
-                paddingTop: 4,
-                direction: 'rtl',
-                fontSize: titleSize,
-                fontWeight: 800,
-                lineHeight: 0.9,
-                letterSpacing: '-2px',
-                color: isWork ? '#FFFFFF' : accent,
-                whiteSpace: 'nowrap',
-              }}>{phaseLabel}</div>
-            );
-          })()}
+          <button
+            onClick={handleClockBack}
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            aria-label="חזרה"
+            style={BACK_BTN}
+          >
+            <ChevronRight size={24} color="#1a1a1a" />
+          </button>
         </div>
 
         {/* SET counter row — hidden during prep since we aren't in a set yet */}
@@ -929,14 +930,12 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
             padding: '10px 12px',
           }}>
             <span style={{
-              fontSize: 24, fontWeight: 600,
+              ...COUNTER_LABEL,
               color: isWork ? 'rgba(255,255,255,0.75)' : '#888',
             }}>סט</span>
             <span style={{
-              fontSize: 36, fontWeight: 800,
-              fontVariantNumeric: 'tabular-nums',
+              ...COUNTER_VALUE,
               color: isWork ? '#FFFFFF' : '#1A1A1A',
-              lineHeight: 1.15,
             }}>
               {phase.setIdx + 1}/{sets.length}
             </span>
@@ -984,13 +983,9 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
               />
             </svg>
           )}
-          <span style={{ fontSize: 22, fontWeight: 600, color: isWork ? 'rgba(255,255,255,0.8)' : accent }}>⏱ זמן כולל</span>
+          <span style={{ ...TOTAL_LABEL, color: isWork ? 'rgba(255,255,255,0.8)' : accent }}>⏱ זמן כולל</span>
           <span style={{
-            fontSize: 72, fontWeight: 700,
-            fontVariantNumeric: 'tabular-nums',
-            fontFamily: "'Barlow Condensed', sans-serif",
-            letterSpacing: '0.5px',
-            lineHeight: 1.15,
+            ...TOTAL_VALUE,
             color: isWork ? '#FFFFFF' : accent,
           }}>
             {String(totalMin).padStart(2, '0')}:{String(totalSec).padStart(2, '0')}
@@ -1007,7 +1002,7 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
               strokeDasharray={CIRC} strokeDashoffset={dashOffset} transform={`rotate(-90 ${CX} ${CY})`} style={{ transition: 'stroke 0.3s ease' }} />
           </svg>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 'min(55vw, 180px)', fontWeight: 800, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1, color: textPrimary }}>{display}</span>
+            <span style={{ ...RING_DIGITS, color: textPrimary }}>{display}</span>
           </div>
         </div>
       </div>
@@ -1017,7 +1012,7 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
         {nextP && nextP.type !== 'done' && (
           <div style={{
             textAlign: 'center', marginBottom: 8,
-            fontSize: 22, fontWeight: 700,
+            ...NEXT_LINE,
             color: isWork ? 'rgba(255,255,255,0.85)' : 'rgba(26,26,26,0.85)',
             padding: '8px 0', letterSpacing: '1px',
           }}>
@@ -1025,15 +1020,15 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          <button onClick={skipToNext} style={{ flex: 1, height: 48, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>הבא ▶</button>
-          <button onClick={skipToPrev} style={{ flex: 1, height: 48, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 14, fontSize: 18, fontWeight: 800, cursor: 'pointer', touchAction: 'manipulation' }}>◀ חזור</button>
+          <button onClick={skipToNext} style={{ flex: 1, ...BTN_NAV, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 14, cursor: 'pointer', touchAction: 'manipulation' }}>הבא ▶</button>
+          <button onClick={skipToPrev} style={{ flex: 1, ...BTN_NAV, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 14, cursor: 'pointer', touchAction: 'manipulation' }}>◀ חזור</button>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           {paused
-            ? <button onClick={handleResume} style={{ flex: 2, height: 56, fontSize: 22, fontWeight: 800, background: primaryBtn.bg, color: primaryBtn.fg, border: 'none', borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>המשך ▶</button>
-            : <button onClick={handlePause} style={{ flex: 2, height: 56, fontSize: 22, fontWeight: 800, background: primaryBtn.bg, color: primaryBtn.fg, border: 'none', borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>השהה ‖</button>
+            ? <button onClick={handleResume} style={{ flex: 2, ...BTN_PRIMARY, background: primaryBtn.bg, color: primaryBtn.fg, border: 'none', borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>המשך ▶</button>
+            : <button onClick={handlePause} style={{ flex: 2, ...BTN_PRIMARY, background: primaryBtn.bg, color: primaryBtn.fg, border: 'none', borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>השהה ‖</button>
           }
-          <button onClick={handleStop} style={{ flex: 1, height: 56, fontSize: 18, fontWeight: 800, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>עצור</button>
+          <button onClick={handleStop} style={{ flex: 1, ...BTN_SECONDARY, background: secondaryBtn.bg, color: secondaryBtn.fg, border: secondaryBtn.border, borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation' }}>עצור</button>
         </div>
       </div>
     </div>

@@ -279,17 +279,23 @@ export default function Clocks() {
           <button onClick={() => setFocused(null)} aria-label="חזרה לרשימה" style={{ width: 40, height: 40, borderRadius: 10, background: '#FFF9F0', border: `1px solid ${BRD}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
             <ChevronRight size={22} color="#1a1a1a" />
           </button>
-          <div style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a', fontFamily: FN, whiteSpace: 'nowrap' }}>{MODES.find(m => m.id === focused)?.label}</div>
-          <div style={{ flex: 1 }} />
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a', fontFamily: FN, whiteSpace: 'nowrap', flexShrink: 0 }}>{MODES.find(m => m.id === focused)?.label}</div>
+          {/* Chips take the rest of the row and scroll sideways on a
+              narrow phone instead of squeezing under the back button.
+              The inner row's auto margin pushes the chips to the far
+              edge but collapses to 0 on overflow, so every chip stays
+              reachable by scrolling (justify-content:flex-end wouldn't). */}
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
+            <div style={{ display: 'flex', gap: 6, marginInlineStart: 'auto', flexShrink: 0 }}>
             {MODES.filter(m => m.id !== focused).map(m => {
               const Icon = m.icon; const run = isModeRunning(m.id);
               return (
-                <button key={m.id} onClick={() => focus(m.id)} aria-label={m.label} style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${run ? '#FF6F20' : BRD}`, background: run ? '#FFF0E5' : '#FFF9F0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <button key={m.id} onClick={() => focus(m.id)} aria-label={m.label} style={{ flexShrink: 0, width: 36, height: 36, minHeight: 36, borderRadius: 10, border: `1px solid ${run ? '#FF6F20' : BRD}`, background: run ? '#FFF0E5' : '#FFF9F0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                   <Icon className="w-4 h-4" style={{ color: run ? '#FF6F20' : '#8A6A52' }} />
                 </button>
               );
             })}
+            </div>
           </div>
         </div>
       )}
