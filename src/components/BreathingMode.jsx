@@ -2,7 +2,9 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   PHASE_TITLE, COUNTER_VALUE, BREATH_DIGITS, BREATH_DIGITS_ONE, BREATH_DIGITS_TWO,
   NEXT_LINE, NEXT_LINE_LABEL, BTN_SECONDARY,
+  TOTAL_LABEL, TOTAL_VALUE, DIGITS_WRAP,
 } from '@/lib/clockTypography';
+import { formatDurationPadded } from '@/lib/duration';
 import { useNavigate } from 'react-router-dom';
 import { ensureBreathPermission, showBreathNotification, clearBreathNotification } from '@/lib/breathNotification';
 import { useExerciseBackGuard } from '@/hooks/useExerciseBackGuard';
@@ -540,6 +542,42 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
 
   const cycleMs = (seq) => seq.reduce((s, p) => s + p.dur, 0) * 1000;
 
+  /**
+   * TOTAL REMAINING — how long until the WHOLE exercise ends, in
+   * seconds, the way the tabata clock counts its own total.
+   *
+   * The flat sequence already holds every phase of every round
+   * (buildFlat tags each entry with its round), so "all remaining
+   * phases across all remaining rounds" is simply: what is left of
+   * the phase running now, plus the duration of every entry after
+   * it. No separate round arithmetic, and it reads the SAME
+   * seqRef/cfg the exercise is actually running — nothing here
+   * defines a duration of its own.
+   *
+   * Prep is counted while it runs, exactly as the tabata total
+   * counts its own countdown: the figure is the time until the
+   * session is over, not the time until the breathing starts.
+   *
+   * Returns null when there is nothing to count down to — infinity
+   * has no end, and neither does an exercise that has not begun.
+   * Called during render; every tick of the phase clock re-renders
+   * this screen, so the figure counts down live.
+   */
+  const calcTotalRemaining = () => {
+    if (isInfRef.current) return null;
+    const seq = seqRef.current || [];
+    if (!seq.length) return null;
+    const sessionSec = seq.reduce((t, ph) => t + (Number(ph.dur) || 0), 0);
+    // Still counting in: the whole session is still ahead of us.
+    if (mode === 'prep') return Math.max(0, prepLeft) + sessionSec;
+    const cur = curRef.current;
+    if (!cur) return null;
+    const elapsed = (performance.now() - phaseStartRef.current) / 1000;
+    let left = Math.max(0, (Number(cur.dur) || 0) - elapsed);
+    for (let i = idxRef.current + 1; i < seq.length; i++) left += Number(seq[i].dur) || 0;
+    return left;
+  };
+
   // Frame fill on requestAnimationFrame — smooth, and anchored on the
   // exercise-start timestamp so it self-corrects after a background/resume
   // (no drift, no catch-up). Idle for infinity (no defined end).
@@ -752,6 +790,14 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
 
   // ── Running / done full-screen ──
   if (running || done) {
+    // The whole-session countdown, formatted by the ONE duration
+    // formatter every other clock face uses (mm:ss, padded, minutes
+    // on the left) and isolated LTR so the bidi algorithm cannot
+    // flip it inside this RTL screen.
+    const totalLeftSec = calcTotalRemaining();
+    const totalText = (!done && totalLeftSec != null)
+      ? formatDurationPadded(Math.ceil(totalLeftSec))
+      : null;
     return (
       <div dir="rtl" style={{
         height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -763,6 +809,26 @@ export default function BreathingMode({ active, onRunningChange, stopSignal = 0 
         <div style={{ ...COUNTER_VALUE, color: 'var(--brand-orange-deep)', minHeight: 44, lineHeight: 1.1 }}>
           {(!done && mode === 'run') ? `סבב ${roundCur} ${rounds === 'inf' ? '' : `מתוך ${rounds}`}` : ''}
         </div>
+
+        {/* TOTAL REMAINING — the whole exercise, not the phase. Sits
+            where the tabata clock puts its own total: in the stats
+            block above the big face, a small label beside a
+            secondary figure, so it never competes with the phase
+            number inside the circle. Hidden on infinity, which has
+            no end to count to. */}
+        {totalText && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: 10, minWidth: 0, marginTop: 2,
+          }}>
+            <span style={{ ...TOTAL_LABEL, color: 'var(--breath-label)' }}>⏱ נותרו</span>
+            {/* DIGITS_WRAP, never a bare span: index.css's wildcard
+                font-size rule would otherwise shrink the figure. */}
+            <span style={{ ...TOTAL_VALUE, color: 'var(--brand-orange-deep)' }}>
+              <span style={DIGITS_WRAP}>{totalText}</span>
+            </span>
+          </div>
+        )}
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'clamp(14px,3vh,26px)', width: '100%' }}>
           {done ? (
