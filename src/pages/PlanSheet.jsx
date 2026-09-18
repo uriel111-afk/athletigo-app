@@ -1552,6 +1552,55 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                 borderRadius: 5, overflow: 'hidden', boxSizing: 'border-box',
               };
               const strip = { height: 4, background: theme.hue, flexShrink: 0 };
+
+              // ── COLLAPSED: one full-width bar in the section's own
+              //    colour. The name and the count sit in the MIDDLE of
+              //    the sheet, not shrunk onto the right rail; the
+              //    chevron is pinned to the rail side so the bar lines
+              //    up with the label card it replaces. Tap to expand.
+              if (isShut) {
+                const n = rows.length;
+                const countText = isNotes
+                  ? (n === 1 ? 'הערה אחת' : `${n} הערות`)
+                  : (n === 1 ? 'תרגיל אחד' : `${n} תרגילים`);
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    onClick={toggle}
+                    aria-expanded={false}
+                    style={{
+                      ...cardShell, width: '100%', display: 'block',
+                      background: theme.bg, color: theme.fg,
+                      padding: 0, marginBottom: 8, textAlign: 'center',
+                      cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    <div style={strip} />
+                    <div style={{
+                      position: 'relative',
+                      padding: '8px 30px 9px',
+                      display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', gap: 7, minWidth: 0,
+                    }}>
+                      <span style={{
+                        fontSize: 12, fontWeight: 500, lineHeight: 1.25,
+                        minWidth: 0, overflow: 'hidden',
+                        textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>{section.section_name || cat}</span>
+                      <span style={{ fontSize: 11, lineHeight: 1.25, opacity: 0.75, flexShrink: 0 }}>
+                        {countText}
+                      </span>
+                      <span style={{
+                        position: 'absolute', insetInlineStart: 10, top: '50%',
+                        transform: 'translateY(-50%)',
+                        fontSize: 10, lineHeight: 1, opacity: 0.7,
+                      }}>◂</span>
+                    </div>
+                  </button>
+                );
+              }
+
               return (
                 <div key={section.id} style={{
                   display: 'flex', gap: 5, marginBottom: 8, alignItems: 'stretch',
@@ -1580,14 +1629,8 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         fontSize: 11, lineHeight: 1.25, fontWeight: 500,
                         overflowWrap: 'anywhere', maxWidth: '100%',
                       }}>{section.section_name || cat}</span>
-                      <span style={{ fontSize: 9, lineHeight: 1, opacity: 0.7 }}>
-                        {isShut ? '◂' : '▾'}
-                      </span>
-                      {isShut ? (
-                        <span style={{ fontSize: 9, lineHeight: 1.2, whiteSpace: 'nowrap', opacity: 0.85 }}>
-                          {rows.length}
-                        </span>
-                      ) : rail ? (
+                      <span style={{ fontSize: 9, lineHeight: 1, opacity: 0.7 }}>▾</span>
+                      {rail ? (
                         <span style={{
                           fontSize: 9, lineHeight: 1.3, opacity: 0.85,
                           overflowWrap: 'anywhere',
@@ -1596,8 +1639,9 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                     </div>
                   </button>
 
-                  {/* Content card — fills the rest. */}
-                  {isShut ? null : (
+                  {/* Content card — fills the rest. The collapsed
+                      case returned above, so this always draws. */}
+                  {(
                     <div style={{ ...cardShell, flex: 1, minWidth: 0 }}>
                       <div style={strip} />
                       {rows.map((ex, i) => {
