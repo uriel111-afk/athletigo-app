@@ -90,7 +90,8 @@ const BOX_IDLE    = '#D5C8B6';
 // Depth. Cards float off the cream; the frame sits above the desk.
 const CARD_SHADOW  = '0 2px 6px rgba(45,42,38,0.09)';
 const FRAME_SHADOW = '0 6px 18px rgba(36,31,26,0.17)';
-const BOX_INSET    = 'inset 0 1px 2px rgba(45,42,38,0.10)';
+// The dialog's boxes carry the inset now, inline with their own
+// larger size.
 
 const SANS = "'Rubik', system-ui, -apple-system, sans-serif";
 
@@ -222,21 +223,9 @@ function ParamBlock({ value, label, size = 19 }) {
   );
 }
 
-/**
- * The coach's hint. Its own line under the row, indented past the
- * ordinal so it reads as belonging to the name above it. REGULAR
- * weight — it is an instruction, not data.
- */
-function HintLine({ text, indent }) {
-  if (!text) return null;
-  return (
-    <div style={{
-      fontSize: 11, fontWeight: 400, color: MUTED, lineHeight: 1.45,
-      paddingInlineStart: indent, marginTop: 5,
-      overflowWrap: 'anywhere',
-    }}>{text}</div>
-  );
-}
+// The row's hint line and its technique-count line are gone with the
+// rest of the row's furniture: the sheet prints a name and a target,
+// and the dialog prints the hint and the full technique list.
 
 // Durations are formatted by src/lib/duration.js — the ONE formatter.
 // The local formatDuration() that used to live here was the fourth copy in the
@@ -421,21 +410,6 @@ export function shortContainerTitle(name, repTargets) {
   return stripped || full;
 }
 
-/** "3 טכניקות" with a chevron — the row's whole reference to the list. */
-function TechniqueHint({ count, indent }) {
-  if (!count) return null;
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 4,
-      fontSize: 11, fontWeight: 400, color: MUTED, lineHeight: 1.45,
-      paddingInlineStart: indent, marginTop: 5,
-    }}>
-      <span>{techniqueCountLabel(count)}</span>
-      <ChevronLeft size={12} color={MUTED} style={{ flexShrink: 0 }} />
-    </div>
-  );
-}
-
 /** The list itself, one technique per line. Dialog only. */
 function TechniqueList({ techniques }) {
   if (!techniques?.length) return null;
@@ -544,27 +518,9 @@ function boxBorder(savedValue, target) {
   return Number(savedValue) >= t ? GREEN : UNDER;
 }
 
-/** The green save control. Appears beside a box the moment it is typed in. */
-function SaveDot({ onClick, size = 22, title = 'שמור' }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      onPointerDown={(e) => e.stopPropagation()}
-      aria-label={title}
-      title={title}
-      style={{
-        flexShrink: 0, width: size, height: size, minHeight: size,
-        borderRadius: '50%', border: 'none', background: GREEN,
-        color: WHITE, padding: 0, cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: 'inherit',
-      }}
-    >
-      <Check size={Math.round(size * 0.6)} strokeWidth={3} color={WHITE} />
-    </button>
-  );
-}
+// The per-box SaveDot is gone: there is one save control now, the
+// green button at the foot of the dialog, and it writes every box the
+// dialog holds through the same saveRow().
 
 /**
  * ClockShortcut — the launcher, and the running block it opens.
@@ -921,6 +877,25 @@ export default function PlanSheet() {
   // The row a tap opened, or null. Carries everything the enlarged
   // view needs, including its own save function.
   const [detail, setDetail] = useState(null);
+
+  // ── The dialog steps aside for a clock ─────────────────────────
+  // The clock launcher lives in the dialog now, and the face it
+  // raises is a fixed overlay that the dialog would otherwise sit
+  // on top of — the trainee could see the clock but not reach its
+  // controls. So: the moment a clock face actually goes up, the
+  // dialog closes. Watching the overlay flags rather than firing on
+  // the tap is what makes this survive the swap prompt — if another
+  // clock is running, the prompt is answered first and the dialog
+  // only steps aside once the new face is really raised.
+  const {
+    showTabata: clockShowTabata,
+    showTimer: clockShowTimer,
+    showStopwatch: clockShowStopwatch,
+  } = useActiveTimer() || {};
+  const anyClockFaceUp = !!(clockShowTabata || clockShowTimer || clockShowStopwatch);
+  useEffect(() => {
+    if (anyClockFaceUp) setDetail(null);
+  }, [anyClockFaceUp]);
 
   // ── Plan + sections + exercises. Three reads, no embeds: this DB has
   //    no foreign keys, so PostgREST embeds are not available. ────────
@@ -1343,8 +1318,11 @@ export default function PlanSheet() {
   // technique count — with 14px clear above and below the lot. When
   // the padding sat here instead, a hint line was pressed against the
   // divider and the row read as if it had been cut off.
+  // minHeight is what makes every row the SAME height: a check-only
+  // row carries no param block, and without a floor it would sit
+  // shorter than its neighbours and break the column.
   const rowLine = {
-    display: 'flex', alignItems: 'center', gap: 6,
+    display: 'flex', alignItems: 'center', gap: 6, minHeight: 34,
   };
   // 14px on an exercise row, 11px on a sub row inside a container.
   const rowPad = { padding: '14px 9px' };
@@ -1356,7 +1334,6 @@ export default function PlanSheet() {
     border: `1px solid ${DIVIDER}`,
     boxShadow: CARD_SHADOW, boxSizing: 'border-box',
   };
-  const subRowPad = { padding: '11px 9px' };
   const ordinalStyle = { fontSize: 13, fontWeight: 600, color: ACCENT, flexShrink: 0, lineHeight: 1.35 };
   // The ONLY shrinking element on the row. Everything else refuses.
   const nameStyle = (size) => ({
@@ -1369,16 +1346,10 @@ export default function PlanSheet() {
   const spacerStyle = { flexGrow: 1, flexShrink: 0, flexBasis: 16, minWidth: 16 };
   const starStyle = { fontSize: 11, color: ACCENT, flexShrink: 0, lineHeight: 1.3 };
 
-  /**
-   * What the text side can still afford at 360px.
-   *
-   * The pill and the param block never shrink, so on a row carrying a
-   * lot of boxes they have to step aside or the name goes to zero and
-   * they get cut in half. Both are in the tap dialog, which is where
-   * this sheet puts everything that will not fit on the line.
-   */
-  const showPill = (boxCount) => boxCount < 5;
-  const showParam = (boxCount) => boxCount < 6;
+  // The old "what can the text side still afford" helpers are gone.
+  // Nothing competes with the name on a row any more: no boxes, no
+  // pill. The name gets the line, and ellipsises only against the
+  // target and the chevron.
 
   // 13px on the page, 25px under the finger. The hit area cannot come
   // from padding — padding sits INSIDE the border, so it would draw a
@@ -1401,24 +1372,9 @@ export default function PlanSheet() {
     opacity: locked && !on ? 0.75 : 1,
   });
 
-  const boxStyle = (key, target, w, h = BOX_H) => ({
-    flexShrink: 0,
-    // minHeight as well as height: index.css puts min-height:44px on
-    // every input, and a min-height beats a smaller height.
-    width: w, height: h, minHeight: h,
-    textAlign: 'center', fontSize: 13, fontWeight: 500, padding: '2px 0',
-    border: `1px solid ${boxBorder(saved[key], target)}`,
-    borderRadius: 4,
-    background: WHITE,
-    boxShadow: BOX_INSET,
-    boxSizing: 'border-box',
-    fontFamily: 'inherit', color: FRAME,
-    opacity: locked ? 0.75 : 1,
-  });
-
-  /** Does this row hold anything typed but not yet stored? */
-  const rowIsDirty = (entries) =>
-    entries.some((e) => has(values[e.key]) && values[e.key] !== saved[e.key]);
+  // boxStyle and rowIsDirty went with the row's boxes. The dialog
+  // styles its own, larger boxes, and its save button is always
+  // offered rather than appearing on first keystroke.
 
   // Every entry box currently on screen, key → descriptor. Rebuilt on
   // each render as the rows are laid out, so the safety net always
@@ -1565,6 +1521,18 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                 אימון {family.position}/{family.total}
               </span>
             )}
+          </div>
+
+          {/* Column header. Two columns only: what to do, and the
+              target. The result column is gone from the sheet — the
+              trainee fills it in the dialog. */}
+          <div style={{
+            display: 'flex', alignItems: 'center',
+            padding: '7px 14px 0', gap: 6,
+          }}>
+            <span style={{ fontSize: 10, fontWeight: 500, color: MUTED }}>תרגיל</span>
+            <div style={{ flex: 1 }} />
+            <span style={{ fontSize: 10, fontWeight: 500, color: MUTED, marginInlineEnd: 21 }}>יעד</span>
           </div>
 
           {/* ── Sections ─────────────────────────────────────────── */}
@@ -1806,163 +1774,23 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         // what the dialog's one save button writes.
                         const containerEntries = subDetails.flatMap((d) => d.subEntries);
 
-                        // ── A CONTAINER ──────────────────────────────
-                        if (container) {
-                          // Superset, combo and dropset put their title
-                          // on a tinted band; the tabata clock keeps the
-                          // plain treatment.
-                          const banded = !isClock;
-                          return (
-                            <div key={ex.id} style={{ ...rowCard, overflow: 'hidden' }}>
-                              <div
-                                onClick={() => openDetail({
-                                  // The SHORT title here too. The dialog
-                                  // stops abbreviating for a plain
-                                  // exercise, but a container's rep counts
-                                  // are not abbreviation — they are the
-                                  // sub rows' numbers, listed in full
-                                  // right below with their חזרות labels.
-                                  ordinal: myOrdinal, name: exName, pill, param, hint,
-                                  techniques: tech.techniques,
-                                  // The container's OWN row carries no reps
-                                  // and no boxes — its numbers live on the
-                                  // subs. Hand the dialog the sub rows it
-                                  // must list, and the flattened boxes its
-                                  // one save button writes. `entries: []`
-                                  // here was the whole bug.
-                                  subs: subDetails,
-                                  tabataSets: isClock && tabataModel.sets.length > 0
-                                    ? tabataModel : null,
-                                  entries: containerEntries,
-                                  target: null,
-                                })}
-                                style={{
-                                  ...rowPad,
-                                  background: banded ? BAND_BG : WHITE,
-                                  borderBottom: banded
-                                    ? `0.5px solid ${BAND_LINE}`
-                                    : `0.5px solid ${DIVIDER}`,
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                <div style={rowLine}>
-                                  <span style={ordinalStyle}>{myOrdinal}.</span>
-                                  <span style={nameStyle(16)} title={exName}>{exName}</span>
-                                  <MethodPill pill={pill} />
-                                  <ParamBlock {...(param || {})} />
-                                  <div style={spacerStyle} />
-                                  {spec && !isClock && (
-                                    <div
-                                      className="ps-entry"
-                                      style={{ gap: 4 }}
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      {/* An interval container is a clock,
-                                          not a measurement: the button
-                                          only, nothing written back. A
-                                          TABATA carries its play buttons
-                                          per set, in the block below. */}
-                                      <ClockShortcut
-                                        spec={spec}
-                                        exerciseName={exName}
-                                        setNumber={1}
-                                        totalSets={rounds}
-                                        disabled={false}
-                                      />
-                                    </div>
-                                  )}
-                                </div>
-                                <HintLine text={hint} indent={22} />
-                                <TechniqueHint count={tech.techniques.length} indent={22} />
-                              </div>
-
-                              {/* A tabata renders as SET BLOCKS, each with
-                                  its own play. Legacy flat payloads come
-                                  through readTabataSets as one set. */}
-                              {isClock && tabataModel.sets.length > 0 && (
-                                <TabataSets
-                                  exercise={ex}
-                                  exerciseName={exName}
-                                  model={tabataModel}
-                                  disabled={locked}
-                                />
-                              )}
-
-                              {(isClock && tabataModel.sets.length > 0 ? [] : subDetails).map((d) => {
-                                // Read straight off the one derivation above,
-                                // so the row and the dialog can never
-                                // disagree about a sub's numbers.
-                                const {
-                                  sidx, sm, subEditable, subParam, lastSub, sbp,
-                                  subText, subKey, subTech, subHint, subEntries, showTick,
-                                } = d;
-                                return (
-                                  <div
-                                    key={subKey}
-                                    onClick={() => openDetail({
-                                      ordinal: null, name: subTech.fullName, pill: null,
-                                      param: subParam, hint: subHint,
-                                      techniques: subTech.techniques,
-                                      entries: subEntries, target: sm.target,
-                                    })}
-                                    style={{
-                                      ...subRowPad,
-                                      background: WHITE, cursor: 'pointer',
-                                      borderBottom: lastSub ? 'none' : `0.5px solid ${DIVIDER}`,
-                                    }}
-                                  >
-                                    <div style={rowLine}>
-                                      {showTick && (
-                                        <button
-                                          type="button"
-                                          onClick={(e) => { e.stopPropagation(); toggleSubCheck(ex.id, sidx); }}
-                                          disabled={locked}
-                                          aria-pressed={!!checks[subKey]}
-                                          aria-label="סמן כבוצע"
-                                          style={checkHit}
-                                        >
-                                          <span style={checkStyle(!!checks[subKey])}>
-                                            {checks[subKey] ? '✓' : ''}
-                                          </span>
-                                        </button>
-                                      )}
-                                      <span style={starStyle}>✳</span>
-                                      <span style={nameStyle(14)} title={subText}>{subTech.displayName}</span>
-                                      {showParam(subEntries.length) && <ParamBlock {...(subParam || {})} />}
-                                      <div style={spacerStyle} />
-                                      {subEditable && (
-                                        <div
-                                          className="ps-entry"
-                                          style={{ gap: sbp.gap }}
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          {subEntries.map((en) => (
-                                            <input
-                                              key={en.key}
-                                              type="number"
-                                              inputMode="numeric"
-                                              disabled={locked}
-                                              value={values[en.key] ?? ''}
-                                              onChange={(e) => setValues((pv) => ({ ...pv, [en.key]: e.target.value }))}
-                                              style={boxStyle(en.key, sm.target, sbp.w)}
-                                            />
-                                          ))}
-                                          {!locked && rowIsDirty(subEntries) && (
-                                            <SaveDot onClick={() => saveRow(subEntries)} />
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <HintLine text={subHint} indent={showTick ? 41 : 22} />
-                                    <TechniqueHint count={subTech.techniques.length} indent={showTick ? 41 : 22} />
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          );
-                        }
-
-                        // ── A PLAIN EXERCISE ROW ─────────────────────
+                        // ── ONE ROW SHAPE, FOR EVERY EXERCISE ────────
+                        //
+                        // The sheet is a READ-ONLY list now. A plain
+                        // exercise, a superset and a tabata all print
+                        // the same five things — tick, ordinal, short
+                        // name, target, chevron — so the eye can run
+                        // down the column without the layout moving.
+                        // Everything that used to sit on the row (the
+                        // entry boxes, the method pill, the hint, the
+                        // technique count, a container's sub rows, a
+                        // tabata's set blocks, the clock launcher) is
+                        // one tap away in the dialog below, which is
+                        // where the trainee now fills anything in.
+                        //
+                        // The derivations above are untouched: the
+                        // dialog is handed exactly what the row used
+                        // to render itself with.
                         const bp = boxPlan(boxCount);
                         const entries = indexEntries(Array.from({ length: boxCount }).map((_, si) => ({
                           key: `${ex.id}:${si + 1}`,
@@ -1970,74 +1798,70 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                           payloadField: m.payloadField,
                           setLabel: `סט ${si + 1}`,
                         })));
+                        // A container's boxes live on its subs; a plain
+                        // row's are its own. One list either way — the
+                        // same list the dialog's save button writes.
+                        const dialogEntries = container ? containerEntries : entries;
+                        const detailPayload = {
+                          ordinal: myOrdinal,
+                          name: container ? exName : tech.fullName,
+                          pill, param, hint,
+                          techniques: tech.techniques,
+                          subs: container ? subDetails : [],
+                          tabataSets: (container && isClock && tabataModel.sets.length > 0)
+                            ? tabataModel : null,
+                          entries: dialogEntries,
+                          target: container ? null : m.target,
+                          // The clock launcher moved here with the rest.
+                          // A tabata carries its play per SET (tabataSets
+                          // above); everything else carries one button.
+                          clock: (spec && !(container && isClock))
+                            ? {
+                              spec,
+                              exerciseName: exName,
+                              totalSets: Math.max(1, container ? rounds : boxCount),
+                              onElapsed: (!container && !clockOnly && boxCount > 0)
+                                ? (seconds) => writeClockSeconds(ex.id, boxCount, m.payloadField, seconds)
+                                : undefined,
+                            }
+                            : null,
+                          boxWidth: bp.w,
+                        };
                         return (
                           <div
                             key={ex.id}
-                            onClick={() => openDetail({
-                              ordinal: myOrdinal, name: tech.fullName, pill, param, hint,
-                              techniques: tech.techniques, entries, target: m.target,
-                            })}
+                            onClick={() => openDetail(detailPayload)}
                             style={{ ...rowCard, ...rowPad, cursor: 'pointer' }}
                           >
                             <div style={rowLine}>
-                              {rowKind === 'check' && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); toggleCheck(ex.id, exName); }}
-                                  disabled={locked}
-                                  aria-pressed={!!checks[ex.id]}
-                                  aria-label="סמן כבוצע"
-                                  style={checkHit}
-                                >
-                                  <span style={checkStyle(!!checks[ex.id])}>
-                                    {checks[ex.id] ? '✓' : ''}
-                                  </span>
-                                </button>
-                              )}
+                              {/* The completion tick, unchanged — same
+                                  handler, same completion sheet. It is
+                                  on every row now so every row is the
+                                  same shape. */}
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); toggleCheck(ex.id, exName); }}
+                                disabled={locked}
+                                aria-pressed={!!checks[ex.id]}
+                                aria-label="סמן כבוצע"
+                                style={checkHit}
+                              >
+                                <span style={checkStyle(!!checks[ex.id])}>
+                                  {checks[ex.id] ? '✓' : ''}
+                                </span>
+                              </button>
                               <span style={ordinalStyle}>{myOrdinal}.</span>
                               <span style={nameStyle(16)} title={exName}>{exName}</span>
-                              {showPill(boxCount) && <MethodPill pill={pill} />}
-                              {showParam(boxCount) && <ParamBlock {...(param || {})} />}
                               <div style={spacerStyle} />
-                              {(boxCount > 0 || spec) && (
-                                <div
-                                  className="ps-entry"
-                                  style={{ gap: bp.gap }}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {entries.map((en) => (
-                                    <input
-                                      key={en.key}
-                                      type="number"
-                                      inputMode="numeric"
-                                      disabled={locked}
-                                      value={values[en.key] ?? ''}
-                                      onChange={(e) => setValues((pv) => ({ ...pv, [en.key]: e.target.value }))}
-                                      style={boxStyle(en.key, m.target, bp.w)}
-                                    />
-                                  ))}
-                                  {!locked && rowIsDirty(entries) && (
-                                    <SaveDot onClick={() => saveRow(entries)} />
-                                  )}
-                                  {spec && (
-                                    <ClockShortcut
-                                      spec={spec}
-                                      exerciseName={exName}
-                                      setNumber={1}
-                                      totalSets={Math.max(1, boxCount)}
-                                      disabled={locked}
-                                      onElapsed={
-                                        (!clockOnly && boxCount > 0)
-                                          ? (seconds) => writeClockSeconds(ex.id, boxCount, m.payloadField, seconds)
-                                          : undefined
-                                      }
-                                    />
-                                  )}
-                                </div>
-                              )}
+                              {/* The TARGET only — never a result. */}
+                              <ParamBlock {...(param || {})} />
+                              {/* Says: this opens. */}
+                              <ChevronLeft
+                                size={15}
+                                color={MUTED}
+                                style={{ flexShrink: 0 }}
+                              />
                             </div>
-                            <HintLine text={hint} indent={hintIndent} />
-                            <TechniqueHint count={tech.techniques.length} indent={hintIndent} />
                           </div>
                         );
                       })}
@@ -2209,10 +2033,31 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                   </div>
                 )}
 
+                {/* A CLOCK exercise: its launcher, and no boxes —
+                    the clock writes its own elapsed time back. The
+                    overlay it raises is fixed at z-index 10000 and
+                    carries data-timer-bar, which DialogContent's own
+                    guard already knows not to treat as a dismiss, so
+                    it covers this dialog cleanly instead of fighting
+                    it. */}
+                {detail.clock && (
+                  <div style={{ marginBottom: detail.entries.length > 0 ? 14 : 0 }}>
+                    <ClockShortcut
+                      spec={detail.clock.spec}
+                      exerciseName={detail.clock.exerciseName}
+                      setNumber={1}
+                      totalSets={detail.clock.totalSets}
+                      disabled={locked}
+                      onElapsed={detail.clock.onElapsed}
+                    />
+                  </div>
+                )}
+
                 {/* A TABATA container is a clock, not a measurement.
-                    It lists its sets exactly as the sheet does — set
-                    tag, the set's movement names, the rounds / work /
-                    rest bar — and never says "no values to enter". */}
+                    It lists its sets exactly as the sheet used to —
+                    set tag, the set's movement names, the rounds /
+                    work / rest bar — and each set keeps its own play
+                    button, because the sheet no longer carries one. */}
                 {detail.tabataSets && (
                   <div style={{
                     border: `0.5px solid ${CARD_BORDER}`, borderRadius: 6,
@@ -2221,8 +2066,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                     <TabataSets
                       exerciseName={detail.name}
                       model={detail.tabataSets}
-                      disabled
-                      readOnly
+                      disabled={locked}
                     />
                   </div>
                 )}
@@ -2269,10 +2113,11 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                   value={values[en.key] ?? ''}
                                   onChange={(e) => setValues((pv) => ({ ...pv, [en.key]: e.target.value }))}
                                   style={{
-                                    width: 52, height: 44, minHeight: 44,
+                                    flexShrink: 0, width: 48, height: 42, minHeight: 42,
                                     textAlign: 'center', fontSize: 18, fontWeight: 500,
                                     border: `1.5px solid ${boxBorder(saved[en.key], d.sm?.target)}`,
                                     borderRadius: 6, background: WHITE,
+                                    boxShadow: 'inset 0 1px 2px rgba(45,42,38,0.10)',
                                     boxSizing: 'border-box', fontFamily: 'inherit',
                                     color: CHARCOAL, padding: 0,
                                     opacity: locked ? 0.75 : 1,
@@ -2311,10 +2156,11 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                           value={values[en.key] ?? ''}
                           onChange={(e) => setValues((pv) => ({ ...pv, [en.key]: e.target.value }))}
                           style={{
-                            width: 52, height: 44, minHeight: 44,
+                            flexShrink: 0, width: 48, height: 42, minHeight: 42,
                             textAlign: 'center', fontSize: 18, fontWeight: 500,
                             border: `1.5px solid ${boxBorder(saved[en.key], detail.target)}`,
                             borderRadius: 6, background: WHITE,
+                            boxShadow: 'inset 0 1px 2px rgba(45,42,38,0.10)',
                             boxSizing: 'border-box', fontFamily: 'inherit',
                             color: CHARCOAL, padding: 0,
                             opacity: locked ? 0.75 : 1,
@@ -2327,11 +2173,11 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                       </div>
                     ))}
                   </div>
-                ) : (
+                ) : !detail.clock ? (
                   <div style={{ fontSize: 12, color: MUTED }}>
                     אין ערכים להזנה בתרגיל הזה
                   </div>
-                )
+                ) : null
                 )}
               </div>
 
