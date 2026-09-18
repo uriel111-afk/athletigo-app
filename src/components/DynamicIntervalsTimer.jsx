@@ -12,8 +12,10 @@ import { useNavigate } from 'react-router-dom';
 import { useExerciseBackGuard } from '@/hooks/useExerciseBackGuard';
 import { useAuth } from '@/lib/AuthContext';
 import { ChevronRight } from 'lucide-react';
+import { formatDurationPadded } from '@/lib/duration';
+import { BRAND, BRAND_DEEP, RING_TRACK, BTN_BORDER, INK } from '@/components/clocks/clockUi';
 import {
-  phaseTitle, RING_DIGITS, COUNTER_LABEL, COUNTER_VALUE,
+  DIGITS_WRAP, phaseTitle, RING_DIGITS, COUNTER_LABEL, COUNTER_VALUE,
   TOTAL_LABEL, TOTAL_VALUE, NEXT_LINE, BTN_PRIMARY, BTN_SECONDARY, BTN_NAV,
   CHIP, HEADER_ROW, HEADER_TITLE_BOX, BACK_BTN,
 } from '@/lib/clockTypography';
@@ -531,8 +533,8 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
           width: '100%', maxWidth: 420,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '12px 14px', background: '#FFFFFF', borderRadius: 14,
-          border: '1px solid rgba(234,179,8,0.25)',
-          boxShadow: '0 2px 6px rgba(234,179,8,0.06)',
+          border: '1px solid rgba(255,111,32,0.25)',
+          boxShadow: '0 2px 6px rgba(255,111,32,0.06)',
           marginBottom: 8,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -573,7 +575,7 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
             background: '#F5F0E4',
           }}>
             {prep > 0 && (
-              <div style={{ flex: Math.max(1, prep), background: '#EAB308' }} />
+              <div style={{ flex: Math.max(1, prep), background: BRAND_DEEP }} />
             )}
             {sets.map((s, i) => (
               <Fragment key={i}>
@@ -591,7 +593,7 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
           }}>
             {prep > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <div style={{ width: 9, height: 9, borderRadius: 2, background: '#EAB308' }} />
+                <div style={{ width: 9, height: 9, borderRadius: 2, background: BRAND_DEEP }} />
                 <span>הכנה</span>
               </div>
             )}
@@ -770,8 +772,6 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
   }
   const totalLeftPrecise = calcTotalRemaining();
   const totalLeft = Math.ceil(totalLeftPrecise);
-  const totalMin = Math.floor(totalLeft / 60);
-  const totalSec = totalLeft % 60;
   const totalBorderProgress = totalExerciseSeconds > 0
     ? Math.max(0, Math.min(1, totalLeftPrecise / totalExerciseSeconds))
     : 0;
@@ -843,25 +843,36 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
   const isWork = phase.type === 'work';
   const isPrep = phase.type === 'prep';
   const cream = !isWork; // prep + rest share the cream/neutral page
-  // Accent: yellow #EAB308 during prep, orange #FF6F20 otherwise.
-  // Tabata uses orange for both rest and prep — here prep gets a
-  // distinct yellow accent so the user can read at a glance "still
-  // warming up, not yet in a rest break."
-  const accent = isPrep ? '#EAB308' : '#FF6F20';
-  const bg = isWork ? '#FF6F20' : '#FFF9F0';
-  const textPrimary = cream ? '#1a1a1a' : '#FFFFFF';
-  const ringTrack = isWork
-    ? 'rgba(255,255,255,0.3)'
-    : isPrep ? 'rgba(234,179,8,0.2)' : 'rgba(255,111,32,0.2)';
-  const ringFill = isWork ? '#FFFFFF' : accent;
-  const chipBg = cream ? (isPrep ? 'rgba(234,179,8,0.10)' : 'rgba(255,111,32,0.10)') : 'rgba(255,255,255,0.15)';
+  // ACCENT — the shared brand orange, on every phase.
+  //
+  // This face used to paint its prep phase #EAB308 yellow, on the
+  // theory that "still warming up" should read differently from a
+  // rest break. It read as a different APP: the ring, the title,
+  // the total figure and the primary button all turned yellow
+  // while the countdown and tabata faces stayed orange. The phase
+  // is already named in the title and in the "הבא" chip, so the
+  // hue was carrying nothing the words were not.
+  //
+  // Fills take BRAND, accent TEXT takes the deep step of the same
+  // orange — both imported from clockUi, the palette the clocks
+  // tab and the countdown face already read, so no face can define
+  // an accent of its own again.
+  const accentFill = BRAND;
+  const accentInk = BRAND_DEEP;
+  const bg = isWork ? BRAND : '#FFF9F0';
+  const textPrimary = cream ? INK : '#FFFFFF';
+  // Empty part of the ring: cream faces take the shared track,
+  // the orange work face keeps its white-on-orange track.
+  const ringTrack = isWork ? 'rgba(255,255,255,0.3)' : RING_TRACK;
+  const ringFill = isWork ? '#FFFFFF' : accentFill;
+  const chipBg = cream ? 'rgba(255,111,32,0.10)' : 'rgba(255,255,255,0.15)';
   const primaryBtn = {
-    bg: isWork ? '#FFFFFF' : accent,
-    fg: isWork ? '#FF6F20' : '#FFFFFF',
+    bg: isWork ? '#FFFFFF' : accentFill,
+    fg: isWork ? BRAND : '#FFFFFF',
   };
   const secondaryBtn = isWork
     ? { bg: chipBg, fg: textPrimary, border: 'none' }
-    : { bg: '#FFFFFF', fg: '#1A1A1A', border: '1px solid #F0E4D0' };
+    : { bg: '#FFFFFF', fg: INK, border: `1px solid ${BTN_BORDER}` };
 
   return (
     <div style={{
@@ -888,7 +899,7 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
                 <div style={{
                   ...phaseTitle(phaseLabel),
                   paddingTop: 4,
-                  color: isWork ? '#FFFFFF' : accent,
+                  color: isWork ? '#FFFFFF' : accentInk,
                 }}>{phaseLabel}</div>
               </div>
             );
@@ -899,8 +910,8 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
             aria-label="מזער טיימר"
             style={{
               flexShrink: 0,
-              background: isWork ? 'rgba(255,255,255,0.2)' : (isPrep ? 'rgba(234,179,8,0.12)' : 'rgba(255,111,32,0.1)'),
-              color: isWork ? '#FFFFFF' : accent,
+              background: isWork ? 'rgba(255,255,255,0.2)' : 'rgba(255,111,32,0.1)',
+              color: isWork ? '#FFFFFF' : accentInk,
               border: 'none', borderRadius: 10,
               padding: '8px 14px',
               ...CHIP, whiteSpace: 'nowrap',
@@ -974,7 +985,7 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
                 rx={TOTAL_RING_R}
                 ry={TOTAL_RING_R}
                 fill="none"
-                stroke={isWork ? '#FFFFFF' : accent}
+                stroke={isWork ? '#FFFFFF' : accentFill}
                 strokeWidth="3"
                 strokeLinecap="round"
                 strokeDasharray={totalRingPerim}
@@ -983,12 +994,16 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
               />
             </svg>
           )}
-          <span style={{ ...TOTAL_LABEL, color: isWork ? 'rgba(255,255,255,0.8)' : accent }}>⏱ זמן כולל</span>
+          <span style={{ ...TOTAL_LABEL, color: isWork ? 'rgba(255,255,255,0.8)' : accentInk }}>⏱ זמן כולל</span>
+          {/* mm:ss from the ONE shared formatter — the same call the
+              tabata total makes — and DIGITS_WRAP so the minutes stay
+              on the left inside this RTL face (and so index.css's
+              wildcard font-size cannot shrink the figure). */}
           <span style={{
             ...TOTAL_VALUE,
-            color: isWork ? '#FFFFFF' : accent,
+            color: isWork ? '#FFFFFF' : accentInk,
           }}>
-            {String(totalMin).padStart(2, '0')}:{String(totalSec).padStart(2, '0')}
+            <span style={DIGITS_WRAP}>{formatDurationPadded(totalLeft)}</span>
           </span>
         </div>
       </div>
@@ -1002,7 +1017,10 @@ export default function DynamicIntervalsTimer({ onMinimize, setLiveTimer }) {
               strokeDasharray={CIRC} strokeDashoffset={dashOffset} transform={`rotate(-90 ${CX} ${CY})`} style={{ transition: 'stroke 0.3s ease' }} />
           </svg>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ ...RING_DIGITS, color: textPrimary }}>{display}</span>
+            {/* The hero. RING_DIGITS is the shared token the tabata
+                face uses for the same number, so the two faces size
+                their centre digit identically. */}
+            <span style={{ ...RING_DIGITS, color: isWork ? '#FFFFFF' : INK }}>{display}</span>
           </div>
         </div>
       </div>

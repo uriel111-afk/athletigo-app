@@ -18,6 +18,20 @@ import {
  */
 
 export const BRAND = '#FF6F20';
+// The deep step of the SAME brand orange — accent TEXT (a phase
+// title, a total figure) where the fill orange would read thin on
+// cream. Fills stay BRAND; ink goes deep. No clock defines an
+// accent of its own: a face that needs one imports from here, so
+// the intervals face cannot drift off-brand again (it used to
+// paint its prep phase #EAB308 yellow).
+export const BRAND_DEEP = '#EA5806';
+// The empty part of a progress ring on a cream face.
+export const RING_TRACK = '#FBE9DA';
+// A secondary (white) button's edge on a cream face.
+export const BTN_BORDER = '#E0D4C2';
+// The big phase number — the hero of every face, and the one
+// element that is NOT orange.
+export const INK = '#241F1A';
 // FN — display font for the clocks tab only (digits + scoreboard
 // labels + tab toggles). Reverted to Barlow Condensed; the rest of
 // the app keeps Bebas Neue for numerical accents.
