@@ -69,7 +69,12 @@ import {
 // ── Palette — the printed sheet's own ────────────────────────────────
 const CREAM       = '#FBF3EA';
 const CHARCOAL    = '#2D2A26';
+// The one dark in the design: the sheet's frame, its header wedge
+// and every exercise name. Nothing else on the sheet is dark.
+const FRAME       = '#241F1A';
 const ORANGE      = '#FF6F20';
+// The deep end of the orange scale — ordinals, stars, accents.
+const ACCENT      = '#EA5806';
 const WHITE       = '#FFFFFF';
 const CARD_BORDER = '#E0D4C2';
 const DIVIDER     = '#F0E7DA';   // between rows
@@ -82,11 +87,18 @@ const BAND_LINE   = '#F0C9A8';
 const GREEN       = '#0F6E56';
 const UNDER       = '#D85A30';
 const BOX_IDLE    = '#D5C8B6';
+// Depth. Cards float off the cream; the frame sits above the desk.
+const CARD_SHADOW  = '0 2px 6px rgba(45,42,38,0.09)';
+const FRAME_SHADOW = '0 6px 18px rgba(36,31,26,0.17)';
+const BOX_INSET    = 'inset 0 1px 2px rgba(45,42,38,0.10)';
 
 const SANS = "'Rubik', system-ui, -apple-system, sans-serif";
 
-// Section label card, on the RIGHT of every section.
-const RAIL_W = 56;
+// The vertical label tile down the RIGHT of every open section,
+// stripe included.
+const RAIL_W = 58;
+// The tile's colour bar, on the tile's outer edge.
+const STRIPE_W = 6;
 // The charcoal header wedge. Its clip-path runs 55% wide at the
 // bottom, so only the left 55% is solid for the full 52px.
 const WEDGE_W = 120;
@@ -97,19 +109,23 @@ const BOX_H  = 30;
 const TOUCH  = 44;
 
 /**
- * SECTION COLOURS — one hue per section, carried by the card border,
- * the 4px strip across the top, and the label card.
+ * SECTION COLOURS — ONE ORANGE SCALE, light to deep. A section is a
+ * single coherent shade: the label tile is the light end, its side
+ * stripe the full one, the text the deep one. There is no second
+ * hue on this sheet — no yellow, no charcoal tint, no burgundy —
+ * so the only thing that separates two sections is how far down
+ * the orange scale they sit.
  *
  * Matched loosely: trimmed, and with or without a trailing colon,
  * against section_name first and category second. Anything unknown
- * takes the חימום palette.
+ * — a coach's own section name, a הערות block — takes the חימום
+ * shade, the lightest step.
  */
 const SECTION_THEMES = {
-  'חימום':  { hue: '#FF6F20', bg: '#FFE2CD', fg: '#7A2E00' },
-  'מתיחות': { hue: '#EF9F27', bg: '#FAEEDA', fg: '#633806' },
-  'כוח':    { hue: '#2D2A26', bg: '#F1EFE8', fg: '#2D2A26' },
-  'גמישות': { hue: '#D85A30', bg: '#FAECE7', fg: '#4A1B0C' },
-  'הערות':  { hue: '#888780', bg: '#F1EFE8', fg: '#444441' },
+  'חימום':  { stripe: '#FFAE70', tile: '#FFEEDD', text: '#9A5622' },
+  'מתיחות': { stripe: '#FF8A45', tile: '#FFE4CE', text: '#8A4212' },
+  'כוח':    { stripe: '#FF6F20', tile: '#FFDBBE', text: '#7F3410' },
+  'גמישות': { stripe: '#EA5806', tile: '#FBCDA8', text: '#6E2A08' },
 };
 const DEFAULT_THEME = SECTION_THEMES['חימום'];
 
@@ -195,7 +211,7 @@ function ParamBlock({ value, label, size = 19 }) {
       marginInlineStart: 2,   // the 8px separation from the name
     }}>
       <div style={{
-        fontSize: size, fontWeight: 500, color: CHARCOAL, lineHeight: 1.05,
+        fontSize: size, fontWeight: 700, color: FRAME, lineHeight: 1.05,
         direction: 'ltr', unicodeBidi: 'isolate', whiteSpace: 'nowrap',
       }}>{value}</div>
       <div style={{
@@ -1332,18 +1348,26 @@ export default function PlanSheet() {
   };
   // 14px on an exercise row, 11px on a sub row inside a container.
   const rowPad = { padding: '14px 9px' };
+  // Every exercise is its own white card, floating off the cream.
+  // The rules that used to divide rows inside one big card are gone:
+  // the gap between cards is the divider now.
+  const rowCard = {
+    background: WHITE, borderRadius: 8,
+    border: `1px solid ${DIVIDER}`,
+    boxShadow: CARD_SHADOW, boxSizing: 'border-box',
+  };
   const subRowPad = { padding: '11px 9px' };
-  const ordinalStyle = { fontSize: 13, color: ORANGE, flexShrink: 0, lineHeight: 1.35 };
+  const ordinalStyle = { fontSize: 13, fontWeight: 600, color: ACCENT, flexShrink: 0, lineHeight: 1.35 };
   // The ONLY shrinking element on the row. Everything else refuses.
   const nameStyle = (size) => ({
-    fontSize: size, fontWeight: 500, color: CHARCOAL, lineHeight: 1.35,
+    fontSize: size, fontWeight: 600, color: FRAME, lineHeight: 1.35,
     flexShrink: 1, minWidth: 0,
     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   });
   // At LEAST 16px, and it takes any slack so the entry group stays at
   // the left edge of the row.
   const spacerStyle = { flexGrow: 1, flexShrink: 0, flexBasis: 16, minWidth: 16 };
-  const starStyle = { fontSize: 11, color: ORANGE, flexShrink: 0, lineHeight: 1.3 };
+  const starStyle = { fontSize: 11, color: ACCENT, flexShrink: 0, lineHeight: 1.3 };
 
   /**
    * What the text side can still afford at 360px.
@@ -1386,8 +1410,9 @@ export default function PlanSheet() {
     border: `1px solid ${boxBorder(saved[key], target)}`,
     borderRadius: 4,
     background: WHITE,
+    boxShadow: BOX_INSET,
     boxSizing: 'border-box',
-    fontFamily: 'inherit', color: CHARCOAL,
+    fontFamily: 'inherit', color: FRAME,
     opacity: locked ? 0.75 : 1,
   });
 
@@ -1445,10 +1470,15 @@ export default function PlanSheet() {
 .ps-dlg input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
 
-      {/* ── The sheet: charcoal frame, cream paper ─────────────────── */}
+      {/* ── The sheet: a THIN dark frame around cream paper. The
+             dark is a 1px rule plus a 4px mat, not a 7px slab: the
+             depth now comes from the shadow under it and from the
+             cards floating inside, not from the weight of the
+             border. ───────────────────────────────────────────── */}
       <div className="ps-frame" style={{
-        border: `7px solid ${CHARCOAL}`, borderRadius: 12,
-        background: CHARCOAL, boxSizing: 'border-box',
+        border: `1px solid ${FRAME}`, borderRadius: 10,
+        background: FRAME, padding: 4, boxSizing: 'border-box',
+        boxShadow: FRAME_SHADOW,
       }}>
         <div style={{
           background: CREAM, borderRadius: 6, overflow: 'hidden',
@@ -1462,7 +1492,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
           <div style={{ position: 'relative', height: 52, background: CREAM }}>
             <div style={{
               position: 'absolute', left: 0, top: 0, width: WEDGE_W, height: 52,
-              background: CHARCOAL,
+              background: FRAME,
               clipPath: 'polygon(0 0,100% 0,55% 100%,0 100%)',
               pointerEvents: 'none',
             }} />
@@ -1546,12 +1576,19 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
               const isNotes = looseName(section.section_name) === 'הערות';
               const isShut = !!collapsed[section.id];
               const toggle = () => setCollapsed((c) => ({ ...c, [section.id]: !c[section.id] }));
-              // One hue: the card border, the 4px strip, the label card.
-              const cardShell = {
-                background: WHITE, border: `1px solid ${theme.hue}`,
-                borderRadius: 5, overflow: 'hidden', boxSizing: 'border-box',
+              // ONE shade, two parts: the tile is the light end of
+              // this section's orange, the stripe the full one. Both
+              // shapes below — the collapsed bar and the open
+              // vertical label — are built from exactly these two.
+              const tileShell = {
+                background: theme.tile, color: theme.text,
+                border: `1px solid ${theme.stripe}`,
+                borderRadius: 7, overflow: 'hidden', boxSizing: 'border-box',
+                boxShadow: CARD_SHADOW,
               };
-              const strip = { height: 4, background: theme.hue, flexShrink: 0 };
+              // The stripe rides the tile's OUTER edge — the sheet's
+              // right margin in RTL, since it is the first child.
+              const stripe = { width: STRIPE_W, flexShrink: 0, background: theme.stripe };
 
               // ── COLLAPSED: one full-width bar in the section's own
               //    colour. The name and the count sit in the MIDDLE of
@@ -1570,32 +1607,33 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                     onClick={toggle}
                     aria-expanded={false}
                     style={{
-                      ...cardShell, width: '100%', display: 'block',
-                      background: theme.bg, color: theme.fg,
+                      ...tileShell, width: '100%',
+                      display: 'flex', alignItems: 'stretch',
                       padding: 0, marginBottom: 8, textAlign: 'center',
                       cursor: 'pointer', fontFamily: 'inherit',
                     }}
                   >
-                    <div style={strip} />
+                    <div style={stripe} />
                     <div style={{
-                      position: 'relative',
-                      padding: '8px 30px 9px',
+                      position: 'relative', flex: 1, minWidth: 0,
+                      padding: '9px 30px 10px',
                       display: 'flex', alignItems: 'center',
-                      justifyContent: 'center', gap: 7, minWidth: 0,
+                      justifyContent: 'center', gap: 7,
                     }}>
                       <span style={{
-                        fontSize: 12, fontWeight: 500, lineHeight: 1.25,
+                        fontSize: 13, fontWeight: 600, lineHeight: 1.25,
                         minWidth: 0, overflow: 'hidden',
                         textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       }}>{section.section_name || cat}</span>
-                      <span style={{ fontSize: 11, lineHeight: 1.25, opacity: 0.75, flexShrink: 0 }}>
+                      <span style={{ fontSize: 11, lineHeight: 1.25, opacity: 0.8, flexShrink: 0 }}>
                         {countText}
                       </span>
+                      {/* Pinned to the far side, opposite the stripe. */}
                       <span style={{
-                        position: 'absolute', insetInlineStart: 10, top: '50%',
+                        position: 'absolute', insetInlineEnd: 10, top: '50%',
                         transform: 'translateY(-50%)',
-                        fontSize: 10, lineHeight: 1, opacity: 0.7,
-                      }}>◂</span>
+                        fontSize: 10, lineHeight: 1, opacity: 0.75,
+                      }}>▸</span>
                     </div>
                   </button>
                 );
@@ -1605,31 +1643,34 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                 <div key={section.id} style={{
                   display: 'flex', gap: 5, marginBottom: 8, alignItems: 'stretch',
                 }}>
-                  {/* Label card — first child is RIGHTMOST in RTL. */}
+                  {/* The vertical label tile — first child, so it is
+                      RIGHTMOST in RTL, with its stripe on the outer
+                      edge and the exercise cards stacked to its left.
+                      This is the OPEN shape: never a horizontal
+                      header. */}
                   <button
                     type="button"
                     onClick={toggle}
                     aria-expanded={!isShut}
                     style={{
-                      ...cardShell, width: RAIL_W, flexShrink: 0,
-                      background: theme.bg, color: theme.fg,
+                      ...tileShell, width: RAIL_W, flexShrink: 0,
                       padding: 0, minHeight: 0,
-                      display: 'flex', flexDirection: 'column',
+                      display: 'flex', flexDirection: 'row',
                       cursor: 'pointer', fontFamily: 'inherit',
                     }}
                   >
-                    <div style={strip} />
+                    <div style={stripe} />
                     <div style={{
-                      flex: 1, minHeight: 0,
-                      padding: '6px 3px 7px',
+                      flex: 1, minWidth: 0,
+                      padding: '7px 3px 8px',
                       display: 'flex', flexDirection: 'column',
                       alignItems: 'center', gap: 3,
                     }}>
                       <span style={{
-                        fontSize: 11, lineHeight: 1.25, fontWeight: 500,
+                        fontSize: 11, lineHeight: 1.25, fontWeight: 600,
                         overflowWrap: 'anywhere', maxWidth: '100%',
                       }}>{section.section_name || cat}</span>
-                      <span style={{ fontSize: 9, lineHeight: 1, opacity: 0.7 }}>▾</span>
+                      <span style={{ fontSize: 9, lineHeight: 1, opacity: 0.75 }}>▾</span>
                       {rail ? (
                         <span style={{
                           fontSize: 9, lineHeight: 1.3, opacity: 0.85,
@@ -1639,14 +1680,17 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                     </div>
                   </button>
 
-                  {/* Content card — fills the rest. The collapsed
-                      case returned above, so this always draws. */}
+                  {/* The exercise cards, stacked to the left of the
+                      label. Each one floats on its own; the gap
+                      between them replaced the ruled dividers. The
+                      collapsed case returned above, so this always
+                      draws. */}
                   {(
-                    <div style={{ ...cardShell, flex: 1, minWidth: 0 }}>
-                      <div style={strip} />
-                      {rows.map((ex, i) => {
-                        const last = i === rows.length - 1;
-                        const rowEdge = last ? 'none' : `1px solid ${DIVIDER}`;
+                    <div style={{
+                      flex: 1, minWidth: 0,
+                      display: 'flex', flexDirection: 'column', gap: 6,
+                    }}>
+                      {rows.map((ex) => {
 
                         // ── A הערות row is a line of prose. Before the
                         //    ordinal is spent, so the numbering of real
@@ -1654,8 +1698,9 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         if (isNotes) {
                           return (
                             <div key={ex.id} style={{
+                              ...rowCard,
                               display: 'flex', gap: 6, alignItems: 'baseline',
-                              ...rowPad, borderBottom: rowEdge,
+                              ...rowPad,
                             }}>
                               <span style={starStyle}>✳</span>
                               <span style={{
@@ -1768,7 +1813,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                           // plain treatment.
                           const banded = !isClock;
                           return (
-                            <div key={ex.id} style={{ borderBottom: rowEdge }}>
+                            <div key={ex.id} style={{ ...rowCard, overflow: 'hidden' }}>
                               <div
                                 onClick={() => openDetail({
                                   // The SHORT title here too. The dialog
@@ -1932,7 +1977,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                               ordinal: myOrdinal, name: tech.fullName, pill, param, hint,
                               techniques: tech.techniques, entries, target: m.target,
                             })}
-                            style={{ ...rowPad, borderBottom: rowEdge, cursor: 'pointer' }}
+                            style={{ ...rowCard, ...rowPad, cursor: 'pointer' }}
                           >
                             <div style={rowLine}>
                               {rowKind === 'check' && (
