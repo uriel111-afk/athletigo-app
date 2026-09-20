@@ -1541,7 +1541,29 @@ export default function PlanSheet() {
           2. Spinner arrows would eat a 24px box.
           3. App.css carries a blanket `* { overflow-x: hidden }`, which
              makes every element its own scrollport. `clip` clips the
-             same way and creates none. */
+             same way and creates none.
+          4. THE STEPPER ARROWS ON THE TARGET FIGURE. They were not a
+             number input and not an extension: they were a real
+             SCROLLBAR. That blanket rule sets overflow-x on every
+             element, and CSS then computes overflow-y:visible to
+             AUTO — so every element in the sheet is a scroll
+             container. The target's line box overruns its 19px
+             content box by one pixel (18px bold digits, line-height
+             1.05), which is enough for Chrome on Windows to paint a
+             vertical scrollbar: two arrow buttons, no track, 16px
+             wide, eaten out of the figure's own box (clientWidth 23
+             of offsetWidth 39). It looked exactly like a spinbox,
+             it answered the wheel, and it was un-clickable and
+             absent from the DOM — because a scrollbar is not an
+             element.
+             Every element INSIDE the sheet gets overflow-x:clip,
+             which clips the same way but is not a scroll container,
+             so overflow-y stays visible: no scrollbar can be
+             painted anywhere on the sheet, and the one pixel of
+             font overshoot still paints instead of being cut.
+             Scoped to .ps-page — the dialog (.ps-dlg) is portalled
+             outside it and keeps its scrolling body and its
+             editable boxes. */
       }
       <style>{`
 .ps-entry{flex:0 0 auto;min-width:-webkit-max-content;min-width:max-content;display:flex;justify-content:flex-start;align-items:center;flex-wrap:nowrap}
@@ -1550,7 +1572,8 @@ export default function PlanSheet() {
 .ps-page input[type=number]::-webkit-inner-spin-button,
 .ps-dlg input[type=number]::-webkit-outer-spin-button,
 .ps-dlg input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
+html,body,#root,.ps-page,.ps-frame{overflow-x:clip}
+.ps-page *{overflow-x:clip}`}</style>
 
       {/* ── The sheet: a THIN dark frame around cream paper. The
              dark is a 1px rule plus a 4px mat, not a 7px slab: the
