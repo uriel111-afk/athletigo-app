@@ -96,8 +96,9 @@ const FRAME_SHADOW = '0 6px 18px rgba(36,31,26,0.17)';
 const SANS = "'Rubik', system-ui, -apple-system, sans-serif";
 
 // The vertical label tile down the RIGHT of every open section,
-// stripe included.
-const RAIL_W = 58;
+// stripe included. Narrow on purpose: it is a spine, not a
+// column — the exercise rows get the width.
+const RAIL_W = 50;
 // The tile's colour bar, on the tile's outer edge.
 const STRIPE_W = 6;
 // The charcoal header wedge. Its clip-path runs 55% wide at the
@@ -202,7 +203,7 @@ function MethodPill({ pill }) {
  * count IS the sets, and saying it twice was the old "25X2". A
  * check-only row has no boxes to count, so its sets go to the hint.
  */
-function ParamBlock({ value, label, size = 19 }) {
+function ParamBlock({ value, label, size = 18 }) {
   // A bare number is ambiguous — 4 could be reps or rounds. If there is
   // no label there is nothing to render.
   if (value == null || value === '' || !label) return null;
@@ -270,7 +271,7 @@ const isClockOnly = (spec) => !!spec && (spec.kind === 'tabata' || spec.kind ===
  */
 function paramOf(exercise, m, kind) {
   if (kind === 'check' || !m || !m.target) return null;
-  if (kind === 'tally') return { value: String(m.target), label: 'סבבים', size: 19 };
+  if (kind === 'tally') return { value: String(m.target), label: 'סבבים', size: 18 };
   if (kind === 'time') {
     return {
       value: formatDuration(m.target),
@@ -278,7 +279,7 @@ function paramOf(exercise, m, kind) {
       size: 17,
     };
   }
-  return { value: String(m.target), label: 'חזרות', size: 19 };
+  return { value: String(m.target), label: 'חזרות', size: 18 };
 }
 
 /** The same, for a sub-exercise inside a container. */
@@ -1790,7 +1791,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         // "3 עליות מתח · 5 שכיבות" in the name are reps,
                         // 4 is rounds, and the two must never be confused.
                         const param = container
-                          ? (rounds > 1 ? { value: String(rounds), label: 'סבבים', size: 19 } : null)
+                          ? (rounds > 1 ? { value: String(rounds), label: 'סבבים', size: 18 } : null)
                           : paramOf(ex, m, rowKind);
                         // A check-only row has no boxes to count its
                         // sets, so the sets go where instructions live.
