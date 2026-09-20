@@ -131,6 +131,37 @@ const SECTION_THEMES = {
 };
 const DEFAULT_THEME = SECTION_THEMES['חימום'];
 
+/**
+ * NoteRubric — a coach's note, set as a rubric rather than as
+ * content. A dashed rule, a small label, the words in regular
+ * grey: it reads as an annotation on the thing above it, never as
+ * another exercise to do.
+ *
+ * DISPLAY ONLY. Two different stored shapes arrive here — a
+ * section's coach_notes column, and the rows of a section a coach
+ * named הערות — and neither is touched, moved or rewritten. This
+ * component is the whole of what changed for them.
+ */
+function NoteRubric({ text, style }) {
+  if (!text) return null;
+  return (
+    <div style={{
+      borderTop: `1px dashed ${CARD_BORDER}`,
+      paddingTop: 8, marginTop: 2,
+      ...style,
+    }}>
+      <div style={{
+        fontSize: 10, fontWeight: 500, color: MUTED,
+        lineHeight: 1.4, marginBottom: 3,
+      }}>הערת המאמן</div>
+      <div style={{
+        fontSize: 12, fontWeight: 400, color: MUTED,
+        lineHeight: 1.6, overflowWrap: 'anywhere', whiteSpace: 'pre-line',
+      }}>{text}</div>
+    </div>
+  );
+}
+
 /** Trimmed, trailing colon (ASCII or full-width) removed. */
 const looseName = (s) => String(s ?? '').trim().replace(/[:：]+\s*$/, '').trim();
 
@@ -1357,12 +1388,41 @@ export default function PlanSheet() {
     }
   }, [duplicating, data?.plan, user?.id, user?.full_name, navigate, from]);
 
-  const grouped = useMemo(() => {
-    if (!data) return [];
-    return (data.sections || []).map((s) => ({
+  /**
+   * The sections the sheet DRAWS, and the plan's note, separated.
+   *
+   * A coach who types a section named הערות is writing an
+   * annotation, not a block of work: its "exercises" are prose
+   * lines with no sets, no reps and no link to any one section.
+   * Drawing it as a section gave it a colour tile, a place in the
+   * collapse order and a count of "3 הערות", which is not what it
+   * is. So it leaves the section list here and comes back at the
+   * foot of the sheet as one plan-level rubric.
+   *
+   * NOTHING IS WRITTEN. The rows stay exactly as the coach saved
+   * them — this only decides what the trainee's sheet draws.
+   * Joined with newlines, in the order stored, so a plan with
+   * several note lines keeps them as separate lines.
+   */
+  const { grouped, planNote } = useMemo(() => {
+    if (!data) return { grouped: [], planNote: '' };
+    const all = (data.sections || []).map((s) => ({
       section: s,
       rows: (data.exercises || []).filter((e) => e.training_section_id === s.id),
     })).filter((g) => g.rows.length > 0);
+    const noteLines = [];
+    const real = [];
+    for (const g of all) {
+      if (looseName(g.section.section_name) === 'הערות') {
+        for (const r of g.rows) {
+          const line = (r.exercise_name || r.name || '').trim();
+          if (line) noteLines.push(line);
+        }
+        continue;
+      }
+      real.push(g);
+    }
+    return { grouped: real, planNote: noteLines.join('\n') };
   }, [data]);
 
   if (!planId) return <div dir="rtl" style={{ padding: 24, background: CREAM }}>לא צוין מזהה תוכנית</div>;
@@ -1607,7 +1667,6 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
               const theme = themeOf(section);
               const cat = (section.category || section.section_name || '').trim();
               const rail = section.coach_notes || '';
-              const isNotes = looseName(section.section_name) === 'הערות';
               const isShut = !!collapsed[section.id];
               const toggle = () => setCollapsed((c) => ({ ...c, [section.id]: !c[section.id] }));
               // ONE shade, two parts: the tile is the light end of
@@ -1631,9 +1690,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
               //    up with the label card it replaces. Tap to expand.
               if (isShut) {
                 const n = rows.length;
-                const countText = isNotes
-                  ? (n === 1 ? 'הערה אחת' : `${n} הערות`)
-                  : (n === 1 ? 'תרגיל אחד' : `${n} תרגילים`);
+                const countText = n === 1 ? 'תרגיל אחד' : `${n} תרגילים`;
                 return (
                   <button
                     key={section.id}
@@ -1705,12 +1762,6 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                         overflowWrap: 'anywhere', maxWidth: '100%',
                       }}>{section.section_name || cat}</span>
                       <span style={{ fontSize: 9, lineHeight: 1, opacity: 0.75 }}>▾</span>
-                      {rail ? (
-                        <span style={{
-                          fontSize: 9, lineHeight: 1.3, opacity: 0.85,
-                          overflowWrap: 'anywhere',
-                        }}>{rail}</span>
-                      ) : null}
                     </div>
                   </button>
 
@@ -1726,24 +1777,10 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                     }}>
                       {rows.map((ex) => {
 
-                        // ── A הערות row is a line of prose. Before the
-                        //    ordinal is spent, so the numbering of real
-                        //    exercises is not pushed along by a note.
-                        if (isNotes) {
-                          return (
-                            <div key={ex.id} style={{
-                              ...rowCard,
-                              display: 'flex', gap: 6, alignItems: 'baseline',
-                              ...rowPad,
-                            }}>
-                              <span style={starStyle}>✳</span>
-                              <span style={{
-                                fontSize: 12, fontWeight: 400, color: CHARCOAL,
-                                lineHeight: 1.5, minWidth: 0, overflowWrap: 'anywhere',
-                              }}>{ex.exercise_name || ex.name || ''}</span>
-                            </div>
-                          );
-                        }
+                        // Prose rows used to be drawn here, for a
+                        // section named הערות. That section never
+                        // reaches this map any more — it is the
+                        // plan-level rubric at the foot of the sheet.
 
                         const container = isContainer(ex, parseTabataData);
                         const td = container ? parseTabataData(ex.tabata_data) : null;
@@ -1937,12 +1974,32 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                           </div>
                         );
                       })}
+
+                      {/* The section's own coach_notes, as a rubric
+                          under its last exercise. It used to be 9px
+                          text down the label tile, where a sentence
+                          like "שים לב שאתה שומר על ציר התנועה" had
+                          nowhere to go. Same column as the rows, so
+                          it reads as belonging to them. */}
+                      <NoteRubric text={rail} style={{ padding: '0 3px 2px' }} />
                     </div>
                   )}
                 </div>
               );
             })}
           </div>
+
+          {/* ── The plan's own note ───────────────────────────────
+              A section a coach named הערות, surfaced here as one
+              rubric standing UNDER the last real section. Not
+              folded into a section: its lines carry no section of
+              their own, and choosing one would be inventing a link
+              the coach never made. */}
+          {planNote && (
+            <div style={{ padding: '4px 10px 0' }}>
+              <NoteRubric text={planNote} />
+            </div>
+          )}
 
           {/* ── Feeling ──────────────────────────────────────────── */}
           <div style={{ padding: '0 5px' }}>
