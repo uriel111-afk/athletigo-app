@@ -36,9 +36,30 @@ input, textarea, select {
   overflow-x: hidden;
 }
 
-/* Ensure no horizontal scroll */
+/* Ensure no horizontal scroll.
+
+   overflow-x is declared TWICE on purpose. `hidden` makes an element a
+   scroll container, and CSS then computes the other axis from visible
+   to AUTO — so this one rule used to turn every element in the app into
+   a vertical scrollport. Any element whose line box overran its content
+   box by a pixel (line-height at or near 1 on a bold number, a clock
+   digit, a nav label, a pill) grew a real scrollbar: two arrow buttons,
+   no track, ~16px wide, eaten out of its own width. It read as a number
+   spinner, it answered the wheel, and it was invisible to the DOM
+   because a scrollbar is not an element.
+
+   `clip` clips exactly the same way but is NOT a scroll container, and
+   clip alongside visible does not coerce either axis, so overflow-y
+   stays visible and no stray scrollbar can be painted anywhere. The
+   `hidden` line above it is the fallback for engines without clip
+   (Chrome < 90, Safari < 16), which keep the old behaviour.
+
+   Anything that legitimately scrolls sideways sets its own
+   overflow-x: auto and is unaffected — a rule on * loses to every
+   class and inline style. */
 * {
   overflow-x: hidden;
+  overflow-x: clip;
   max-width: 100%;
 }
 

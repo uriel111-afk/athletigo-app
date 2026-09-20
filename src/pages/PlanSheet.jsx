@@ -1556,14 +1556,11 @@ export default function PlanSheet() {
              it answered the wheel, and it was un-clickable and
              absent from the DOM — because a scrollbar is not an
              element.
-             Every element INSIDE the sheet gets overflow-x:clip,
-             which clips the same way but is not a scroll container,
-             so overflow-y stays visible: no scrollbar can be
-             painted anywhere on the sheet, and the one pixel of
-             font overshoot still paints instead of being cut.
-             Scoped to .ps-page — the dialog (.ps-dlg) is portalled
-             outside it and keeps its scrolling body and its
-             editable boxes. */
+             That is fixed at the root now: the * rule in App.css
+             declares overflow-x:clip after its hidden fallback, so
+             no element anywhere in the app is a scroll container by
+             accident and overflow-y stays visible. The sheet needs
+             no rule of its own. */
       }
       <style>{`
 .ps-entry{flex:0 0 auto;min-width:-webkit-max-content;min-width:max-content;display:flex;justify-content:flex-start;align-items:center;flex-wrap:nowrap}
@@ -1572,8 +1569,7 @@ export default function PlanSheet() {
 .ps-page input[type=number]::-webkit-inner-spin-button,
 .ps-dlg input[type=number]::-webkit-outer-spin-button,
 .ps-dlg input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-html,body,#root,.ps-page,.ps-frame{overflow-x:clip}
-.ps-page *{overflow-x:clip}`}</style>
+html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
 
       {/* ── The sheet: a THIN dark frame around cream paper. The
              dark is a 1px rule plus a 4px mat, not a 7px slab: the
