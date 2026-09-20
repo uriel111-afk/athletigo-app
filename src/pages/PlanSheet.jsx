@@ -969,13 +969,22 @@ export default function PlanSheet() {
       // the completion sheet shows what they wrote.
       const { data: execRows } = await supabase
         .from('exercise_executions')
-        .select('exercise_id, trainee_note')
+        .select('exercise_id, trainee_note, is_completed')
         .eq('workout_execution_id', ex.id);
       const nextNotes = {};
+      // A measured exercise's tick lives here now, so the ticks come
+      // from TWO places: the value-less set-log row a check-only
+      // exercise still writes, and this column. Merged, never
+      // replaced — an exercise is represented in one or the other.
+      const execChecks = {};
       for (const r of execRows || []) {
         if (r.trainee_note) nextNotes[r.exercise_id] = r.trainee_note;
+        if (r.is_completed) execChecks[r.exercise_id] = true;
       }
       setNotes(nextNotes);
+      if (Object.keys(execChecks).length) {
+        setChecks((prev) => ({ ...prev, ...execChecks }));
+      }
     })();
   }, [planId, user?.id]);
 
@@ -1144,22 +1153,85 @@ export default function PlanSheet() {
     };
   }, []);
 
-  const toggleCheck = useCallback(async (exerciseId, exerciseName) => {
+  /**
+   * COMPLETION FOR A MEASURED EXERCISE — exercise_executions.
+   *
+   * A measured row's tick used to be stored the way a check-only
+   * row's is: a set-log row at (drill 0, set 1) carrying no
+   * measurement, which the sheet reads back as "ticked". That works
+   * only while the row has no boxes of its own. The moment it does,
+   * the tick and set 1 are the SAME row at the SAME conflict key,
+   * and saveSetActual upserts every column it builds — so a tick
+   * wrote NULL over a real value, and a later value write erased the
+   * tick. On a container it was worse: the parent's drill_index 0 is
+   * the FIRST SUB's slot, so ticking a superset wiped that sub's
+   * set 1.
+   *
+   * So a measured row's completion lives on its own column now —
+   * exercise_executions.is_completed, the same table and the same
+   * select-then-update-or-insert saveCompletion already uses for
+   * the trainee's note. Nothing about saveSetActual changes, and the
+   * set grid holds measurements only.
+   */
+  const setExerciseCompleted = useCallback(async (exerciseId, done) => {
+    const id = await ensureExecution();
+    if (!id) return;
+    const stamp = done ? new Date().toISOString() : null;
+    const { data: existing } = await supabase
+      .from('exercise_executions')
+      .select('id')
+      .eq('workout_execution_id', id)
+      .eq('exercise_id', exerciseId)
+      .limit(1);
+    if (existing && existing.length > 0) {
+      const { error } = await supabase
+        .from('exercise_executions')
+        .update({ is_completed: done, completed_at: stamp })
+        .eq('id', existing[0].id);
+      if (error) console.warn('[PlanSheet] completion update failed:', error.message);
+      return;
+    }
+    const row = (data?.exercises || []).find((e) => e.id === exerciseId);
+    const { error } = await supabase.from('exercise_executions').insert({
+      workout_execution_id: id,
+      exercise_id: exerciseId,
+      section_id: row?.training_section_id || null,
+      is_completed: done,
+      completed_at: stamp,
+    });
+    if (error) console.warn('[PlanSheet] completion insert failed:', error.message);
+  }, [ensureExecution, data?.exercises]);
+
+  /**
+   * The row's tick. `measured` — does this exercise own any entry
+   * box, its subs' included — decides WHERE the completion is kept:
+   *   measured   → exercise_executions.is_completed, off the grid
+   *   check-only → the value-less set-log row, exactly as before
+   * A check-only row has no set 1 to collide with, so its behaviour
+   * is left untouched, down to the allowEmpty flag.
+   */
+  const toggleCheck = useCallback(async (exerciseId, exerciseName, measured = false) => {
     if (locked) return;
     const nextVal = !checks[exerciseId];
     setChecks((p) => ({ ...p, [exerciseId]: nextVal }));
     // COMPLETION FIRST, and never gated on the sheet. The tick is
     // already flipped and the row already written before the sheet is
     // even opened; closing it without answering anything leaves the
-    // exercise complete. Unticking only clears the tick — the ratings
-    // and the note live on different columns and are left alone.
+    // exercise complete.
     if (nextVal) setCompletion({ exerciseId, name: exerciseName });
+    if (measured) {
+      // Both directions persist here, which the set-log tick could
+      // never do: unticking clears is_completed instead of leaving a
+      // value-less row behind that reads as ticked on the next load.
+      await setExerciseCompleted(exerciseId, nextVal);
+      return;
+    }
     const id = await ensureExecution();
     if (!id) return;
     // A check carries no measurement, so allowEmpty is required or the
     // empty-write guard in saveSetActual drops it.
     await saveSetActual(supabase, id, exerciseId, 0, 1, {}, { allowEmpty: true });
-  }, [checks, ensureExecution, locked]);
+  }, [checks, ensureExecution, locked, setExerciseCompleted]);
 
   /**
    * What the completion sheet answered. Everything on it is optional,
@@ -1225,18 +1297,11 @@ export default function PlanSheet() {
     }
   }, [ensureExecution, locked, data?.exercises]);
 
-  // A sub row's tick writes exactly where a sub's numbers write — same
-  // exercise_id, drill_index = the sub's index — only with every
-  // measurement column null. No collision with the parent's own
-  // drill_index 0 row: a container never renders a top-level tick.
-  const toggleSubCheck = useCallback(async (exerciseId, drillIdx) => {
-    if (locked) return;
-    const key = `${exerciseId}:sub${drillIdx}`;
-    setChecks((p) => ({ ...p, [key]: !p[key] }));
-    const id = await ensureExecution();
-    if (!id) return;
-    await saveSetActual(supabase, id, exerciseId, drillIdx, 1, {}, { allowEmpty: true });
-  }, [ensureExecution, locked]);
+  // The per-sub tick is gone with the sub rows: a container is one
+  // row on the sheet and one dialog on tap, and its completion is the
+  // parent's. It carried the same collision this fix removes — it
+  // wrote a value-less row at (drill = the sub's index, set 1), which
+  // is exactly where that sub's first value goes.
 
   /**
    * A clock that measured something writes through the ORDINARY save
@@ -1758,7 +1823,6 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                             subParam: subParamOf(sub, sm, 16),
                             subHint: subTech.hint,
                             sbp: boxPlan(subEditable ? boxesPerSub : 0),
-                            showTick: !subEditable && !isClock,
                             lastSub: sidx === subs.length - 1,
                             subEntries: subEditable
                               ? indexEntries(Array.from({ length: boxesPerSub }).map((_, ri) => ({
@@ -1840,7 +1904,14 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                                   same shape. */}
                               <button
                                 type="button"
-                                onClick={(e) => { e.stopPropagation(); toggleCheck(ex.id, exName); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // dialogEntries is every box this row owns —
+                                  // its own, or its subs'. Empty means a
+                                  // check-only row (or a clock), which keeps
+                                  // the original set-log tick.
+                                  toggleCheck(ex.id, exName, dialogEntries.length > 0);
+                                }}
                                 disabled={locked}
                                 aria-pressed={!!checks[ex.id]}
                                 aria-label="סמן כבוצע"
@@ -1974,7 +2045,18 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
           style={{ maxWidth: 400 }}
         >
           {detail && (
-            <div dir="rtl" style={{ fontFamily: SANS }}>
+            <div dir="rtl" style={{
+              fontFamily: SANS,
+              // A seven-stage dropset is taller than the dialog: its
+              // save button used to fall off the bottom, and the
+              // shared DialogContent is overflow:hidden, so there was
+              // no way to scroll to it. The dialog is a column now —
+              // band, scrolling body, pinned foot — bounded just
+              // inside DialogContent's own cap so the frame never
+              // clips it. 74dvh leaves room for the shared p-6.
+              display: 'flex', flexDirection: 'column',
+              maxHeight: '74dvh', minHeight: 0,
+            }}>
               {/* Full bleed over the shared p-6 padding. */}
               <div style={{
                 // The band bleeds SIDEWAYS over the shared dialog's
@@ -1987,6 +2069,7 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                 // rounded frame, and 44px of physical right padding
                 // keeps every line clear of the close control.
                 margin: '-18px -24px 0',
+                flexShrink: 0,
                 borderRadius: '8px 8px 0 0',
                 background: BAND_BG, borderBottom: `1px solid ${BAND_LINE}`,
                 padding: '18px 44px 14px 16px',
@@ -2013,7 +2096,17 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
                 )}
               </div>
 
-              <div style={{ paddingTop: 14 }}>
+              <div style={{
+                paddingTop: 14,
+                // The one scrolling part. minHeight:0 is what lets a
+                // flex child shrink below its content and actually
+                // scroll; without it the column just grows and the
+                // foot leaves the screen again.
+                flex: 1, minHeight: 0, overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                // Clear of the RTL scrollbar gutter.
+                paddingInlineStart: 2,
+              }}>
                 {detail.hint && (
                   <div style={{
                     fontSize: 12, fontWeight: 400, color: MUTED,
@@ -2182,8 +2275,10 @@ html,body,#root,.ps-page,.ps-frame{overflow-x:clip}`}</style>
               </div>
 
               <div style={{
-                display: 'flex', gap: 8, marginTop: 18,
+                display: 'flex', gap: 8, marginTop: 14,
                 paddingTop: 14, borderTop: `1px solid ${DIVIDER}`,
+                // Pinned: the body above scrolls, this never does.
+                flexShrink: 0, background: WHITE,
               }}>
                 {detail.entries.length > 0 && !locked && (
                   <button
